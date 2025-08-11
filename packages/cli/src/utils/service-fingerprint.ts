@@ -97,8 +97,10 @@ export function createSecretsHash(
  */
 export async function getLocalImageHash(imageName: string): Promise<string | null> {
   try {
-    const result = await execAsync(`docker inspect --format='{{.Id}}' ${imageName}:latest`);
+    const command = `docker inspect --format='{{.Id}}' ${imageName}:latest`;
+    const result = await execAsync(command);
     const imageId = result.stdout.trim();
+    
     return imageId || null;
   } catch (error) {
     return null; // Image doesn't exist locally

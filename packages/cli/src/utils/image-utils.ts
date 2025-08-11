@@ -32,14 +32,14 @@ export function getServiceImageName(serviceEntry: ServiceEntry): string {
 }
 
 /**
- * Builds the full image name with release ID for built services, or returns original name for pre-built services
+ * Builds the full image name for built services, or returns original name for pre-built services
  */
-export function buildServiceImageName(serviceEntry: ServiceEntry, releaseId: string): string {
+export function buildServiceImageName(serviceEntry: ServiceEntry, releaseId?: string): string {
   const baseImageName = getServiceImageName(serviceEntry);
 
-  // For services that need building, use release ID
+  // For services that need building, always use :latest
   if (serviceNeedsBuilding(serviceEntry)) {
-    return `${baseImageName}:${releaseId}`;
+    return `${baseImageName}:latest`;
   }
   // For pre-built services, use the image as-is (if it exists)
   return serviceEntry.image || baseImageName;

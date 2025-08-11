@@ -652,6 +652,12 @@ async function deployServices(context: DeploymentContext): Promise<ServiceDeploy
 
     // Build complete - show checkmark
     logger.phaseEnd("Building locally");
+    
+    // Now create fingerprints for built services (after build is complete)
+    for (const serviceEntry of servicesNeedingBuild) {
+      const fingerprint = await createServiceFingerprint(serviceEntry, context.secrets, context.projectName);
+      context.serviceFingerprints!.set(serviceEntry.name, fingerprint);
+    }
   }
 
   // Show info about pre-built services
@@ -782,21 +788,18 @@ async function buildOrTagServiceImage(
     try {
       const buildConfig = await getServiceBuildConfig(serviceEntry, context);
 
-      // Create both release-specific and :latest tags for fingerprinting
-      const baseImageName = getServiceImageName(serviceEntry);
-      const latestTag = `${baseImageName}:latest`;
-      
+      // Create only :latest tag (imageNameWithRelease is now always :latest for built services)
       await DockerClient.build({
         context: buildConfig.context,
         dockerfile: buildConfig.dockerfile,
-        tags: [imageNameWithRelease, latestTag],
+        tags: [imageNameWithRelease], // This is already serviceName:latest
         buildArgs: buildConfig.args,
         platform: buildConfig.platform,
         target: buildConfig.target,
         verbose: context.verboseFlag,
       });
       logger.verboseLog(
-        `Successfully built and tagged ${imageNameWithRelease} and ${latestTag} for platforms: ${buildConfig.platform}`
+        `Successfully built and tagged ${imageNameWithRelease} for platform: ${buildConfig.platform}`
       );
       return true;
     } catch (error) {
@@ -804,26 +807,18 @@ async function buildOrTagServiceImage(
       return false;
     }
   } else {
-    // For services that don't need building, tag the existing image
+    // For services that don't need building, tag the existing image as :latest
     const baseImageName = getServiceImageName(serviceEntry);
-    const latestTag = `${baseImageName}:latest`;
-    logger.verboseLog(`Tagging ${baseImageName} as ${imageNameWithRelease} and ${latestTag}...`);
+    logger.verboseLog(`Tagging ${baseImageName} as ${imageNameWithRelease}...`);
     try {
       await DockerClient.tag(
         baseImageName,
-        imageNameWithRelease,
-        context.verboseFlag
-      );
-      
-      // Also create :latest tag for fingerprinting
-      await DockerClient.tag(
-        baseImageName,
-        latestTag,
+        imageNameWithRelease, // This is already serviceName:latest for built services
         context.verboseFlag
       );
       
       logger.verboseLog(
-        `Successfully tagged ${baseImageName} as ${imageNameWithRelease} and ${latestTag}`
+        `Successfully tagged ${baseImageName} as ${imageNameWithRelease}`
       );
       return true;
     } catch (error) {
@@ -1066,11 +1061,9 @@ async function deployServiceWithStrategy(
     throw new Error(`No fingerprint found for service ${service.name}`);
   }
   
-
   const redeployDecision = shouldRedeploy(currentFingerprint, desiredFingerprint);
   
   if (!redeployDecision.shouldRedeploy) {
-    logger.verboseLog(`✓ Service ${service.name} is up-to-date (${redeployDecision.reason})`);
     logger.serviceDeploymentSkipped(service.name, "up-to-date, skipped", isLastService);
     
     // Generate URL if service has proxy configuration
@@ -2497,10 +2490,14 @@ export async function deployCommand(rawEntryNamesAndFlags: string[]) {
     );
 
     // Generate service fingerprints for smart redeployment
+    // Note: Only create fingerprints for external services now, built services after build
     const serviceFingerprints = new Map<string, ServiceFingerprint>();
     for (const service of targetServices) {
-      const fingerprint = await createServiceFingerprint(service, secrets, config.name);
-      serviceFingerprints.set(service.name, fingerprint);
+      if (!serviceNeedsBuilding(service)) {
+        // External services can have fingerprints created immediately
+        const fingerprint = await createServiceFingerprint(service, secrets, config.name);
+        serviceFingerprints.set(service.name, fingerprint);
+      }
     }
 
     const context: DeploymentContext = {
