@@ -80,7 +80,7 @@ bun run build
 
 # Commit version bump
 cd ../..
-git add packages/cli/package.json
+git add packages/cli/package.json package-lock.json
 git commit -m "chore: bump version to v${NEW_VERSION}"
 
 # Create and push tag
