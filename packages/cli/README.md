@@ -22,7 +22,7 @@ name: my-app
 ssh:
   username: iop
 
-services:
+apps:
   web:
     build:
       context: .
@@ -44,7 +44,7 @@ services:
   ├─ [✓] Build web image (1.3s)
   └─ [✓] Package for transfer (2.2s)
 [✓] Reconciling state (703ms)
-[✓] Deploying services
+[✓] Deploying applications
   └─ web → 157.180.47.213
      ├─ [✓] Transfer image (6.1s)
      ├─ [✓] Zero-downtime deployment (3.0s)
@@ -66,9 +66,8 @@ Your app is live at:
 - **Git-based releases**: Each deployment tagged with Git SHA for easy rollbacks via git checkout + redeploy
 - **Secure by default**: Fail2Ban, automatic updates, SSH hardening, dedicated users, firewall configuration
 - **Proxy management**: Built-in reverse proxy with HTTP/HTTPS termination and host-based routing
-- **Comprehensive status**: Real-time deployment status across all servers and services
-- **Smart deployments**: Services with `proxy` config get zero-downtime blue-green deployment, others get stop-start
-- **Deployment fingerprinting**: Only redeploys when code, config, or dependencies actually change
+- **Comprehensive status**: Real-time deployment status across all servers and applications
+- **Services vs Apps**: Apps get zero-downtime blue-green deployment, services get direct replacement
 - **Network aliases**: Seamless traffic switching using Docker network aliases for true zero-downtime
 
 ## Why iop?
@@ -104,7 +103,7 @@ name: my-app
 ssh:
   username: iop
 
-services:
+apps:
   web:
     build:
       context: .
@@ -112,17 +111,16 @@ services:
     server: 157.180.47.213
     proxy:
       hosts:
-        - myapp.com # optional, auto-generated if not provided
+        - myapp.com #- optional, auto-generated if not provided
       app_port: 3000
     environment:
       secret:
         - DATABASE_URL
 
+services:
   postgres:
     image: postgres:15
     server: 157.180.47.213
-    ports:
-      - "5432:5432"
     environment:
       secret:
         - POSTGRES_PASSWORD
@@ -141,13 +139,15 @@ POSTGRES_PASSWORD=supersecret
 
 ```bash
 iop init                    # Create iop.yml and .iop/secrets
-iop                         # Deploy all services (auto-setup included)
-iop web postgres            # Deploy specific services by name
+iop                         # Deploy all apps and services (auto-setup included)
+iop web                     # Deploy specific app by name
+iop --services              # Deploy services only
 iop --verbose               # Deploy with detailed output
 iop status                  # Check deployment status across all servers
-iop status web              # Check specific service status
 iop proxy status            # Check proxy status on all servers
 iop proxy update            # Update proxy to latest version
+iop proxy delete-host --host api.example.com  # Remove host from proxy
+iop proxy logs --lines 100  # Show proxy logs (default: 50 lines)
 ```
 
 **Note**: Infrastructure setup is automatic. Fresh servers are detected and configured automatically during deployment - no separate setup command needed.
@@ -162,7 +162,7 @@ name: my-app
 ssh:
   username: iop
 
-services:
+apps:
   web:
     build:
       context: .
@@ -184,7 +184,7 @@ name: my-app
 ssh:
   username: iop
 
-services:
+apps:
   web:
     build:
       context: .
@@ -195,11 +195,12 @@ services:
       secret:
         - DATABASE_URL
 
+services:
   postgres:
     image: postgres:15
     server: 157.180.47.213
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       secret:
         - POSTGRES_PASSWORD
@@ -211,16 +212,16 @@ services:
 
 - **Registry-free deployment**: Build Docker images locally, transfer via SSH, deploy with zero downtime
 - **Smart server setup**: Detects fresh servers and automatically installs Docker, hardens SSH, sets up users
-- **Blue-green deployment**: Services with `proxy` config get zero-downtime deployment, others use stop-start
-- **Deployment fingerprinting**: Analyzes code, config, and dependencies to skip unnecessary rebuilds
+- **Blue-green deployment**: New version deployed alongside current, health checked, then traffic switched atomically
 - **Automatic HTTPS**: Provisions SSL certificates and domains automatically (or use your own)
 - **Intelligent infrastructure**: Setup happens automatically during deployment - no separate commands needed
 
 ## Requirements
 
-- **Local**: Node.js 18+ (with Docker for building images)
+- **Local**: Node.js 18+ or Bun
 - **Servers**: Ubuntu/Debian with SSH access (root for fresh servers)  
 - **Ports**: 80, 443 open for HTTP/HTTPS traffic
+- **Docker**: Installed locally for building images
 
 Fresh servers only need root SSH access - iop handles Docker installation and security configuration automatically.
 
