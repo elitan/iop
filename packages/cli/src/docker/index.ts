@@ -1170,21 +1170,19 @@ EOF`);
     success: boolean;
     spaceBefore: number;
     spaceAfter: number;
-    cleaned: boolean;
+    tempFilesCleanedUp: boolean;
+    dockerImagesCleanedUp: boolean;
   }> {
     const spaceInfoBefore = await this.checkDiskSpace();
     
-    let cleaned = false;
+    // Always clean up temp files - they're just leftover artifacts
+    const tempFilesCleanedUp = await this.cleanupTempFiles();
     
-    // Only perform cleanup if disk usage is high (> 80%) or available space is low (< 2GB)
+    let dockerImagesCleanedUp = false;
+    
+    // Only perform Docker image cleanup if disk usage is high (> 80%) or available space is low (< 2GB)
     if (spaceInfoBefore.usedPercent > 80 || spaceInfoBefore.available < 2) {
-      cleaned = true;
-      
-      // Clean up old Docker images
-      await this.pruneImages();
-      
-      // Clean up temp files
-      await this.cleanupTempFiles();
+      dockerImagesCleanedUp = await this.pruneImages();
     }
     
     const spaceInfoAfter = await this.checkDiskSpace();
@@ -1193,7 +1191,8 @@ EOF`);
       success: true,
       spaceBefore: spaceInfoBefore.available,
       spaceAfter: spaceInfoAfter.available,
-      cleaned
+      tempFilesCleanedUp,
+      dockerImagesCleanedUp
     };
   }
 

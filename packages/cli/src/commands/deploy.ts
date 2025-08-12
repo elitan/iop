@@ -1025,14 +1025,23 @@ async function deployServicesToServer(
 
     // Perform pre-deployment disk cleanup to prevent space issues
     const cleanupResult = await dockerClient.performPreDeploymentCleanup();
-    if (cleanupResult.cleaned) {
+    
+    const cleanupActions: string[] = [];
+    if (cleanupResult.tempFilesCleanedUp) {
+      cleanupActions.push("temp files");
+    }
+    if (cleanupResult.dockerImagesCleanedUp) {
+      cleanupActions.push("Docker images");
+    }
+    
+    if (cleanupActions.length > 0) {
       const spaceFreed = cleanupResult.spaceAfter - cleanupResult.spaceBefore;
       logger.verboseLog(
-        `[${serverHostname}] Disk cleanup completed: freed ${spaceFreed}GB (${cleanupResult.spaceBefore}GB → ${cleanupResult.spaceAfter}GB available)`
+        `[${serverHostname}] Cleaned up ${cleanupActions.join(" + ")}: freed ${spaceFreed}GB (${cleanupResult.spaceBefore}GB → ${cleanupResult.spaceAfter}GB available)`
       );
     } else {
       logger.verboseLog(
-        `[${serverHostname}] Disk cleanup skipped: ${cleanupResult.spaceAfter}GB available`
+        `[${serverHostname}] Cleanup skipped: ${cleanupResult.spaceAfter}GB available`
       );
     }
 
