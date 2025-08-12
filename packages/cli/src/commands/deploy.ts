@@ -1023,6 +1023,27 @@ async function deployServicesToServer(
       context.verboseFlag
     );
 
+    // Perform pre-deployment disk cleanup to prevent space issues
+    const cleanupResult = await dockerClient.performPreDeploymentCleanup();
+    if (cleanupResult.cleaned) {
+      const spaceFreed = cleanupResult.spaceAfter - cleanupResult.spaceBefore;
+      logger.verboseLog(
+        `[${serverHostname}] Disk cleanup completed: freed ${spaceFreed}GB (${cleanupResult.spaceBefore}GB → ${cleanupResult.spaceAfter}GB available)`
+      );
+    } else {
+      logger.verboseLog(
+        `[${serverHostname}] Disk cleanup skipped: ${cleanupResult.spaceAfter}GB available`
+      );
+    }
+
+    // Validate sufficient disk space after cleanup
+    if (cleanupResult.spaceAfter < 1) {
+      throw new Error(
+        `Insufficient disk space on ${serverHostname}: only ${cleanupResult.spaceAfter}GB available. ` +
+        `Please free up disk space manually or increase server storage.`
+      );
+    }
+
     // Deploy each service with appropriate strategy and collect results
     const results: ServiceDeploymentResult[] = [];
     for (let i = 0; i < services.length; i++) {
