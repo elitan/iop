@@ -1061,10 +1061,58 @@ async function deployServiceWithStrategy(
     throw new Error(`No fingerprint found for service ${service.name}`);
   }
   
+  // Enhanced verbose logging for deployment decision
+  if (context.verboseFlag) {
+    logger.verboseLog(`\n--- Deployment Decision Analysis for ${service.name} ---`);
+    
+    if (!currentFingerprint) {
+      logger.verboseLog(`• Current state: No existing deployment found`);
+      logger.verboseLog(`• Decision: DEPLOY (first deployment)`);
+    } else {
+      logger.verboseLog(`• Current fingerprint type: ${currentFingerprint.type}`);
+      logger.verboseLog(`• Desired fingerprint type: ${desiredFingerprint.type}`);
+      
+      // Compare configuration
+      const configMatch = currentFingerprint.configHash === desiredFingerprint.configHash;
+      logger.verboseLog(`• Configuration hash: ${configMatch ? 'MATCH' : 'CHANGED'}`);
+      logger.verboseLog(`  - Current:  ${currentFingerprint.configHash}`);
+      logger.verboseLog(`  - Desired:  ${desiredFingerprint.configHash}`);
+      
+      // Compare secrets
+      const secretsMatch = currentFingerprint.secretsHash === desiredFingerprint.secretsHash;
+      logger.verboseLog(`• Secrets hash: ${secretsMatch ? 'MATCH' : 'CHANGED'}`);
+      logger.verboseLog(`  - Current:  ${currentFingerprint.secretsHash}`);
+      logger.verboseLog(`  - Desired:  ${desiredFingerprint.secretsHash}`);
+      
+      // Compare image/code for built services
+      if (desiredFingerprint.type === 'built') {
+        const imageMatch = currentFingerprint.serverImageHash === desiredFingerprint.localImageHash;
+        logger.verboseLog(`• Image hash: ${imageMatch ? 'MATCH' : 'CHANGED'}`);
+        logger.verboseLog(`  - Server:   ${currentFingerprint.serverImageHash || 'N/A'}`);
+        logger.verboseLog(`  - Local:    ${desiredFingerprint.localImageHash || 'N/A'}`);
+      }
+      
+      // Compare image reference for external services
+      if (desiredFingerprint.type === 'external') {
+        const imageRefMatch = currentFingerprint.imageReference === desiredFingerprint.imageReference;
+        logger.verboseLog(`• Image reference: ${imageRefMatch ? 'MATCH' : 'CHANGED'}`);
+        logger.verboseLog(`  - Current:  ${currentFingerprint.imageReference || 'N/A'}`);
+        logger.verboseLog(`  - Desired:  ${desiredFingerprint.imageReference || 'N/A'}`);
+      }
+    }
+  }
+  
   const redeployDecision = shouldRedeploy(currentFingerprint, desiredFingerprint);
   
+  if (context.verboseFlag) {
+    logger.verboseLog(`• Final decision: ${redeployDecision.shouldRedeploy ? 'DEPLOY' : 'SKIP'}`);
+    logger.verboseLog(`• Reason: ${redeployDecision.reason}`);
+    logger.verboseLog(`• Priority: ${redeployDecision.priority}`);
+    logger.verboseLog(`--------------------------------------------------\n`);
+  }
+  
   if (!redeployDecision.shouldRedeploy) {
-    logger.serviceDeploymentSkipped(service.name, "up-to-date, skipped", isLastService);
+    logger.serviceDeploymentSkipped(service.name, redeployDecision.reason, isLastService);
     
     // Generate URL if service has proxy configuration
     let url: string | undefined;
@@ -1090,7 +1138,7 @@ async function deployServiceWithStrategy(
   }
 
   logger.verboseLog(
-    `↻ Service ${service.name} needs deployment: ${redeployDecision.reason} (${redeployDecision.priority})`
+    `Service ${service.name} needs deployment: ${redeployDecision.reason} (${redeployDecision.priority})`
   );
 
   // Start service deployment logging
@@ -1153,7 +1201,7 @@ async function deployServiceWithZeroDowntime(
   serverHostname: string,
   fingerprint: ServiceFingerprint
 ): Promise<void> {
-  logger.verboseLog(`🚀 Deploying ${service.name} with zero-downtime strategy`);
+  logger.verboseLog(`Deploying ${service.name} with zero-downtime strategy`);
 
   // Use the existing blue-green deployment logic
   const deploymentResult = await performBlueGreenDeployment({
@@ -1182,7 +1230,7 @@ async function deployServiceWithStopStart(
   dockerClient: DockerClient,
   serverHostname: string
 ): Promise<void> {
-  logger.verboseLog(`🔄 Deploying ${service.name} with stop-start strategy`);
+  logger.verboseLog(`Deploying ${service.name} with stop-start strategy`);
 
   const containerName = `${context.projectName}-${service.name}`;
 
@@ -1419,7 +1467,7 @@ async function deployServiceDirectly(
     if (serviceNeedsBuilding(serviceEntry)) {
       // For built services, transfer and load the image
       logger.verboseLog(
-        `↻ Service ${serviceEntry.name} needs update, transferring built image...`
+        `Service ${serviceEntry.name} needs update, transferring built image...`
       );
       const imageNameWithRelease = buildServiceImageName(serviceEntry, context.releaseId);
       await transferAndLoadServiceImage(
@@ -1432,7 +1480,7 @@ async function deployServiceDirectly(
     } else {
       // For pre-built services, pull the image from registry
       logger.verboseLog(
-        `↻ Service ${serviceEntry.name} needs update, pulling image...`
+        `Service ${serviceEntry.name} needs update, pulling image...`
       );
       await authenticateAndPullImage(
         serviceEntry,
@@ -1677,7 +1725,7 @@ async function configureProxyForService(
       const isHealthy = true;
 
       logger.verboseLog(
-        `Health check for ${host}: ${isHealthy ? "✅ healthy" : "❌ unhealthy"}`
+        `Health check for ${host}: ${isHealthy ? "healthy" : "unhealthy"}`
       );
 
       // Update proxy with the correct health status
@@ -1802,7 +1850,7 @@ export async function serviceNeedsUpdate(
 
     if (result.hasChanges) {
       logger.verboseLog(
-        `↻ Service ${containerName} needs update: ${result.reason}`
+        `Service ${containerName} needs update: ${result.reason}`
       );
       return true;
     }
@@ -1826,7 +1874,7 @@ async function replaceServiceContainer(
 
   // Note: needsUpdate check is now done before calling this function
   logger.verboseLog(
-    `↻ Service ${serviceEntry.name} needs update, recreating container`
+    `Service ${serviceEntry.name} needs update, recreating container`
   );
 
   try {

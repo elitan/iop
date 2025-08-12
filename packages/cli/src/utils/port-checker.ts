@@ -264,7 +264,7 @@ export class PortChecker {
 
     for (const conflict of conflicts) {
       suggestions.push(
-        `❌ Port ${conflict.port} conflict for ${conflict.requestedBy}:`
+        `✗ Port ${conflict.port} conflict for ${conflict.requestedBy}:`
       );
 
       if (conflict.conflictsWith.isDockerContainer) {

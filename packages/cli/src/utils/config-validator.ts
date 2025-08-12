@@ -291,7 +291,7 @@ export function formatValidationErrors(
     return formatted;
   }
 
-  formatted.push("❌ Configuration validation failed:");
+  formatted.push("✗ Configuration validation failed:");
   formatted.push("");
 
   for (const error of errors) {

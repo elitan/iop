@@ -305,3 +305,6 @@ When modifying proxy code:
 
 - When we want to release, the info is in @RELEASE.md 
 - To test this CLI you can just run run build and then you can use iop because we have used bun link. So iop should be available with the newly built executable.
+- dont use emojis in the logs.  - ✓ → [OK]
+  - ✗ → [ERROR] or [STOPPED]
+  - ↻ → (removed) are ok

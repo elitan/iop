@@ -88,9 +88,9 @@ async function getCertificateQueueStatus(
       if (foundCertSection) {
         // Look for status lines with emojis or specific patterns
         if (
-          trimmedLine.match(/^[⏳🔄] (Pending|Retrying)/) ||
-          trimmedLine.includes("⏳ Pending") ||
-          trimmedLine.includes("🔄 Retrying")
+          trimmedLine.match(/^(Pending|Retrying)/) ||
+          trimmedLine.includes("Pending") ||
+          trimmedLine.includes("Retrying")
         ) {
           // Extract hostname (last word on the line)
           const parts = trimmedLine.split(" ");
@@ -263,7 +263,7 @@ export function formatProxyStatus(proxyStatus: ProxyStatus): string[] {
     );
 
     for (const entry of proxyStatus.certificateQueue) {
-      const entryStatusIcon = entry.status === "pending" ? "⏳" : "🔄";
+      const entryStatusIcon = entry.status === "pending" ? "PENDING" : "RETRYING";
       const attemptText =
         entry.attempts > 0 ? ` (attempt ${entry.attempts})` : "";
       lines.push(
@@ -275,7 +275,7 @@ export function formatProxyStatus(proxyStatus: ProxyStatus): string[] {
   }
 
   if (proxyStatus.error) {
-    lines.push(`     ├─ ⚠️  Configuration Issues: ${proxyStatus.error}`);
+    lines.push(`     ├─ WARNING: Configuration Issues: ${proxyStatus.error}`);
   }
 
   return lines;
