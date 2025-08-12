@@ -1099,6 +1099,104 @@ EOF`);
   }
 
   /**
+   * Prune all unused Docker images on the remote server.
+   */
+  async pruneImages(): Promise<boolean> {
+    try {
+      await this.execRemote("image prune -a -f");
+      return true;
+    } catch (error) {
+      this.logError(`Failed to prune Docker images: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * Check available disk space and return info about usage
+   */
+  async checkDiskSpace(): Promise<{
+    available: number; // GB
+    used: number; // GB
+    total: number; // GB
+    usedPercent: number;
+  }> {
+    if (!this.sshClient) {
+      this.logError("SSH client not available for disk space check");
+      return { available: 0, used: 0, total: 0, usedPercent: 100 };
+    }
+    
+    try {
+      const output = await this.sshClient.exec("df -BG / | tail -1");
+      // Parse output like: /dev/vda1      25G   15G   10G  60% /
+      const parts = output.trim().split(/\s+/);
+      if (parts.length >= 6) {
+        const total = parseInt(parts[1].replace('G', ''));
+        const used = parseInt(parts[2].replace('G', ''));
+        const available = parseInt(parts[3].replace('G', ''));
+        const usedPercent = parseInt(parts[4].replace('%', ''));
+        
+        return { available, used, total, usedPercent };
+      }
+      throw new Error("Could not parse disk space output");
+    } catch (error) {
+      this.logError(`Failed to check disk space: ${error}`);
+      return { available: 0, used: 0, total: 0, usedPercent: 100 };
+    }
+  }
+
+  /**
+   * Clean up old iop deployment artifacts from /tmp
+   */
+  async cleanupTempFiles(): Promise<boolean> {
+    if (!this.sshClient) {
+      this.logError("SSH client not available for temp file cleanup");
+      return false;
+    }
+    
+    try {
+      await this.sshClient.exec("find /tmp -name 'iop-*.tar.gz' -mtime +1 -delete 2>/dev/null || true");
+      await this.sshClient.exec("find /tmp -name 'iop-*.tar' -mtime +1 -delete 2>/dev/null || true");
+      return true;
+    } catch (error) {
+      this.logError(`Failed to cleanup temp files: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * Perform comprehensive disk cleanup before deployment
+   */
+  async performPreDeploymentCleanup(): Promise<{
+    success: boolean;
+    spaceBefore: number;
+    spaceAfter: number;
+    tempFilesCleanedUp: boolean;
+    dockerImagesCleanedUp: boolean;
+  }> {
+    const spaceInfoBefore = await this.checkDiskSpace();
+    
+    // Always clean up temp files - they're just leftover artifacts
+    const tempFilesCleanedUp = await this.cleanupTempFiles();
+    
+    let dockerImagesCleanedUp = false;
+    
+    // Only perform Docker image cleanup if disk usage is high (> 80%) or available space is low (< 2GB)
+    if (spaceInfoBefore.usedPercent > 80 || spaceInfoBefore.available < 2) {
+      dockerImagesCleanedUp = await this.pruneImages();
+    }
+    
+    const spaceInfoAfter = await this.checkDiskSpace();
+    
+    return {
+      success: true,
+      spaceBefore: spaceInfoBefore.available,
+      spaceAfter: spaceInfoAfter.available,
+      tempFilesCleanedUp,
+      dockerImagesCleanedUp
+    };
+  }
+
+  /**
    * Inspect a container and return its configuration
    */
   async inspectContainer(containerName: string): Promise<any> {
