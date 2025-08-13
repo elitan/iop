@@ -1,4 +1,4 @@
-import { DockerClient } from "../docker";
+import { DockerClient, createProxyLoggingConfig } from "../docker";
 import { IopConfig, IopSecrets } from "../config/types";
 import { SSHClient } from "../ssh";
 import { loadConfig } from "../config";
@@ -172,7 +172,8 @@ export async function setupIopProxy(
       return false;
     }
 
-    // Create container options
+    // Create container options with proxy logging configuration
+    const loggingConfig = createProxyLoggingConfig();
     const containerOptions = {
       name: IOP_PROXY_NAME,
       image: proxyImage,
@@ -183,6 +184,8 @@ export async function setupIopProxy(
         "/var/run/docker.sock:/var/run/docker.sock",
       ],
       restart: "always",
+      logDriver: loggingConfig.logDriver,
+      logOpts: loggingConfig.logOpts,
     };
 
     // Create and start the container

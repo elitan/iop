@@ -26,6 +26,7 @@ import {
   DockerClient,
   DockerBuildOptions,
   DockerContainerOptions,
+  createServiceLoggingConfig,
 } from "../docker";
 
 // Deployment result tracking
@@ -145,6 +146,9 @@ function serviceEntryToContainerOptions(
     imageName = serviceEntry.image!;
   }
 
+  // Add logging configuration for user services
+  const loggingConfig = createServiceLoggingConfig();
+
   return {
     name: containerName,
     image: imageName,
@@ -155,6 +159,8 @@ function serviceEntryToContainerOptions(
     networkAliases: [serviceEntry.name], // Allow other containers to reach this service by name (e.g. "db", "meilisearch")
     restart: "unless-stopped",
     configHash, // Add for comparison
+    logDriver: loggingConfig.logDriver,
+    logOpts: loggingConfig.logOpts,
     labels: {
       "iop.managed": "true",
       "iop.project": projectName,
