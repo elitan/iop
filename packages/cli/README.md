@@ -67,7 +67,7 @@ Your app is live at:
 - **Secure by default**: Fail2Ban, automatic updates, SSH hardening, dedicated users, firewall configuration
 - **Proxy management**: Built-in reverse proxy with HTTP/HTTPS termination and host-based routing
 - **Comprehensive status**: Real-time deployment status across all servers and applications
-- **Services vs Apps**: Apps get zero-downtime blue-green deployment, services get direct replacement
+- **Unified Services**: Services with `proxy` config get zero-downtime blue-green deployment, others get stop-start deployment
 - **Network aliases**: Seamless traffic switching using Docker network aliases for true zero-downtime
 
 ## Why iop?
