@@ -22,7 +22,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -44,7 +44,7 @@ apps:
   ├─ [✓] Build web image (1.3s)
   └─ [✓] Package for transfer (2.2s)
 [✓] Reconciling state (703ms)
-[✓] Deploying applications
+[✓] Deploying services
   └─ web → 157.180.47.213
      ├─ [✓] Transfer image (6.1s)
      ├─ [✓] Zero-downtime deployment (3.0s)
@@ -67,7 +67,7 @@ Your app is live at:
 - **Secure by default**: Fail2Ban, automatic updates, SSH hardening, dedicated users, firewall configuration
 - **Proxy management**: Built-in reverse proxy with HTTP/HTTPS termination and host-based routing
 - **Comprehensive status**: Real-time deployment status across all servers and applications
-- **Services vs Apps**: Apps get zero-downtime blue-green deployment, services get direct replacement
+- **Unified Services**: Services with `proxy` config get zero-downtime blue-green deployment, others get stop-start deployment
 - **Network aliases**: Seamless traffic switching using Docker network aliases for true zero-downtime
 
 ## Why iop?
@@ -103,7 +103,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -139,9 +139,8 @@ POSTGRES_PASSWORD=supersecret
 
 ```bash
 iop init                    # Create iop.yml and .iop/secrets
-iop                         # Deploy all apps and services (auto-setup included)
-iop web                     # Deploy specific app by name
-iop --services              # Deploy services only
+iop                         # Deploy all services (auto-setup included)
+iop web                     # Deploy specific service by name
 iop --verbose               # Deploy with detailed output
 iop status                  # Check deployment status across all servers
 iop proxy status            # Check proxy status on all servers
@@ -162,7 +161,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -184,7 +183,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .

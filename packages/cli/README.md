@@ -22,7 +22,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -44,7 +44,7 @@ apps:
   ├─ [✓] Build web image (1.3s)
   └─ [✓] Package for transfer (2.2s)
 [✓] Reconciling state (703ms)
-[✓] Deploying applications
+[✓] Deploying services
   └─ web → 157.180.47.213
      ├─ [✓] Transfer image (6.1s)
      ├─ [✓] Zero-downtime deployment (3.0s)
@@ -103,7 +103,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -139,9 +139,8 @@ POSTGRES_PASSWORD=supersecret
 
 ```bash
 iop init                    # Create iop.yml and .iop/secrets
-iop                         # Deploy all apps and services (auto-setup included)
-iop web                     # Deploy specific app by name
-iop --services              # Deploy services only
+iop                         # Deploy all services (auto-setup included)
+iop web                     # Deploy specific service by name
 iop --verbose               # Deploy with detailed output
 iop status                  # Check deployment status across all servers
 iop proxy status            # Check proxy status on all servers
@@ -162,7 +161,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -184,7 +183,7 @@ name: my-app
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
