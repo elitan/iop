@@ -1177,14 +1177,28 @@ async function deployServiceWithStrategy(
     `Service ${service.name} needs deployment: ${redeployDecision.reason} (${redeployDecision.priority})`
   );
 
-  // Start service deployment logging
+  // Start service deployment logging - first show uploading if needed
   const strategy = getDeploymentStrategy(service);
-  const strategyText = strategy === 'zero-downtime' ? 'zero-downtime deployment' : 'stop-start deployment';
-  const deploymentStartTime = Date.now();
-  logger.serviceDeploymentStep(service.name, strategyText, isLastService);
+  let deploymentStartTime = Date.now();
+  
+  // Show uploading step if this service needs a built image
+  if (serviceNeedsBuilding(service)) {
+    logger.serviceDeploymentStep(service.name, 'uploading', isLastService);
+    await ensureServiceImageAvailable(service, context, dockerClient, sshClient);
+    
+    const uploadDuration = Date.now() - deploymentStartTime;
+    logger.serviceDeploymentComplete(service.name, 'uploading', uploadDuration, isLastService);
+    
+    // Reset start time for the actual deployment step
+    deploymentStartTime = Date.now();
+  } else {
+    // Ensure image is available for pre-built services (no upload needed)
+    await ensureServiceImageAvailable(service, context, dockerClient, sshClient);
+  }
 
-  // Ensure image is available
-  await ensureServiceImageAvailable(service, context, dockerClient, sshClient);
+  // Now show the deployment strategy step
+  const strategyText = strategy === 'zero-downtime' ? 'zero-downtime deployment' : 'stop-start deployment';
+  logger.serviceDeploymentStep(service.name, strategyText, isLastService);
 
   // Choose deployment strategy
   if (strategy === 'zero-downtime') {
