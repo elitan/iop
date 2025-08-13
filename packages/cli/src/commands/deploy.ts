@@ -732,7 +732,7 @@ async function buildServiceImage(
 
   try {
     // Build the image
-    logger.buildStep(`Build ${serviceEntry.name} image`, isLastService);
+    logger.buildStep(`${serviceEntry.name} → building image`, isLastService);
     const buildStartTime = Date.now();
 
     const imageReady = await buildOrTagServiceImage(
@@ -743,7 +743,7 @@ async function buildServiceImage(
     if (!imageReady) throw new Error("Image build failed");
 
     const buildDuration = Date.now() - buildStartTime;
-    logger.buildStepComplete(`Build ${serviceEntry.name} image`, buildDuration, isLastService);
+    logger.buildStepComplete(`${serviceEntry.name} → building image`, buildDuration, isLastService);
   } catch (error) {
     logger.error(`${serviceEntry.name} image build failed`, error);
     throw error;
