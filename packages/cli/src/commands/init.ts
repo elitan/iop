@@ -48,7 +48,7 @@ function generateConfigContent(config: ConfigPrompts): string {
 ssh:
   username: iop
 
-apps:
+services:
   web:
     build:
       context: .
@@ -64,8 +64,7 @@ apps:
     health_check:
       path: /api/health
 
-# Example service (uncomment and configure as needed)
-# services:
+# Example infrastructure service (uncomment and configure as needed)
 #   db:
 #     image: postgres:15
 #     server: your-server-ip

@@ -42,7 +42,7 @@ describe("init command", () => {
     // Check file contents
     const configFile = Bun.file("iop.yml");
     const configContent = await configFile.text();
-    expect(configContent).toContain("apps:");
+    expect(configContent).toContain("services:");
     expect(configContent).toContain("web:");
 
     // Secrets file should contain example content
