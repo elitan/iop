@@ -28,6 +28,8 @@ export interface DockerContainerOptions {
   labels?: Record<string, string>;
   configHash?: string; // For Docker Compose-style change detection
   command?: string; // Override container command
+  logDriver?: string; // Log driver (e.g., 'json-file')
+  logOpts?: Record<string, string>; // Log driver options (e.g., max-size, max-file)
 }
 
 export interface DockerBuildOptions {
@@ -816,6 +818,17 @@ EOF`);
         });
       }
 
+      // Add logging configuration
+      if (options.logDriver) {
+        cmd += ` --log-driver ${options.logDriver}`;
+        
+        if (options.logOpts) {
+          Object.entries(options.logOpts).forEach(([key, value]) => {
+            cmd += ` --log-opt ${key}=${value}`;
+          });
+        }
+      }
+
       // Add the image
       cmd += ` ${options.image}`;
 
@@ -1260,6 +1273,11 @@ EOF`);
         }
       });
     }
+
+    // Add logging configuration for user services
+    const loggingConfig = createServiceLoggingConfig();
+    options.logDriver = loggingConfig.logDriver;
+    options.logOpts = loggingConfig.logOpts;
 
     return options;
   }
@@ -2004,4 +2022,36 @@ EOF`);
       return null;
     }
   }
+}
+
+/**
+ * Create logging configuration for proxy containers (5MB max size, 5 files)
+ */
+export function createProxyLoggingConfig(): {
+  logDriver: string;
+  logOpts: Record<string, string>;
+} {
+  return {
+    logDriver: "json-file",
+    logOpts: {
+      "max-size": "5m",
+      "max-file": "5"
+    }
+  };
+}
+
+/**
+ * Create logging configuration for user service containers (10MB max size, 3 files)
+ */
+export function createServiceLoggingConfig(): {
+  logDriver: string;
+  logOpts: Record<string, string>;
+} {
+  return {
+    logDriver: "json-file",
+    logOpts: {
+      "max-size": "10m",
+      "max-file": "3"
+    }
+  };
 }

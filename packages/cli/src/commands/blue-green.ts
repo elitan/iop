@@ -1,5 +1,5 @@
 import { ServiceEntry, IopSecrets } from "../config/types";
-import { DockerClient, DockerContainerOptions } from "../docker";
+import { DockerClient, DockerContainerOptions, createServiceLoggingConfig } from "../docker";
 import {
   serviceNeedsBuilding,
   getServiceImageName,
@@ -64,6 +64,9 @@ function createBlueGreenContainerOptions(
   // Dual alias approach: generic name for internal communication + project-specific for proxy routing
   const projectSpecificAlias = `${projectName}-${serviceEntry.name}`;
 
+  // Add logging configuration for user services
+  const loggingConfig = createServiceLoggingConfig();
+
   return {
     name: containerName,
     image: imageNameWithRelease,
@@ -77,6 +80,8 @@ function createBlueGreenContainerOptions(
     ],
     restart: "unless-stopped",
     command: serviceEntry.command,
+    logDriver: loggingConfig.logDriver,
+    logOpts: loggingConfig.logOpts,
     labels: {
       "iop.managed": "true",
       "iop.project": projectName,
