@@ -429,6 +429,8 @@ echo "Deleted project"
 echo ""
 echo "=== Test 27: Webhook triggers deployment (full e2e) ==="
 TEST_WEBHOOK_SECRET="e2e-test-webhook-secret-$(date +%s)"
+echo "Installing sqlite3 if needed..."
+remote "which sqlite3 || apt-get update && apt-get install -y sqlite3" > /dev/null 2>&1
 echo "Setting up test GitHub App credentials..."
 remote "sqlite3 /opt/frost/data/frost.db \"
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
