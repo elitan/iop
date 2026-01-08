@@ -91,6 +91,9 @@ export async function PATCH(
     }
     updates.healthCheckTimeout = body.healthCheckTimeout;
   }
+  if (body.autoDeployEnabled !== undefined) {
+    updates.autoDeploy = body.autoDeployEnabled ? 1 : 0;
+  }
 
   if (Object.keys(updates).length > 0) {
     await db

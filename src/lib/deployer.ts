@@ -17,6 +17,7 @@ import {
 } from "./docker";
 import { syncCaddyConfig } from "./domains";
 import {
+  createCommitStatus,
   generateInstallationToken,
   hasGitHubApp,
   injectTokenIntoUrl,
@@ -79,6 +80,34 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
   return envVars;
 }
 
+async function updateCommitStatusIfGitHub(
+  repoUrl: string | null,
+  commitSha: string,
+  state: "pending" | "success" | "failure",
+  description: string,
+  deploymentId: string,
+): Promise<void> {
+  if (!repoUrl || !isGitHubRepo(repoUrl)) return;
+  if (commitSha === "HEAD" || commitSha.length < 7) return;
+
+  try {
+    await createCommitStatus({
+      repoUrl,
+      commitSha,
+      state,
+      description,
+      targetUrl: `/deployments/${deploymentId}`,
+    });
+  } catch (err) {
+    console.warn("Failed to update commit status:", err);
+  }
+}
+
+export interface DeployOptions {
+  commitSha?: string;
+  commitMessage?: string;
+}
+
 export async function deployProject(projectId: string): Promise<string[]> {
   const services = await db
     .selectFrom("services")
@@ -97,7 +126,10 @@ export async function deployProject(projectId: string): Promise<string[]> {
   return deploymentIds;
 }
 
-export async function deployService(serviceId: string): Promise<string> {
+export async function deployService(
+  serviceId: string,
+  options?: DeployOptions,
+): Promise<string> {
   const service = await db
     .selectFrom("services")
     .selectAll()
@@ -127,13 +159,14 @@ export async function deployService(serviceId: string): Promise<string> {
       id: deploymentId,
       projectId: project.id,
       serviceId: serviceId,
-      commitSha: "HEAD",
+      commitSha: options?.commitSha?.substring(0, 7) || "HEAD",
+      commitMessage: options?.commitMessage || null,
       status: "pending",
       createdAt: now,
     })
     .execute();
 
-  runServiceDeployment(deploymentId, service, project).catch((err) => {
+  runServiceDeployment(deploymentId, service, project, options).catch((err) => {
     console.error("Deployment failed:", err);
   });
 
@@ -144,7 +177,9 @@ async function runServiceDeployment(
   deploymentId: string,
   service: Selectable<Service>,
   project: Selectable<Project>,
+  options?: DeployOptions,
 ) {
+  let currentCommitSha = options?.commitSha || "HEAD";
   const containerName = `frost-${project.id}-${service.name}`.toLowerCase();
   const networkName = `frost-net-${project.id}`.toLowerCase();
 
@@ -197,6 +232,13 @@ async function runServiceDeployment(
 
       await updateDeployment(deploymentId, { status: "cloning" });
       await appendLog(deploymentId, `Cloning ${service.repoUrl}...\n`);
+      await updateCommitStatusIfGitHub(
+        service.repoUrl,
+        currentCommitSha,
+        "pending",
+        "Deployment started",
+        deploymentId,
+      );
 
       if (existsSync(repoPath)) {
         rmSync(repoPath, { recursive: true, force: true });
@@ -228,6 +270,8 @@ async function runServiceDeployment(
         `git -C ${repoPath} rev-parse HEAD`,
       );
       const commitSha = commitResult.trim().substring(0, 7);
+      const fullCommitSha = commitResult.trim();
+      currentCommitSha = fullCommitSha;
 
       await db
         .updateTable("deployments")
@@ -248,6 +292,13 @@ async function runServiceDeployment(
 
       await updateDeployment(deploymentId, { status: "building" });
       await appendLog(deploymentId, `\nBuilding image...\n`);
+      await updateCommitStatusIfGitHub(
+        service.repoUrl,
+        currentCommitSha,
+        "pending",
+        "Building...",
+        deploymentId,
+      );
 
       imageName =
         `frost-${project.id}-${service.name}:${commitSha}`.toLowerCase();
@@ -268,6 +319,13 @@ async function runServiceDeployment(
 
     await updateDeployment(deploymentId, { status: "deploying" });
     await appendLog(deploymentId, `\nStarting container...\n`);
+    await updateCommitStatusIfGitHub(
+      service.repoUrl,
+      currentCommitSha,
+      "pending",
+      "Deploying...",
+      deploymentId,
+    );
 
     await createNetwork(networkName, baseLabels);
 
@@ -323,6 +381,13 @@ async function runServiceDeployment(
       deploymentId,
       `\nDeployment successful! App available at http://localhost:${hostPort}\n`,
     );
+    await updateCommitStatusIfGitHub(
+      service.repoUrl,
+      currentCommitSha,
+      "success",
+      "Deployed",
+      deploymentId,
+    );
 
     try {
       await syncCaddyConfig();
@@ -360,5 +425,12 @@ async function runServiceDeployment(
       finishedAt: Date.now(),
     });
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
+    await updateCommitStatusIfGitHub(
+      service.repoUrl,
+      currentCommitSha,
+      "failure",
+      "Deployment failed",
+      deploymentId,
+    );
   }
 }

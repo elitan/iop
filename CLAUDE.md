@@ -77,6 +77,7 @@ curl localhost:3000/api/deployments/{id}
 - `src/lib/docker.ts` - docker build/run/stop
 - `src/lib/deployer.ts` - deploy orchestration
 - `src/app/api/` - REST API routes
+- `src/proxy.ts` - auth middleware; add public endpoints here (e.g. `/api/github/webhook`)
 - `schema/` - SQL migrations
 - `test/fixtures/` - test apps with Dockerfiles
 

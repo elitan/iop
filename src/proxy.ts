@@ -44,7 +44,8 @@ export function proxy(request: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
-    pathname === "/api/health"
+    pathname === "/api/health" ||
+    pathname === "/api/github/webhook"
   ) {
     return NextResponse.next();
   }

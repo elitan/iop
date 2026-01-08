@@ -83,6 +83,7 @@ export interface Service {
   containerPort: Generated<number | null>;
   healthCheckPath: Generated<string | null>;
   healthCheckTimeout: Generated<number | null>;
+  autoDeploy: Generated<number | null>;
 }
 
 export interface Setting {

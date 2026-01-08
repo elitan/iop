@@ -379,6 +379,54 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT5_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 6: GitHub Webhook"
+echo "########################################"
+
+echo ""
+echo "=== Test 23: Webhook endpoint is public ==="
+WEBHOOK_RESPONSE=$(curl -sS -X POST "$BASE_URL/api/github/webhook" 2>&1)
+if echo "$WEBHOOK_RESPONSE" | grep -q '"error":"unauthorized"'; then
+  echo "FAIL: Webhook endpoint blocked by auth middleware"
+  exit 1
+fi
+echo "Webhook endpoint is public (returned: $(echo "$WEBHOOK_RESPONSE" | jq -r '.error // .message'))"
+
+echo ""
+echo "=== Test 24: Repo service has autoDeploy enabled by default ==="
+PROJECT6=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook"}')
+PROJECT6_ID=$(echo "$PROJECT6" | jq -r '.id')
+echo "Created project: $PROJECT6_ID"
+
+SERVICE6=$(api -X POST "$BASE_URL/api/projects/$PROJECT6_ID/services" \
+  -d '{"name":"webhook-test","repoUrl":"https://github.com/test/repo.git"}')
+SERVICE6_ID=$(echo "$SERVICE6" | jq -r '.id')
+AUTO_DEPLOY=$(echo "$SERVICE6" | jq -r '.autoDeploy')
+
+if [ "$AUTO_DEPLOY" != "1" ]; then
+  echo "FAIL: autoDeploy should be 1 for repo services, got: $AUTO_DEPLOY"
+  exit 1
+fi
+echo "autoDeploy is enabled by default for repo services"
+
+echo ""
+echo "=== Test 25: autoDeploy toggle works ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE6_ID" -d '{"autoDeployEnabled":false}' > /dev/null
+SERVICE6_UPDATED=$(api "$BASE_URL/api/services/$SERVICE6_ID")
+AUTO_DEPLOY_OFF=$(echo "$SERVICE6_UPDATED" | jq -r '.autoDeploy')
+
+if [ "$AUTO_DEPLOY_OFF" != "0" ]; then
+  echo "FAIL: autoDeploy should be 0 after disabling, got: $AUTO_DEPLOY_OFF"
+  exit 1
+fi
+echo "autoDeploy toggle works"
+
+echo ""
+echo "=== Test 26: Cleanup webhook test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT6_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

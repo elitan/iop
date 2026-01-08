@@ -289,6 +289,63 @@ export function isGitHubRepo(repoUrl: string): boolean {
   return repoUrl.includes("github.com");
 }
 
+export function normalizeGitHubUrl(url: string): string {
+  if (url.startsWith("git@github.com:")) {
+    url = url.replace("git@github.com:", "https://github.com/");
+  }
+  return url.replace(/\.git$/, "");
+}
+
+export function parseOwnerRepoFromUrl(
+  repoUrl: string,
+): { owner: string; repo: string } | null {
+  const normalized = normalizeGitHubUrl(repoUrl);
+  const match = normalized.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+export async function createCommitStatus(params: {
+  repoUrl: string;
+  commitSha: string;
+  state: "pending" | "success" | "failure" | "error";
+  targetUrl?: string;
+  description?: string;
+  context?: string;
+}): Promise<void> {
+  const parsed = parseOwnerRepoFromUrl(params.repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(params.repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/statuses/${params.commitSha}`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        state: params.state,
+        target_url: params.targetUrl,
+        description: params.description,
+        context: params.context || "frost",
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to create commit status: ${error}`);
+  }
+}
+
 export function injectTokenIntoUrl(repoUrl: string, token: string): string {
   if (repoUrl.startsWith("https://github.com/")) {
     return repoUrl.replace(
@@ -320,6 +377,7 @@ export function buildManifest(domain: string): object {
     default_permissions: {
       contents: "read",
       metadata: "read",
+      statuses: "write",
     },
     default_events: ["push"],
   };

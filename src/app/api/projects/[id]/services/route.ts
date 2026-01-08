@@ -120,6 +120,7 @@ export async function POST(
       imageUrl: deployType === "image" ? imageUrl : null,
       envVars: JSON.stringify(envVars),
       containerPort: containerPort ?? null,
+      autoDeploy: deployType === "repo" ? 1 : 0,
       createdAt: now,
     })
     .execute();

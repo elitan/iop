@@ -1,0 +1,1 @@
+ALTER TABLE services ADD COLUMN auto_deploy INTEGER DEFAULT 1;
