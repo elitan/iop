@@ -427,6 +427,78 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT6_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "=== Test 27: Webhook triggers deployment (full e2e) ==="
+TEST_WEBHOOK_SECRET="e2e-test-webhook-secret-$(date +%s)"
+echo "Setting up test GitHub App credentials..."
+remote "sqlite3 /opt/frost/data/frost.db \"
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_slug', 'test-app');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_name', 'Test App');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_private_key', 'test-private-key');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_webhook_secret', '$TEST_WEBHOOK_SECRET');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_id', 'test-client-id');
+INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_secret', 'test-client-secret');
+\""
+echo "Inserted test GitHub App credentials"
+
+PROJECT7=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"}')
+PROJECT7_ID=$(echo "$PROJECT7" | jq -r '.id')
+echo "Created project: $PROJECT7_ID"
+
+SERVICE7=$(api -X POST "$BASE_URL/api/projects/$PROJECT7_ID/services" \
+  -d '{"name":"webhook-deploy-test","repoUrl":"https://github.com/elitan/frost.git","dockerfilePath":"examples/node-hello/Dockerfile"}')
+SERVICE7_ID=$(echo "$SERVICE7" | jq -r '.id')
+echo "Created service: $SERVICE7_ID"
+
+COMMIT_SHA="e2etest$(date +%s)"
+WEBHOOK_PAYLOAD=$(cat <<PAYLOAD
+{"ref":"refs/heads/main","after":"$COMMIT_SHA","repository":{"default_branch":"main","clone_url":"https://github.com/elitan/frost.git","html_url":"https://github.com/elitan/frost"},"head_commit":{"message":"e2e test commit"}}
+PAYLOAD
+)
+WEBHOOK_SIGNATURE="sha256=$(echo -n "$WEBHOOK_PAYLOAD" | openssl dgst -sha256 -hmac "$TEST_WEBHOOK_SECRET" | awk '{print $2}')"
+
+echo "Sending webhook..."
+WEBHOOK_RESULT=$(curl -sS -X POST "$BASE_URL/api/github/webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: $WEBHOOK_SIGNATURE" \
+  -H "X-GitHub-Event: push" \
+  -d "$WEBHOOK_PAYLOAD")
+echo "Webhook response: $WEBHOOK_RESULT"
+
+TRIGGERED=$(echo "$WEBHOOK_RESULT" | jq -r '.deployments[0] // empty')
+if [ -z "$TRIGGERED" ]; then
+  echo "FAIL: Webhook did not trigger deployment"
+  echo "Response: $WEBHOOK_RESULT"
+  exit 1
+fi
+echo "Webhook triggered deployment: $TRIGGERED"
+
+echo ""
+echo "=== Test 28: Wait for webhook-triggered deployment ==="
+wait_for_deployment "$TRIGGERED" 60
+
+echo ""
+echo "=== Test 29: Verify webhook-deployed service responds ==="
+HOST_PORT7=$(api "$BASE_URL/api/deployments/$TRIGGERED" | jq -r '.hostPort')
+echo "Service running on port: $HOST_PORT7"
+
+RESPONSE7=$(curl -sf "http://$SERVER_IP:$HOST_PORT7" 2>&1 || true)
+if echo "$RESPONSE7" | grep -q "Hello from Frost"; then
+  echo "Webhook-deployed service responds correctly!"
+else
+  echo "FAIL: Service response unexpected: $RESPONSE7"
+  exit 1
+fi
+
+echo ""
+echo "=== Test 30: Cleanup webhook deploy test ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT7_ID" > /dev/null
+remote "sqlite3 /opt/frost/data/frost.db \"
+DELETE FROM settings WHERE key LIKE 'github_app_%';
+\""
+echo "Deleted project and cleaned up test GitHub App credentials"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="
