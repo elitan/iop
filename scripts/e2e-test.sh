@@ -448,7 +448,7 @@ PROJECT7_ID=$(echo "$PROJECT7" | jq -r '.id')
 echo "Created project: $PROJECT7_ID"
 
 SERVICE7=$(api -X POST "$BASE_URL/api/projects/$PROJECT7_ID/services" \
-  -d '{"name":"webhook-deploy-test","repoUrl":"https://github.com/elitan/frost.git","dockerfilePath":"examples/node-hello/Dockerfile"}')
+  -d '{"name":"webhook-deploy-test","repoUrl":"https://github.com/elitan/frost.git","dockerfilePath":"test/fixtures/simple-node/Dockerfile"}')
 SERVICE7_ID=$(echo "$SERVICE7" | jq -r '.id')
 echo "Created service: $SERVICE7_ID"
 
@@ -485,7 +485,7 @@ HOST_PORT7=$(api "$BASE_URL/api/deployments/$TRIGGERED" | jq -r '.hostPort')
 echo "Service running on port: $HOST_PORT7"
 
 RESPONSE7=$(curl -sf "http://$SERVER_IP:$HOST_PORT7" 2>&1 || true)
-if echo "$RESPONSE7" | grep -q "Hello from Frost"; then
+if echo "$RESPONSE7" | grep -q "Hello from simple-node"; then
   echo "Webhook-deployed service responds correctly!"
 else
   echo "FAIL: Service response unexpected: $RESPONSE7"
