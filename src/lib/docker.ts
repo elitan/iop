@@ -342,7 +342,13 @@ export async function createNetwork(
           .map(([k, v]) => `--label ${k}=${JSON.stringify(v)}`)
           .join(" ")
       : "";
-    await execAsync(`docker network create ${labelFlags} ${name}`.trim());
+    try {
+      await execAsync(`docker network create ${labelFlags} ${name}`.trim());
+    } catch (err) {
+      if (!(err instanceof Error && err.message.includes("already exists"))) {
+        throw err;
+      }
+    }
   }
 }
 
