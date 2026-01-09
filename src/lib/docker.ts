@@ -50,6 +50,10 @@ export async function buildImage(
     labels,
   } = options;
 
+  if (await imageExists(imageName)) {
+    await removeImage(imageName);
+  }
+
   return new Promise((resolve) => {
     let log = "";
     const buildContext = join(repoPath, dirname(dockerfilePath));
