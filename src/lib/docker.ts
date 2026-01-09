@@ -171,13 +171,7 @@ export async function runContainer(
     command,
   } = options;
   try {
-    console.log(`[DEBUG] runContainer: stopping existing container "${name}"`);
     await stopContainer(name);
-    console.log(`[DEBUG] runContainer: stopContainer completed for "${name}"`);
-
-    const checkExisting = await execAsync(`docker ps -a --filter "name=^${name}$" --format "{{.ID}} {{.Status}}"`).catch(() => ({ stdout: "" }));
-    console.log(`[DEBUG] runContainer: existing containers after stop: "${checkExisting.stdout.trim() || 'none'}"`);
-
 
     const allEnvVars = { PORT: String(containerPort), ...envVars };
     const envFlags = Object.entries(allEnvVars)
@@ -200,17 +194,15 @@ export async function runContainer(
       : "";
     const commandPart = command ? command.join(" ") : "";
     const logOpts = "--log-opt max-size=10m --log-opt max-file=3";
-    const dockerCmd = `docker run -d --restart on-failure:5 ${logOpts} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
-      /\s+/g,
-      " ",
+    const { stdout } = await execAsync(
+      `docker run -d --restart on-failure:5 ${logOpts} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
+        /\s+/g,
+        " ",
+      ),
     );
-    console.log(`[DEBUG] runContainer: executing docker run for "${name}"`);
-    const { stdout } = await execAsync(dockerCmd);
     const containerId = stdout.trim();
-    console.log(`[DEBUG] runContainer: container created successfully, id="${containerId}"`);
     return { success: true, containerId };
   } catch (err: any) {
-    console.log(`[DEBUG] runContainer: docker run failed for "${name}", error: "${err.stderr || err.message}"`);
     return {
       success: false,
       containerId: "",
@@ -220,12 +212,10 @@ export async function runContainer(
 }
 
 export async function stopContainer(name: string): Promise<void> {
-  console.log(`[DEBUG] stopContainer: attempting to remove "${name}"`);
   try {
-    const result = await execAsync(`docker rm -f ${name}`);
-    console.log(`[DEBUG] stopContainer: successfully removed "${name}", output: "${result.stdout.trim()}"`);
-  } catch (err: any) {
-    console.log(`[DEBUG] stopContainer: failed to remove "${name}", error: "${err.stderr || err.message}"`);
+    await execAsync(`docker rm -f ${name}`);
+  } catch {
+    // Container might not exist
   }
 }
 
