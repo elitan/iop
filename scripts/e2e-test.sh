@@ -571,8 +571,8 @@ echo "Database credentials auto-generated (password length: ${#POSTGRES_PASSWORD
 
 echo ""
 echo "=== Test 33b: Verify SSL cert generated for postgres ==="
-SSL_CERT_EXISTS=$(remote "test -f /opt/frost/ssl/$SERVICE8_ID/server.crt && echo 'exists'" 2>&1)
-SSL_KEY_EXISTS=$(remote "test -f /opt/frost/ssl/$SERVICE8_ID/server.key && echo 'exists'" 2>&1)
+SSL_CERT_EXISTS=$(remote "test -f /opt/frost/data/ssl/$SERVICE8_ID/server.crt && echo 'exists'" 2>&1)
+SSL_KEY_EXISTS=$(remote "test -f /opt/frost/data/ssl/$SERVICE8_ID/server.key && echo 'exists'" 2>&1)
 if [ "$SSL_CERT_EXISTS" != "exists" ] || [ "$SSL_KEY_EXISTS" != "exists" ]; then
   echo "FAIL: SSL cert/key not generated for postgres service"
   exit 1
@@ -633,7 +633,7 @@ echo "Volume deleted with service"
 
 echo ""
 echo "=== Test 37b: Verify SSL cert deleted with service ==="
-SSL_CERT_AFTER=$(remote "test -f /opt/frost/ssl/$SERVICE8_ID/server.crt && echo 'exists' || echo 'deleted'" 2>&1)
+SSL_CERT_AFTER=$(remote "test -f /opt/frost/data/ssl/$SERVICE8_ID/server.crt && echo 'exists' || echo 'deleted'" 2>&1)
 if [ "$SSL_CERT_AFTER" = "exists" ]; then
   echo "FAIL: SSL cert should have been deleted"
   exit 1
