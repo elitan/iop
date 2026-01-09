@@ -84,8 +84,8 @@ echo "Created service: $SERVICE_ID"
 
 echo ""
 echo "=== Test 3: Get auto-deployment ==="
-sleep 1
-DEPLOYMENT_ID=$(api "$BASE_URL/api/services/$SERVICE_ID" | jq -r '.deployments[0].id // empty')
+sleep 2
+DEPLOYMENT_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id // empty')
 
 if [ -z "$DEPLOYMENT_ID" ]; then
   echo "No auto-deployment found, triggering manual deploy..."
