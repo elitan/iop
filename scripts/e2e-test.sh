@@ -457,6 +457,11 @@ SERVICE7=$(api -X POST "$BASE_URL/api/projects/$PROJECT7_ID/services" \
 SERVICE7_ID=$(echo "$SERVICE7" | jq -r '.id')
 echo "Created service: $SERVICE7_ID"
 
+sleep 2
+DEPLOY7_INITIAL=$(api "$BASE_URL/api/services/$SERVICE7_ID/deployments" | jq -r '.[0].id')
+echo "Waiting for initial auto-deployment: $DEPLOY7_INITIAL"
+wait_for_deployment "$DEPLOY7_INITIAL" 60
+
 COMMIT_SHA="e2etest$(date +%s)"
 WEBHOOK_PAYLOAD=$(cat <<PAYLOAD
 {"ref":"refs/heads/main","after":"$COMMIT_SHA","repository":{"default_branch":"main","clone_url":"https://github.com/elitan/frost.git","html_url":"https://github.com/elitan/frost"},"head_commit":{"message":"e2e test commit"}}
