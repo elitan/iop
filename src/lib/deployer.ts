@@ -233,7 +233,7 @@ async function runServiceDeployment(
         throw new Error("Repo URL, branch, and Dockerfile path are required");
       }
 
-      const repoPath = join(REPOS_PATH, service.id);
+      const repoPath = join(REPOS_PATH, deploymentId);
 
       await updateDeployment(deploymentId, { status: "cloning" });
       await appendLog(deploymentId, `Cloning ${service.repoUrl}...\n`);
