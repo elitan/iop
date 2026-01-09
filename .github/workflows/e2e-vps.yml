@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  SNAPSHOT_ID: 348108379
+  SNAPSHOT_ID: 348130680
   SSH_KEY_NAME: frost-e2e-ci
 
 jobs:
