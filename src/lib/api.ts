@@ -34,6 +34,7 @@ export interface Service {
   serviceType: "app" | "database";
   volumes: string | null;
   tcpProxyPort: number | null;
+  currentDeploymentId: string | null;
   latestDeployment?: Deployment;
 }
 

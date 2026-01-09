@@ -251,7 +251,9 @@ export default function ServicePage() {
       </>
     );
 
-  const runningDeployment = deployments.find((d) => d.status === "running");
+  const currentDeployment = deployments.find(
+    (d) => d.id === service.currentDeploymentId,
+  );
 
   return (
     <>
@@ -298,7 +300,7 @@ export default function ServicePage() {
             </div>
           </div>
 
-          {runningDeployment && (
+          {currentDeployment && (
             <Card className="border-l-2 border-l-green-500 bg-neutral-900 border-neutral-800">
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
@@ -315,32 +317,34 @@ export default function ServicePage() {
                       </a>
                     ) : (
                       <span className="text-sm text-neutral-300">
-                        Running on port {runningDeployment.hostPort}
+                        Running on port {currentDeployment.hostPort}
                       </span>
                     )}
                   </div>
-                  <a
-                    href={
-                      systemDomain
-                        ? `https://${systemDomain.domain}`
-                        : `http://${serverIp || "localhost"}:${runningDeployment.hostPort}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
-                  >
-                    Open
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  {service.serviceType !== "database" && (
+                    <a
+                      href={
+                        systemDomain
+                          ? `https://${systemDomain.domain}`
+                          : `http://${serverIp || "localhost"}:${currentDeployment.hostPort}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+                    >
+                      Open
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                 </div>
                 <p className="mt-1 font-mono text-xs text-neutral-500">
-                  {runningDeployment.commitSha}
+                  {currentDeployment.commitSha}
                 </p>
               </CardContent>
             </Card>
           )}
 
-          {runningDeployment && <ServiceMetricsCard serviceId={serviceId} />}
+          {currentDeployment && <ServiceMetricsCard serviceId={serviceId} />}
 
           {service.serviceType === "database" && (
             <Card className="bg-neutral-900 border-neutral-800">
@@ -351,7 +355,7 @@ export default function ServicePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {runningDeployment ? (
+                {currentDeployment ? (
                   <>
                     <div>
                       <p className="mb-1 text-xs text-neutral-500">
@@ -434,12 +438,17 @@ export default function ServicePage() {
                             <code className="flex-1 rounded bg-neutral-800 px-3 py-2 font-mono text-xs text-neutral-300">
                               {buildConnectionString(
                                 service.imageUrl?.split(":")[0] ?? "",
-                                buildSslipDomain(
-                                  service.name,
-                                  project?.name ?? "",
-                                  serverIp,
-                                ),
-                                tcpProxy.port,
+                                serverIp === "localhost"
+                                  ? "localhost"
+                                  : buildSslipDomain(
+                                      service.name,
+                                      project?.name ?? "",
+                                      serverIp,
+                                    ),
+                                serverIp === "localhost"
+                                  ? (currentDeployment.hostPort ??
+                                      tcpProxy.port)
+                                  : tcpProxy.port,
                                 JSON.parse(service.envVars).reduce(
                                   (acc: Record<string, string>, v: EnvVar) => {
                                     acc[v.key] = v.value;
@@ -456,12 +465,17 @@ export default function ServicePage() {
                                 navigator.clipboard.writeText(
                                   buildConnectionString(
                                     service.imageUrl?.split(":")[0] ?? "",
-                                    buildSslipDomain(
-                                      service.name,
-                                      project?.name ?? "",
-                                      serverIp,
-                                    ),
-                                    tcpProxy.port!,
+                                    serverIp === "localhost"
+                                      ? "localhost"
+                                      : buildSslipDomain(
+                                          service.name,
+                                          project?.name ?? "",
+                                          serverIp,
+                                        ),
+                                    serverIp === "localhost"
+                                      ? (currentDeployment.hostPort ??
+                                          tcpProxy.port!)
+                                      : tcpProxy.port!,
                                     JSON.parse(service.envVars).reduce(
                                       (
                                         acc: Record<string, string>,
@@ -518,9 +532,7 @@ export default function ServicePage() {
                           !hasVolumes &&
                           !!d.imageName &&
                           d.rollbackEligible === 1;
-                        const runningDeployment = deployments.find(
-                          (dep) => dep.status === "running",
-                        );
+                        const isCurrent = d.id === service.currentDeploymentId;
                         return (
                           <DeploymentRow
                             key={d.id}
@@ -531,12 +543,14 @@ export default function ServicePage() {
                             selected={selectedDeployment?.id === d.id}
                             onClick={() => handleSelectDeployment(d)}
                             canRollback={canRollback}
-                            isRunning={runningDeployment?.id === d.id}
+                            isRunning={isCurrent}
                             onRollback={() => rollbackMutation.mutate(d.id)}
                             isRollingBack={
                               rollbackMutation.isPending &&
                               rollbackMutation.variables === d.id
                             }
+                            isCurrent={isCurrent}
+                            imageName={d.imageName}
                           />
                         );
                       })}
@@ -740,7 +754,7 @@ export default function ServicePage() {
           {service.serviceType !== "database" && (
             <DomainsSection
               serviceId={serviceId}
-              hasRunningDeployment={!!runningDeployment}
+              hasRunningDeployment={!!currentDeployment}
               serverIp={serverIp}
             />
           )}

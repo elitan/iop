@@ -110,6 +110,7 @@ export interface Service {
   serviceType: Generated<string>;
   volumes: Generated<string | null>;
   tcpProxyPort: Generated<number | null>;
+  currentDeploymentId: string | null;
 }
 
 export interface Setting {

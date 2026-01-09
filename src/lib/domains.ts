@@ -358,14 +358,13 @@ function buildCaddyConfig(
   };
 }
 
-export async function syncCaddyConfig() {
+export async function syncCaddyConfig(): Promise<boolean> {
   const frostDomain = await getSetting("domain");
   const email = await getSetting("email");
   const staging = (await getSetting("ssl_staging")) === "true";
 
   if (!email) {
-    console.log("No email configured, skipping Caddy sync");
-    return;
+    return false;
   }
 
   const verifiedDomains = await db
@@ -413,8 +412,7 @@ export async function syncCaddyConfig() {
   }
 
   if (routes.length === 0) {
-    console.log("No domains to configure");
-    return;
+    return false;
   }
 
   const config = buildCaddyConfig(routes, email, staging);
@@ -430,5 +428,5 @@ export async function syncCaddyConfig() {
     throw new Error(`Failed to sync Caddy config: ${text}`);
   }
 
-  console.log(`Caddy config synced with ${routes.length} domain(s)`);
+  return true;
 }

@@ -17,7 +17,7 @@ export async function GET() {
   return NextResponse.json({
     domain,
     email,
-    ssl_enabled: sslEnabled,
-    server_ip: serverIp,
+    sslEnabled,
+    serverIp,
   });
 }

@@ -455,6 +455,12 @@ async function runServiceDeployment(
       finishedAt: Date.now(),
     });
 
+    await db
+      .updateTable("services")
+      .set({ currentDeploymentId: deploymentId })
+      .where("id", "=", service.id)
+      .execute();
+
     await appendLog(
       deploymentId,
       `\nDeployment successful! App available at http://localhost:${hostPort}\n`,
@@ -468,8 +474,10 @@ async function runServiceDeployment(
     );
 
     try {
-      await syncCaddyConfig();
-      await appendLog(deploymentId, "Caddy config synced\n");
+      const synced = await syncCaddyConfig();
+      if (synced) {
+        await appendLog(deploymentId, "Caddy config synced\n");
+      }
     } catch (err: any) {
       await appendLog(
         deploymentId,
@@ -565,24 +573,24 @@ async function updateRollbackEligible(serviceId: string): Promise<void> {
 export async function rollbackDeployment(
   deploymentId: string,
 ): Promise<string> {
-  const sourceDeployment = await db
+  const targetDeployment = await db
     .selectFrom("deployments")
     .selectAll()
     .where("id", "=", deploymentId)
     .executeTakeFirst();
 
-  if (!sourceDeployment) {
+  if (!targetDeployment) {
     throw new Error("Deployment not found");
   }
 
-  if (!sourceDeployment.imageName) {
+  if (!targetDeployment.imageName) {
     throw new Error("Deployment has no image snapshot");
   }
 
   const service = await db
     .selectFrom("services")
     .selectAll()
-    .where("id", "=", sourceDeployment.serviceId)
+    .where("id", "=", targetDeployment.serviceId)
     .executeTakeFirst();
 
   if (!service) {
@@ -596,51 +604,27 @@ export async function rollbackDeployment(
   const project = await db
     .selectFrom("projects")
     .selectAll()
-    .where("id", "=", sourceDeployment.projectId)
+    .where("id", "=", targetDeployment.projectId)
     .executeTakeFirst();
 
   if (!project) {
     throw new Error("Project not found");
   }
 
-  const exists = await imageExists(sourceDeployment.imageName);
+  const exists = await imageExists(targetDeployment.imageName);
   if (!exists) {
     throw new Error("Image no longer available");
   }
 
-  const newDeploymentId = nanoid();
-  const now = Date.now();
+  await updateDeployment(deploymentId, { status: "deploying" });
 
-  await db
-    .insertInto("deployments")
-    .values({
-      id: newDeploymentId,
-      projectId: sourceDeployment.projectId,
-      serviceId: sourceDeployment.serviceId,
-      commitSha: sourceDeployment.commitSha,
-      commitMessage: `Rollback to ${sourceDeployment.commitSha}`,
-      status: "pending",
-      createdAt: now,
-      imageName: sourceDeployment.imageName,
-      envVarsSnapshot: sourceDeployment.envVarsSnapshot,
-      containerPort: sourceDeployment.containerPort,
-      healthCheckPath: sourceDeployment.healthCheckPath,
-      healthCheckTimeout: sourceDeployment.healthCheckTimeout,
-      volumes: sourceDeployment.volumes,
-      rollbackSourceId: sourceDeployment.id,
-    })
-    .execute();
+  runRollbackDeployment(deploymentId, targetDeployment, service, project).catch(
+    (err) => {
+      console.error("Rollback deployment failed:", err);
+    },
+  );
 
-  runRollbackDeployment(
-    newDeploymentId,
-    sourceDeployment,
-    service,
-    project,
-  ).catch((err) => {
-    console.error("Rollback deployment failed:", err);
-  });
-
-  return newDeploymentId;
+  return deploymentId;
 }
 
 async function runRollbackDeployment(
@@ -732,14 +716,22 @@ async function runRollbackDeployment(
       finishedAt: Date.now(),
     });
 
+    await db
+      .updateTable("services")
+      .set({ currentDeploymentId: deploymentId })
+      .where("id", "=", service.id)
+      .execute();
+
     await appendLog(
       deploymentId,
       `\nRollback successful! App available at http://localhost:${hostPort}\n`,
     );
 
     try {
-      await syncCaddyConfig();
-      await appendLog(deploymentId, "Caddy config synced\n");
+      const synced = await syncCaddyConfig();
+      if (synced) {
+        await appendLog(deploymentId, "Caddy config synced\n");
+      }
     } catch (err: any) {
       await appendLog(
         deploymentId,

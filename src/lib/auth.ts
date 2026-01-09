@@ -10,7 +10,7 @@ const SESSION_EXPIRY_DAYS = 7;
 const DEV_PASSWORD = "dev";
 
 export function isDevMode(): boolean {
-  return JWT_SECRET === DEFAULT_SECRET;
+  return process.env.NODE_ENV === "development";
 }
 
 export function isAuthEnabled(): boolean {

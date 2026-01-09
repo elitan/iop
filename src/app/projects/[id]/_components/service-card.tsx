@@ -50,14 +50,22 @@ export function ServiceCard({
 
   const deployment = service.latestDeployment;
   const isRunning = deployment?.status === "running";
-  const status = deployment?.status || "pending";
+
+  function getDisplayStatus(): string {
+    if (!deployment) return "pending";
+    if (deployment.status === "running") return "running";
+    if (deployment.imageName) return "running";
+    if (deployment.status === "failed") return "failed";
+    return "building";
+  }
+  const status = getDisplayStatus();
 
   return (
     <Link href={`/projects/${projectId}/services/${service.id}`}>
       <Card
         className={cn(
           "cursor-pointer bg-neutral-900 border-neutral-800 transition-colors hover:border-neutral-700",
-          isRunning && "border-l-2 border-l-green-500",
+          isRunning && "border-l-2 border-l-green-500 hover:border-l-green-500",
         )}
       >
         <CardHeader className="pb-2">
@@ -113,22 +121,24 @@ export function ServiceCard({
               <span className="text-xs text-neutral-500">
                 Port {deployment.hostPort}
               </span>
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.open(
-                    `http://${serverIp || "localhost"}:${deployment.hostPort}`,
-                    "_blank",
-                    "noopener,noreferrer",
-                  );
-                }}
-              >
-                Open
-                <ExternalLink className="h-3 w-3" />
-              </button>
+              {service.serviceType !== "database" && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(
+                      `http://${serverIp || "localhost"}:${deployment.hostPort}`,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                >
+                  Open
+                  <ExternalLink className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
           {deployment && !isRunning && (

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 const execAsync = promisify(exec);
 
 function getSSLBasePath(): string {
-  return process.env.FROST_SSL_PATH || "/opt/frost/ssl";
+  return process.env.FROST_SSL_PATH || join(process.cwd(), "data", "ssl");
 }
 
 export function getSSLDir(serviceId: string): string {
