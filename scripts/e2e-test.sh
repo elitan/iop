@@ -69,7 +69,7 @@ fi
 echo "Created project: $PROJECT_ID"
 
 echo ""
-echo "=== Test 2: Create service ==="
+echo "=== Test 2: Create service (auto-deploys) ==="
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"test-nginx","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
@@ -83,17 +83,22 @@ fi
 echo "Created service: $SERVICE_ID"
 
 echo ""
-echo "=== Test 3: Deploy service ==="
-DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOYMENT_ID=$(echo "$DEPLOY" | jq -r '.deployment_id')
+echo "=== Test 3: Get auto-deployment ==="
+sleep 1
+DEPLOYMENT_ID=$(api "$BASE_URL/api/services/$SERVICE_ID" | jq -r '.deployments[0].id // empty')
+
+if [ -z "$DEPLOYMENT_ID" ]; then
+  echo "No auto-deployment found, triggering manual deploy..."
+  DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
+  DEPLOYMENT_ID=$(echo "$DEPLOY" | jq -r '.deployment_id')
+fi
 
 if [ "$DEPLOYMENT_ID" = "null" ] || [ -z "$DEPLOYMENT_ID" ]; then
-  echo "Failed to deploy:"
-  echo "$DEPLOY" | jq
+  echo "Failed to get deployment"
   exit 1
 fi
 
-echo "Started deployment: $DEPLOYMENT_ID"
+echo "Using deployment: $DEPLOYMENT_ID"
 
 echo ""
 echo "=== Test 4: Wait for deployment ==="
