@@ -49,6 +49,14 @@ export interface Deployment {
   finishedAt: number | null;
   buildLog: string | null;
   errorMessage: string | null;
+  imageName: string | null;
+  envVarsSnapshot: string | null;
+  containerPort: number | null;
+  healthCheckPath: string | null;
+  healthCheckTimeout: number | null;
+  volumes: string | null;
+  rollbackEligible: number | null;
+  rollbackSourceId: string | null;
 }
 
 export interface EnvVar {
@@ -280,6 +288,11 @@ export const api = {
     listByService: (serviceId: string): Promise<Deployment[]> =>
       fetch(`/api/services/${serviceId}/deployments`).then((r) =>
         handleResponse<Deployment[]>(r),
+      ),
+
+    rollback: (id: string): Promise<{ deployment_id: string }> =>
+      fetch(`/api/deployments/${id}/rollback`, { method: "POST" }).then((r) =>
+        handleResponse<{ deployment_id: string }>(r),
       ),
   },
 

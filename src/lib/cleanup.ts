@@ -1,4 +1,5 @@
 import { getSetting, setSetting } from "./auth";
+import { db } from "./db";
 import {
   getImageCreatedAt,
   getImageSize,
@@ -11,6 +12,16 @@ import {
   removeImage,
   removeNetwork,
 } from "./docker";
+
+async function isImageRollbackEligible(imageName: string): Promise<boolean> {
+  const deployment = await db
+    .selectFrom("deployments")
+    .select("id")
+    .where("imageName", "=", imageName)
+    .where("rollbackEligible", "=", 1)
+    .executeTakeFirst();
+  return !!deployment;
+}
 
 export interface CleanupOptions {
   keepImages: number;
@@ -143,6 +154,10 @@ export async function runCleanup(
       const toDelete = images.slice(options.keepImages);
       for (const img of toDelete) {
         if (runningImages.has(img.name)) {
+          continue;
+        }
+
+        if (await isImageRollbackEligible(img.name)) {
           continue;
         }
 

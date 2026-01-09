@@ -39,6 +39,14 @@ export interface Deployment {
   errorMessage: string | null;
   createdAt: number;
   finishedAt: number | null;
+  imageName: string | null;
+  envVarsSnapshot: string | null;
+  containerPort: number | null;
+  healthCheckPath: string | null;
+  healthCheckTimeout: number | null;
+  volumes: string | null;
+  rollbackEligible: Generated<number | null>;
+  rollbackSourceId: string | null;
 }
 
 export interface Domain {

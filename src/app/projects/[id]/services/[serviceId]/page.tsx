@@ -91,6 +91,17 @@ export default function ServicePage() {
     onError: () => toast.error("Failed to disable TCP proxy"),
   });
 
+  const rollbackMutation = useMutation({
+    mutationFn: (deploymentId: string) =>
+      api.deployments.rollback(deploymentId),
+    onSuccess: () => {
+      toast.success("Rollback started");
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Rollback failed");
+    },
+  });
+
   useEffect(() => {
     api.settings.get().then((s) => setServerIp(s.serverIp));
   }, []);
@@ -500,17 +511,35 @@ export default function ServicePage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-neutral-800">
-                      {deployments.map((d) => (
-                        <DeploymentRow
-                          key={d.id}
-                          id={d.id}
-                          commitSha={d.commitSha}
-                          status={d.status}
-                          createdAt={d.createdAt}
-                          selected={selectedDeployment?.id === d.id}
-                          onClick={() => handleSelectDeployment(d)}
-                        />
-                      ))}
+                      {deployments.map((d) => {
+                        const hasVolumes =
+                          service?.volumes && service.volumes !== "[]";
+                        const canRollback =
+                          !hasVolumes &&
+                          !!d.imageName &&
+                          d.rollbackEligible === 1;
+                        const runningDeployment = deployments.find(
+                          (dep) => dep.status === "running",
+                        );
+                        return (
+                          <DeploymentRow
+                            key={d.id}
+                            id={d.id}
+                            commitSha={d.commitSha}
+                            status={d.status}
+                            createdAt={d.createdAt}
+                            selected={selectedDeployment?.id === d.id}
+                            onClick={() => handleSelectDeployment(d)}
+                            canRollback={canRollback}
+                            isRunning={runningDeployment?.id === d.id}
+                            onRollback={() => rollbackMutation.mutate(d.id)}
+                            isRollingBack={
+                              rollbackMutation.isPending &&
+                              rollbackMutation.variables === d.id
+                            }
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

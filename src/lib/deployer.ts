@@ -11,6 +11,7 @@ import {
   createNetwork,
   type FileMount,
   getAvailablePort,
+  imageExists,
   pullImage,
   runContainer,
   stopContainer,
@@ -321,6 +322,12 @@ async function runServiceDeployment(
       }
     }
 
+    await db
+      .updateTable("deployments")
+      .set({ imageName })
+      .where("id", "=", deploymentId)
+      .execute();
+
     await updateDeployment(deploymentId, { status: "deploying" });
     await appendLog(deploymentId, `\nStarting container...\n`);
     await updateCommitStatusIfGitHub(
@@ -384,6 +391,18 @@ async function runServiceDeployment(
       ];
       await appendLog(deploymentId, "SSL enabled for postgres\n");
     }
+
+    await db
+      .updateTable("deployments")
+      .set({
+        envVarsSnapshot: JSON.stringify(envVarsList),
+        containerPort: service.containerPort,
+        healthCheckPath: service.healthCheckPath,
+        healthCheckTimeout: service.healthCheckTimeout,
+        volumes: service.volumes,
+      })
+      .where("id", "=", deploymentId)
+      .execute();
 
     const hostPort = await getAvailablePort();
     const runResult = await runContainer({
@@ -458,6 +477,8 @@ async function runServiceDeployment(
       );
     }
 
+    await updateRollbackEligible(service.id);
+
     const previousDeployments = await db
       .selectFrom("deployments")
       .select(["id", "containerId"])
@@ -491,5 +512,268 @@ async function runServiceDeployment(
       "Deployment failed",
       deploymentId,
     );
+  }
+}
+
+const ROLLBACK_ELIGIBLE_COUNT = 5;
+
+async function updateRollbackEligible(serviceId: string): Promise<void> {
+  const service = await db
+    .selectFrom("services")
+    .select("volumes")
+    .where("id", "=", serviceId)
+    .executeTakeFirst();
+
+  const hasVolumes = service?.volumes && service.volumes !== "[]";
+  if (hasVolumes) {
+    return;
+  }
+
+  const successfulDeployments = await db
+    .selectFrom("deployments")
+    .select("id")
+    .where("serviceId", "=", serviceId)
+    .where("status", "=", "running")
+    .where("imageName", "is not", null)
+    .orderBy("createdAt", "desc")
+    .execute();
+
+  const eligibleIds = successfulDeployments
+    .slice(0, ROLLBACK_ELIGIBLE_COUNT)
+    .map((d) => d.id);
+  const ineligibleIds = successfulDeployments
+    .slice(ROLLBACK_ELIGIBLE_COUNT)
+    .map((d) => d.id);
+
+  if (eligibleIds.length > 0) {
+    await db
+      .updateTable("deployments")
+      .set({ rollbackEligible: 1 })
+      .where("id", "in", eligibleIds)
+      .execute();
+  }
+
+  if (ineligibleIds.length > 0) {
+    await db
+      .updateTable("deployments")
+      .set({ rollbackEligible: 0 })
+      .where("id", "in", ineligibleIds)
+      .execute();
+  }
+}
+
+export async function rollbackDeployment(
+  deploymentId: string,
+): Promise<string> {
+  const sourceDeployment = await db
+    .selectFrom("deployments")
+    .selectAll()
+    .where("id", "=", deploymentId)
+    .executeTakeFirst();
+
+  if (!sourceDeployment) {
+    throw new Error("Deployment not found");
+  }
+
+  if (!sourceDeployment.imageName) {
+    throw new Error("Deployment has no image snapshot");
+  }
+
+  const service = await db
+    .selectFrom("services")
+    .selectAll()
+    .where("id", "=", sourceDeployment.serviceId)
+    .executeTakeFirst();
+
+  if (!service) {
+    throw new Error("Service not found");
+  }
+
+  if (service.volumes && service.volumes !== "[]") {
+    throw new Error("Cannot rollback services with volumes");
+  }
+
+  const project = await db
+    .selectFrom("projects")
+    .selectAll()
+    .where("id", "=", sourceDeployment.projectId)
+    .executeTakeFirst();
+
+  if (!project) {
+    throw new Error("Project not found");
+  }
+
+  const exists = await imageExists(sourceDeployment.imageName);
+  if (!exists) {
+    throw new Error("Image no longer available");
+  }
+
+  const newDeploymentId = nanoid();
+  const now = Date.now();
+
+  await db
+    .insertInto("deployments")
+    .values({
+      id: newDeploymentId,
+      projectId: sourceDeployment.projectId,
+      serviceId: sourceDeployment.serviceId,
+      commitSha: sourceDeployment.commitSha,
+      commitMessage: `Rollback to ${sourceDeployment.commitSha}`,
+      status: "pending",
+      createdAt: now,
+      imageName: sourceDeployment.imageName,
+      envVarsSnapshot: sourceDeployment.envVarsSnapshot,
+      containerPort: sourceDeployment.containerPort,
+      healthCheckPath: sourceDeployment.healthCheckPath,
+      healthCheckTimeout: sourceDeployment.healthCheckTimeout,
+      volumes: sourceDeployment.volumes,
+      rollbackSourceId: sourceDeployment.id,
+    })
+    .execute();
+
+  runRollbackDeployment(
+    newDeploymentId,
+    sourceDeployment,
+    service,
+    project,
+  ).catch((err) => {
+    console.error("Rollback deployment failed:", err);
+  });
+
+  return newDeploymentId;
+}
+
+async function runRollbackDeployment(
+  deploymentId: string,
+  sourceDeployment: {
+    imageName: string | null;
+    envVarsSnapshot: string | null;
+    containerPort: number | null;
+    healthCheckPath: string | null;
+    healthCheckTimeout: number | null;
+  },
+  service: Selectable<Service>,
+  project: Selectable<Project>,
+) {
+  const containerName = `frost-${project.id}-${service.name}`.toLowerCase();
+  const networkName = `frost-net-${project.id}`.toLowerCase();
+
+  const baseLabels = {
+    "frost.managed": "true",
+    "frost.project.id": project.id,
+    "frost.service.id": service.id,
+    "frost.service.name": service.name,
+  };
+
+  const envVarsList: EnvVar[] = sourceDeployment.envVarsSnapshot
+    ? JSON.parse(sourceDeployment.envVarsSnapshot)
+    : [];
+  const envVars: Record<string, string> = {};
+  for (const e of envVarsList) {
+    envVars[e.key] = e.value;
+  }
+
+  try {
+    await updateDeployment(deploymentId, { status: "deploying" });
+    await appendLog(
+      deploymentId,
+      `Rolling back to image ${sourceDeployment.imageName}...\n`,
+    );
+
+    await createNetwork(networkName, baseLabels);
+
+    const hostPort = await getAvailablePort();
+    const runResult = await runContainer({
+      imageName: sourceDeployment.imageName!,
+      hostPort,
+      containerPort: sourceDeployment.containerPort ?? undefined,
+      name: containerName,
+      envVars,
+      network: networkName,
+      hostname: service.name,
+      labels: {
+        ...baseLabels,
+        "frost.deployment.id": deploymentId,
+      },
+    });
+
+    if (!runResult.success) {
+      throw new Error(runResult.error || "Failed to start container");
+    }
+
+    await appendLog(
+      deploymentId,
+      `Container started: ${runResult.containerId.substring(0, 12)}\n`,
+    );
+
+    const healthCheckType = sourceDeployment.healthCheckPath
+      ? `HTTP ${sourceDeployment.healthCheckPath}`
+      : "TCP";
+    await appendLog(
+      deploymentId,
+      `Health check (${healthCheckType}) on port ${hostPort}...\n`,
+    );
+
+    const isHealthy = await waitForHealthy({
+      containerId: runResult.containerId,
+      port: hostPort,
+      path: sourceDeployment.healthCheckPath,
+      timeoutSeconds: sourceDeployment.healthCheckTimeout ?? 60,
+    });
+
+    if (!isHealthy) {
+      throw new Error("Container failed health check");
+    }
+
+    await updateDeployment(deploymentId, {
+      status: "running",
+      containerId: runResult.containerId,
+      hostPort: hostPort,
+      finishedAt: Date.now(),
+    });
+
+    await appendLog(
+      deploymentId,
+      `\nRollback successful! App available at http://localhost:${hostPort}\n`,
+    );
+
+    try {
+      await syncCaddyConfig();
+      await appendLog(deploymentId, "Caddy config synced\n");
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: Failed to sync Caddy config: ${err.message}\n`,
+      );
+    }
+
+    await updateRollbackEligible(service.id);
+
+    const previousDeployments = await db
+      .selectFrom("deployments")
+      .select(["id", "containerId"])
+      .where("serviceId", "=", service.id)
+      .where("id", "!=", deploymentId)
+      .where("status", "=", "running")
+      .execute();
+
+    for (const prev of previousDeployments) {
+      if (prev.containerId) {
+        await stopContainer(prev.containerId);
+      }
+      await db
+        .updateTable("deployments")
+        .set({ status: "failed", finishedAt: Date.now() })
+        .where("id", "=", prev.id)
+        .execute();
+    }
+  } catch (err: any) {
+    const errorMessage = err.message || "Unknown error";
+    await updateDeployment(deploymentId, {
+      status: "failed",
+      errorMessage: errorMessage,
+      finishedAt: Date.now(),
+    });
+    await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
   }
 }

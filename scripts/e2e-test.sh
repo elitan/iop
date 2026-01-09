@@ -641,6 +641,121 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT8_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 8: Rollback"
+echo "########################################"
+
+echo ""
+echo "=== Test 39: Create service and deploy twice ==="
+PROJECT9=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-rollback"}')
+PROJECT9_ID=$(echo "$PROJECT9" | jq -r '.id')
+echo "Created project: $PROJECT9_ID"
+
+SERVICE9=$(api -X POST "$BASE_URL/api/projects/$PROJECT9_ID/services" \
+  -d '{"name":"rollback-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE9_ID=$(echo "$SERVICE9" | jq -r '.id')
+echo "Created service: $SERVICE9_ID"
+
+DEPLOY9A=$(api -X POST "$BASE_URL/api/services/$SERVICE9_ID/deploy")
+DEPLOY9A_ID=$(echo "$DEPLOY9A" | jq -r '.deployment_id')
+echo "Started first deployment: $DEPLOY9A_ID"
+wait_for_deployment "$DEPLOY9A_ID"
+
+DEPLOY9B=$(api -X POST "$BASE_URL/api/services/$SERVICE9_ID/deploy")
+DEPLOY9B_ID=$(echo "$DEPLOY9B" | jq -r '.deployment_id')
+echo "Started second deployment: $DEPLOY9B_ID"
+wait_for_deployment "$DEPLOY9B_ID"
+
+echo ""
+echo "=== Test 40: Verify deployment has snapshot data ==="
+DEPLOY9B_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY9B_ID")
+IMAGE_NAME=$(echo "$DEPLOY9B_DATA" | jq -r '.imageName')
+ROLLBACK_ELIGIBLE=$(echo "$DEPLOY9B_DATA" | jq -r '.rollbackEligible')
+
+if [ "$IMAGE_NAME" = "null" ] || [ -z "$IMAGE_NAME" ]; then
+  echo "FAIL: Deployment should have imageName snapshot"
+  exit 1
+fi
+echo "Deployment has imageName: $IMAGE_NAME"
+
+if [ "$ROLLBACK_ELIGIBLE" != "1" ]; then
+  echo "FAIL: Deployment should be rollback-eligible (got: $ROLLBACK_ELIGIBLE)"
+  exit 1
+fi
+echo "Deployment is rollback-eligible"
+
+echo ""
+echo "=== Test 41: Rollback to first deployment ==="
+DEPLOY9A_UPDATED=$(api "$BASE_URL/api/deployments/$DEPLOY9A_ID")
+DEPLOY9A_IMAGE=$(echo "$DEPLOY9A_UPDATED" | jq -r '.imageName')
+DEPLOY9A_ELIGIBLE=$(echo "$DEPLOY9A_UPDATED" | jq -r '.rollbackEligible')
+echo "First deployment image: $DEPLOY9A_IMAGE, eligible: $DEPLOY9A_ELIGIBLE"
+
+ROLLBACK_RESULT=$(api -X POST "$BASE_URL/api/deployments/$DEPLOY9A_ID/rollback")
+ROLLBACK_DEPLOY_ID=$(echo "$ROLLBACK_RESULT" | jq -r '.deployment_id')
+
+if [ "$ROLLBACK_DEPLOY_ID" = "null" ] || [ -z "$ROLLBACK_DEPLOY_ID" ]; then
+  echo "FAIL: Rollback did not return new deployment_id"
+  echo "Response: $ROLLBACK_RESULT"
+  exit 1
+fi
+echo "Rollback created new deployment: $ROLLBACK_DEPLOY_ID"
+
+echo ""
+echo "=== Test 42: Wait for rollback deployment ==="
+wait_for_deployment "$ROLLBACK_DEPLOY_ID"
+
+ROLLBACK_DEPLOY=$(api "$BASE_URL/api/deployments/$ROLLBACK_DEPLOY_ID")
+ROLLBACK_SOURCE=$(echo "$ROLLBACK_DEPLOY" | jq -r '.rollbackSourceId')
+if [ "$ROLLBACK_SOURCE" != "$DEPLOY9A_ID" ]; then
+  echo "FAIL: Rollback deployment should have rollbackSourceId=$DEPLOY9A_ID (got: $ROLLBACK_SOURCE)"
+  exit 1
+fi
+echo "Rollback deployment correctly references source deployment"
+
+echo ""
+echo "=== Test 43: Verify rollback service responds ==="
+HOST_PORT9=$(api "$BASE_URL/api/deployments/$ROLLBACK_DEPLOY_ID" | jq -r '.hostPort')
+echo "Service running on port: $HOST_PORT9"
+
+if curl -sf "http://$SERVER_IP:$HOST_PORT9" > /dev/null; then
+  echo "Rollback service is responding!"
+else
+  echo "FAIL: Rollback service failed to respond"
+  exit 1
+fi
+
+echo ""
+echo "=== Test 44: Verify rollback blocked for database services ==="
+SERVICE9_DB=$(api -X POST "$BASE_URL/api/projects/$PROJECT9_ID/services" \
+  -d '{"name":"db-rollback-test","deployType":"database","templateId":"postgres-17"}')
+SERVICE9_DB_ID=$(echo "$SERVICE9_DB" | jq -r '.id')
+echo "Created database service: $SERVICE9_DB_ID"
+
+DEPLOY9_DB=$(api -X POST "$BASE_URL/api/services/$SERVICE9_DB_ID/deploy")
+DEPLOY9_DB_ID=$(echo "$DEPLOY9_DB" | jq -r '.deployment_id')
+echo "Started database deployment: $DEPLOY9_DB_ID"
+wait_for_deployment "$DEPLOY9_DB_ID" 45
+
+ROLLBACK_DB_RESULT=$(curl -sS -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/api/deployments/$DEPLOY9_DB_ID/rollback" -w "\n%{http_code}")
+ROLLBACK_DB_STATUS=$(echo "$ROLLBACK_DB_RESULT" | tail -1)
+ROLLBACK_DB_BODY=$(echo "$ROLLBACK_DB_RESULT" | head -n -1)
+
+if [ "$ROLLBACK_DB_STATUS" = "400" ]; then
+  echo "Rollback correctly blocked for database service (400)"
+else
+  echo "FAIL: Rollback should return 400 for database services (got: $ROLLBACK_DB_STATUS)"
+  echo "Body: $ROLLBACK_DB_BODY"
+  exit 1
+fi
+
+echo ""
+echo "=== Test 45: Cleanup rollback test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT9_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

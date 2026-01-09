@@ -439,6 +439,15 @@ export async function removeImage(image: string): Promise<boolean> {
   }
 }
 
+export async function imageExists(imageName: string): Promise<boolean> {
+  try {
+    await execAsync(`docker image inspect ${imageName}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getRunningImageNames(): Promise<Set<string>> {
   try {
     const { stdout } = await execAsync(`docker ps --format '{{.Image}}'`);
