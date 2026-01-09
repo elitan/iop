@@ -213,8 +213,7 @@ export async function runContainer(
 
 export async function stopContainer(name: string): Promise<void> {
   try {
-    await execAsync(`docker stop ${name}`);
-    await execAsync(`docker rm ${name}`);
+    await execAsync(`docker rm -f ${name}`);
   } catch {
     // Container might not exist
   }
