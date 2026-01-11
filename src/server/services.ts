@@ -19,6 +19,23 @@ const envVarSchema = z.object({
   value: z.string(),
 });
 
+const deploymentSchema = z
+  .object({
+    id: z.string(),
+    serviceId: z.string(),
+    projectId: z.string(),
+    status: z.string(),
+    commitSha: z.string().nullable(),
+    commitMessage: z.string().nullable(),
+    containerId: z.string().nullable(),
+    hostPort: z.number().nullable(),
+    buildLog: z.string().nullable(),
+    createdAt: z.number(),
+    imageName: z.string().nullable(),
+    rollbackEligible: z.number().nullable(),
+  })
+  .passthrough();
+
 export const services = {
   get: os
     .route({ method: "GET", path: "/services/{id}" })
@@ -332,32 +349,41 @@ export const services = {
     }),
 
   deploy: os
-    .route({ method: "POST", path: "/services/{id}/deploy" })
-    .input(z.object({ id: z.string() }))
+    .route({
+      method: "POST",
+      path: "/services/{id}/deploy",
+      inputStructure: "detailed",
+    })
+    .input(z.object({ params: z.object({ id: z.string() }) }))
     .output(z.object({ deploymentId: z.string() }))
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
         .select("id")
-        .where("id", "=", input.id)
+        .where("id", "=", input.params.id)
         .executeTakeFirst();
 
       if (!service) {
         throw new ORPCError("NOT_FOUND", { message: "Service not found" });
       }
 
-      const deploymentId = await deployService(input.id);
+      const deploymentId = await deployService(input.params.id);
       return { deploymentId };
     }),
 
   listDeployments: os
-    .route({ method: "GET", path: "/services/{id}/deployments" })
-    .input(z.object({ id: z.string() }))
+    .route({
+      method: "GET",
+      path: "/services/{id}/deployments",
+      inputStructure: "detailed",
+    })
+    .input(z.object({ params: z.object({ id: z.string() }) }))
+    .output(z.array(deploymentSchema))
     .handler(async ({ input }) => {
       const deployments = await db
         .selectFrom("deployments")
         .selectAll()
-        .where("serviceId", "=", input.id)
+        .where("serviceId", "=", input.params.id)
         .orderBy("createdAt", "desc")
         .limit(20)
         .execute();

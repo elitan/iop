@@ -20,6 +20,13 @@ const latestDeploymentSchema = z.object({
   branch: z.string().nullable(),
 });
 
+const projectSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  envVars: z.string(),
+  createdAt: z.number(),
+});
+
 const projectListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -145,6 +152,7 @@ export const projects = {
         envVars: z.array(envVarSchema).default([]),
       }),
     )
+    .output(projectSchema)
     .handler(async ({ input }) => {
       const id = nanoid();
       const now = Date.now();
@@ -177,6 +185,7 @@ export const projects = {
         envVars: z.array(envVarSchema).optional(),
       }),
     )
+    .output(projectSchema)
     .handler(async ({ input }) => {
       const project = await db
         .selectFrom("projects")

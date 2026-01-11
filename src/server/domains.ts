@@ -15,6 +15,34 @@ import {
 } from "@/lib/domains";
 import { os } from "@/lib/orpc";
 
+const domainSchema = z
+  .object({
+    id: z.string(),
+    serviceId: z.string(),
+    domain: z.string(),
+    type: z.string(),
+    redirectTarget: z.string().nullable(),
+    redirectCode: z.number().nullable(),
+    dnsVerified: z.number().nullable(),
+    sslStatus: z.string().nullable(),
+    isSystem: z.number().nullable(),
+    createdAt: z.number(),
+  })
+  .passthrough();
+
+const dnsVerifyResultSchema = z.object({
+  valid: z.boolean(),
+  ip: z.string().nullable().optional(),
+  expectedIp: z.string().nullable().optional(),
+  dnsVerified: z.boolean(),
+});
+
+const sslVerifyResultSchema = z.object({
+  working: z.boolean(),
+  status: z.enum(["active", "pending"]),
+  error: z.string().optional(),
+});
+
 function checkHttps(
   domain: string,
   rejectUnauthorized: boolean,
@@ -50,6 +78,7 @@ export const domains = {
   get: os
     .route({ method: "GET", path: "/domains/{id}" })
     .input(z.object({ id: z.string() }))
+    .output(domainSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {
@@ -61,6 +90,7 @@ export const domains = {
   listByService: os
     .route({ method: "GET", path: "/services/{serviceId}/domains" })
     .input(z.object({ serviceId: z.string() }))
+    .output(z.array(domainSchema))
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -193,6 +223,7 @@ export const domains = {
   verifyDns: os
     .route({ method: "POST", path: "/domains/{id}/verify-dns" })
     .input(z.object({ id: z.string() }))
+    .output(dnsVerifyResultSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {
@@ -216,6 +247,7 @@ export const domains = {
   verifySsl: os
     .route({ method: "POST", path: "/domains/{id}/verify-ssl" })
     .input(z.object({ id: z.string() }))
+    .output(sslVerifyResultSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {
