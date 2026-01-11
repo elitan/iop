@@ -1,6 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
-// @ts-expect-error - better-sqlite3 types not installed
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import { nanoid } from "nanoid";
 
 const name = process.argv[2] || "install";
