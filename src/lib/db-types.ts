@@ -26,6 +26,15 @@ export interface Migration {
   appliedAt: number;
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  createdAt: Generated<string>;
+  lastUsedAt: string | null;
+}
+
 export interface Deployment {
   id: string;
   projectId: string;
@@ -53,13 +62,13 @@ export interface Domain {
   id: string;
   serviceId: string;
   domain: string;
-  'type': Generated<string>;
+  'type': Generated<'proxy' | 'redirect'>;
   redirectTarget: string | null;
-  redirectCode: Generated<number | null>;
-  dnsVerified: Generated<number | null>;
-  sslStatus: Generated<string | null>;
+  redirectCode: Generated<301 | 307 | null>;
+  dnsVerified: Generated<boolean | null>;
+  sslStatus: Generated<'pending' | 'active' | 'failed' | null>;
   createdAt: number;
-  isSystem: Generated<number | null>;
+  isSystem: Generated<boolean | null>;
 }
 
 export interface GithubInstallation {
@@ -116,15 +125,6 @@ export interface Service {
 export interface Setting {
   key: string;
   value: string;
-}
-
-export interface ApiKey {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  keyHash: string;
-  createdAt: Generated<string>;
-  lastUsedAt: string | null;
 }
 
 export interface DB {

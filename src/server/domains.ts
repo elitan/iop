@@ -180,13 +180,13 @@ export const domains = {
         throw new ORPCError("NOT_FOUND", { message: "Domain not found" });
       }
 
-      if (domain.isSystem === 1) {
+      if (domain.isSystem) {
         const otherVerifiedDomains = await db
           .selectFrom("domains")
           .select("id")
           .where("serviceId", "=", domain.serviceId)
           .where("id", "!=", input.id)
-          .where("dnsVerified", "=", 1)
+          .where("dnsVerified", "=", true)
           .execute();
 
         if (otherVerifiedDomains.length === 0) {

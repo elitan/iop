@@ -52,7 +52,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "kysely-gen": "^0.10.0",
+    "kysely-gen": "^0.11.0",
     "postcss": "^8",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2"

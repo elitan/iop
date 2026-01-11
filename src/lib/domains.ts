@@ -38,7 +38,7 @@ export async function addDomain(serviceId: string, input: DomainInput) {
       type,
       redirectTarget: type === "redirect" ? redirectTarget : null,
       redirectCode: type === "redirect" ? redirectCode : null,
-      dnsVerified: 0,
+      dnsVerified: false,
       sslStatus: "pending",
       createdAt: now,
     })
@@ -121,7 +121,7 @@ export async function getSystemDomainForService(serviceId: string) {
     .selectFrom("domains")
     .selectAll()
     .where("serviceId", "=", serviceId)
-    .where("isSystem", "=", 1)
+    .where("isSystem", "=", true)
     .executeTakeFirst();
   return domain ?? null;
 }
@@ -174,10 +174,10 @@ export async function createSystemDomain(
       type: "proxy",
       redirectTarget: null,
       redirectCode: null,
-      dnsVerified: 1,
+      dnsVerified: true,
       sslStatus: "pending",
       createdAt: now,
-      isSystem: 1,
+      isSystem: true,
     })
     .execute();
 
@@ -394,7 +394,7 @@ export async function syncCaddyConfig(): Promise<boolean> {
       "domains.redirectCode",
       "deployments.hostPort",
     ])
-    .where("domains.dnsVerified", "=", 1)
+    .where("domains.dnsVerified", "=", true)
     .execute();
 
   const routes: DomainRoute[] = [];

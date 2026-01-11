@@ -136,39 +136,45 @@ export const domainSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
   domain: z.string(),
-  type: z.string(),
+  type: z.enum(["proxy", "redirect"]),
   redirectTarget: z.string().nullable(),
-  redirectCode: z.number().nullable(),
-  dnsVerified: z.number().nullable(),
-  sslStatus: z.string().nullable(),
+  redirectCode: z.union([z.literal(301), z.literal(307)]).nullable(),
+  dnsVerified: z.boolean().nullable(),
+  sslStatus: z.enum(["pending", "active", "failed"]).nullable(),
   createdAt: z.number(),
-  isSystem: z.number().nullable(),
+  isSystem: z.boolean().nullable(),
 });
 
 export const newDomainSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
   domain: z.string(),
-  type: z.string().optional(),
+  type: z.enum(["proxy", "redirect"]).optional(),
   redirectTarget: z.string().nullable(),
-  redirectCode: z.number().nullable().optional(),
-  dnsVerified: z.number().nullable().optional(),
-  sslStatus: z.string().nullable().optional(),
+  redirectCode: z
+    .union([z.literal(301), z.literal(307)])
+    .nullable()
+    .optional(),
+  dnsVerified: z.boolean().nullable().optional(),
+  sslStatus: z.enum(["pending", "active", "failed"]).nullable().optional(),
   createdAt: z.number(),
-  isSystem: z.number().nullable().optional(),
+  isSystem: z.boolean().nullable().optional(),
 });
 
 export const domainUpdateSchema = z.object({
   id: z.string().optional(),
   serviceId: z.string().optional(),
   domain: z.string().optional(),
-  type: z.string().optional(),
+  type: z.enum(["proxy", "redirect"]).optional(),
   redirectTarget: z.string().nullable().optional(),
-  redirectCode: z.number().nullable().optional(),
-  dnsVerified: z.number().nullable().optional(),
-  sslStatus: z.string().nullable().optional(),
+  redirectCode: z
+    .union([z.literal(301), z.literal(307)])
+    .nullable()
+    .optional(),
+  dnsVerified: z.boolean().nullable().optional(),
+  sslStatus: z.enum(["pending", "active", "failed"]).nullable().optional(),
   createdAt: z.number().optional(),
-  isSystem: z.number().nullable().optional(),
+  isSystem: z.boolean().nullable().optional(),
 });
 
 export type Domain = z.infer<typeof domainSchema>;
