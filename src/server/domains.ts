@@ -102,6 +102,7 @@ export const domains = {
         redirectCode: z.union([z.literal(301), z.literal(307)]).optional(),
       }),
     )
+    .output(domainSchema)
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -144,6 +145,7 @@ export const domains = {
         redirectCode: z.union([z.literal(301), z.literal(307)]).optional(),
       }),
     )
+    .output(domainSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {

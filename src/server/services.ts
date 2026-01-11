@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { deploymentSchema } from "@/lib/db-schemas";
+import { deploymentSchema, serviceSchema } from "@/lib/db-schemas";
 import { generateCredential, getTemplate } from "@/lib/db-templates";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
@@ -22,10 +22,15 @@ const envVarSchema = z.object({
 
 const idParamSchema = z.object({ id: z.string() });
 
+const serviceWithDeploymentSchema = serviceSchema.extend({
+  latestDeployment: deploymentSchema.nullable(),
+});
+
 export const services = {
   get: os
     .route({ method: "GET", path: "/services/{id}" })
     .input(z.object({ id: z.string() }))
+    .output(serviceWithDeploymentSchema)
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -51,6 +56,7 @@ export const services = {
   listByProject: os
     .route({ method: "GET", path: "/projects/{projectId}/services" })
     .input(z.object({ projectId: z.string() }))
+    .output(z.array(serviceWithDeploymentSchema))
     .handler(async ({ input }) => {
       const services = await db
         .selectFrom("services")
@@ -93,6 +99,7 @@ export const services = {
         healthCheckTimeout: z.number().optional(),
       }),
     )
+    .output(serviceSchema)
     .handler(async ({ input }) => {
       if (input.deployType === "repo" && !input.repoUrl) {
         throw new ORPCError("BAD_REQUEST", {
@@ -208,11 +215,17 @@ export const services = {
         .where("id", "=", id)
         .executeTakeFirst();
 
+      if (!service) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Failed to create service",
+        });
+      }
+
       deployService(id).catch((err) => {
         console.error(`Auto-deploy failed for service ${id}:`, err);
       });
 
-      return service!;
+      return service;
     }),
 
   update: os
@@ -232,6 +245,7 @@ export const services = {
         autoDeployEnabled: z.boolean().optional(),
       }),
     )
+    .output(serviceSchema)
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -284,11 +298,17 @@ export const services = {
         }
       }
 
-      return await db
+      const updated = await db
         .selectFrom("services")
         .selectAll()
         .where("id", "=", input.id)
         .executeTakeFirst();
+
+      if (!updated) {
+        throw new ORPCError("NOT_FOUND", { message: "Service not found" });
+      }
+
+      return updated;
     }),
 
   delete: os

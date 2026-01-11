@@ -44,7 +44,11 @@ export async function addDomain(serviceId: string, input: DomainInput) {
     })
     .execute();
 
-  return getDomain(id);
+  const result = await getDomain(id);
+  if (!result) {
+    throw new Error("Failed to create domain");
+  }
+  return result;
 }
 
 export async function getDomain(id: string) {
@@ -93,11 +97,19 @@ export async function updateDomain(
     setValues.dnsVerified = updates.dnsVerified ? 1 : 0;
   if (updates.sslStatus !== undefined) setValues.sslStatus = updates.sslStatus;
 
-  if (Object.keys(setValues).length === 0) return getDomain(id);
+  if (Object.keys(setValues).length > 0) {
+    await db
+      .updateTable("domains")
+      .set(setValues)
+      .where("id", "=", id)
+      .execute();
+  }
 
-  await db.updateTable("domains").set(setValues).where("id", "=", id).execute();
-
-  return getDomain(id);
+  const result = await getDomain(id);
+  if (!result) {
+    throw new Error("Domain not found after update");
+  }
+  return result;
 }
 
 export async function removeDomain(id: string) {

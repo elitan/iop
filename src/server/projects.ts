@@ -3,7 +3,11 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { projectSchema } from "@/lib/db-schemas";
+import {
+  deploymentSchema,
+  projectSchema,
+  serviceSchema,
+} from "@/lib/db-schemas";
 import { deployProject } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
 import { updateSystemDomain } from "@/lib/domains";
@@ -21,15 +25,19 @@ const latestDeploymentSchema = z.object({
   branch: z.string().nullable(),
 });
 
-const projectListItemSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  envVars: z.string(),
-  createdAt: z.number(),
+const projectListItemSchema = projectSchema.extend({
   servicesCount: z.number(),
   latestDeployment: latestDeploymentSchema.nullable(),
   repoUrl: z.string().nullable(),
   runningUrl: z.string().nullable(),
+});
+
+const serviceWithDeploymentSchema = serviceSchema.extend({
+  latestDeployment: deploymentSchema.nullable(),
+});
+
+const projectWithServicesSchema = projectSchema.extend({
+  services: z.array(serviceWithDeploymentSchema),
 });
 
 export const projects = {
@@ -104,6 +112,7 @@ export const projects = {
   get: os
     .route({ method: "GET", path: "/projects/{id}" })
     .input(z.object({ id: z.string() }))
+    .output(projectWithServicesSchema)
     .handler(async ({ input }) => {
       const project = await db
         .selectFrom("projects")
@@ -167,7 +176,13 @@ export const projects = {
         .where("id", "=", id)
         .executeTakeFirst();
 
-      return project!;
+      if (!project) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Failed to create project",
+        });
+      }
+
+      return project;
     }),
 
   update: os
@@ -224,7 +239,11 @@ export const projects = {
         .where("id", "=", input.id)
         .executeTakeFirst();
 
-      return updated!;
+      if (!updated) {
+        throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+      }
+
+      return updated;
     }),
 
   delete: os
