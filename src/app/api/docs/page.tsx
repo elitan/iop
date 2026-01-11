@@ -1,7 +1,12 @@
 "use client";
 
-import { ApiReferenceReact } from "@scalar/api-reference-react";
-import "@scalar/api-reference-react/style.css";
+import dynamic from "next/dynamic";
+
+const ApiReferenceReact = dynamic(
+  () =>
+    import("@scalar/api-reference-react").then((mod) => mod.ApiReferenceReact),
+  { ssr: false },
+);
 
 export default function DocsPage() {
   return (
