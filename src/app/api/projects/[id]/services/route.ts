@@ -54,6 +54,8 @@ export async function POST(
     envVars = [],
     containerPort,
     templateId,
+    healthCheckPath,
+    healthCheckTimeout,
   } = body;
 
   if (!name) {
@@ -173,6 +175,8 @@ export async function POST(
         imageUrl: deployType === "image" ? imageUrl : null,
         envVars: JSON.stringify(envVars),
         containerPort: containerPort ?? null,
+        healthCheckPath: healthCheckPath ?? null,
+        healthCheckTimeout: healthCheckTimeout ?? null,
         autoDeploy: deployType === "repo" ? 1 : 0,
         createdAt: now,
       })
