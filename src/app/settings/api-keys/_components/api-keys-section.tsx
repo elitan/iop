@@ -90,6 +90,8 @@ export function ApiKeysSection() {
     <SettingCard
       title="API Keys"
       description="Create API keys for programmatic access. Keys are shown only once."
+      learnMoreUrl="/api/docs"
+      learnMoreText="API documentation"
     >
       {loading ? (
         <div className="flex items-center gap-2 text-neutral-400">
