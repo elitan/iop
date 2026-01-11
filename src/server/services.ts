@@ -333,41 +333,33 @@ export const services = {
     }),
 
   deploy: os
-    .route({
-      method: "POST",
-      path: "/services/{id}/deploy",
-      inputStructure: "detailed",
-    })
-    .input(z.object({ params: z.object({ id: z.string() }) }))
+    .route({ method: "POST", path: "/services/{id}/deploy" })
+    .input(z.object({ id: z.string() }))
     .output(z.object({ deploymentId: z.string() }))
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
         .select("id")
-        .where("id", "=", input.params.id)
+        .where("id", "=", input.id)
         .executeTakeFirst();
 
       if (!service) {
         throw new ORPCError("NOT_FOUND", { message: "Service not found" });
       }
 
-      const deploymentId = await deployService(input.params.id);
+      const deploymentId = await deployService(input.id);
       return { deploymentId };
     }),
 
   listDeployments: os
-    .route({
-      method: "GET",
-      path: "/services/{id}/deployments",
-      inputStructure: "detailed",
-    })
-    .input(z.object({ params: z.object({ id: z.string() }) }))
+    .route({ method: "GET", path: "/services/{id}/deployments" })
+    .input(z.object({ id: z.string() }))
     .output(z.array(deploymentSchema))
     .handler(async ({ input }) => {
       const deployments = await db
         .selectFrom("deployments")
         .selectAll()
-        .where("serviceId", "=", input.params.id)
+        .where("serviceId", "=", input.id)
         .orderBy("createdAt", "desc")
         .limit(20)
         .execute();
