@@ -1,24 +1,10 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { verifyApiToken } from "./lib/auth";
 
 const DEFAULT_SECRET = "frost-default-secret-change-me";
 const JWT_SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
-
-function getApiKey(): string | null {
-  const secret = process.env.FROST_JWT_SECRET;
-  if (!secret || secret === DEFAULT_SECRET) return null;
-  return createHash("sha256")
-    .update(`${secret}frost-api-key`)
-    .digest("hex")
-    .slice(0, 32);
-}
-
-function verifyApiToken(token: string): boolean {
-  const apiKey = getApiKey();
-  if (!apiKey) return false;
-  return token === apiKey;
-}
 
 function verifySessionToken(token: string): boolean {
   const [data, signature] = token.split(".");
@@ -38,20 +24,21 @@ function verifySessionToken(token: string): boolean {
   }
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
     pathname === "/api/health" ||
-    pathname === "/api/github/webhook"
+    pathname === "/api/github/webhook" ||
+    pathname === "/api/openapi.json"
   ) {
     return NextResponse.next();
   }
 
   const apiToken = request.headers.get("x-frost-token");
-  if (apiToken && verifyApiToken(apiToken)) {
+  if (apiToken && (await verifyApiToken(apiToken))) {
     return NextResponse.next();
   }
 

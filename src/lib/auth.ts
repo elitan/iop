@@ -107,3 +107,30 @@ export async function isSetupComplete(): Promise<boolean> {
   const hash = await getAdminPasswordHash();
   return hash !== null;
 }
+
+export function generateApiKey(): string {
+  return `frost_${randomBytes(16).toString("hex")}`;
+}
+
+export function hashApiKey(key: string): string {
+  return createHmac("sha256", JWT_SECRET).update(key).digest("hex");
+}
+
+export async function verifyApiToken(token: string): Promise<boolean> {
+  const hash = hashApiKey(token);
+  const apiKey = await db
+    .selectFrom("apiKeys")
+    .select("id")
+    .where("keyHash", "=", hash)
+    .executeTakeFirst();
+
+  if (!apiKey) return false;
+
+  await db
+    .updateTable("apiKeys")
+    .set({ lastUsedAt: new Date().toISOString() })
+    .where("id", "=", apiKey.id)
+    .execute();
+
+  return true;
+}

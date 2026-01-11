@@ -228,8 +228,9 @@ fi
 # Get server IP
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
 
-# Generate API key from JWT secret
-FROST_API_KEY=$(echo -n "${FROST_JWT_SECRET}frost-api-key" | sha256sum | cut -c1-32)
+# Create initial API key
+echo "Creating initial API key..."
+FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
 
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
@@ -238,6 +239,8 @@ echo -e "Frost is running at: ${GREEN}http://$SERVER_IP${NC}"
 echo ""
 echo -e "API Key: ${YELLOW}$FROST_API_KEY${NC}"
 echo "(use with X-Frost-Token header)"
+echo ""
+echo "You can manage API keys in Settings > API Keys"
 echo ""
 echo "Next steps:"
 echo "  1. Point your domain to $SERVER_IP"

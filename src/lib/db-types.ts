@@ -118,8 +118,18 @@ export interface Setting {
   value: string;
 }
 
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  createdAt: Generated<string>;
+  lastUsedAt: string | null;
+}
+
 export interface DB {
   _Migrations: Migration;
+  apiKeys: ApiKey;
   deployments: Deployment;
   domains: Domain;
   githubInstallations: GithubInstallation;
