@@ -90,7 +90,7 @@ DEPLOYMENT_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[
 if [ -z "$DEPLOYMENT_ID" ]; then
   echo "No auto-deployment found, triggering manual deploy..."
   DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-  DEPLOYMENT_ID=$(echo "$DEPLOY" | jq -r '.deployment_id')
+  DEPLOYMENT_ID=$(echo "$DEPLOY" | jq -r '.deploymentId')
 fi
 
 if [ "$DEPLOYMENT_ID" = "null" ] || [ -z "$DEPLOYMENT_ID" ]; then
@@ -279,7 +279,7 @@ api -X PATCH "$BASE_URL/api/services/$SERVICE4_ID" \
   -d '{"imageUrl":"httpd:alpine","containerPort":80}' > /dev/null
 
 DEPLOY4B=$(api -X POST "$BASE_URL/api/services/$SERVICE4_ID/deploy")
-DEPLOY4B_ID=$(echo "$DEPLOY4B" | jq -r '.deployment_id')
+DEPLOY4B_ID=$(echo "$DEPLOY4B" | jq -r '.deploymentId')
 wait_for_deployment "$DEPLOY4B_ID"
 
 HOST_PORT4B=$(api "$BASE_URL/api/deployments/$DEPLOY4B_ID" | jq -r '.hostPort')
@@ -340,7 +340,7 @@ DEPLOY5_ID=$(api "$BASE_URL/api/services/$SERVICE5_ID/deployments" | jq -r '.[0]
 if [ "$DEPLOY5_ID" = "null" ] || [ -z "$DEPLOY5_ID" ]; then
   echo "No auto-deployment found - triggering manual deploy"
   DEPLOY5=$(api -X POST "$BASE_URL/api/services/$SERVICE5_ID/deploy")
-  DEPLOY5_ID=$(echo "$DEPLOY5" | jq -r '.deployment_id')
+  DEPLOY5_ID=$(echo "$DEPLOY5" | jq -r '.deploymentId')
 fi
 echo "Using deployment: $DEPLOY5_ID"
 wait_for_deployment "$DEPLOY5_ID"
@@ -672,7 +672,7 @@ echo "First deployment (auto): $DEPLOY9A_ID"
 wait_for_deployment "$DEPLOY9A_ID"
 
 DEPLOY9B=$(api -X POST "$BASE_URL/api/services/$SERVICE9_ID/deploy")
-DEPLOY9B_ID=$(echo "$DEPLOY9B" | jq -r '.deployment_id')
+DEPLOY9B_ID=$(echo "$DEPLOY9B" | jq -r '.deploymentId')
 echo "Second deployment (manual): $DEPLOY9B_ID"
 wait_for_deployment "$DEPLOY9B_ID"
 
@@ -702,10 +702,10 @@ DEPLOY9A_ELIGIBLE=$(echo "$DEPLOY9A_UPDATED" | jq -r '.rollbackEligible')
 echo "First deployment image: $DEPLOY9A_IMAGE, eligible: $DEPLOY9A_ELIGIBLE"
 
 ROLLBACK_RESULT=$(api -X POST "$BASE_URL/api/deployments/$DEPLOY9A_ID/rollback")
-ROLLBACK_DEPLOY_ID=$(echo "$ROLLBACK_RESULT" | jq -r '.deployment_id')
+ROLLBACK_DEPLOY_ID=$(echo "$ROLLBACK_RESULT" | jq -r '.deploymentId')
 
 if [ "$ROLLBACK_DEPLOY_ID" = "null" ] || [ -z "$ROLLBACK_DEPLOY_ID" ]; then
-  echo "FAIL: Rollback did not return deployment_id"
+  echo "FAIL: Rollback did not return deploymentId"
   echo "Response: $ROLLBACK_RESULT"
   exit 1
 fi
@@ -840,7 +840,7 @@ echo "Updated to TCP health check: timeout=$HEALTH_TIMEOUT_UPDATED"
 echo ""
 echo "=== Test 49: Redeploy and verify TCP health check in logs ==="
 DEPLOY10B=$(api -X POST "$BASE_URL/api/services/$SERVICE10_ID/deploy")
-DEPLOY10B_ID=$(echo "$DEPLOY10B" | jq -r '.deployment_id')
+DEPLOY10B_ID=$(echo "$DEPLOY10B" | jq -r '.deploymentId')
 echo "New deployment: $DEPLOY10B_ID"
 wait_for_deployment "$DEPLOY10B_ID"
 
