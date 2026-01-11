@@ -1,5 +1,5 @@
-import { createHmac, randomBytes } from "node:crypto";
 import { Database } from "bun:sqlite";
+import { createHmac, randomBytes } from "node:crypto";
 import { nanoid } from "nanoid";
 
 const name = process.argv[2] || "install";
