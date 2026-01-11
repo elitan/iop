@@ -20,6 +20,8 @@ const envVarSchema = z.object({
   value: z.string(),
 });
 
+const idParamSchema = z.object({ id: z.string() });
+
 export const services = {
   get: os
     .route({ method: "GET", path: "/services/{id}" })
@@ -334,7 +336,7 @@ export const services = {
 
   deploy: os
     .route({ method: "POST", path: "/services/{id}/deploy" })
-    .input(z.object({ id: z.string() }))
+    .input(idParamSchema)
     .output(z.object({ deploymentId: z.string() }))
     .handler(async ({ input }) => {
       const service = await db
@@ -353,7 +355,7 @@ export const services = {
 
   listDeployments: os
     .route({ method: "GET", path: "/services/{id}/deployments" })
-    .input(z.object({ id: z.string() }))
+    .input(idParamSchema)
     .output(z.array(deploymentSchema))
     .handler(async ({ input }) => {
       const deployments = await db

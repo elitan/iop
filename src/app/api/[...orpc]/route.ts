@@ -10,11 +10,18 @@ const generator = new OpenAPIGenerator({
   schemaConverters: [new ZodToJsonSchemaConverter()],
 });
 
+const {
+  deploy: _deploy,
+  listDeployments: _listDeploy,
+  ...servicesForSpec
+} = router.services;
+const specRouter = { ...router, services: servicesForSpec };
+
 let specCache: object | null = null;
 
 async function getSpec() {
   if (!specCache) {
-    specCache = await generator.generate(router, {
+    specCache = await generator.generate(specRouter, {
       info: {
         title: "Frost API",
         version: "1.0.0",
