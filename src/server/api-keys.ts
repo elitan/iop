@@ -5,10 +5,12 @@ import { db } from "@/lib/db";
 import { apiKeySchema } from "@/lib/db-schemas";
 import { os } from "@/lib/orpc";
 
+const apiKeyOutputSchema = apiKeySchema.omit({ keyHash: true });
+
 export const apiKeys = {
   list: os
     .route({ method: "GET", path: "/settings/api-keys" })
-    .output(z.array(apiKeySchema))
+    .output(z.array(apiKeyOutputSchema))
     .handler(async () => {
       const keys = await db
         .selectFrom("apiKeys")

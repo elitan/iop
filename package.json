@@ -14,6 +14,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "db:gen": "node ./node_modules/.bin/kysely-gen --url ./data/frost.db --dialect sqlite --camel-case --out ./src/lib/db-types.ts",
+    "db:gen:zod": "node ./node_modules/.bin/kysely-gen --url ./data/frost.db --dialect sqlite --camel-case --zod --out ./src/lib/db-schemas.ts",
     "test": "bun test"
   },
   "dependencies": {
@@ -50,7 +51,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "kysely-gen": "^0.9.1",
+    "kysely-gen": "^0.10.0",
     "postcss": "^8",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2"
