@@ -1,6 +1,6 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { router } from "@/server";
 import type { Context } from "@/server/context";
 
@@ -10,18 +10,11 @@ const generator = new OpenAPIGenerator({
   schemaConverters: [new ZodToJsonSchemaConverter()],
 });
 
-const {
-  deploy: _deploy,
-  listDeployments: _listDeploy,
-  ...servicesForSpec
-} = router.services;
-const specRouter = { ...router, services: servicesForSpec };
-
 let specCache: object | null = null;
 
 async function getSpec() {
   if (!specCache) {
-    specCache = await generator.generate(specRouter, {
+    specCache = await generator.generate(router, {
       info: {
         title: "Frost API",
         version: "1.0.0",
