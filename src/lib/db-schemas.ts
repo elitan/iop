@@ -139,10 +139,16 @@ export const domainSchema = z.object({
   type: z.enum(["proxy", "redirect"]),
   redirectTarget: z.string().nullable(),
   redirectCode: z.union([z.literal(301), z.literal(307)]).nullable(),
-  dnsVerified: z.boolean().nullable(),
+  dnsVerified: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable(),
   sslStatus: z.enum(["pending", "active", "failed"]).nullable(),
   createdAt: z.number(),
-  isSystem: z.boolean().nullable(),
+  isSystem: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable(),
 });
 
 export const newDomainSchema = z.object({
@@ -155,10 +161,18 @@ export const newDomainSchema = z.object({
     .union([z.literal(301), z.literal(307)])
     .nullable()
     .optional(),
-  dnsVerified: z.boolean().nullable().optional(),
+  dnsVerified: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable()
+    .optional(),
   sslStatus: z.enum(["pending", "active", "failed"]).nullable().optional(),
   createdAt: z.number(),
-  isSystem: z.boolean().nullable().optional(),
+  isSystem: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable()
+    .optional(),
 });
 
 export const domainUpdateSchema = z.object({
@@ -171,10 +185,18 @@ export const domainUpdateSchema = z.object({
     .union([z.literal(301), z.literal(307)])
     .nullable()
     .optional(),
-  dnsVerified: z.boolean().nullable().optional(),
+  dnsVerified: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable()
+    .optional(),
   sslStatus: z.enum(["pending", "active", "failed"]).nullable().optional(),
   createdAt: z.number().optional(),
-  isSystem: z.boolean().nullable().optional(),
+  isSystem: z
+    .union([z.literal(0), z.literal(1)])
+    .transform((v) => v === 1)
+    .nullable()
+    .optional(),
 });
 
 export type Domain = z.infer<typeof domainSchema>;

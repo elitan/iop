@@ -39,7 +39,7 @@
         "@types/node": "^22",
         "@types/react": "^19",
         "@types/react-dom": "^19",
-        "kysely-gen": "^0.11.0",
+        "kysely-gen": "^0.12.0",
         "postcss": "^8",
         "tailwindcss": "^4.1.18",
         "typescript": "^5.7.2",
@@ -815,7 +815,7 @@
 
     "kysely-bun-worker": ["kysely-bun-worker@1.2.1", "", { "dependencies": { "kysely-generic-sqlite": "1.2.1" }, "peerDependencies": { "bun-types": ">=1.1.14", "kysely": ">=0.26" } }, "sha512-mhQ8MQThL8gdyqGf6Jh3GnGrNaaQOxQxplust58kPGN8vB3qov+3W0laEkNacN0ShCBLb8vkLcYK0ShksPlBbQ=="],
 
-    "kysely-gen": ["kysely-gen@0.11.0", "", { "dependencies": { "chalk": "^5.6.2", "commander": "^14.0.2", "kysely": "^0.27.4", "micromatch": "^4.0.8", "ora": "^9.0.0", "pg": "^8.16.3" }, "peerDependencies": { "better-sqlite3": ">=9.0.0 <13.0.0", "mysql2": ">=3.0.0 <4.0.0", "tarn": ">=3.0.0 <4.0.0", "tedious": ">=16.0.0 <19.0.0", "zod": ">=4.0.0 <5.0.0" }, "optionalPeers": ["better-sqlite3", "mysql2", "tarn", "tedious", "zod"], "bin": { "kysely-gen": "dist/cli.js" } }, "sha512-oh0Y+eivSEdWSUt70EVmYYPXmfM/gCip35LY3h+C3In8PkevEtsN4dJKoqMfdW4g5zRSI5tcouGzMf+D9HJokw=="],
+    "kysely-gen": ["kysely-gen@0.12.0", "", { "dependencies": { "chalk": "^5.6.2", "commander": "^14.0.2", "kysely": "^0.27.4", "micromatch": "^4.0.8", "ora": "^9.0.0", "pg": "^8.16.3" }, "peerDependencies": { "better-sqlite3": ">=9.0.0 <13.0.0", "mysql2": ">=3.0.0 <4.0.0", "tarn": ">=3.0.0 <4.0.0", "tedious": ">=16.0.0 <19.0.0", "zod": ">=4.0.0 <5.0.0" }, "optionalPeers": ["better-sqlite3", "mysql2", "tarn", "tedious", "zod"], "bin": { "kysely-gen": "dist/cli.js" } }, "sha512-8TsAFGxeKhJp5shLdnaqnwExCGKo8P2b4ZW8KJ8dregsFsgTk3B0aKpljShvGvC7AU2iXiRsJd+rxSrW1e18Fg=="],
 
     "kysely-generic-sqlite": ["kysely-generic-sqlite@1.2.1", "", { "peerDependencies": { "kysely": ">=0.26" } }, "sha512-/Bs3/Uktn04nQ9g/4oSphLMEtSHkS5+j5hbKjK5gMqXQfqr/v3V3FKtoN4pLTmo2W35hNdrIpQnBukGL1zZc6g=="],
 
