@@ -770,6 +770,95 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT9_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 9: Health Check Config"
+echo "########################################"
+
+echo ""
+echo "=== Test 46: Create service with HTTP health check ==="
+PROJECT10=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-healthcheck"}')
+PROJECT10_ID=$(echo "$PROJECT10" | jq -r '.id')
+echo "Created project: $PROJECT10_ID"
+
+SERVICE10=$(api -X POST "$BASE_URL/api/projects/$PROJECT10_ID/services" \
+  -d '{"name":"health-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"healthCheckPath":"/","healthCheckTimeout":30}')
+SERVICE10_ID=$(echo "$SERVICE10" | jq -r '.id')
+HEALTH_PATH=$(echo "$SERVICE10" | jq -r '.healthCheckPath')
+HEALTH_TIMEOUT=$(echo "$SERVICE10" | jq -r '.healthCheckTimeout')
+
+if [ "$SERVICE10_ID" = "null" ] || [ -z "$SERVICE10_ID" ]; then
+  echo "FAIL: Failed to create service"
+  echo "$SERVICE10" | jq
+  exit 1
+fi
+
+if [ "$HEALTH_PATH" != "/" ]; then
+  echo "FAIL: healthCheckPath should be '/', got: $HEALTH_PATH"
+  exit 1
+fi
+if [ "$HEALTH_TIMEOUT" != "30" ]; then
+  echo "FAIL: healthCheckTimeout should be 30, got: $HEALTH_TIMEOUT"
+  exit 1
+fi
+echo "Created service with HTTP health check: path=$HEALTH_PATH, timeout=$HEALTH_TIMEOUT"
+
+echo ""
+echo "=== Test 47: Wait for deployment and verify HTTP health check in logs ==="
+sleep 2
+DEPLOY10_ID=$(api "$BASE_URL/api/services/$SERVICE10_ID/deployments" | jq -r '.[0].id')
+echo "Using deployment: $DEPLOY10_ID"
+wait_for_deployment "$DEPLOY10_ID"
+
+BUILD_LOG10=$(api "$BASE_URL/api/deployments/$DEPLOY10_ID" | jq -r '.buildLog')
+if echo "$BUILD_LOG10" | grep -q "Health check (HTTP /)"; then
+  echo "HTTP health check logged correctly"
+else
+  echo "FAIL: Expected 'Health check (HTTP /)' in build log"
+  echo "Build log: $BUILD_LOG10"
+  exit 1
+fi
+
+echo ""
+echo "=== Test 48: Update to TCP health check ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE10_ID" \
+  -d '{"healthCheckPath":null,"healthCheckTimeout":45}' > /dev/null
+
+SERVICE10_UPDATED=$(api "$BASE_URL/api/services/$SERVICE10_ID")
+HEALTH_PATH_UPDATED=$(echo "$SERVICE10_UPDATED" | jq -r '.healthCheckPath')
+HEALTH_TIMEOUT_UPDATED=$(echo "$SERVICE10_UPDATED" | jq -r '.healthCheckTimeout')
+
+if [ "$HEALTH_PATH_UPDATED" != "null" ]; then
+  echo "FAIL: healthCheckPath should be null, got: $HEALTH_PATH_UPDATED"
+  exit 1
+fi
+if [ "$HEALTH_TIMEOUT_UPDATED" != "45" ]; then
+  echo "FAIL: healthCheckTimeout should be 45, got: $HEALTH_TIMEOUT_UPDATED"
+  exit 1
+fi
+echo "Updated to TCP health check: timeout=$HEALTH_TIMEOUT_UPDATED"
+
+echo ""
+echo "=== Test 49: Redeploy and verify TCP health check in logs ==="
+DEPLOY10B=$(api -X POST "$BASE_URL/api/services/$SERVICE10_ID/deploy")
+DEPLOY10B_ID=$(echo "$DEPLOY10B" | jq -r '.deployment_id')
+echo "New deployment: $DEPLOY10B_ID"
+wait_for_deployment "$DEPLOY10B_ID"
+
+BUILD_LOG10B=$(api "$BASE_URL/api/deployments/$DEPLOY10B_ID" | jq -r '.buildLog')
+if echo "$BUILD_LOG10B" | grep -q "Health check (TCP)"; then
+  echo "TCP health check logged correctly"
+else
+  echo "FAIL: Expected 'Health check (TCP)' in build log"
+  echo "Build log: $BUILD_LOG10B"
+  exit 1
+fi
+
+echo ""
+echo "=== Test 50: Cleanup health check test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT10_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="
