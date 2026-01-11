@@ -1,26 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { deploymentSchema } from "@/lib/db-schemas";
 import { rollbackDeployment } from "@/lib/deployer";
 import { imageExists } from "@/lib/docker";
 import { os } from "@/lib/orpc";
-
-const deploymentSchema = z
-  .object({
-    id: z.string(),
-    serviceId: z.string(),
-    projectId: z.string(),
-    status: z.string(),
-    commitSha: z.string().nullable(),
-    commitMessage: z.string().nullable(),
-    containerId: z.string().nullable(),
-    hostPort: z.number().nullable(),
-    buildLog: z.string().nullable(),
-    createdAt: z.number(),
-    imageName: z.string().nullable(),
-    rollbackEligible: z.number().nullable(),
-  })
-  .passthrough();
 
 export const deployments = {
   get: os

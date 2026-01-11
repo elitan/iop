@@ -2,22 +2,13 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { generateApiKey, hashApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { apiKeySchema } from "@/lib/db-schemas";
 import { os } from "@/lib/orpc";
 
 export const apiKeys = {
   list: os
     .route({ method: "GET", path: "/settings/api-keys" })
-    .output(
-      z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          keyPrefix: z.string(),
-          createdAt: z.string(),
-          lastUsedAt: z.string().nullable(),
-        }),
-      ),
-    )
+    .output(z.array(apiKeySchema))
     .handler(async () => {
       const keys = await db
         .selectFrom("apiKeys")

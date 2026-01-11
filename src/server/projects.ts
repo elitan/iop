@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { projectSchema } from "@/lib/db-schemas";
 import { deployProject } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
 import { updateSystemDomain } from "@/lib/domains";
@@ -18,13 +19,6 @@ const latestDeploymentSchema = z.object({
   commitMessage: z.string().nullable(),
   createdAt: z.number(),
   branch: z.string().nullable(),
-});
-
-const projectSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  envVars: z.string(),
-  createdAt: z.number(),
 });
 
 const projectListItemSchema = z.object({

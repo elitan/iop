@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { domainSchema } from "@/lib/db-schemas";
 import {
   addDomain,
   getDomain,
@@ -14,21 +15,6 @@ import {
   verifyDomainDns,
 } from "@/lib/domains";
 import { os } from "@/lib/orpc";
-
-const domainSchema = z
-  .object({
-    id: z.string(),
-    serviceId: z.string(),
-    domain: z.string(),
-    type: z.string(),
-    redirectTarget: z.string().nullable(),
-    redirectCode: z.number().nullable(),
-    dnsVerified: z.number().nullable(),
-    sslStatus: z.string().nullable(),
-    isSystem: z.number().nullable(),
-    createdAt: z.number(),
-  })
-  .passthrough();
 
 const dnsVerifyResultSchema = z.object({
   valid: z.boolean(),
