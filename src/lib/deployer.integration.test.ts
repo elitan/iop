@@ -1,8 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { deployService } from "./deployer";
 import { stopContainer } from "./docker";
+
+const DB_PATH = join(process.cwd(), "data/frost.db");
+const SKIP_REASON = existsSync(DB_PATH)
+  ? null
+  : "Skipping: database not available (run on VPS via e2e tests)";
 
 const TEST_PROJECT_ID = `test-${nanoid(8)}`;
 const TEST_SERVICE_ID = `test-${nanoid(8)}`;
@@ -32,7 +39,7 @@ async function waitForDeploymentStatus(
   throw new Error(`Timeout waiting for deployment ${deploymentId}`);
 }
 
-describe("deployment race conditions", () => {
+describe.skipIf(SKIP_REASON !== null)("deployment race conditions", () => {
   beforeAll(async () => {
     await db
       .insertInto("projects")
