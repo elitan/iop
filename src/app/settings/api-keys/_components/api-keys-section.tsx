@@ -2,9 +2,9 @@
 
 import { CheckCircle2, Copy, Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SettingCard } from "../../_components/setting-card";
 
 interface ApiKey {
   id: string;

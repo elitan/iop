@@ -10,8 +10,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-import { SettingCard } from "./setting-card";
 
 interface UpdateInfo {
   currentVersion: string;

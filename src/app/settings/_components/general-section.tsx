@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SettingCard } from "./setting-card";
+import { SettingCard } from "@/components/setting-card";
 
 interface GeneralInfo {
   currentVersion: string;
