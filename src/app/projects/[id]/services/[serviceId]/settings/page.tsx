@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   useDeleteService,
+  useDeployService,
   useService,
   useUpdateService,
 } from "@/hooks/use-services";
@@ -63,6 +64,7 @@ export default function ServiceSettingsPage() {
   const { data: service } = useService(serviceId);
   const updateMutation = useUpdateService(serviceId, projectId);
   const deleteMutation = useDeleteService(projectId);
+  const deployMutation = useDeployService(serviceId, projectId);
 
   const [editingHealth, setEditingHealth] = useState(false);
   const [healthType, setHealthType] = useState<"tcp" | "http">("tcp");
@@ -98,7 +100,14 @@ export default function ServiceSettingsPage() {
         healthCheckTimeout: healthTimeout,
         shutdownTimeout: shutdownTimeout ? Number(shutdownTimeout) : null,
       });
-      toast.success("Health & lifecycle settings saved");
+      toast.success("Health & lifecycle settings saved", {
+        description: "Redeploy required for changes to take effect",
+        duration: 10000,
+        action: {
+          label: "Redeploy",
+          onClick: () => deployMutation.mutateAsync(),
+        },
+      });
       setEditingHealth(false);
     } catch {
       toast.error("Failed to save");
@@ -119,7 +128,14 @@ export default function ServiceSettingsPage() {
         memoryLimit: memoryLimit || null,
         cpuLimit: cpuLimit ? Number(cpuLimit) : null,
       });
-      toast.success("Resource limits saved");
+      toast.success("Resource limits saved", {
+        description: "Redeploy required for changes to take effect",
+        duration: 10000,
+        action: {
+          label: "Redeploy",
+          onClick: () => deployMutation.mutateAsync(),
+        },
+      });
       setEditingLimits(false);
     } catch {
       toast.error("Failed to save");

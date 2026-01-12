@@ -115,6 +115,7 @@ Types in `src/lib/db-types.ts` are auto-generated. Never modify manually.
 - Shared components in `src/components/`
 - When unsure about design decisions, do web searches to see how Vercel/Cloud Run/Railway handle it
 - React Query mutations: use `await queryClient.refetchQueries()` in onSuccess, not `invalidateQueries()` (invalidate marks stale but doesn't guarantee immediate refetch)
+- Settings requiring redeploy (env vars, resource limits, health checks): use toast with "Redeploy required" description and Redeploy action button
 
 ## Git Conventions
 
