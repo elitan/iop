@@ -925,6 +925,84 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT11_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 11: FROST_* Environment Variables"
+echo "########################################"
+
+echo ""
+echo "=== Test 56: Create image service and verify FROST_* vars ==="
+PROJECT12=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-frost-env"}')
+PROJECT12_ID=$(echo "$PROJECT12" | jq -r '.id')
+echo "Created project: $PROJECT12_ID"
+
+SERVICE12=$(api -X POST "$BASE_URL/api/projects/$PROJECT12_ID/services" \
+  -d '{"name":"frost-env-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE12_ID=$(echo "$SERVICE12" | jq -r '.id')
+echo "Created service: $SERVICE12_ID"
+
+sleep 2
+DEPLOY12_ID=$(api "$BASE_URL/api/services/$SERVICE12_ID/deployments" | jq -r '.[0].id')
+wait_for_deployment "$DEPLOY12_ID"
+
+CONTAINER12_NAME="frost-${SERVICE12_ID}-${DEPLOY12_ID}"
+CONTAINER12_NAME=$(echo "$CONTAINER12_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+
+FROST_VAL=$(remote "docker exec $CONTAINER12_NAME printenv FROST")
+FROST_SERVICE_NAME=$(remote "docker exec $CONTAINER12_NAME printenv FROST_SERVICE_NAME")
+FROST_SERVICE_ID=$(remote "docker exec $CONTAINER12_NAME printenv FROST_SERVICE_ID")
+FROST_PROJECT_NAME=$(remote "docker exec $CONTAINER12_NAME printenv FROST_PROJECT_NAME")
+FROST_PROJECT_ID=$(remote "docker exec $CONTAINER12_NAME printenv FROST_PROJECT_ID")
+FROST_DEPLOYMENT_ID=$(remote "docker exec $CONTAINER12_NAME printenv FROST_DEPLOYMENT_ID")
+FROST_INTERNAL_HOSTNAME=$(remote "docker exec $CONTAINER12_NAME printenv FROST_INTERNAL_HOSTNAME")
+
+echo "FROST=$FROST_VAL (expected: 1)"
+echo "FROST_SERVICE_NAME=$FROST_SERVICE_NAME (expected: frost-env-test)"
+echo "FROST_SERVICE_ID=$FROST_SERVICE_ID (expected: $SERVICE12_ID)"
+echo "FROST_PROJECT_NAME=$FROST_PROJECT_NAME (expected: e2e-frost-env)"
+echo "FROST_PROJECT_ID=$FROST_PROJECT_ID (expected: $PROJECT12_ID)"
+echo "FROST_DEPLOYMENT_ID=$FROST_DEPLOYMENT_ID (expected: $DEPLOY12_ID)"
+echo "FROST_INTERNAL_HOSTNAME=$FROST_INTERNAL_HOSTNAME (expected: frost-env-test)"
+
+if [ "$FROST_VAL" != "1" ]; then echo "FAIL: FROST should be '1'"; exit 1; fi
+if [ "$FROST_SERVICE_NAME" != "frost-env-test" ]; then echo "FAIL: FROST_SERVICE_NAME"; exit 1; fi
+if [ "$FROST_SERVICE_ID" != "$SERVICE12_ID" ]; then echo "FAIL: FROST_SERVICE_ID"; exit 1; fi
+if [ "$FROST_PROJECT_NAME" != "e2e-frost-env" ]; then echo "FAIL: FROST_PROJECT_NAME"; exit 1; fi
+if [ "$FROST_PROJECT_ID" != "$PROJECT12_ID" ]; then echo "FAIL: FROST_PROJECT_ID"; exit 1; fi
+if [ "$FROST_DEPLOYMENT_ID" != "$DEPLOY12_ID" ]; then echo "FAIL: FROST_DEPLOYMENT_ID"; exit 1; fi
+if [ "$FROST_INTERNAL_HOSTNAME" != "frost-env-test" ]; then echo "FAIL: FROST_INTERNAL_HOSTNAME"; exit 1; fi
+echo "Core FROST_* vars verified!"
+
+echo ""
+echo "=== Test 57: Verify git vars NOT present for image deploys ==="
+FROST_GIT_SHA=$(remote "docker exec $CONTAINER12_NAME printenv FROST_GIT_COMMIT_SHA" 2>&1 || echo "")
+FROST_GIT_BRANCH=$(remote "docker exec $CONTAINER12_NAME printenv FROST_GIT_BRANCH" 2>&1 || echo "")
+if [ -n "$FROST_GIT_SHA" ]; then echo "FAIL: FROST_GIT_COMMIT_SHA should not exist for image deploy"; exit 1; fi
+if [ -n "$FROST_GIT_BRANCH" ]; then echo "FAIL: FROST_GIT_BRANCH should not exist for image deploy"; exit 1; fi
+echo "Git vars correctly absent for image deploy"
+
+echo ""
+echo "=== Test 58: Verify user env vars can override FROST_* ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE12_ID" \
+  -d '{"envVars":[{"key":"FROST_SERVICE_NAME","value":"custom-name"}]}' > /dev/null
+DEPLOY12B=$(api -X POST "$BASE_URL/api/services/$SERVICE12_ID/deploy")
+DEPLOY12B_ID=$(echo "$DEPLOY12B" | jq -r '.deploymentId')
+wait_for_deployment "$DEPLOY12B_ID"
+
+CONTAINER12B_NAME="frost-${SERVICE12_ID}-${DEPLOY12B_ID}"
+CONTAINER12B_NAME=$(echo "$CONTAINER12B_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+CUSTOM_NAME=$(remote "docker exec $CONTAINER12B_NAME printenv FROST_SERVICE_NAME")
+if [ "$CUSTOM_NAME" != "custom-name" ]; then
+  echo "FAIL: User should be able to override FROST_* vars (got: $CUSTOM_NAME)"
+  exit 1
+fi
+echo "User env var override works!"
+
+echo ""
+echo "=== Test 59: Cleanup FROST env test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT12_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

@@ -56,6 +56,8 @@ export interface Deployment {
   volumes: string | null;
   rollbackEligible: Generated<number | null>;
   rollbackSourceId: string | null;
+  gitCommitSha: string | null;
+  gitBranch: string | null;
 }
 
 export interface Domain {

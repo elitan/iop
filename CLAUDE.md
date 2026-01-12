@@ -57,7 +57,7 @@ Dev deploy (push local changes to test VPS):
 bun run dev          # start dev server
 bun run build        # production build
 bun run db:gen       # regenerate db types (run after schema changes)
-./scripts/e2e-test.sh <ip> <api-key>  # run e2e tests - extend when adding features
+./scripts/e2e-test.sh <ip> <api-key>  # run e2e tests - extend when adding features (runs automatically via GitHub Actions on PRs)
 ```
 
 ## Test locally

@@ -103,6 +103,28 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
   return envVars;
 }
 
+function buildFrostEnvVars(
+  deploymentId: string,
+  service: Selectable<Service>,
+  project: Selectable<Project>,
+  gitInfo?: { commitSha: string; branch: string },
+): Record<string, string> {
+  const vars: Record<string, string> = {
+    FROST: "1",
+    FROST_SERVICE_NAME: service.name,
+    FROST_SERVICE_ID: service.id,
+    FROST_PROJECT_NAME: project.name,
+    FROST_PROJECT_ID: project.id,
+    FROST_DEPLOYMENT_ID: deploymentId,
+    FROST_INTERNAL_HOSTNAME: service.name,
+  };
+  if (gitInfo) {
+    vars.FROST_GIT_COMMIT_SHA = gitInfo.commitSha;
+    vars.FROST_GIT_BRANCH = gitInfo.branch;
+  }
+  return vars;
+}
+
 async function updateCommitStatusIfGitHub(
   repoUrl: string | null,
   commitSha: string,
@@ -329,7 +351,11 @@ async function runServiceDeployment(
 
       await db
         .updateTable("deployments")
-        .set({ commitSha: commitSha })
+        .set({
+          commitSha: commitSha,
+          gitCommitSha: fullCommitSha,
+          gitBranch: service.branch,
+        })
         .where("id", "=", deploymentId)
         .execute();
 
@@ -468,12 +494,23 @@ async function runServiceDeployment(
     }
 
     const hostPort = await getAvailablePort();
+    const gitInfo =
+      service.deployType === "repo" && service.branch
+        ? { commitSha: currentCommitSha, branch: service.branch }
+        : undefined;
+    const frostEnvVars = buildFrostEnvVars(
+      deploymentId,
+      service,
+      project,
+      gitInfo,
+    );
+    const runtimeEnvVars = { ...frostEnvVars, ...envVars };
     const runResult = await runContainer({
       imageName,
       hostPort,
       containerPort: service.containerPort ?? undefined,
       name: containerName,
-      envVars,
+      envVars: runtimeEnvVars,
       network: networkName,
       hostname: service.name,
       labels: {
@@ -724,6 +761,8 @@ async function runRollbackDeployment(
     containerPort: number | null;
     healthCheckPath: string | null;
     healthCheckTimeout: number | null;
+    gitCommitSha: string | null;
+    gitBranch: string | null;
   },
   service: Selectable<Service>,
   project: Selectable<Project>,
@@ -765,12 +804,26 @@ async function runRollbackDeployment(
     }
 
     const hostPort = await getAvailablePort();
+    const gitInfo =
+      sourceDeployment.gitCommitSha && sourceDeployment.gitBranch
+        ? {
+            commitSha: sourceDeployment.gitCommitSha,
+            branch: sourceDeployment.gitBranch,
+          }
+        : undefined;
+    const frostEnvVars = buildFrostEnvVars(
+      deploymentId,
+      service,
+      project,
+      gitInfo,
+    );
+    const runtimeEnvVars = { ...frostEnvVars, ...envVars };
     const runResult = await runContainer({
       imageName: sourceDeployment.imageName!,
       hostPort,
       containerPort: sourceDeployment.containerPort ?? undefined,
       name: containerName,
-      envVars,
+      envVars: runtimeEnvVars,
       network: networkName,
       hostname: service.name,
       labels: {
