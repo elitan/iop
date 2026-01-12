@@ -40,5 +40,10 @@ jobs:
 
       - run: bun install
 
+      - name: Setup database
+        run: bun migrate
+        env:
+          NODE_ENV: development
+
       - name: Test
         run: bun test
