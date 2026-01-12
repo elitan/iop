@@ -35,7 +35,8 @@ fi
 
 echo ""
 echo "=== Verifying env var ==="
-ENV_VAR=$(echo "$PROJECT" | jq -r '.envVars[] | select(.key=="PRE_UPGRADE") | .value')
+ENV_VARS=$(echo "$PROJECT" | jq -r '.envVars')
+ENV_VAR=$(echo "$ENV_VARS" | jq -r '.[] | select(.key=="PRE_UPGRADE") | .value')
 
 if [ "$ENV_VAR" = "data" ]; then
   echo "PASS: Env var PRE_UPGRADE=data intact"
