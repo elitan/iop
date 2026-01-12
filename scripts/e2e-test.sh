@@ -215,7 +215,7 @@ sleep 2
 DEPLOY3_ID=$(api "$BASE_URL/api/services/$SERVICE3_ID/deployments" | jq -r '.[0].id')
 wait_for_deployment "$DEPLOY3_ID"
 
-CONTAINER_NAME="frost-${PROJECT3_ID}-envcheck"
+CONTAINER_NAME="frost-${SERVICE3_ID}-${DEPLOY3_ID}"
 CONTAINER_NAME=$(echo "$CONTAINER_NAME" | tr '[:upper:]' '[:lower:]')
 SHARED_VAL=$(remote "docker exec $CONTAINER_NAME printenv SHARED")
 PROJECT_ONLY_VAL=$(remote "docker exec $CONTAINER_NAME printenv PROJECT_ONLY")
