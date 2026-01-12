@@ -60,6 +60,9 @@ bun run db:gen       # regenerate db types (run after schema changes)
 ./scripts/e2e-test.sh <ip> <api-key>  # run e2e tests - extend when adding features (runs automatically via GitHub Actions on PRs)
 ```
 
+## Testing
+Create a PR to trigger e2e tests via GitHub Actions. Watch CI checks in the PR to verify tests pass.
+
 ## Test locally
 ```bash
 # create project using local fixture
