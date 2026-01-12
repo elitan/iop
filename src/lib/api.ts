@@ -38,6 +38,7 @@ export interface Service {
   memoryLimit: string | null;
   cpuLimit: number | null;
   shutdownTimeout: number | null;
+  requestTimeout: number | null;
   latestDeployment?: Deployment;
 }
 
@@ -210,6 +211,7 @@ export interface UpdateServiceInput {
   memoryLimit?: string | null;
   cpuLimit?: number | null;
   shutdownTimeout?: number | null;
+  requestTimeout?: number | null;
 }
 
 export interface HostResources {

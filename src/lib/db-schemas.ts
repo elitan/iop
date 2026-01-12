@@ -315,6 +315,7 @@ export const serviceSchema = z.object({
   memoryLimit: z.string().nullable(),
   cpuLimit: z.number().nullable(),
   shutdownTimeout: z.number().nullable(),
+  requestTimeout: z.number().nullable(),
 });
 
 export const newServiceSchema = z.object({
@@ -339,6 +340,7 @@ export const newServiceSchema = z.object({
   memoryLimit: z.string().nullable().optional(),
   cpuLimit: z.number().nullable().optional(),
   shutdownTimeout: z.number().nullable().optional(),
+  requestTimeout: z.number().nullable().optional(),
 });
 
 export const serviceUpdateSchema = z.object({
@@ -363,6 +365,7 @@ export const serviceUpdateSchema = z.object({
   memoryLimit: z.string().nullable().optional(),
   cpuLimit: z.number().nullable().optional(),
   shutdownTimeout: z.number().nullable().optional(),
+  requestTimeout: z.number().nullable().optional(),
 });
 
 export type Service = z.infer<typeof serviceSchema>;
