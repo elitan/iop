@@ -86,6 +86,14 @@ async function isDeploymentCancelled(deploymentId: string): Promise<boolean> {
   return deployment?.status === "cancelled";
 }
 
+function sanitizeDockerName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function parseEnvVars(envVarsJson: string): Record<string, string> {
   const envVarsList: EnvVar[] = envVarsJson ? JSON.parse(envVarsJson) : [];
   const envVars: Record<string, string> = {};
@@ -220,8 +228,10 @@ async function runServiceDeployment(
   options?: DeployOptions,
 ) {
   let currentCommitSha = options?.commitSha || "HEAD";
-  const containerName = `frost-${service.id}-${deploymentId}`.toLowerCase();
-  const networkName = `frost-net-${project.id}`.toLowerCase();
+  const containerName = sanitizeDockerName(
+    `frost-${service.id}-${deploymentId}`,
+  );
+  const networkName = sanitizeDockerName(`frost-net-${project.id}`);
 
   const baseLabels = {
     "frost.managed": "true",
@@ -344,8 +354,7 @@ async function runServiceDeployment(
         deploymentId,
       );
 
-      imageName =
-        `frost-${project.id}-${service.name}:${commitSha}`.toLowerCase();
+      imageName = `${sanitizeDockerName(`frost-${project.id}-${service.name}`)}:${commitSha}`;
       const buildResult = await buildImage({
         repoPath,
         imageName,
@@ -452,8 +461,9 @@ async function runServiceDeployment(
     }
 
     if (service.currentDeploymentId) {
-      const oldContainerName =
-        `frost-${service.id}-${service.currentDeploymentId}`.toLowerCase();
+      const oldContainerName = sanitizeDockerName(
+        `frost-${service.id}-${service.currentDeploymentId}`,
+      );
       await stopContainer(oldContainerName);
     }
 
@@ -718,8 +728,10 @@ async function runRollbackDeployment(
   service: Selectable<Service>,
   project: Selectable<Project>,
 ) {
-  const containerName = `frost-${service.id}-${deploymentId}`.toLowerCase();
-  const networkName = `frost-net-${project.id}`.toLowerCase();
+  const containerName = sanitizeDockerName(
+    `frost-${service.id}-${deploymentId}`,
+  );
+  const networkName = sanitizeDockerName(`frost-net-${project.id}`);
 
   const baseLabels = {
     "frost.managed": "true",
@@ -746,8 +758,9 @@ async function runRollbackDeployment(
     await createNetwork(networkName, baseLabels);
 
     if (service.currentDeploymentId) {
-      const oldContainerName =
-        `frost-${service.id}-${service.currentDeploymentId}`.toLowerCase();
+      const oldContainerName = sanitizeDockerName(
+        `frost-${service.id}-${service.currentDeploymentId}`,
+      );
       await stopContainer(oldContainerName);
     }
 

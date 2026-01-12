@@ -177,7 +177,7 @@ wait_for_deployment "$DEPLOY_FRONTEND_ID"
 
 echo ""
 echo "=== Test 9: Verify inter-service communication ==="
-NETWORK_NAME="frost-net-$(echo $PROJECT2_ID | tr '[:upper:]' '[:lower:]')"
+NETWORK_NAME=$(echo "frost-net-$PROJECT2_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
 CURL_RESULT=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf http://backend:80")
 if echo "$CURL_RESULT" | grep -q "nginx"; then
   echo "Inter-service communication works!"
@@ -216,7 +216,7 @@ DEPLOY3_ID=$(api "$BASE_URL/api/services/$SERVICE3_ID/deployments" | jq -r '.[0]
 wait_for_deployment "$DEPLOY3_ID"
 
 CONTAINER_NAME="frost-${SERVICE3_ID}-${DEPLOY3_ID}"
-CONTAINER_NAME=$(echo "$CONTAINER_NAME" | tr '[:upper:]' '[:lower:]')
+CONTAINER_NAME=$(echo "$CONTAINER_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
 SHARED_VAL=$(remote "docker exec $CONTAINER_NAME printenv SHARED")
 PROJECT_ONLY_VAL=$(remote "docker exec $CONTAINER_NAME printenv PROJECT_ONLY")
 SERVICE_ONLY_VAL=$(remote "docker exec $CONTAINER_NAME printenv SERVICE_ONLY")
@@ -911,8 +911,8 @@ echo "Exactly 1 container running"
 echo ""
 echo "=== Test 54: Verify container name format ==="
 CONTAINER_NAME=$(remote "docker ps --filter 'label=frost.service.id=$SERVICE11_ID' --format '{{.Names}}'")
-SERVICE11_ID_LOWER=$(echo "$SERVICE11_ID" | tr '[:upper:]' '[:lower:]')
-EXPECTED_PREFIX="frost-${SERVICE11_ID_LOWER}-"
+SERVICE11_ID_SANITIZED=$(echo "$SERVICE11_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+EXPECTED_PREFIX="frost-${SERVICE11_ID_SANITIZED}-"
 if [[ "$CONTAINER_NAME" != $EXPECTED_PREFIX* ]]; then
   echo "FAIL: Container name should start with $EXPECTED_PREFIX, got: $CONTAINER_NAME"
   exit 1

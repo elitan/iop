@@ -11,6 +11,14 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function sanitizeDockerName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 async function waitForDeploymentStatus(
   deploymentId: string,
   targetStatuses: string[],
@@ -67,7 +75,9 @@ describe("deployment race conditions", () => {
       .execute();
 
     for (const d of deployments) {
-      const containerName = `frost-${TEST_SERVICE_ID}-${d.id}`.toLowerCase();
+      const containerName = sanitizeDockerName(
+        `frost-${TEST_SERVICE_ID}-${d.id}`,
+      );
       await stopContainer(containerName);
     }
 
