@@ -520,6 +520,9 @@ async function runServiceDeployment(
       volumes,
       fileMounts,
       command,
+      memoryLimit: service.memoryLimit ?? undefined,
+      cpuLimit: service.cpuLimit ?? undefined,
+      shutdownTimeout: service.shutdownTimeout ?? undefined,
     });
 
     if (!runResult.success) {
@@ -830,6 +833,9 @@ async function runRollbackDeployment(
         ...baseLabels,
         "frost.deployment.id": deploymentId,
       },
+      memoryLimit: service.memoryLimit ?? undefined,
+      cpuLimit: service.cpuLimit ?? undefined,
+      shutdownTimeout: service.shutdownTimeout ?? undefined,
     });
 
     if (!runResult.success) {

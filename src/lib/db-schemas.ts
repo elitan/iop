@@ -312,6 +312,9 @@ export const serviceSchema = z.object({
   volumes: z.string().nullable(),
   tcpProxyPort: z.number().nullable(),
   currentDeploymentId: z.string().nullable(),
+  memoryLimit: z.string().nullable(),
+  cpuLimit: z.number().nullable(),
+  shutdownTimeout: z.number().nullable(),
 });
 
 export const newServiceSchema = z.object({
@@ -333,6 +336,9 @@ export const newServiceSchema = z.object({
   volumes: z.string().nullable().optional(),
   tcpProxyPort: z.number().nullable().optional(),
   currentDeploymentId: z.string().nullable(),
+  memoryLimit: z.string().nullable().optional(),
+  cpuLimit: z.number().nullable().optional(),
+  shutdownTimeout: z.number().nullable().optional(),
 });
 
 export const serviceUpdateSchema = z.object({
@@ -354,6 +360,9 @@ export const serviceUpdateSchema = z.object({
   volumes: z.string().nullable().optional(),
   tcpProxyPort: z.number().nullable().optional(),
   currentDeploymentId: z.string().nullable().optional(),
+  memoryLimit: z.string().nullable().optional(),
+  cpuLimit: z.number().nullable().optional(),
+  shutdownTimeout: z.number().nullable().optional(),
 });
 
 export type Service = z.infer<typeof serviceSchema>;

@@ -122,6 +122,9 @@ export interface Service {
   volumes: Generated<string | null>;
   tcpProxyPort: Generated<number | null>;
   currentDeploymentId: string | null;
+  memoryLimit: string | null;
+  cpuLimit: number | null;
+  shutdownTimeout: number | null;
 }
 
 export interface Setting {

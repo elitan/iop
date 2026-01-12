@@ -156,6 +156,9 @@ export interface RunContainerOptions {
   volumes?: VolumeMount[];
   fileMounts?: FileMount[];
   command?: string[];
+  memoryLimit?: string;
+  cpuLimit?: number;
+  shutdownTimeout?: number;
 }
 
 export async function runContainer(
@@ -173,6 +176,9 @@ export async function runContainer(
     volumes,
     fileMounts,
     command,
+    memoryLimit,
+    cpuLimit,
+    shutdownTimeout,
   } = options;
   try {
     const allEnvVars = { PORT: String(containerPort), ...envVars };
@@ -196,8 +202,13 @@ export async function runContainer(
       : "";
     const commandPart = command ? command.join(" ") : "";
     const logOpts = "--log-opt max-size=10m --log-opt max-file=3";
+    const memoryFlag = memoryLimit ? `--memory ${memoryLimit}` : "";
+    const cpuFlag = cpuLimit ? `--cpus ${cpuLimit}` : "";
+    const stopTimeoutFlag = shutdownTimeout
+      ? `--stop-timeout ${shutdownTimeout}`
+      : "";
     const { stdout } = await execAsync(
-      `docker run -d --restart on-failure:5 ${logOpts} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
+      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
         /\s+/g,
         " ",
       ),

@@ -35,6 +35,9 @@ export interface Service {
   volumes: string | null;
   tcpProxyPort: number | null;
   currentDeploymentId: string | null;
+  memoryLimit: string | null;
+  cpuLimit: number | null;
+  shutdownTimeout: number | null;
   latestDeployment?: Deployment;
 }
 
@@ -204,6 +207,14 @@ export interface UpdateServiceInput {
   healthCheckPath?: string | null;
   healthCheckTimeout?: number;
   autoDeployEnabled?: boolean;
+  memoryLimit?: string | null;
+  cpuLimit?: number | null;
+  shutdownTimeout?: number | null;
+}
+
+export interface HostResources {
+  cpus: number;
+  totalMemoryGB: number;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -340,6 +351,13 @@ export const api = {
   settings: {
     get: (): Promise<Settings> =>
       fetch("/api/settings").then((r) => handleResponse<Settings>(r)),
+  },
+
+  health: {
+    hostResources: (): Promise<HostResources> =>
+      fetch("/api/host-resources").then((r) =>
+        handleResponse<HostResources>(r),
+      ),
   },
 
   dbTemplates: {

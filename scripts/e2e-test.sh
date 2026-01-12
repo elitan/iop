@@ -1003,6 +1003,58 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT12_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 12: Container Resource Limits"
+echo "########################################"
+
+echo ""
+echo "=== Test 60: Create service with resource limits ==="
+PROJECT13=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-limits"}')
+PROJECT13_ID=$(echo "$PROJECT13" | jq -r '.id')
+echo "Created project: $PROJECT13_ID"
+
+SERVICE13=$(api -X POST "$BASE_URL/api/projects/$PROJECT13_ID/services" \
+  -d '{"name":"limits-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"memoryLimit":"256m","cpuLimit":0.5,"shutdownTimeout":15}')
+SERVICE13_ID=$(echo "$SERVICE13" | jq -r '.id')
+echo "Created service: $SERVICE13_ID"
+
+MEMORY_LIMIT=$(echo "$SERVICE13" | jq -r '.memoryLimit')
+CPU_LIMIT=$(echo "$SERVICE13" | jq -r '.cpuLimit')
+SHUTDOWN_TIMEOUT=$(echo "$SERVICE13" | jq -r '.shutdownTimeout')
+
+echo "memoryLimit=$MEMORY_LIMIT (expected: 256m)"
+echo "cpuLimit=$CPU_LIMIT (expected: 0.5)"
+echo "shutdownTimeout=$SHUTDOWN_TIMEOUT (expected: 15)"
+
+if [ "$MEMORY_LIMIT" != "256m" ]; then echo "FAIL: memoryLimit"; exit 1; fi
+if [ "$CPU_LIMIT" != "0.5" ]; then echo "FAIL: cpuLimit"; exit 1; fi
+if [ "$SHUTDOWN_TIMEOUT" != "15" ]; then echo "FAIL: shutdownTimeout"; exit 1; fi
+echo "Resource limits stored correctly"
+
+echo ""
+echo "=== Test 61: Verify docker flags applied ==="
+sleep 2
+DEPLOY13_ID=$(api "$BASE_URL/api/services/$SERVICE13_ID/deployments" | jq -r '.[0].id')
+wait_for_deployment "$DEPLOY13_ID"
+
+CONTAINER13_ID=$(api "$BASE_URL/api/deployments/$DEPLOY13_ID" | jq -r '.containerId')
+INSPECT=$(remote "docker inspect $CONTAINER13_ID")
+MEMORY=$(echo "$INSPECT" | jq -r '.[0].HostConfig.Memory')
+NANO_CPUS=$(echo "$INSPECT" | jq -r '.[0].HostConfig.NanoCpus')
+
+echo "Memory=$MEMORY (expected: 268435456 for 256m)"
+echo "NanoCpus=$NANO_CPUS (expected: 500000000 for 0.5 CPU)"
+
+if [ "$MEMORY" != "268435456" ]; then echo "FAIL: Memory not set (got: $MEMORY)"; exit 1; fi
+if [ "$NANO_CPUS" != "500000000" ]; then echo "FAIL: CPU not set (got: $NANO_CPUS)"; exit 1; fi
+echo "Docker flags applied correctly"
+
+echo ""
+echo "=== Test 62: Cleanup limits test ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT13_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

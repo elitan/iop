@@ -97,6 +97,12 @@ export const services = {
         templateId: z.string().optional(),
         healthCheckPath: z.string().optional(),
         healthCheckTimeout: z.number().optional(),
+        memoryLimit: z
+          .string()
+          .regex(/^\d+[kmg]$/i)
+          .optional(),
+        cpuLimit: z.number().min(0.1).max(64).optional(),
+        shutdownTimeout: z.number().min(1).max(300).optional(),
       }),
     )
     .output(serviceSchema)
@@ -200,6 +206,9 @@ export const services = {
             healthCheckPath: input.healthCheckPath ?? null,
             healthCheckTimeout: input.healthCheckTimeout ?? null,
             autoDeploy: input.deployType === "repo" ? 1 : 0,
+            memoryLimit: input.memoryLimit ?? null,
+            cpuLimit: input.cpuLimit ?? null,
+            shutdownTimeout: input.shutdownTimeout ?? null,
             createdAt: now,
           })
           .execute();
@@ -243,6 +252,13 @@ export const services = {
         healthCheckPath: z.string().nullable().optional(),
         healthCheckTimeout: z.number().min(1).max(300).optional(),
         autoDeployEnabled: z.boolean().optional(),
+        memoryLimit: z
+          .string()
+          .regex(/^\d+[kmg]$/i)
+          .nullable()
+          .optional(),
+        cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
+        shutdownTimeout: z.number().min(1).max(300).nullable().optional(),
       }),
     )
     .output(serviceSchema)
@@ -278,6 +294,11 @@ export const services = {
         updates.healthCheckTimeout = input.healthCheckTimeout;
       if (input.autoDeployEnabled !== undefined)
         updates.autoDeploy = input.autoDeployEnabled ? 1 : 0;
+      if (input.memoryLimit !== undefined)
+        updates.memoryLimit = input.memoryLimit;
+      if (input.cpuLimit !== undefined) updates.cpuLimit = input.cpuLimit;
+      if (input.shutdownTimeout !== undefined)
+        updates.shutdownTimeout = input.shutdownTimeout;
 
       if (Object.keys(updates).length > 0) {
         await db
