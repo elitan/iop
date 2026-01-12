@@ -47,10 +47,20 @@ export function DeploymentRow({
     onRollback?.();
   }
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick();
+    }
+  }
+
   return (
-    <button
-      type="button"
+    // biome-ignore lint/a11y/useSemanticElements: contains nested button for rollback
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       className={cn(
         "group w-full px-4 py-3 text-left transition-colors hover:bg-neutral-800/50 cursor-pointer",
         selected && "bg-neutral-800",
@@ -90,6 +100,6 @@ export function DeploymentRow({
           </span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
