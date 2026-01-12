@@ -259,6 +259,7 @@ export const services = {
           .optional(),
         cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
         shutdownTimeout: z.number().min(1).max(300).nullable().optional(),
+        requestTimeout: z.number().min(1).max(3600).nullable().optional(),
       }),
     )
     .output(serviceSchema)
@@ -299,6 +300,8 @@ export const services = {
       if (input.cpuLimit !== undefined) updates.cpuLimit = input.cpuLimit;
       if (input.shutdownTimeout !== undefined)
         updates.shutdownTimeout = input.shutdownTimeout;
+      if (input.requestTimeout !== undefined)
+        updates.requestTimeout = input.requestTimeout;
 
       if (Object.keys(updates).length > 0) {
         await db

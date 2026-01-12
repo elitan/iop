@@ -281,6 +281,7 @@ interface DomainRoute {
   hostPort?: number;
   redirectTarget?: string;
   redirectCode?: number;
+  requestTimeout?: number;
 }
 
 function buildCaddyConfig(
@@ -300,14 +301,21 @@ function buildCaddyConfig(
           ? "localhost:3000"
           : `localhost:${route.hostPort}`;
 
+      const reverseProxyHandler: Record<string, unknown> = {
+        handler: "reverse_proxy",
+        upstreams: [{ dial }],
+      };
+
+      if (route.requestTimeout) {
+        reverseProxyHandler.transport = {
+          protocol: "http",
+          response_header_timeout: route.requestTimeout * 1_000_000_000,
+        };
+      }
+
       httpsRoutes.push({
         match: [{ host: [route.domain] }],
-        handle: [
-          {
-            handler: "reverse_proxy",
-            upstreams: [{ dial }],
-          },
-        ],
+        handle: [reverseProxyHandler],
       });
     } else if (route.type === "redirect") {
       httpsRoutes.push({
@@ -393,6 +401,7 @@ export async function syncCaddyConfig(): Promise<boolean> {
       "domains.redirectTarget",
       "domains.redirectCode",
       "deployments.hostPort",
+      "services.requestTimeout",
     ])
     .where("domains.dnsVerified", "=", true)
     .execute();
@@ -412,6 +421,7 @@ export async function syncCaddyConfig(): Promise<boolean> {
         domain: d.domain,
         type: "proxy",
         hostPort: d.hostPort,
+        requestTimeout: d.requestTimeout ?? undefined,
       });
     } else if (d.type === "redirect" && d.redirectTarget) {
       routes.push({

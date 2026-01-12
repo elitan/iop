@@ -55,6 +55,15 @@ const SHUTDOWN_OPTIONS = [
   { value: "120", label: "120 seconds" },
 ];
 
+const REQUEST_TIMEOUT_OPTIONS = [
+  { value: "", label: "No limit" },
+  { value: "60", label: "60 seconds" },
+  { value: "300", label: "5 minutes" },
+  { value: "900", label: "15 minutes" },
+  { value: "1800", label: "30 minutes" },
+  { value: "3600", label: "60 minutes" },
+];
+
 export default function ServiceSettingsPage() {
   const params = useParams();
   const router = useRouter();
@@ -72,6 +81,7 @@ export default function ServiceSettingsPage() {
   const [healthTimeout, setHealthTimeout] = useState(60);
 
   const [shutdownTimeout, setShutdownTimeout] = useState("");
+  const [requestTimeout, setRequestTimeout] = useState("");
 
   const [editingLimits, setEditingLimits] = useState(false);
   const [memoryLimit, setMemoryLimit] = useState("");
@@ -89,6 +99,7 @@ export default function ServiceSettingsPage() {
       setHealthPath(service.healthCheckPath ?? "");
       setHealthTimeout(service.healthCheckTimeout ?? 60);
       setShutdownTimeout(service.shutdownTimeout?.toString() ?? "");
+      setRequestTimeout(service.requestTimeout?.toString() ?? "");
       setEditingHealth(true);
     }
   }
@@ -99,8 +110,9 @@ export default function ServiceSettingsPage() {
         healthCheckPath: healthType === "http" ? healthPath || "/health" : null,
         healthCheckTimeout: healthTimeout,
         shutdownTimeout: shutdownTimeout ? Number(shutdownTimeout) : null,
+        requestTimeout: requestTimeout ? Number(requestTimeout) : null,
       });
-      toast.success("Health & lifecycle settings saved", {
+      toast.success("Timeouts & lifecycle settings saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
         action: {
@@ -208,7 +220,7 @@ export default function ServiceSettingsPage() {
       <Card className="bg-neutral-900 border-neutral-800">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between text-sm font-medium text-neutral-300">
-            <span>Health & Lifecycle</span>
+            <span>Timeouts & Lifecycle</span>
             {!editingHealth && (
               <Button variant="ghost" size="sm" onClick={handleEditHealth}>
                 <Pencil className="mr-1 h-3 w-3" />
@@ -219,7 +231,7 @@ export default function ServiceSettingsPage() {
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-xs text-neutral-500">
-            Health checks and container lifecycle settings.
+            Health checks, request timeouts, and container lifecycle settings.
           </p>
           {editingHealth ? (
             <div className="space-y-4">
@@ -278,7 +290,7 @@ export default function ServiceSettingsPage() {
 
               <label className="block">
                 <span className="mb-1 block text-xs text-neutral-500">
-                  Health Check Timeout (seconds)
+                  Startup Timeout (seconds)
                 </span>
                 <input
                   type="number"
@@ -289,7 +301,7 @@ export default function ServiceSettingsPage() {
                   className="w-full rounded border border-neutral-700 bg-neutral-800 px-3 py-1.5 font-mono text-sm text-neutral-200 focus:border-neutral-600 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-neutral-600">
-                  Max wait for container to become healthy
+                  Max wait for container to pass health check
                 </p>
               </label>
 
@@ -314,6 +326,30 @@ export default function ServiceSettingsPage() {
                 </Select>
                 <p className="mt-1 text-xs text-neutral-600">
                   Time between SIGTERM and SIGKILL on stop
+                </p>
+              </div>
+
+              <div>
+                <span className="mb-2 block text-xs text-neutral-500">
+                  Request Timeout
+                </span>
+                <Select
+                  value={requestTimeout}
+                  onValueChange={setRequestTimeout}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="No limit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REQUEST_TIMEOUT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value || "none"}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-neutral-600">
+                  Max time for HTTP requests. Returns 504 if exceeded.
                 </p>
               </div>
 
@@ -349,10 +385,16 @@ export default function ServiceSettingsPage() {
                   : "TCP"}
               </span>
               <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
-                Health: {service.healthCheckTimeout ?? 60}s
+                Startup: {service.healthCheckTimeout ?? 60}s
               </span>
               <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
                 Shutdown: {service.shutdownTimeout ?? 10}s
+              </span>
+              <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
+                Request:{" "}
+                {service.requestTimeout
+                  ? `${service.requestTimeout}s`
+                  : "No limit"}
               </span>
             </div>
           )}

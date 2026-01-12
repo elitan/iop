@@ -1055,6 +1055,59 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT13_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 13: Request Timeout"
+echo "########################################"
+
+echo ""
+echo "=== Test 63: Create service with request timeout ==="
+PROJECT14=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-timeout"}')
+PROJECT14_ID=$(echo "$PROJECT14" | jq -r '.id')
+echo "Created project: $PROJECT14_ID"
+
+SERVICE14=$(api -X POST "$BASE_URL/api/projects/$PROJECT14_ID/services" \
+  -d '{"name":"timeout-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE14_ID=$(echo "$SERVICE14" | jq -r '.id')
+echo "Created service: $SERVICE14_ID"
+
+echo ""
+echo "=== Test 64: Update service with request timeout ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE14_ID" \
+  -d '{"requestTimeout":300}' > /dev/null
+
+SERVICE14_UPDATED=$(api "$BASE_URL/api/services/$SERVICE14_ID")
+REQUEST_TIMEOUT=$(echo "$SERVICE14_UPDATED" | jq -r '.requestTimeout')
+
+echo "requestTimeout=$REQUEST_TIMEOUT (expected: 300)"
+
+if [ "$REQUEST_TIMEOUT" != "300" ]; then
+  echo "FAIL: requestTimeout should be 300, got: $REQUEST_TIMEOUT"
+  exit 1
+fi
+echo "Request timeout stored correctly"
+
+echo ""
+echo "=== Test 65: Request timeout can be cleared ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE14_ID" \
+  -d '{"requestTimeout":null}' > /dev/null
+
+SERVICE14_CLEARED=$(api "$BASE_URL/api/services/$SERVICE14_ID")
+REQUEST_TIMEOUT_CLEARED=$(echo "$SERVICE14_CLEARED" | jq -r '.requestTimeout')
+
+echo "requestTimeout after clear=$REQUEST_TIMEOUT_CLEARED (expected: null)"
+
+if [ "$REQUEST_TIMEOUT_CLEARED" != "null" ]; then
+  echo "FAIL: requestTimeout should be null after clearing, got: $REQUEST_TIMEOUT_CLEARED"
+  exit 1
+fi
+echo "Request timeout cleared correctly"
+
+echo ""
+echo "=== Test 66: Cleanup timeout test ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT14_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="
