@@ -69,10 +69,11 @@ export default function ServiceSettingsPage() {
   const [healthPath, setHealthPath] = useState("");
   const [healthTimeout, setHealthTimeout] = useState(60);
 
+  const [shutdownTimeout, setShutdownTimeout] = useState("");
+
   const [editingLimits, setEditingLimits] = useState(false);
   const [memoryLimit, setMemoryLimit] = useState("");
   const [cpuLimit, setCpuLimit] = useState("");
-  const [shutdownTimeout, setShutdownTimeout] = useState("");
 
   const { data: hostResources } = useQuery({
     queryKey: ["hostResources"],
@@ -85,6 +86,7 @@ export default function ServiceSettingsPage() {
       setHealthType(hasPath ? "http" : "tcp");
       setHealthPath(service.healthCheckPath ?? "");
       setHealthTimeout(service.healthCheckTimeout ?? 60);
+      setShutdownTimeout(service.shutdownTimeout?.toString() ?? "");
       setEditingHealth(true);
     }
   }
@@ -94,8 +96,9 @@ export default function ServiceSettingsPage() {
       await updateMutation.mutateAsync({
         healthCheckPath: healthType === "http" ? healthPath || "/health" : null,
         healthCheckTimeout: healthTimeout,
+        shutdownTimeout: shutdownTimeout ? Number(shutdownTimeout) : null,
       });
-      toast.success("Health check settings saved");
+      toast.success("Health & lifecycle settings saved");
       setEditingHealth(false);
     } catch {
       toast.error("Failed to save");
@@ -106,7 +109,6 @@ export default function ServiceSettingsPage() {
     if (service) {
       setMemoryLimit(service.memoryLimit ?? "");
       setCpuLimit(service.cpuLimit?.toString() ?? "");
-      setShutdownTimeout(service.shutdownTimeout?.toString() ?? "");
       setEditingLimits(true);
     }
   }
@@ -116,7 +118,6 @@ export default function ServiceSettingsPage() {
       await updateMutation.mutateAsync({
         memoryLimit: memoryLimit || null,
         cpuLimit: cpuLimit ? Number(cpuLimit) : null,
-        shutdownTimeout: shutdownTimeout ? Number(shutdownTimeout) : null,
       });
       toast.success("Resource limits saved");
       setEditingLimits(false);
@@ -191,7 +192,7 @@ export default function ServiceSettingsPage() {
       <Card className="bg-neutral-900 border-neutral-800">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between text-sm font-medium text-neutral-300">
-            <span>Health Check</span>
+            <span>Health & Lifecycle</span>
             {!editingHealth && (
               <Button variant="ghost" size="sm" onClick={handleEditHealth}>
                 <Pencil className="mr-1 h-3 w-3" />
@@ -202,7 +203,7 @@ export default function ServiceSettingsPage() {
         </CardHeader>
         <CardContent>
           <p className="mb-4 text-xs text-neutral-500">
-            Verify app is responding before marking deployment as successful.
+            Health checks and container lifecycle settings.
           </p>
           {editingHealth ? (
             <div className="space-y-4">
@@ -261,7 +262,7 @@ export default function ServiceSettingsPage() {
 
               <label className="block">
                 <span className="mb-1 block text-xs text-neutral-500">
-                  Timeout (seconds)
+                  Health Check Timeout (seconds)
                 </span>
                 <input
                   type="number"
@@ -275,6 +276,30 @@ export default function ServiceSettingsPage() {
                   Max wait for container to become healthy
                 </p>
               </label>
+
+              <div>
+                <span className="mb-2 block text-xs text-neutral-500">
+                  Shutdown Timeout
+                </span>
+                <Select
+                  value={shutdownTimeout}
+                  onValueChange={setShutdownTimeout}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Default (10s)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHUTDOWN_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value || "none"}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-neutral-600">
+                  Time between SIGTERM and SIGKILL on stop
+                </p>
+              </div>
 
               <div className="flex gap-2">
                 <Button
@@ -301,14 +326,17 @@ export default function ServiceSettingsPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
                 {service.healthCheckPath
                   ? `HTTP ${service.healthCheckPath}`
                   : "TCP"}
               </span>
-              <span className="text-neutral-400">
-                {service.healthCheckTimeout ?? 60}s timeout
+              <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
+                Health: {service.healthCheckTimeout ?? 60}s
+              </span>
+              <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
+                Shutdown: {service.shutdownTimeout ?? 10}s
               </span>
             </div>
           )}
@@ -372,30 +400,6 @@ export default function ServiceSettingsPage() {
                 </p>
               </div>
 
-              <div>
-                <span className="mb-2 block text-xs text-neutral-500">
-                  Shutdown Timeout
-                </span>
-                <Select
-                  value={shutdownTimeout}
-                  onValueChange={setShutdownTimeout}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Default (10s)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHUTDOWN_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value || "none"}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-xs text-neutral-600">
-                  Time between SIGTERM and SIGKILL on stop
-                </p>
-              </div>
-
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -428,9 +432,6 @@ export default function ServiceSettingsPage() {
               <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
                 CPU:{" "}
                 {service.cpuLimit ? `${service.cpuLimit} vCPU` : "No limit"}
-              </span>
-              <span className="rounded bg-neutral-800 px-2 py-0.5 font-mono text-xs text-neutral-300">
-                Shutdown: {service.shutdownTimeout ?? 10}s
               </span>
             </div>
           )}
