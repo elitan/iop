@@ -175,8 +175,6 @@ export async function runContainer(
     command,
   } = options;
   try {
-    await stopContainer(name);
-
     const allEnvVars = { PORT: String(containerPort), ...envVars };
     const envFlags = Object.entries(allEnvVars)
       .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)

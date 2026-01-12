@@ -859,6 +859,72 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT10_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 10: Deployment Race Conditions"
+echo "########################################"
+
+echo ""
+echo "=== Test 51: Create service for race test ==="
+PROJECT11=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-race"}')
+PROJECT11_ID=$(echo "$PROJECT11" | jq -r '.id')
+echo "Created project: $PROJECT11_ID"
+
+SERVICE11=$(api -X POST "$BASE_URL/api/projects/$PROJECT11_ID/services" \
+  -d '{"name":"race-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE11_ID=$(echo "$SERVICE11" | jq -r '.id')
+echo "Created service: $SERVICE11_ID"
+
+sleep 2
+DEPLOY11_INITIAL=$(api "$BASE_URL/api/services/$SERVICE11_ID/deployments" | jq -r '.[0].id')
+echo "Waiting for initial auto-deployment: $DEPLOY11_INITIAL"
+wait_for_deployment "$DEPLOY11_INITIAL"
+
+echo ""
+echo "=== Test 52: Rapid double-deploy cancels first ==="
+DEPLOY11A=$(api -X POST "$BASE_URL/api/services/$SERVICE11_ID/deploy")
+DEPLOY11A_ID=$(echo "$DEPLOY11A" | jq -r '.deploymentId')
+echo "First deploy: $DEPLOY11A_ID"
+
+DEPLOY11B=$(api -X POST "$BASE_URL/api/services/$SERVICE11_ID/deploy")
+DEPLOY11B_ID=$(echo "$DEPLOY11B" | jq -r '.deploymentId')
+echo "Second deploy: $DEPLOY11B_ID"
+
+wait_for_deployment "$DEPLOY11B_ID"
+
+STATUS11A=$(api "$BASE_URL/api/deployments/$DEPLOY11A_ID" | jq -r '.status')
+if [ "$STATUS11A" != "cancelled" ]; then
+  echo "FAIL: First deployment should be cancelled, got: $STATUS11A"
+  exit 1
+fi
+echo "First deployment correctly cancelled"
+
+echo ""
+echo "=== Test 53: Verify only one container running ==="
+CONTAINER_COUNT=$(remote "docker ps --filter 'label=frost.service.id=$SERVICE11_ID' --format '{{.Names}}' | wc -l")
+CONTAINER_COUNT=$(echo "$CONTAINER_COUNT" | tr -d ' ')
+if [ "$CONTAINER_COUNT" != "1" ]; then
+  echo "FAIL: Expected 1 container, found: $CONTAINER_COUNT"
+  exit 1
+fi
+echo "Exactly 1 container running"
+
+echo ""
+echo "=== Test 54: Verify container name format ==="
+CONTAINER_NAME=$(remote "docker ps --filter 'label=frost.service.id=$SERVICE11_ID' --format '{{.Names}}'")
+SERVICE11_ID_LOWER=$(echo "$SERVICE11_ID" | tr '[:upper:]' '[:lower:]')
+EXPECTED_PREFIX="frost-${SERVICE11_ID_LOWER}-"
+if [[ "$CONTAINER_NAME" != $EXPECTED_PREFIX* ]]; then
+  echo "FAIL: Container name should start with $EXPECTED_PREFIX, got: $CONTAINER_NAME"
+  exit 1
+fi
+echo "Container name format correct: $CONTAINER_NAME"
+
+echo ""
+echo "=== Test 55: Cleanup race test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT11_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="
