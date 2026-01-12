@@ -1,0 +1,223 @@
+name: E2E Upgrade Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SNAPSHOT_ID: 348130680
+  SSH_KEY_NAME: frost-e2e-ci
+
+jobs:
+  e2e-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest release tag
+        id: release
+        run: |
+          TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "No releases found, skipping upgrade test"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Latest release: $TAG"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create server from snapshot
+        if: steps.release.outputs.skip != 'true'
+        id: server
+        run: |
+          echo "Creating server from snapshot..."
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "frost-upgrade-${{ github.run_id }}",
+              "server_type": "cax11",
+              "image": "${{ env.SNAPSHOT_ID }}",
+              "location": "hel1",
+              "ssh_keys": ["${{ env.SSH_KEY_NAME }}"],
+              "start_after_create": true,
+              "labels": {"purpose": "frost-e2e-upgrade"}
+            }' \
+            "https://api.hetzner.cloud/v1/servers")
+
+          SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
+          SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
+
+          if [ "$SERVER_ID" = "null" ] || [ -z "$SERVER_ID" ]; then
+            echo "Failed to create server:"
+            echo "$RESPONSE" | jq
+            exit 1
+          fi
+
+          echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+          echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+          echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
+
+      - name: Wait for server ready
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          echo "Waiting for server to be running..."
+          for i in {1..30}; do
+            STATUS=$(curl -s \
+              -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+              "https://api.hetzner.cloud/v1/servers/${{ steps.server.outputs.server_id }}" \
+              | jq -r '.server.status')
+
+            echo "Server status: $STATUS"
+            if [ "$STATUS" = "running" ]; then
+              echo "Server is running!"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Setup SSH
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ steps.server.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Wait for SSH
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          echo "Waiting for SSH..."
+          for i in {1..30}; do
+            if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@${{ steps.server.outputs.ip }} "echo 'SSH ready'" 2>/dev/null; then
+              echo "SSH is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: SSH not ready..."
+            sleep 5
+          done
+          echo "SSH failed"
+          exit 1
+
+      - name: Install Frost from latest release
+        if: steps.release.outputs.skip != 'true'
+        id: install
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          INSTALL_URL="https://raw.githubusercontent.com/${{ github.repository }}/${TAG}/install.sh"
+
+          echo "Installing Frost $TAG from: $INSTALL_URL"
+
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG'" 2>&1 | tee /tmp/install-output.txt
+
+          API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
+
+          if [ -z "$API_KEY" ]; then
+            echo "Failed to extract API key"
+            echo "=== Full install output ==="
+            cat /tmp/install-output.txt
+            exit 1
+          fi
+
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
+          echo "API key extracted"
+
+      - name: Wait for Frost (pre-upgrade)
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          echo "Waiting for Frost..."
+          for i in {1..12}; do
+            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
+              echo "Frost is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: Frost not ready..."
+            sleep 5
+          done
+          echo "Frost failed to start"
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 50" || true
+          exit 1
+
+      - name: Create pre-upgrade test data
+        if: steps.release.outputs.skip != 'true'
+        id: predata
+        run: |
+          chmod +x ./scripts/e2e-upgrade-create.sh
+          ./scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+
+      - name: Upgrade to PR branch
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          REPO="${{ github.repository }}"
+
+          echo "Upgrading from ${{ steps.release.outputs.tag }} to branch: $BRANCH"
+
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
+            git remote set-url origin https://github.com/${REPO}.git && \
+            git fetch origin ${BRANCH} && \
+            git checkout ${BRANCH} && \
+            /opt/frost/update.sh"
+
+      - name: Wait for Frost (post-upgrade)
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          echo "Waiting for Frost after upgrade..."
+          for i in {1..12}; do
+            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
+              echo "Frost is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: Frost not ready..."
+            sleep 5
+          done
+          echo "Frost failed to start after upgrade"
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 100" || true
+          exit 1
+
+      - name: Verify pre-upgrade data survived
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          chmod +x ./scripts/e2e-upgrade-verify.sh
+          ./scripts/e2e-upgrade-verify.sh \
+            "${{ steps.server.outputs.ip }}" \
+            "${{ steps.install.outputs.api_key }}" \
+            "${{ steps.predata.outputs.project_id }}" \
+            "${{ steps.predata.outputs.service_id }}" \
+            "${{ steps.predata.outputs.deployment_id }}"
+
+      - name: Run standard E2E tests
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          chmod +x ./scripts/e2e-test.sh
+          ./scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+
+      - name: Collect logs on failure
+        if: failure() && steps.release.outputs.skip != 'true'
+        run: |
+          echo "=== Frost logs (last 500 lines) ==="
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 500" || true
+          echo ""
+          echo "=== Caddy logs ==="
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u caddy --no-pager -n 50" || true
+          echo ""
+          echo "=== Docker ==="
+          ssh root@${{ steps.server.outputs.ip }} "docker ps -a" || true
+
+      - name: Delete server
+        if: always() && steps.server.outputs.server_id
+        run: |
+          echo "Deleting server ${{ steps.server.outputs.server_id }}..."
+          curl -s -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+            "https://api.hetzner.cloud/v1/servers/${{ steps.server.outputs.server_id }}"
+          echo "Server deleted"
