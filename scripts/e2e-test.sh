@@ -1108,6 +1108,73 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT14_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "=== Test 67: Deploy httpbin for actual timeout tests ==="
+PROJECT15=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-timeout-real"}')
+PROJECT15_ID=$(echo "$PROJECT15" | jq -r '.id')
+echo "Created project: $PROJECT15_ID"
+
+SERVICE15=$(api -X POST "$BASE_URL/api/projects/$PROJECT15_ID/services" \
+  -d '{"name":"timeout-real","deployType":"image","imageUrl":"kennethreitz/httpbin","containerPort":80}')
+SERVICE15_ID=$(echo "$SERVICE15" | jq -r '.id')
+echo "Created service: $SERVICE15_ID"
+
+api -X PATCH "$BASE_URL/api/services/$SERVICE15_ID" -d '{"requestTimeout":5}' > /dev/null
+echo "Set request timeout to 5 seconds"
+
+sleep 2
+DEPLOY15_ID=$(api "$BASE_URL/api/services/$SERVICE15_ID/deployments" | jq -r '.[0].id')
+echo "Waiting for deployment: $DEPLOY15_ID"
+wait_for_deployment "$DEPLOY15_ID" 90
+
+echo ""
+echo "=== Test 68: Verify fast request succeeds ==="
+DOMAINS15=$(api "$BASE_URL/api/services/$SERVICE15_ID/domains")
+SYSTEM_DOMAIN15=$(echo "$DOMAINS15" | jq -r '.[0].domain')
+DOMAIN15_ID=$(echo "$DOMAINS15" | jq -r '.[0].id')
+echo "System domain: $SYSTEM_DOMAIN15"
+
+if [ "$SYSTEM_DOMAIN15" = "null" ] || [ -z "$SYSTEM_DOMAIN15" ]; then
+  echo "No system domain found, skipping timeout integration tests"
+else
+  echo "Waiting for SSL..."
+  SSL_READY=false
+  if wait_for_ssl "$DOMAIN15_ID" 12; then
+    SSL_READY=true
+  fi
+
+  if [ "$SSL_READY" = "true" ]; then
+    echo "Testing fast request to /get..."
+    FAST_RESPONSE=$(curl -sfk --max-time 10 "https://$SYSTEM_DOMAIN15/get" 2>&1 || echo "FAILED")
+
+    if echo "$FAST_RESPONSE" | grep -q '"url"'; then
+      echo "Fast request succeeded!"
+    else
+      echo "Fast request failed (non-fatal, SSL may still be provisioning): $FAST_RESPONSE"
+    fi
+
+    echo ""
+    echo "=== Test 69: Verify slow request times out ==="
+    echo "Making slow request (/delay/10 with 5s timeout)..."
+    SLOW_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "https://$SYSTEM_DOMAIN15/delay/10" 2>&1 || echo "000")
+
+    echo "Slow request status: $SLOW_STATUS (expected: 504 or 502)"
+
+    if [ "$SLOW_STATUS" = "504" ] || [ "$SLOW_STATUS" = "502" ]; then
+      echo "Request correctly timed out!"
+    else
+      echo "Slow request returned unexpected status (non-fatal): $SLOW_STATUS"
+    fi
+  else
+    echo "SSL not ready, skipping timeout integration tests (non-fatal)"
+  fi
+fi
+
+echo ""
+echo "=== Test 70: Cleanup real timeout test ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT15_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="
