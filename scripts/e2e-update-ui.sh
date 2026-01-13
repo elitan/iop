@@ -41,6 +41,10 @@ remote "cd /opt/frost && \
   git fetch origin ${TARGET_BRANCH}:refs/remotes/origin/main -f"
 
 echo ""
+echo "=== Updating systemd service to use our update.sh ==="
+remote "sed -i 's|/main/update.sh|/$TARGET_BRANCH/update.sh|g' /etc/systemd/system/frost.service && systemctl daemon-reload"
+
+echo ""
 echo "=== Faking available update in settings ==="
 remote "sqlite3 /opt/frost/data/frost.db \"INSERT OR REPLACE INTO settings (key, value) VALUES ('update_available', '99.99.99');\""
 
