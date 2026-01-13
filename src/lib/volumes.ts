@@ -47,6 +47,21 @@ export function pathToVolumeName(path: string): string {
   return path.replace(/^\//, "").replace(/\//g, "-");
 }
 
+function parseDockerSize(sizeStr: string): number {
+  const match = sizeStr.match(/^([\d.]+)\s*([KMGT]?B)$/i);
+  if (!match) return 0;
+  const value = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  const units: Record<string, number> = {
+    B: 1,
+    KB: 1024,
+    MB: 1024 ** 2,
+    GB: 1024 ** 3,
+    TB: 1024 ** 4,
+  };
+  return Math.round(value * (units[unit] ?? 1));
+}
+
 export async function getVolumeSize(name: string): Promise<number | null> {
   try {
     const { stdout } = await execAsync(`docker system df -v --format json`);
@@ -56,7 +71,8 @@ export async function getVolumeSize(name: string): Promise<number | null> {
       if (data.Volumes) {
         for (const vol of data.Volumes) {
           if (vol.Name === name) {
-            return vol.UsageSize ?? vol.Size ?? 0;
+            const sizeStr = vol.UsageSize ?? vol.Size ?? "0B";
+            return parseDockerSize(sizeStr);
           }
         }
       }

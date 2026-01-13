@@ -1119,7 +1119,7 @@ PROJECT15_ID=$(echo "$PROJECT15" | jq -r '.id')
 echo "Created project: $PROJECT15_ID"
 
 SERVICE15=$(api -X POST "$BASE_URL/api/projects/$PROJECT15_ID/services" \
-  -d '{"name":"volume-test","deployType":"image","imageUrl":"alpine:latest","containerPort":80}')
+  -d '{"name":"volume-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE15_ID=$(echo "$SERVICE15" | jq -r '.id')
 echo "Created service: $SERVICE15_ID"
 
