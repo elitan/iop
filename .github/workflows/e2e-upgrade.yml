@@ -229,15 +229,17 @@ jobs:
             bun run migrate 2>&1 && \
             systemctl start frost"
 
-          echo "Waiting for Frost..."
-          for i in {1..12}; do
-            if curl -s "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "ok"; then
+          echo "Waiting for Frost on port 3000..."
+          for i in {1..24}; do
+            if curl -s "http://${{ steps.server.outputs.ip }}:3000/api/health" | grep -q "ok"; then
               echo "Frost is ready!"
               exit 0
             fi
+            echo "Attempt $i: Frost not ready..."
             sleep 5
           done
           echo "Frost failed to start"
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 50" || true
           exit 1
 
       - name: Test UI-triggered update flow
@@ -291,15 +293,17 @@ jobs:
             npm run build 2>&1 && \
             systemctl start frost"
 
-          echo "Waiting for Frost..."
-          for i in {1..12}; do
-            if curl -s "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "ok"; then
+          echo "Waiting for Frost on port 3000..."
+          for i in {1..24}; do
+            if curl -s "http://${{ steps.server.outputs.ip }}:3000/api/health" | grep -q "ok"; then
               echo "Frost is ready!"
               exit 0
             fi
+            echo "Attempt $i: Frost not ready..."
             sleep 5
           done
           echo "Frost failed to start"
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 50" || true
           exit 1
 
       - name: Test rollback on build failure
