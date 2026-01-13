@@ -5,7 +5,7 @@ SERVER_IP=$1
 API_KEY=$2
 BROKEN_BRANCH=$3
 REPO=$4
-BASE_URL="$BASE_URL"
+BASE_URL="http://$SERVER_IP:3000"
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$BROKEN_BRANCH" ] || [ -z "$REPO" ]; then
   echo "Usage: $0 <server-ip> <api-key> <broken-branch> <repo>"
