@@ -14,7 +14,7 @@ env:
 jobs:
   e2e-upgrade:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -208,6 +208,113 @@ jobs:
         run: |
           chmod +x ./scripts/e2e-test.sh
           ./scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+
+      - name: Reset to release version for UI update test
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          echo "Resetting to release $TAG for UI update test..."
+
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
+            systemctl stop frost && \
+            git fetch origin && \
+            git checkout $TAG && \
+            git reset --hard $TAG && \
+            rm -rf node_modules package-lock.json && \
+            export BUN_INSTALL=\"\$HOME/.bun\" && \
+            export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
+            NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
+            npm run build 2>&1 && \
+            bun run migrate 2>&1 && \
+            systemctl start frost"
+
+          echo "Waiting for Frost..."
+          for i in {1..12}; do
+            if curl -s "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "ok"; then
+              echo "Frost is ready!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Frost failed to start"
+          exit 1
+
+      - name: Test UI-triggered update flow
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          chmod +x ./scripts/e2e-update-ui.sh
+          ./scripts/e2e-update-ui.sh \
+            "${{ steps.server.outputs.ip }}" \
+            "${{ steps.install.outputs.api_key }}" \
+            "${{ github.head_ref || github.ref_name }}" \
+            "${{ github.repository }}"
+
+      - name: Create broken branch for rollback test
+        if: steps.release.outputs.skip != 'true'
+        id: broken
+        run: |
+          BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}"
+          echo "Creating broken branch: $BROKEN_BRANCH"
+
+          git checkout -b "$BROKEN_BRANCH"
+          echo "console.log('Intentional build failure for e2e test'); process.exit(1);" > fail-build.js
+          node -e "
+            const pkg = require('./package.json');
+            pkg.scripts.build = 'node fail-build.js';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          git add -A
+          git commit -m "Intentionally broken build for e2e rollback test"
+          git push origin "$BROKEN_BRANCH"
+
+          echo "branch=$BROKEN_BRANCH" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Reset to release version for rollback test
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          echo "Resetting to release $TAG for rollback test..."
+
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
+            systemctl stop frost && \
+            git fetch origin && \
+            git checkout $TAG && \
+            git reset --hard $TAG && \
+            rm -rf node_modules package-lock.json && \
+            export BUN_INSTALL=\"\$HOME/.bun\" && \
+            export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
+            NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
+            npm run build 2>&1 && \
+            systemctl start frost"
+
+          echo "Waiting for Frost..."
+          for i in {1..12}; do
+            if curl -s "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "ok"; then
+              echo "Frost is ready!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Frost failed to start"
+          exit 1
+
+      - name: Test rollback on build failure
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          chmod +x ./scripts/e2e-update-rollback.sh
+          ./scripts/e2e-update-rollback.sh \
+            "${{ steps.server.outputs.ip }}" \
+            "${{ steps.install.outputs.api_key }}" \
+            "${{ steps.broken.outputs.branch }}" \
+            "${{ github.repository }}"
+
+      - name: Cleanup broken branch
+        if: always() && steps.broken.outputs.branch
+        run: |
+          echo "Deleting broken branch: ${{ steps.broken.outputs.branch }}"
+          git push origin --delete "${{ steps.broken.outputs.branch }}" || true
 
       - name: Collect logs on failure
         if: failure() && steps.release.outputs.skip != 'true'

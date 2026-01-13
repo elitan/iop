@@ -1,0 +1,132 @@
+#!/bin/bash
+set -e
+
+SERVER_IP=$1
+API_KEY=$2
+TARGET_BRANCH=$3
+REPO=$4
+BASE_URL="http://$SERVER_IP"
+
+if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$TARGET_BRANCH" ] || [ -z "$REPO" ]; then
+  echo "Usage: $0 <server-ip> <api-key> <target-branch> <repo>"
+  echo "Example: $0 1.2.3.4 abc123 main elitan/frost"
+  exit 1
+fi
+
+echo "Testing UI-triggered update flow on $BASE_URL"
+echo "Target branch: $TARGET_BRANCH"
+
+api() {
+  curl -sS --max-time 30 -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@"
+}
+
+remote() {
+  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP "$@"
+}
+
+echo ""
+echo "=== Recording current version ==="
+CURRENT_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
+echo "Current version: $CURRENT_VERSION"
+
+if [ "$CURRENT_VERSION" = "null" ] || [ -z "$CURRENT_VERSION" ]; then
+  echo "Failed to get current version"
+  exit 1
+fi
+
+echo ""
+echo "=== Preparing repo to pull from target branch ==="
+remote "cd /opt/frost && \
+  git remote set-url origin https://github.com/${REPO}.git && \
+  git fetch origin ${TARGET_BRANCH}:refs/remotes/origin/main -f"
+
+echo ""
+echo "=== Faking available update in settings ==="
+remote "sqlite3 /opt/frost/data/frost.db \"INSERT OR REPLACE INTO settings (key, value) VALUES ('update_available', '99.99.99');\""
+
+echo ""
+echo "=== Clearing any previous update result ==="
+remote "rm -f /opt/frost/data/.update-result /opt/frost/data/.update-log"
+
+echo ""
+echo "=== Triggering update via API ==="
+APPLY_RESULT=$(api -X POST "$BASE_URL/api/updates/apply")
+echo "Apply result: $APPLY_RESULT"
+
+SUCCESS=$(echo "$APPLY_RESULT" | jq -r '.success // empty')
+if [ "$SUCCESS" != "true" ]; then
+  echo "Failed to trigger update"
+  echo "$APPLY_RESULT" | jq
+  exit 1
+fi
+
+echo ""
+echo "=== Waiting for service to restart ==="
+sleep 5
+
+echo ""
+echo "=== Polling for update result ==="
+for i in $(seq 1 60); do
+  RESULT=$(curl -sS --max-time 10 "http://$SERVER_IP:3000/api/updates/result" \
+    -H "X-Frost-Token: $API_KEY" 2>/dev/null || echo '{"completed":false}')
+  COMPLETED=$(echo "$RESULT" | jq -r '.completed')
+
+  echo "Attempt $i: completed=$COMPLETED"
+
+  if [ "$COMPLETED" = "true" ]; then
+    RESULT_SUCCESS=$(echo "$RESULT" | jq -r '.success')
+    NEW_VERSION=$(echo "$RESULT" | jq -r '.newVersion')
+
+    echo ""
+    echo "Update completed!"
+    echo "  Success: $RESULT_SUCCESS"
+    echo "  New version: $NEW_VERSION"
+
+    if [ "$RESULT_SUCCESS" != "true" ]; then
+      echo ""
+      echo "FAIL: Update should have succeeded"
+      echo "Log:"
+      echo "$RESULT" | jq -r '.log // "No log available"'
+      exit 1
+    fi
+
+    break
+  fi
+
+  if [ $i -eq 60 ]; then
+    echo ""
+    echo "FAIL: Update timed out after 5 minutes"
+    remote "journalctl -u frost --no-pager -n 100" || true
+    exit 1
+  fi
+
+  sleep 5
+done
+
+echo ""
+echo "=== Verifying version changed ==="
+sleep 2
+AFTER_VERSION=$(api "http://$SERVER_IP:3000/api/health" | jq -r '.version')
+echo "Version after update: $AFTER_VERSION"
+
+if [ "$AFTER_VERSION" = "$CURRENT_VERSION" ]; then
+  echo "FAIL: Version should have changed"
+  echo "Before: $CURRENT_VERSION"
+  echo "After: $AFTER_VERSION"
+  exit 1
+fi
+echo "PASS: Version changed from $CURRENT_VERSION to $AFTER_VERSION"
+
+echo ""
+echo "=== Verifying service is healthy ==="
+HEALTH=$(api "http://$SERVER_IP:3000/api/health")
+if echo "$HEALTH" | jq -e '.ok == true' > /dev/null; then
+  echo "PASS: Service is healthy"
+else
+  echo "FAIL: Service not healthy"
+  echo "$HEALTH"
+  exit 1
+fi
+
+echo ""
+echo "=== UI update flow test PASSED ==="
