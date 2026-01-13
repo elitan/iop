@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 
 interface NavItem {
@@ -42,13 +43,20 @@ export function SettingsSidebar({
           <Link
             key={item.id}
             href={item.href}
-            className={`block rounded-md px-3 py-2 text-sm transition-colors ${
-              isActive
-                ? "bg-neutral-800/80 text-white"
-                : "text-neutral-400 hover:text-neutral-200"
-            }`}
+            className="relative block rounded-md px-3 py-2 text-sm transition-colors"
           >
-            {item.label}
+            {isActive && (
+              <motion.div
+                layoutId="service-settings-indicator"
+                className="absolute inset-0 rounded-md bg-neutral-800/80"
+                transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+              />
+            )}
+            <span
+              className={`relative z-10 ${isActive ? "text-white" : "text-neutral-400 hover:text-neutral-200"}`}
+            >
+              {item.label}
+            </span>
           </Link>
         );
       })}
@@ -73,13 +81,20 @@ export function SettingsMobileTabs({
           <Link
             key={item.id}
             href={item.href}
-            className={`shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors ${
-              isActive
-                ? "bg-neutral-800/80 text-white"
-                : "text-neutral-400 hover:text-neutral-200"
-            }`}
+            className="relative shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors"
           >
-            {item.label}
+            {isActive && (
+              <motion.div
+                layoutId="service-settings-mobile-indicator"
+                className="absolute inset-0 rounded-md bg-neutral-800/80"
+                transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+              />
+            )}
+            <span
+              className={`relative z-10 ${isActive ? "text-white" : "text-neutral-400 hover:text-neutral-200"}`}
+            >
+              {item.label}
+            </span>
           </Link>
         );
       })}
