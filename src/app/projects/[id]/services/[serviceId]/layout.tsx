@@ -34,14 +34,6 @@ export default function ServiceLayout({
       href: `/projects/${projectId}/services/${serviceId}/logs`,
     },
     {
-      label: "Domains",
-      href: `/projects/${projectId}/services/${serviceId}/domains`,
-    },
-    {
-      label: "Variables",
-      href: `/projects/${projectId}/services/${serviceId}/variables`,
-    },
-    {
       label: "Settings",
       href: `/projects/${projectId}/services/${serviceId}/settings`,
     },

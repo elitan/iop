@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useService } from "@/hooks/use-services";
 import { api } from "@/lib/api";
-import { DomainsSection } from "../_components/domains-section";
+import { DomainsSection } from "../../_components/domains-section";
 
 export default function ServiceDomainsPage() {
   const params = useParams();
