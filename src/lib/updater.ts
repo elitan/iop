@@ -253,6 +253,10 @@ export async function applyUpdate(): Promise<{
   success: boolean;
   error?: string;
 }> {
+  if (process.env.NODE_ENV !== "production") {
+    return { success: false, error: "Updates only available in production" };
+  }
+
   const availableVersion = await getSetting("update_available");
   if (!availableVersion) {
     return { success: false, error: "No update available" };
