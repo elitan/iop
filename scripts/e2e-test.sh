@@ -3,7 +3,7 @@ set -e
 
 SERVER_IP=$1
 API_KEY=$2
-BATCH_SIZE=${3:-4}  # Run 4 groups at a time by default
+BATCH_SIZE=${3:-2}  # Run 2 groups at a time to avoid port conflicts
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ]; then
   echo "Usage: $0 <server-ip> <api-key> [batch-size]"
@@ -48,7 +48,7 @@ for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
     GROUP_NAMES+=("$GROUP_NAME")
     "$group" &
     PIDS+=($!)
-    sleep 2  # Stagger starts to avoid port allocation race
+    sleep 5  # Stagger starts to avoid port allocation race
   done
 
   for k in "${!PIDS[@]}"; do
