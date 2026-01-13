@@ -302,6 +302,7 @@ jobs:
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
             npm run build 2>&1 && \
+            bun run migrate 2>&1 && \
             systemctl start frost"
 
           echo "Waiting for Frost on port 3000..."

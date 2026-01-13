@@ -106,17 +106,7 @@ sleep 5
 
 echo ""
 echo "=== Verifying version unchanged ==="
-for i in $(seq 1 12); do
-  AFTER_VERSION=$(curl -sS --max-time 10 "$BASE_URL/api/health" \
-    -H "X-Frost-Token: $API_KEY" 2>/dev/null | jq -r '.version' || echo "")
-
-  if [ -n "$AFTER_VERSION" ] && [ "$AFTER_VERSION" != "null" ]; then
-    break
-  fi
-  echo "Waiting for service... attempt $i"
-  sleep 5
-done
-
+AFTER_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
 echo "Version after failed update: $AFTER_VERSION"
 
 if [ "$AFTER_VERSION" != "$CURRENT_VERSION" ]; then

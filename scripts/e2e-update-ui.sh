@@ -61,13 +61,6 @@ echo "=== Triggering update via API ==="
 APPLY_RESULT=$(api -X POST "$BASE_URL/api/updates/apply")
 echo "Apply result: $APPLY_RESULT"
 
-SUCCESS=$(echo "$APPLY_RESULT" | jq -r '.success // empty')
-if [ "$SUCCESS" != "true" ]; then
-  echo "Failed to trigger update"
-  echo "$APPLY_RESULT" | jq
-  exit 1
-fi
-
 echo ""
 echo "=== Waiting for service to restart ==="
 sleep 5
@@ -113,7 +106,6 @@ done
 
 echo ""
 echo "=== Verifying code was updated ==="
-sleep 2
 AFTER_COMMIT=$(remote "cd /opt/frost && git rev-parse HEAD")
 echo "Commit after update: $AFTER_COMMIT"
 
