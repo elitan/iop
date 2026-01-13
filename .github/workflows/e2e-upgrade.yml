@@ -265,12 +265,18 @@ jobs:
           git config user.email "ci@frost.dev"
           git config user.name "Frost CI"
           git checkout -b "$BROKEN_BRANCH"
+
+          # Make the build fail
           echo "console.log('Intentional build failure for e2e test'); process.exit(1);" > fail-build.js
           node -e "
             const pkg = require('./package.json');
             pkg.scripts.build = 'node fail-build.js';
             require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
+
+          # Modify update.sh to fetch from this branch instead of main
+          sed -i "s|git fetch origin main|git fetch origin $BROKEN_BRANCH:refs/remotes/origin/main|g" update.sh
+
           git add -A
           git commit -m "Intentionally broken build for e2e rollback test"
           git push origin "$BROKEN_BRANCH"
