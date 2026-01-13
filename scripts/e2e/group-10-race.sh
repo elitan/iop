@@ -12,6 +12,7 @@ PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"race-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
+[ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ] && fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
 sleep 1
