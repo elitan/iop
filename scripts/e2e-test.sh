@@ -19,21 +19,16 @@ echo "========================================"
 echo "Running E2E tests against http://$SERVER_IP:3000"
 echo "========================================"
 echo ""
-echo "SCRIPT_DIR: $SCRIPT_DIR"
-echo "E2E_DIR: $E2E_DIR"
-echo "Files in E2E_DIR:"
-ls -la "$E2E_DIR" 2>&1 || echo "E2E_DIR does not exist!"
-echo ""
 
 chmod +x "$E2E_DIR"/*.sh
 
 FAILED=0
 PIDS=()
-GROUPS=()
+GROUP_NAMES=()
 
 for group in "$E2E_DIR"/group-*.sh; do
   GROUP_NAME=$(basename "$group" .sh)
-  GROUPS+=("$GROUP_NAME")
+  GROUP_NAMES+=("$GROUP_NAME")
   "$group" &
   PIDS+=($!)
 done
@@ -43,7 +38,7 @@ echo ""
 
 for i in "${!PIDS[@]}"; do
   PID=${PIDS[$i]}
-  GROUP=${GROUPS[$i]}
+  GROUP=${GROUP_NAMES[$i]}
   if wait "$PID"; then
     echo "✓ $GROUP passed"
   else
