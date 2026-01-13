@@ -41,8 +41,8 @@ remote "cd /opt/frost && \
   git fetch origin ${BROKEN_BRANCH}:refs/remotes/origin/main -f"
 
 echo ""
-echo "=== Updating systemd service to use our update.sh ==="
-remote "sed -i 's|/main/update.sh|/$BROKEN_BRANCH/update.sh|g' /etc/systemd/system/frost.service && \
+echo "=== Updating systemd service to use broken branch update.sh ==="
+remote "sed -i 's|raw.githubusercontent.com/[^/]*/[^/]*/[^/]*/update.sh|raw.githubusercontent.com/${REPO}/${BROKEN_BRANCH}/update.sh|g' /etc/systemd/system/frost.service && \
   grep -q 'TimeoutStartSec' /etc/systemd/system/frost.service || sed -i '/\\[Service\\]/a TimeoutStartSec=300' /etc/systemd/system/frost.service && \
   systemctl daemon-reload"
 
