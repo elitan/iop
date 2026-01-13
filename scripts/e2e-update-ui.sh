@@ -25,9 +25,11 @@ remote() {
 }
 
 echo ""
-echo "=== Recording current version ==="
+echo "=== Recording current state ==="
 CURRENT_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
+CURRENT_COMMIT=$(remote "cd /opt/frost && git rev-parse HEAD")
 echo "Current version: $CURRENT_VERSION"
+echo "Current commit: $CURRENT_COMMIT"
 
 if [ "$CURRENT_VERSION" = "null" ] || [ -z "$CURRENT_VERSION" ]; then
   echo "Failed to get current version"
@@ -110,18 +112,18 @@ for i in $(seq 1 60); do
 done
 
 echo ""
-echo "=== Verifying version changed ==="
+echo "=== Verifying code was updated ==="
 sleep 2
-AFTER_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
-echo "Version after update: $AFTER_VERSION"
+AFTER_COMMIT=$(remote "cd /opt/frost && git rev-parse HEAD")
+echo "Commit after update: $AFTER_COMMIT"
 
-if [ "$AFTER_VERSION" = "$CURRENT_VERSION" ]; then
-  echo "FAIL: Version should have changed"
-  echo "Before: $CURRENT_VERSION"
-  echo "After: $AFTER_VERSION"
+if [ "$AFTER_COMMIT" = "$CURRENT_COMMIT" ]; then
+  echo "FAIL: Git commit should have changed"
+  echo "Before: $CURRENT_COMMIT"
+  echo "After: $AFTER_COMMIT"
   exit 1
 fi
-echo "PASS: Version changed from $CURRENT_VERSION to $AFTER_VERSION"
+echo "PASS: Code updated from $CURRENT_COMMIT to $AFTER_COMMIT"
 
 echo ""
 echo "=== Verifying service is healthy ==="
