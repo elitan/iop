@@ -217,10 +217,11 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
+            rm -rf repos && \
             git fetch origin && \
             git checkout $TAG && \
             git reset --hard $TAG && \
-            rm -rf node_modules package-lock.json && \
+            git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
@@ -279,10 +280,11 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
+            rm -rf repos && \
             git fetch origin && \
             git checkout $TAG && \
             git reset --hard $TAG && \
-            rm -rf node_modules package-lock.json && \
+            git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
