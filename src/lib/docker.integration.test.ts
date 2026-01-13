@@ -8,6 +8,7 @@ import {
 } from "./docker";
 import {
   createVolume,
+  getVolumeSize,
   listFrostVolumes,
   removeVolume,
   volumeExists,
@@ -165,4 +166,17 @@ describe("volume integration", () => {
     await stopContainer(TEST_CONTAINER);
     await removeVolume(volumeName);
   }, 60000);
+
+  test("getVolumeSize returns size for existing volume", async () => {
+    await createVolume(TEST_VOLUME_NAME);
+    const size = await getVolumeSize(TEST_VOLUME_NAME);
+    expect(typeof size).toBe("number");
+    expect(size).toBeGreaterThanOrEqual(0);
+    await removeVolume(TEST_VOLUME_NAME);
+  });
+
+  test("getVolumeSize returns null for non-existent volume", async () => {
+    const size = await getVolumeSize("frost-nonexistent-volume-99999");
+    expect(size).toBeNull();
+  });
 });

@@ -42,3 +42,27 @@ export async function volumeExists(name: string): Promise<boolean> {
 export function buildVolumeName(serviceId: string, volumeName: string): string {
   return `frost-${serviceId}-${volumeName}`;
 }
+
+export function pathToVolumeName(path: string): string {
+  return path.replace(/^\//, "").replace(/\//g, "-");
+}
+
+export async function getVolumeSize(name: string): Promise<number | null> {
+  try {
+    const { stdout } = await execAsync(`docker system df -v --format json`);
+    const lines = stdout.trim().split("\n");
+    for (const line of lines) {
+      const data = JSON.parse(line);
+      if (data.Volumes) {
+        for (const vol of data.Volumes) {
+          if (vol.Name === name) {
+            return vol.UsageSize ?? vol.Size ?? 0;
+          }
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

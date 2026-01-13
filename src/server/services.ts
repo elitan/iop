@@ -13,7 +13,7 @@ import {
 } from "@/lib/domains";
 import { os } from "@/lib/orpc";
 import { generateSelfSignedCert, removeSSLCerts } from "@/lib/ssl";
-import { buildVolumeName, removeVolume } from "@/lib/volumes";
+import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
 
 const envVarSchema = z.object({
   key: z.string(),
@@ -260,6 +260,14 @@ export const services = {
         cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
         shutdownTimeout: z.number().min(1).max(300).nullable().optional(),
         requestTimeout: z.number().min(1).max(3600).nullable().optional(),
+        volumes: z
+          .array(
+            z.object({
+              name: z.string().regex(/^[a-z0-9-]+$/),
+              path: z.string().startsWith("/"),
+            }),
+          )
+          .optional(),
       }),
     )
     .output(serviceSchema)
@@ -302,6 +310,8 @@ export const services = {
         updates.shutdownTimeout = input.shutdownTimeout;
       if (input.requestTimeout !== undefined)
         updates.requestTimeout = input.requestTimeout;
+      if (input.volumes !== undefined)
+        updates.volumes = JSON.stringify(input.volumes);
 
       if (Object.keys(updates).length > 0) {
         await db
@@ -358,7 +368,7 @@ export const services = {
         }
       }
 
-      if (service?.serviceType === "database" && service.volumes) {
+      if (service?.volumes && service.volumes !== "[]") {
         const volumeConfig = JSON.parse(service.volumes) as {
           name: string;
           path: string;
@@ -366,6 +376,8 @@ export const services = {
         for (const v of volumeConfig) {
           await removeVolume(buildVolumeName(input.id, v.name));
         }
+      }
+      if (service?.serviceType === "database") {
         await removeSSLCerts(input.id);
       }
 
@@ -410,5 +422,48 @@ export const services = {
         .limit(20)
         .execute();
       return deployments;
+    }),
+
+  getVolumes: os
+    .route({ method: "GET", path: "/services/{id}/volumes" })
+    .input(idParamSchema)
+    .output(
+      z.array(
+        z.object({
+          name: z.string(),
+          path: z.string(),
+          sizeBytes: z.number().nullable(),
+        }),
+      ),
+    )
+    .handler(async ({ input }) => {
+      const service = await db
+        .selectFrom("services")
+        .select("volumes")
+        .where("id", "=", input.id)
+        .executeTakeFirst();
+
+      if (!service) {
+        throw new ORPCError("NOT_FOUND", { message: "Service not found" });
+      }
+
+      if (!service.volumes || service.volumes === "[]") {
+        return [];
+      }
+
+      const volumeConfig = JSON.parse(service.volumes) as {
+        name: string;
+        path: string;
+      }[];
+
+      const result = await Promise.all(
+        volumeConfig.map(async (v) => {
+          const dockerVolumeName = buildVolumeName(input.id, v.name);
+          const sizeBytes = await getVolumeSize(dockerVolumeName);
+          return { name: v.name, path: v.path, sizeBytes };
+        }),
+      );
+
+      return result;
     }),
 };

@@ -1108,6 +1108,115 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT14_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "########################################"
+echo "# Test Group 14: User-Configurable Volumes"
+echo "########################################"
+
+echo ""
+echo "=== Test 67: Create service with volume ==="
+PROJECT15=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-volumes"}')
+PROJECT15_ID=$(echo "$PROJECT15" | jq -r '.id')
+echo "Created project: $PROJECT15_ID"
+
+SERVICE15=$(api -X POST "$BASE_URL/api/projects/$PROJECT15_ID/services" \
+  -d '{"name":"volume-test","deployType":"image","imageUrl":"alpine:latest","containerPort":80}')
+SERVICE15_ID=$(echo "$SERVICE15" | jq -r '.id')
+echo "Created service: $SERVICE15_ID"
+
+echo ""
+echo "=== Test 68: Add volume to service ==="
+api -X PATCH "$BASE_URL/api/services/$SERVICE15_ID" \
+  -d '{"volumes":[{"name":"data","path":"/data"}]}' > /dev/null
+
+SERVICE15_UPDATED=$(api "$BASE_URL/api/services/$SERVICE15_ID")
+VOLUMES_JSON=$(echo "$SERVICE15_UPDATED" | jq -r '.volumes')
+echo "Volumes: $VOLUMES_JSON"
+
+if ! echo "$VOLUMES_JSON" | grep -q '"path":"/data"'; then
+  echo "FAIL: Volume not added correctly"
+  exit 1
+fi
+echo "Volume added to service"
+
+echo ""
+echo "=== Test 69: Deploy and verify volume created ==="
+DEPLOY15=$(api -X POST "$BASE_URL/api/services/$SERVICE15_ID/deploy")
+DEPLOY15_ID=$(echo "$DEPLOY15" | jq -r '.deploymentId')
+echo "Deployment: $DEPLOY15_ID"
+wait_for_deployment "$DEPLOY15_ID"
+
+EXPECTED_VOLUME15="frost-${SERVICE15_ID}-data"
+VOLUME15_EXISTS=$(remote "docker volume ls --filter name=$EXPECTED_VOLUME15 --format '{{.Name}}'" 2>&1)
+if ! echo "$VOLUME15_EXISTS" | grep -q "$EXPECTED_VOLUME15"; then
+  echo "FAIL: Volume $EXPECTED_VOLUME15 not created"
+  exit 1
+fi
+echo "Volume created: $EXPECTED_VOLUME15"
+
+BUILD_LOG15=$(api "$BASE_URL/api/deployments/$DEPLOY15_ID" | jq -r '.buildLog')
+if ! echo "$BUILD_LOG15" | grep -q "Created 1 volume(s)"; then
+  echo "FAIL: Volume creation not logged"
+  echo "Build log: $BUILD_LOG15"
+  exit 1
+fi
+echo "Volume creation logged correctly"
+
+echo ""
+echo "=== Test 70: Write file to volume and verify persistence ==="
+CONTAINER15_NAME="frost-${SERVICE15_ID}-${DEPLOY15_ID}"
+CONTAINER15_NAME=$(echo "$CONTAINER15_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+
+remote "docker exec $CONTAINER15_NAME sh -c 'echo test-content > /data/test.txt'"
+FILE_CONTENT=$(remote "docker exec $CONTAINER15_NAME cat /data/test.txt")
+if [ "$FILE_CONTENT" != "test-content" ]; then
+  echo "FAIL: Could not write to volume"
+  exit 1
+fi
+echo "File written to volume"
+
+DEPLOY15B=$(api -X POST "$BASE_URL/api/services/$SERVICE15_ID/deploy")
+DEPLOY15B_ID=$(echo "$DEPLOY15B" | jq -r '.deploymentId')
+echo "Second deployment: $DEPLOY15B_ID"
+wait_for_deployment "$DEPLOY15B_ID"
+
+CONTAINER15B_NAME="frost-${SERVICE15_ID}-${DEPLOY15B_ID}"
+CONTAINER15B_NAME=$(echo "$CONTAINER15B_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+
+FILE_AFTER=$(remote "docker exec $CONTAINER15B_NAME cat /data/test.txt")
+if [ "$FILE_AFTER" != "test-content" ]; then
+  echo "FAIL: File did not persist across redeploy"
+  exit 1
+fi
+echo "File persisted across redeploy!"
+
+echo ""
+echo "=== Test 71: Get volume info via API ==="
+VOLUMES_INFO=$(api "$BASE_URL/api/services/$SERVICE15_ID/volumes")
+VOLUME_PATH=$(echo "$VOLUMES_INFO" | jq -r '.[0].path')
+if [ "$VOLUME_PATH" != "/data" ]; then
+  echo "FAIL: getVolumes endpoint returned wrong path: $VOLUME_PATH"
+  exit 1
+fi
+echo "getVolumes endpoint works"
+
+echo ""
+echo "=== Test 72: Delete service and verify volume cleanup ==="
+api -X DELETE "$BASE_URL/api/services/$SERVICE15_ID" > /dev/null
+sleep 2
+
+VOLUME15_AFTER=$(remote "docker volume ls --filter name=$EXPECTED_VOLUME15 --format '{{.Name}}'" 2>&1)
+if echo "$VOLUME15_AFTER" | grep -q "$EXPECTED_VOLUME15"; then
+  echo "FAIL: Volume should have been deleted with service"
+  exit 1
+fi
+echo "Volume deleted with service"
+
+echo ""
+echo "=== Test 73: Cleanup volumes test project ==="
+api -X DELETE "$BASE_URL/api/projects/$PROJECT15_ID" > /dev/null
+echo "Deleted project"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

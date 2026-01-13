@@ -419,7 +419,7 @@ async function runServiceDeployment(
     await createNetwork(networkName, baseLabels);
 
     let volumes: VolumeMount[] | undefined;
-    if (service.serviceType === "database" && service.volumes) {
+    if (service.volumes && service.volumes !== "[]") {
       const volumeConfig = JSON.parse(service.volumes) as {
         name: string;
         path: string;
@@ -430,10 +430,7 @@ async function runServiceDeployment(
         await createVolume(volumeName);
         volumes.push({ name: volumeName, path: v.path });
       }
-      await appendLog(
-        deploymentId,
-        `Created ${volumes.length} volume(s) for database\n`,
-      );
+      await appendLog(deploymentId, `Created ${volumes.length} volume(s)\n`);
     }
 
     let fileMounts: FileMount[] | undefined;

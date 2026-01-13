@@ -197,6 +197,17 @@ export interface MetricsHistory {
   containers: Record<string, MetricsHistoryPoint[]>;
 }
 
+export interface VolumeConfig {
+  name: string;
+  path: string;
+}
+
+export interface VolumeInfo {
+  name: string;
+  path: string;
+  sizeBytes: number | null;
+}
+
 export interface UpdateServiceInput {
   name?: string;
   envVars?: EnvVar[];
@@ -212,6 +223,7 @@ export interface UpdateServiceInput {
   cpuLimit?: number | null;
   shutdownTimeout?: number | null;
   requestTimeout?: number | null;
+  volumes?: VolumeConfig[];
 }
 
 export interface HostResources {
@@ -291,6 +303,11 @@ export const api = {
     deploy: (id: string): Promise<{ deploymentId: string }> =>
       fetch(`/api/services/${id}/deploy`, { method: "POST" }).then((r) =>
         handleResponse<{ deploymentId: string }>(r),
+      ),
+
+    getVolumes: (id: string): Promise<VolumeInfo[]> =>
+      fetch(`/api/services/${id}/volumes`).then((r) =>
+        handleResponse<VolumeInfo[]>(r),
       ),
   },
 

@@ -72,3 +72,10 @@ export function useDeployService(id: string, projectId: string) {
     },
   });
 }
+
+export function useServiceVolumes(id: string) {
+  return useQuery({
+    queryKey: ["services", id, "volumes"],
+    queryFn: () => api.services.getVolumes(id),
+  });
+}

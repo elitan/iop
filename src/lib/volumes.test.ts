@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildVolumeName } from "./volumes";
+import { buildVolumeName, pathToVolumeName } from "./volumes";
 
 describe("volumes", () => {
   test("buildVolumeName creates correct format", () => {
@@ -16,5 +16,17 @@ describe("volumes", () => {
   test("buildVolumeName with nanoid-like service IDs", () => {
     const name = buildVolumeName("V1StGXR8_Z5jdHi6B-myT", "data");
     expect(name).toBe("frost-V1StGXR8_Z5jdHi6B-myT-data");
+  });
+
+  test("pathToVolumeName converts simple path", () => {
+    expect(pathToVolumeName("/data")).toBe("data");
+  });
+
+  test("pathToVolumeName converts nested path", () => {
+    expect(pathToVolumeName("/var/lib/postgres")).toBe("var-lib-postgres");
+  });
+
+  test("pathToVolumeName converts app uploads path", () => {
+    expect(pathToVolumeName("/app/uploads")).toBe("app-uploads");
   });
 });
