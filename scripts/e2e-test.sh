@@ -3,7 +3,7 @@ set -e
 
 SERVER_IP=$1
 API_KEY=$2
-BATCH_SIZE=${3:-2}  # Run 2 groups at a time to avoid port conflicts
+BATCH_SIZE=${3:-1}  # Run 1 group at a time (sequential) to avoid port conflicts
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ]; then
   echo "Usage: $0 <server-ip> <api-key> [batch-size]"
