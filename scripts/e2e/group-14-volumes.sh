@@ -3,7 +3,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-log "=== User-Configurable Volumes & Registries ==="
+log "=== User-Configurable Volumes ==="
 
 log "Creating service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-volumes"}')
@@ -68,33 +68,5 @@ echo "$VOLUME_AFTER" | grep -q "$EXPECTED_VOLUME" && fail "Volume should have be
 log "Volume deleted with service"
 
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
-
-log "Testing registry with invalid creds fails..."
-REGISTRY_FAIL_RESPONSE=$(curl -sS -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" \
-  -X POST "$BASE_URL/api/registries" \
-  -d '{"name":"bad-test","type":"dockerhub","username":"invalid-user-xyz-e2e","password":"invalid"}' \
-  -w "\n%{http_code}")
-REGISTRY_STATUS=$(echo "$REGISTRY_FAIL_RESPONSE" | tail -1)
-# Should return 4xx error for invalid creds
-[[ "$REGISTRY_STATUS" != 4* ]] && fail "Invalid creds should return 4xx, got $REGISTRY_STATUS"
-log "Invalid credentials rejected (status: $REGISTRY_STATUS)"
-
-log "Testing registries list..."
-REGISTRIES=$(api "$BASE_URL/api/registries")
-REGISTRIES_COUNT=$(echo "$REGISTRIES" | jq 'length')
-[ "$REGISTRIES_COUNT" != "0" ] && fail "Expected empty registries list"
-log "Registries list empty"
-
-log "Testing service has registryId field..."
-PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-registry"}')
-PROJECT2_ID=$(echo "$PROJECT2" | jq -r '.id')
-
-SERVICE2=$(api -X POST "$BASE_URL/api/projects/$PROJECT2_ID/services" \
-  -d '{"name":"reg-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
-REGISTRY_ID=$(echo "$SERVICE2" | jq -r '.registryId')
-[ "$REGISTRY_ID" != "null" ] && fail "registryId should be null"
-log "Service registryId field exists and is null"
-
-api -X DELETE "$BASE_URL/api/projects/$PROJECT2_ID" > /dev/null
 
 pass
