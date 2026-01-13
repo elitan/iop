@@ -19,6 +19,11 @@ echo "========================================"
 echo "Running E2E tests against http://$SERVER_IP:3000"
 echo "========================================"
 echo ""
+echo "SCRIPT_DIR: $SCRIPT_DIR"
+echo "E2E_DIR: $E2E_DIR"
+echo "Files in E2E_DIR:"
+ls -la "$E2E_DIR" 2>&1 || echo "E2E_DIR does not exist!"
+echo ""
 
 chmod +x "$E2E_DIR"/*.sh
 
