@@ -42,7 +42,9 @@ remote "cd /opt/frost && \
 
 echo ""
 echo "=== Updating systemd service to use our update.sh ==="
-remote "sed -i 's|/main/update.sh|/$BROKEN_BRANCH/update.sh|g' /etc/systemd/system/frost.service && systemctl daemon-reload"
+remote "sed -i 's|/main/update.sh|/$BROKEN_BRANCH/update.sh|g' /etc/systemd/system/frost.service && \
+  grep -q 'TimeoutStartSec' /etc/systemd/system/frost.service || sed -i '/\\[Service\\]/a TimeoutStartSec=300' /etc/systemd/system/frost.service && \
+  systemctl daemon-reload"
 
 echo ""
 echo "=== Faking available update in settings ==="
