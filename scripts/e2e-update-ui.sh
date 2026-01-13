@@ -5,7 +5,7 @@ SERVER_IP=$1
 API_KEY=$2
 TARGET_BRANCH=$3
 REPO=$4
-BASE_URL="http://$SERVER_IP"
+BASE_URL="$BASE_URL"
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$TARGET_BRANCH" ] || [ -z "$REPO" ]; then
   echo "Usage: $0 <server-ip> <api-key> <target-branch> <repo>"
@@ -67,7 +67,7 @@ sleep 5
 echo ""
 echo "=== Polling for update result ==="
 for i in $(seq 1 60); do
-  RESULT=$(curl -sS --max-time 10 "http://$SERVER_IP:3000/api/updates/result" \
+  RESULT=$(curl -sS --max-time 10 "$BASE_URL/api/updates/result" \
     -H "X-Frost-Token: $API_KEY" 2>/dev/null || echo '{"completed":false}')
   COMPLETED=$(echo "$RESULT" | jq -r '.completed')
 
@@ -106,7 +106,7 @@ done
 echo ""
 echo "=== Verifying version changed ==="
 sleep 2
-AFTER_VERSION=$(api "http://$SERVER_IP:3000/api/health" | jq -r '.version')
+AFTER_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
 echo "Version after update: $AFTER_VERSION"
 
 if [ "$AFTER_VERSION" = "$CURRENT_VERSION" ]; then
@@ -119,7 +119,7 @@ echo "PASS: Version changed from $CURRENT_VERSION to $AFTER_VERSION"
 
 echo ""
 echo "=== Verifying service is healthy ==="
-HEALTH=$(api "http://$SERVER_IP:3000/api/health")
+HEALTH=$(api "$BASE_URL/api/health")
 if echo "$HEALTH" | jq -e '.ok == true' > /dev/null; then
   echo "PASS: Service is healthy"
 else
