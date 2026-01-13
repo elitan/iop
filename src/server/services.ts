@@ -103,6 +103,7 @@ export const services = {
           .optional(),
         cpuLimit: z.number().min(0.1).max(64).optional(),
         shutdownTimeout: z.number().min(1).max(300).optional(),
+        registryId: z.string().optional(),
       }),
     )
     .output(serviceSchema)
@@ -209,6 +210,8 @@ export const services = {
             memoryLimit: input.memoryLimit ?? null,
             cpuLimit: input.cpuLimit ?? null,
             shutdownTimeout: input.shutdownTimeout ?? null,
+            registryId:
+              input.deployType === "image" ? (input.registryId ?? null) : null,
             createdAt: now,
           })
           .execute();
@@ -268,6 +271,7 @@ export const services = {
             }),
           )
           .optional(),
+        registryId: z.string().nullable().optional(),
       }),
     )
     .output(serviceSchema)
@@ -312,6 +316,7 @@ export const services = {
         updates.requestTimeout = input.requestTimeout;
       if (input.volumes !== undefined)
         updates.volumes = JSON.stringify(input.volumes);
+      if (input.registryId !== undefined) updates.registryId = input.registryId;
 
       if (Object.keys(updates).length > 0) {
         await db

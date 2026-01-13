@@ -39,6 +39,7 @@ export interface Service {
   cpuLimit: number | null;
   shutdownTimeout: number | null;
   requestTimeout: number | null;
+  registryId: string | null;
   latestDeployment?: Deployment;
 }
 
@@ -135,6 +136,7 @@ export interface CreateServiceInput {
   envVars?: EnvVar[];
   containerPort?: number;
   templateId?: string;
+  registryId?: string;
 }
 
 export interface DatabaseTemplate {

@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "general", label: "General", href: "/settings" },
   { id: "monitoring", label: "Monitoring", href: "/settings/monitoring" },
   { id: "domain", label: "Domain & SSL", href: "/settings/domain" },
+  { id: "registries", label: "Registries", href: "/settings/registries" },
   { id: "api-keys", label: "API Keys", href: "/settings/api-keys" },
   { id: "github", label: "GitHub", href: "/settings/github" },
   { id: "cleanup", label: "Cleanup", href: "/settings/cleanup" },

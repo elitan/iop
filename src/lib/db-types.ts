@@ -103,6 +103,17 @@ export interface Project {
   createdAt: number;
 }
 
+export interface Registrie {
+  id: string;
+  name: string;
+  'type': string;
+  url: string | null;
+  username: string;
+  passwordEncrypted: string;
+  isDefault: Generated<number | null>;
+  createdAt: number;
+}
+
 export interface Service {
   id: string;
   projectId: string;
@@ -126,6 +137,7 @@ export interface Service {
   cpuLimit: number | null;
   shutdownTimeout: number | null;
   requestTimeout: number | null;
+  registryId: string | null;
 }
 
 export interface Setting {
@@ -141,6 +153,7 @@ export interface DB {
   githubInstallations: GithubInstallation;
   metrics: Metric;
   projects: Project;
+  registries: Registrie;
   services: Service;
   settings: Setting;
 }

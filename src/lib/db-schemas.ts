@@ -316,6 +316,7 @@ export const serviceSchema = z.object({
   cpuLimit: z.number().nullable(),
   shutdownTimeout: z.number().nullable(),
   requestTimeout: z.number().nullable(),
+  registryId: z.string().nullable(),
 });
 
 export const newServiceSchema = z.object({
@@ -341,6 +342,7 @@ export const newServiceSchema = z.object({
   cpuLimit: z.number().nullable().optional(),
   shutdownTimeout: z.number().nullable().optional(),
   requestTimeout: z.number().nullable().optional(),
+  registryId: z.string().nullable().optional(),
 });
 
 export const serviceUpdateSchema = z.object({
@@ -366,6 +368,7 @@ export const serviceUpdateSchema = z.object({
   cpuLimit: z.number().nullable().optional(),
   shutdownTimeout: z.number().nullable().optional(),
   requestTimeout: z.number().nullable().optional(),
+  registryId: z.string().nullable().optional(),
 });
 
 export type Service = z.infer<typeof serviceSchema>;
@@ -394,3 +397,22 @@ export type Setting = z.infer<typeof settingSchema>;
 export type NewSetting = z.infer<typeof newSettingSchema>;
 
 export type SettingUpdate = z.infer<typeof settingUpdateSchema>;
+
+export const registrySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(["ghcr", "dockerhub", "custom"]),
+  url: z.string().nullable(),
+  username: z.string(),
+  passwordEncrypted: z.string(),
+  isDefault: z.number().nullable(),
+  createdAt: z.number(),
+});
+
+export const registryOutputSchema = registrySchema.omit({
+  passwordEncrypted: true,
+});
+
+export type Registry = z.infer<typeof registrySchema>;
+
+export type RegistryOutput = z.infer<typeof registryOutputSchema>;

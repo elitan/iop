@@ -1217,6 +1217,48 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT15_ID" > /dev/null
 echo "Deleted project"
 
 echo ""
+echo "=== Test 74: Create registry with invalid creds fails ==="
+REGISTRY_FAIL_RESPONSE=$(curl -sS -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/api/registries" \
+  -d '{"name":"bad-test","type":"dockerhub","username":"invalid-user-xyz-e2e","password":"invalid"}' \
+  -w "\n%{http_code}")
+REGISTRY_STATUS=$(echo "$REGISTRY_FAIL_RESPONSE" | tail -1)
+if [ "$REGISTRY_STATUS" != "400" ]; then
+  echo "FAIL: Invalid creds should return 400, got: $REGISTRY_STATUS"
+  exit 1
+fi
+echo "Invalid credentials correctly rejected"
+
+echo ""
+echo "=== Test 75: List registries (empty) ==="
+REGISTRIES=$(api "$BASE_URL/api/registries")
+REGISTRIES_COUNT=$(echo "$REGISTRIES" | jq 'length')
+if [ "$REGISTRIES_COUNT" != "0" ]; then
+  echo "FAIL: Expected empty registries list, got $REGISTRIES_COUNT"
+  exit 1
+fi
+echo "Registries list empty"
+
+echo ""
+echo "=== Test 76: Service has registryId field ==="
+PROJECT16=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-registry"}')
+PROJECT16_ID=$(echo "$PROJECT16" | jq -r '.id')
+
+SERVICE16=$(api -X POST "$BASE_URL/api/projects/$PROJECT16_ID/services" \
+  -d '{"name":"reg-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE16_ID=$(echo "$SERVICE16" | jq -r '.id')
+REGISTRY_ID=$(echo "$SERVICE16" | jq -r '.registryId')
+
+if [ "$REGISTRY_ID" != "null" ]; then
+  echo "FAIL: registryId should be null, got: $REGISTRY_ID"
+  exit 1
+fi
+echo "Service registryId field exists and is null"
+
+api -X DELETE "$BASE_URL/api/projects/$PROJECT16_ID" > /dev/null
+echo "Cleanup done"
+
+echo ""
 echo "========================================="
 echo "All E2E tests passed!"
 echo "========================================="

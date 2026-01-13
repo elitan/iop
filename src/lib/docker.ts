@@ -132,6 +132,58 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
   });
 }
 
+export function getRegistryUrl(type: string, customUrl: string | null): string {
+  if (type === "ghcr") return "ghcr.io";
+  if (type === "dockerhub") return "docker.io";
+  if (customUrl) return customUrl;
+  throw new Error(`Unknown registry type: ${type}`);
+}
+
+export interface DockerLoginResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function dockerLogin(
+  registryUrl: string,
+  username: string,
+  password: string,
+): Promise<DockerLoginResult> {
+  return new Promise((resolve) => {
+    const proc = spawn("docker", [
+      "login",
+      "-u",
+      username,
+      "--password-stdin",
+      registryUrl,
+    ]);
+
+    let stderr = "";
+
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.stdin.write(password);
+    proc.stdin.end();
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve({ success: true });
+      } else {
+        resolve({
+          success: false,
+          error: stderr || `Login failed with code ${code}`,
+        });
+      }
+    });
+
+    proc.on("error", (err) => {
+      resolve({ success: false, error: err.message });
+    });
+  });
+}
+
 const DEFAULT_PORT = 8080;
 
 export interface VolumeMount {

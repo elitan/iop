@@ -4,13 +4,16 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
+import { decrypt } from "./crypto";
 import { db } from "./db";
-import type { Project, Service } from "./db-types";
+import type { Project, Registrie, Service } from "./db-types";
 import {
   buildImage,
   createNetwork,
+  dockerLogin,
   type FileMount,
   getAvailablePort,
+  getRegistryUrl,
   imageExists,
   pullImage,
   runContainer,
@@ -101,6 +104,48 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
     envVars[e.key] = e.value;
   }
   return envVars;
+}
+
+function detectRegistryFromImage(imageUrl: string): string | null {
+  if (imageUrl.startsWith("ghcr.io/")) return "ghcr";
+  if (imageUrl.startsWith("docker.io/") || !imageUrl.includes("/"))
+    return "dockerhub";
+  const match = imageUrl.match(/^([^/]+)\//);
+  return match ? match[1] : null;
+}
+
+async function getRegistryForPull(
+  service: Selectable<Service>,
+): Promise<Selectable<Registrie> | null> {
+  if (service.registryId) {
+    const registry = await db
+      .selectFrom("registries")
+      .selectAll()
+      .where("id", "=", service.registryId)
+      .executeTakeFirst();
+    if (registry) return registry;
+  }
+
+  if (service.imageUrl) {
+    const detected = detectRegistryFromImage(service.imageUrl);
+    if (detected) {
+      const registry = await db
+        .selectFrom("registries")
+        .selectAll()
+        .where((eb) =>
+          eb.or([eb("type", "=", detected), eb("url", "=", detected)]),
+        )
+        .executeTakeFirst();
+      if (registry) return registry;
+    }
+  }
+
+  const defaultRegistry = await db
+    .selectFrom("registries")
+    .selectAll()
+    .where("isDefault", "=", 1)
+    .executeTakeFirst();
+  return defaultRegistry ?? null;
 }
 
 function buildFrostEnvVars(
@@ -281,6 +326,25 @@ async function runServiceDeployment(
       const imageTag = imageName.split(":")[1] || "latest";
 
       await updateDeployment(deploymentId, { status: "pulling" });
+
+      const registry = await getRegistryForPull(service);
+      if (registry) {
+        const registryUrl = getRegistryUrl(registry.type, registry.url);
+        await appendLog(
+          deploymentId,
+          `Logging into registry ${registryUrl}...\n`,
+        );
+        const password = decrypt(registry.passwordEncrypted);
+        const loginResult = await dockerLogin(
+          registryUrl,
+          registry.username,
+          password,
+        );
+        if (!loginResult.success) {
+          throw new Error(`Registry login failed: ${loginResult.error}`);
+        }
+      }
+
       await appendLog(deploymentId, `Pulling image ${imageName}...\n`);
 
       const pullResult = await pullImage(imageName);
