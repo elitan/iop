@@ -14,15 +14,7 @@ export const registries = {
     .handler(async () => {
       const rows = await db
         .selectFrom("registries")
-        .select([
-          "id",
-          "name",
-          "type",
-          "url",
-          "username",
-          "isDefault",
-          "createdAt",
-        ])
+        .select(["id", "name", "type", "url", "username", "createdAt"])
         .orderBy("createdAt", "desc")
         .execute();
       return rows.map((row) => ({
@@ -40,7 +32,6 @@ export const registries = {
         url: z.string().optional(),
         username: z.string().min(1),
         password: z.string().min(1),
-        isDefault: z.boolean().optional(),
       }),
     )
     .output(registryOutputSchema)
@@ -63,14 +54,6 @@ export const registries = {
         });
       }
 
-      if (input.isDefault) {
-        await db
-          .updateTable("registries")
-          .set({ isDefault: 0 })
-          .where("isDefault", "=", 1)
-          .execute();
-      }
-
       const id = nanoid();
       const now = Date.now();
       const passwordEncrypted = encrypt(input.password);
@@ -84,7 +67,6 @@ export const registries = {
           url: input.url ?? null,
           username: input.username,
           passwordEncrypted,
-          isDefault: input.isDefault ? 1 : 0,
           createdAt: now,
         })
         .execute();
@@ -95,7 +77,6 @@ export const registries = {
         type: input.type,
         url: input.url ?? null,
         username: input.username,
-        isDefault: input.isDefault ? 1 : null,
         createdAt: now,
       };
     }),
@@ -108,7 +89,6 @@ export const registries = {
         name: z.string().min(1).optional(),
         username: z.string().min(1).optional(),
         password: z.string().min(1).optional(),
-        isDefault: z.boolean().optional(),
       }),
     )
     .output(registryOutputSchema)
@@ -138,20 +118,10 @@ export const registries = {
         }
       }
 
-      if (input.isDefault) {
-        await db
-          .updateTable("registries")
-          .set({ isDefault: 0 })
-          .where("isDefault", "=", 1)
-          .execute();
-      }
-
       const updates: Record<string, unknown> = {};
       if (input.name) updates.name = input.name;
       if (input.username) updates.username = input.username;
       if (input.password) updates.passwordEncrypted = encrypt(input.password);
-      if (input.isDefault !== undefined)
-        updates.isDefault = input.isDefault ? 1 : 0;
 
       if (Object.keys(updates).length > 0) {
         await db
@@ -163,15 +133,7 @@ export const registries = {
 
       const updated = await db
         .selectFrom("registries")
-        .select([
-          "id",
-          "name",
-          "type",
-          "url",
-          "username",
-          "isDefault",
-          "createdAt",
-        ])
+        .select(["id", "name", "type", "url", "username", "createdAt"])
         .where("id", "=", input.id)
         .executeTakeFirstOrThrow();
 

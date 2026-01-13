@@ -405,7 +405,6 @@ export const registrySchema = z.object({
   url: z.string().nullable(),
   username: z.string(),
   passwordEncrypted: z.string(),
-  isDefault: z.number().nullable(),
   createdAt: z.number(),
 });
 

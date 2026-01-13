@@ -110,7 +110,6 @@ export interface Registrie {
   url: string | null;
   username: string;
   passwordEncrypted: string;
-  isDefault: Generated<number | null>;
   createdAt: number;
 }
 

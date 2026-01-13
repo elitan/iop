@@ -140,12 +140,7 @@ async function getRegistryForPull(
     }
   }
 
-  const defaultRegistry = await db
-    .selectFrom("registries")
-    .selectAll()
-    .where("isDefault", "=", 1)
-    .executeTakeFirst();
-  return defaultRegistry ?? null;
+  return null;
 }
 
 function buildFrostEnvVars(

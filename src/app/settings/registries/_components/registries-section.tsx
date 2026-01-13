@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Plus, Star, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ interface Registry {
   type: "ghcr" | "dockerhub" | "custom";
   url: string | null;
   username: string;
-  isDefault: number | null;
   createdAt: number;
 }
 
@@ -42,7 +41,6 @@ export function RegistriesSection() {
     url: "",
     username: "",
     password: "",
-    isDefault: false,
   });
 
   const fetchRegistries = useCallback(async () => {
@@ -88,7 +86,6 @@ export function RegistriesSection() {
           url: formData.type === "custom" ? formData.url : undefined,
           username: formData.username,
           password: formData.password,
-          isDefault: formData.isDefault,
         }),
       });
 
@@ -103,7 +100,6 @@ export function RegistriesSection() {
         url: "",
         username: "",
         password: "",
-        isDefault: false,
       });
       setShowForm(false);
       fetchRegistries();
@@ -117,12 +113,7 @@ export function RegistriesSection() {
   }
 
   async function handleDelete(id: string) {
-    if (
-      !confirm(
-        "Delete this registry? Services using it will fall back to auto-detect.",
-      )
-    )
-      return;
+    if (!confirm("Delete this registry?")) return;
     try {
       const res = await fetch(`/api/registries/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -134,19 +125,6 @@ export function RegistriesSection() {
       const message =
         err instanceof Error ? err.message : "Failed to delete registry";
       alert(message);
-    }
-  }
-
-  async function handleSetDefault(id: string) {
-    try {
-      await fetch(`/api/registries/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isDefault: true }),
-      });
-      fetchRegistries();
-    } catch (err) {
-      console.error("Failed to set default:", err);
     }
   }
 
@@ -194,17 +172,7 @@ export function RegistriesSection() {
                       key={registry.id}
                       className="border-b border-neutral-800/50"
                     >
-                      <td className="px-4 py-3 text-white">
-                        <div className="flex items-center gap-2">
-                          {registry.name}
-                          {registry.isDefault === 1 && (
-                            <span className="flex items-center gap-1 rounded bg-yellow-900/30 px-1.5 py-0.5 text-xs text-yellow-400">
-                              <Star className="h-3 w-3" />
-                              Default
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                      <td className="px-4 py-3 text-white">{registry.name}</td>
                       <td className="px-4 py-3 text-neutral-400">
                         {REGISTRY_TYPES.find((t) => t.value === registry.type)
                           ?.label || registry.type}
@@ -218,27 +186,14 @@ export function RegistriesSection() {
                         {registry.username}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {registry.isDefault !== 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSetDefault(registry.id)}
-                              className="text-neutral-400 hover:text-yellow-400"
-                              title="Set as default"
-                            >
-                              <Star className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(registry.id)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(registry.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -350,21 +305,6 @@ export function RegistriesSection() {
                     }
                   />
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isDefault"
-                  checked={formData.isDefault}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isDefault: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
-                />
-                <label htmlFor="isDefault" className="text-sm text-neutral-400">
-                  Set as default registry
-                </label>
               </div>
 
               {error && <p className="text-sm text-red-400">{error}</p>}

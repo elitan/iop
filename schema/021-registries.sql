@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS registries (
   url TEXT,
   username TEXT NOT NULL,
   password_encrypted TEXT NOT NULL,
-  is_default INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 
