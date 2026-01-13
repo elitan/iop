@@ -77,16 +77,23 @@ cd "$FROST_DIR"
 
 git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
 
-# Ensure bun is in PATH and up to date
-if [ -f "$HOME/.bun/bin/bun" ] && [ ! -f /usr/local/bin/bun ]; then
-  ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
-fi
+# Ensure bun is in PATH - critical for npm subscripts
+export HOME="${HOME:-/root}"
+export BUN_INSTALL="$HOME/.bun"
+export PATH="/usr/local/bin:$BUN_INSTALL/bin:$PATH"
 
 log "Upgrading bun..."
 curl -fsSL https://bun.sh/install 2>/dev/null | bash > /dev/null 2>&1 || true
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun 2>/dev/null || true
+
+# Create symlink so npm's sh subprocess can find bun
+mkdir -p /usr/local/bin
+if [ -f "$BUN_INSTALL/bin/bun" ]; then
+  ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
+  log "Bun linked to /usr/local/bin/bun"
+else
+  error "Bun not found at $BUN_INSTALL/bin/bun"
+  exit 1
+fi
 
 CURRENT_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 log "Current version: $CURRENT_VERSION"

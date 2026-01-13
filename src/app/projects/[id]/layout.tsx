@@ -30,7 +30,6 @@ export default function ProjectLayout({
 
   const tabs = [
     { label: "Services", href: `/projects/${projectId}` },
-    { label: "Variables", href: `/projects/${projectId}/variables` },
     { label: "Settings", href: `/projects/${projectId}/settings` },
   ];
 

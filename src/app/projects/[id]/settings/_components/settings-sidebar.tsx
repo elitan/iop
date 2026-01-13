@@ -11,7 +11,10 @@ interface NavItem {
 
 function getNavItems(projectId: string): NavItem[] {
   const base = `/projects/${projectId}/settings`;
-  return [{ id: "general", label: "General", href: base }];
+  return [
+    { id: "general", label: "General", href: base },
+    { id: "variables", label: "Variables", href: `${base}/variables` },
+  ];
 }
 
 interface SettingsSidebarProps {
