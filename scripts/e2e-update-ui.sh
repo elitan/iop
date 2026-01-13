@@ -49,6 +49,10 @@ remote "sed -i 's|https://raw.githubusercontent.com/.*/update.sh|https://raw.git
   systemctl daemon-reload"
 
 echo ""
+echo "=== Ensuring sqlite3 is installed ==="
+remote "which sqlite3 > /dev/null 2>&1 || (apt-get update && apt-get install -y sqlite3)"
+
+echo ""
 echo "=== Faking available update in settings ==="
 remote "sqlite3 /opt/frost/data/frost.db \"INSERT OR REPLACE INTO settings (key, value) VALUES ('update_available', '99.99.99');\""
 
