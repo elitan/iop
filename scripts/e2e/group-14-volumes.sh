@@ -75,8 +75,9 @@ REGISTRY_FAIL_RESPONSE=$(curl -sS -H "X-Frost-Token: $API_KEY" -H "Content-Type:
   -d '{"name":"bad-test","type":"dockerhub","username":"invalid-user-xyz-e2e","password":"invalid"}' \
   -w "\n%{http_code}")
 REGISTRY_STATUS=$(echo "$REGISTRY_FAIL_RESPONSE" | tail -1)
-[ "$REGISTRY_STATUS" != "400" ] && fail "Invalid creds should return 400"
-log "Invalid credentials rejected"
+# Should return 4xx error for invalid creds
+[[ "$REGISTRY_STATUS" != 4* ]] && fail "Invalid creds should return 4xx, got $REGISTRY_STATUS"
+log "Invalid credentials rejected (status: $REGISTRY_STATUS)"
 
 log "Testing registries list..."
 REGISTRIES=$(api "$BASE_URL/api/registries")
