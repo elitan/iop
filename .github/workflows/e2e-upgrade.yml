@@ -259,6 +259,8 @@ jobs:
           BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}"
           echo "Creating broken branch: $BROKEN_BRANCH"
 
+          git config user.email "ci@frost.dev"
+          git config user.name "Frost CI"
           git checkout -b "$BROKEN_BRANCH"
           echo "console.log('Intentional build failure for e2e test'); process.exit(1);" > fail-build.js
           node -e "
