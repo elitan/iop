@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -11,9 +12,10 @@ interface Tab {
 
 interface TabNavProps {
   tabs: Tab[];
+  layoutId: string;
 }
 
-export function TabNav({ tabs }: TabNavProps) {
+export function TabNav({ tabs, layoutId }: TabNavProps) {
   const pathname = usePathname();
 
   return (
@@ -37,7 +39,11 @@ export function TabNav({ tabs }: TabNavProps) {
             >
               {tab.label}
               {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-100" />
+                <motion.span
+                  layoutId={layoutId}
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-100"
+                  transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                />
               )}
             </Link>
           );

@@ -108,7 +108,7 @@ export default function ProjectLayout({
   return (
     <>
       <BreadcrumbHeader items={[{ label: project.name }]} actions={actions} />
-      <TabNav tabs={tabs} />
+      <TabNav tabs={tabs} layoutId="project-tabs" />
       <main className="container mx-auto px-4 py-8">{children}</main>
     </>
   );

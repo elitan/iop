@@ -9,23 +9,25 @@ interface NavItem {
   href: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: "general", label: "General", href: "/settings" },
-  { id: "monitoring", label: "Monitoring", href: "/settings/monitoring" },
-  { id: "domain", label: "Domain & SSL", href: "/settings/domain" },
-  { id: "api-keys", label: "API Keys", href: "/settings/api-keys" },
-  { id: "github", label: "GitHub", href: "/settings/github" },
-  { id: "cleanup", label: "Cleanup", href: "/settings/cleanup" },
-];
+function getNavItems(projectId: string): NavItem[] {
+  const base = `/projects/${projectId}/settings`;
+  return [{ id: "general", label: "General", href: base }];
+}
 
 interface SettingsSidebarProps {
+  projectId: string;
   activeSection: string;
 }
 
-export function SettingsSidebar({ activeSection }: SettingsSidebarProps) {
+export function SettingsSidebar({
+  projectId,
+  activeSection,
+}: SettingsSidebarProps) {
+  const navItems = getNavItems(projectId);
+
   return (
     <nav className="space-y-0.5">
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const isActive =
           activeSection === item.id ||
           (activeSection === "settings" && item.id === "general");
@@ -37,7 +39,7 @@ export function SettingsSidebar({ activeSection }: SettingsSidebarProps) {
           >
             {isActive && (
               <motion.div
-                layoutId="global-settings-indicator"
+                layoutId="project-settings-indicator"
                 className="absolute inset-0 rounded-md bg-neutral-800/80"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
@@ -54,10 +56,15 @@ export function SettingsSidebar({ activeSection }: SettingsSidebarProps) {
   );
 }
 
-export function SettingsMobileTabs({ activeSection }: SettingsSidebarProps) {
+export function SettingsMobileTabs({
+  projectId,
+  activeSection,
+}: SettingsSidebarProps) {
+  const navItems = getNavItems(projectId);
+
   return (
     <nav className="flex gap-1 overflow-x-auto pb-4">
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const isActive =
           activeSection === item.id ||
           (activeSection === "settings" && item.id === "general");
@@ -69,7 +76,7 @@ export function SettingsMobileTabs({ activeSection }: SettingsSidebarProps) {
           >
             {isActive && (
               <motion.div
-                layoutId="global-settings-mobile-indicator"
+                layoutId="project-settings-mobile-indicator"
                 className="absolute inset-0 rounded-md bg-neutral-800/80"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
