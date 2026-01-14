@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ export function CpuLimitCard({ serviceId, projectId }: CpuLimitCardProps) {
   const deployMutation = useDeployService(serviceId, projectId);
 
   const [cpuLimit, setCpuLimit] = useState("none");
+  const initialValue = useRef("none");
 
   const { data: hostResources } = useQuery({
     queryKey: ["hostResources"],
@@ -51,15 +52,20 @@ export function CpuLimitCard({ serviceId, projectId }: CpuLimitCardProps) {
 
   useEffect(() => {
     if (service) {
-      setCpuLimit(service.cpuLimit?.toString() ?? "none");
+      const value = service.cpuLimit?.toString() ?? "none";
+      setCpuLimit(value);
+      initialValue.current = value;
     }
   }, [service]);
+
+  const hasChanges = cpuLimit !== initialValue.current;
 
   async function handleSave() {
     try {
       await updateMutation.mutateAsync({
         cpuLimit: cpuLimit === "none" ? null : Number(cpuLimit),
       });
+      initialValue.current = cpuLimit;
       toast.success("CPU limit saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -89,7 +95,7 @@ export function CpuLimitCard({ serviceId, projectId }: CpuLimitCardProps) {
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

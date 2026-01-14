@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -41,19 +41,26 @@ export function VolumesCard({ serviceId, projectId }: VolumesCardProps) {
   const [volumes, setVolumes] = useState<VolumeConfig[]>([]);
   const [newPath, setNewPath] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const initialVolumes = useRef<VolumeConfig[]>([]);
 
   useEffect(() => {
     if (service?.volumes) {
       try {
         const parsed = JSON.parse(service.volumes) as VolumeConfig[];
         setVolumes(parsed);
+        initialVolumes.current = parsed;
       } catch {
         setVolumes([]);
+        initialVolumes.current = [];
       }
     } else {
       setVolumes([]);
+      initialVolumes.current = [];
     }
   }, [service?.volumes]);
+
+  const hasChanges =
+    JSON.stringify(volumes) !== JSON.stringify(initialVolumes.current);
 
   function handleAddVolume() {
     if (!newPath.startsWith("/")) {
@@ -77,6 +84,7 @@ export function VolumesCard({ serviceId, projectId }: VolumesCardProps) {
   async function handleSave() {
     try {
       await updateMutation.mutateAsync({ volumes });
+      initialVolumes.current = volumes;
       toast.success("Volumes saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -107,7 +115,7 @@ export function VolumesCard({ serviceId, projectId }: VolumesCardProps) {
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

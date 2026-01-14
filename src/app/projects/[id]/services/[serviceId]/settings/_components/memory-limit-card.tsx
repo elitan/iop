@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ export function MemoryLimitCard({
   const deployMutation = useDeployService(serviceId, projectId);
 
   const [memoryLimit, setMemoryLimit] = useState("none");
+  const initialValue = useRef("none");
 
   const { data: hostResources } = useQuery({
     queryKey: ["hostResources"],
@@ -55,15 +56,20 @@ export function MemoryLimitCard({
 
   useEffect(() => {
     if (service) {
-      setMemoryLimit(service.memoryLimit ?? "none");
+      const value = service.memoryLimit ?? "none";
+      setMemoryLimit(value);
+      initialValue.current = value;
     }
   }, [service]);
+
+  const hasChanges = memoryLimit !== initialValue.current;
 
   async function handleSave() {
     try {
       await updateMutation.mutateAsync({
         memoryLimit: memoryLimit === "none" ? null : memoryLimit,
       });
+      initialValue.current = memoryLimit;
       toast.success("Memory limit saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -93,7 +99,7 @@ export function MemoryLimitCard({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

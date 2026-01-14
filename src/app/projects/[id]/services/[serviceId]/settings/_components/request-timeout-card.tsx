@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -41,12 +41,17 @@ export function RequestTimeoutCard({
   const deployMutation = useDeployService(serviceId, projectId);
 
   const [requestTimeout, setRequestTimeout] = useState("none");
+  const initialValue = useRef("none");
 
   useEffect(() => {
     if (service) {
-      setRequestTimeout(service.requestTimeout?.toString() ?? "none");
+      const value = service.requestTimeout?.toString() ?? "none";
+      setRequestTimeout(value);
+      initialValue.current = value;
     }
   }, [service]);
+
+  const hasChanges = requestTimeout !== initialValue.current;
 
   async function handleSave() {
     try {
@@ -54,6 +59,7 @@ export function RequestTimeoutCard({
         requestTimeout:
           requestTimeout === "none" ? null : Number(requestTimeout),
       });
+      initialValue.current = requestTimeout;
       toast.success("Request timeout saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -79,7 +85,7 @@ export function RequestTimeoutCard({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

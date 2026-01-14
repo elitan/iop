@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -28,15 +28,29 @@ export function HealthCheckCard({
   const [healthType, setHealthType] = useState<"tcp" | "http">("tcp");
   const [healthPath, setHealthPath] = useState("");
   const [startupTimeout, setStartupTimeout] = useState(60);
+  const initialValues = useRef({
+    type: "tcp" as "tcp" | "http",
+    path: "",
+    timeout: 60,
+  });
 
   useEffect(() => {
     if (service) {
       const hasPath = !!service.healthCheckPath;
-      setHealthType(hasPath ? "http" : "tcp");
-      setHealthPath(service.healthCheckPath ?? "");
-      setStartupTimeout(service.healthCheckTimeout ?? 60);
+      const type = hasPath ? "http" : "tcp";
+      const path = service.healthCheckPath ?? "";
+      const timeout = service.healthCheckTimeout ?? 60;
+      setHealthType(type);
+      setHealthPath(path);
+      setStartupTimeout(timeout);
+      initialValues.current = { type, path, timeout };
     }
   }, [service]);
+
+  const hasChanges =
+    healthType !== initialValues.current.type ||
+    healthPath !== initialValues.current.path ||
+    startupTimeout !== initialValues.current.timeout;
 
   async function handleSave() {
     try {
@@ -44,6 +58,11 @@ export function HealthCheckCard({
         healthCheckPath: healthType === "http" ? healthPath || "/health" : null,
         healthCheckTimeout: startupTimeout,
       });
+      initialValues.current = {
+        type: healthType,
+        path: healthPath,
+        timeout: startupTimeout,
+      };
       toast.success("Health check settings saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -69,7 +88,7 @@ export function HealthCheckCard({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

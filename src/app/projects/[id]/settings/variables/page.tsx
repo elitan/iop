@@ -2,7 +2,7 @@
 
 import { Loader2, Pencil } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
 import { Button } from "@/components/ui/button";
@@ -24,18 +24,25 @@ export default function ProjectVariablesPage() {
 
   const [editing, setEditing] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
+  const initialEnvVars = useRef<EnvVar[]>([]);
 
   function handleEdit() {
     if (project) {
-      setEnvVars(project.envVars ? JSON.parse(project.envVars) : []);
+      const vars = project.envVars ? JSON.parse(project.envVars) : [];
+      setEnvVars(vars);
+      initialEnvVars.current = vars;
       setEditing(true);
     }
   }
+
+  const hasChanges =
+    JSON.stringify(envVars) !== JSON.stringify(initialEnvVars.current);
 
   async function handleSave() {
     const validEnvVars = envVars.filter((v) => v.key.trim() !== "");
     try {
       await updateMutation.mutateAsync({ envVars: validEnvVars });
+      initialEnvVars.current = validEnvVars;
       toast.success("Environment variables saved", {
         description: "Redeploy services for changes to take effect",
         duration: 10000,
@@ -78,7 +85,7 @@ export default function ProjectVariablesPage() {
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={updateMutation.isPending}
+                disabled={updateMutation.isPending || !hasChanges}
               >
                 {updateMutation.isPending ? (
                   <>

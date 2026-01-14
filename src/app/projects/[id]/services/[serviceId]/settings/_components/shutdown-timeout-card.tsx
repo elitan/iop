@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -39,18 +39,24 @@ export function ShutdownTimeoutCard({
   const deployMutation = useDeployService(serviceId, projectId);
 
   const [shutdownTimeout, setShutdownTimeout] = useState("10");
+  const initialValue = useRef("10");
 
   useEffect(() => {
     if (service) {
-      setShutdownTimeout(service.shutdownTimeout?.toString() ?? "10");
+      const value = service.shutdownTimeout?.toString() ?? "10";
+      setShutdownTimeout(value);
+      initialValue.current = value;
     }
   }, [service]);
+
+  const hasChanges = shutdownTimeout !== initialValue.current;
 
   async function handleSave() {
     try {
       await updateMutation.mutateAsync({
         shutdownTimeout: Number(shutdownTimeout),
       });
+      initialValue.current = shutdownTimeout;
       toast.success("Shutdown timeout saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -76,7 +82,7 @@ export function ShutdownTimeoutCard({
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

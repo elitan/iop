@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,16 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
   const updateMutation = useUpdateProject(projectId);
 
   const [name, setName] = useState("");
+  const initialName = useRef("");
 
   useEffect(() => {
     if (project) {
       setName(project.name);
+      initialName.current = project.name;
     }
   }, [project]);
+
+  const hasChanges = name !== initialName.current;
 
   async function handleSave() {
     if (!name.trim()) {
@@ -31,6 +35,7 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
     }
     try {
       await updateMutation.mutateAsync({ name: name.trim() });
+      initialName.current = name.trim();
       toast.success("Project name updated");
     } catch {
       toast.error("Failed to update");
@@ -47,7 +52,7 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
         <Button
           size="sm"
           onClick={handleSave}
-          disabled={updateMutation.isPending}
+          disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
