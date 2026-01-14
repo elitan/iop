@@ -199,7 +199,7 @@ function buildFrostEnvVars(
     FROST_PROJECT_NAME: project.name,
     FROST_PROJECT_ID: project.id,
     FROST_DEPLOYMENT_ID: deploymentId,
-    FROST_INTERNAL_HOSTNAME: service.name,
+    FROST_INTERNAL_HOSTNAME: service.hostname ?? service.name,
   };
   if (gitInfo) {
     vars.FROST_GIT_COMMIT_SHA = gitInfo.commitSha;
@@ -611,7 +611,7 @@ async function runServiceDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.name,
+        hostname: service.hostname ?? service.name,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,
@@ -934,7 +934,7 @@ async function runRollbackDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.name,
+        hostname: service.hostname ?? service.name,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,

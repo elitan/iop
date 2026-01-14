@@ -12,6 +12,7 @@ import { deployProject } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
 import { updateSystemDomain } from "@/lib/domains";
 import { os } from "@/lib/orpc";
+import { slugify } from "@/lib/slugify";
 
 const envVarSchema = z.object({
   key: z.string(),
@@ -159,12 +160,14 @@ export const projects = {
     .handler(async ({ input }) => {
       const id = nanoid();
       const now = Date.now();
+      const hostname = slugify(input.name);
 
       await db
         .insertInto("projects")
         .values({
           id,
           name: input.name,
+          hostname,
           envVars: JSON.stringify(input.envVars),
           createdAt: now,
         })

@@ -12,6 +12,7 @@ import {
   updateSystemDomain,
 } from "@/lib/domains";
 import { os } from "@/lib/orpc";
+import { slugify } from "@/lib/slugify";
 import { generateSelfSignedCert, removeSSLCerts } from "@/lib/ssl";
 import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
 
@@ -157,6 +158,7 @@ export const services = {
 
       const id = nanoid();
       const now = Date.now();
+      const hostname = slugify(input.name);
 
       if (input.deployType === "database") {
         const template = getTemplate(input.templateId!)!;
@@ -171,6 +173,7 @@ export const services = {
             id,
             projectId: input.projectId,
             name: input.name,
+            hostname,
             deployType: "image",
             repoUrl: null,
             branch: null,
@@ -196,6 +199,7 @@ export const services = {
             id,
             projectId: input.projectId,
             name: input.name,
+            hostname,
             deployType: input.deployType,
             repoUrl: input.deployType === "repo" ? input.repoUrl! : null,
             branch: input.deployType === "repo" ? input.branch : null,
