@@ -149,7 +149,7 @@ if [ "$USE_TARBALL" = true ]; then
   echo "Installing dependencies..."
   npm install --omit=dev --legacy-peer-deps --silent
 else
-  # Branch mode: clone and build from source
+  # Branch mode: clone and build from source (like main branch behavior)
   echo "Cloning Frost..."
   echo "Using branch: $FROST_BRANCH"
   git clone -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
@@ -161,11 +161,6 @@ else
 
   echo "Building..."
   NEXT_TELEMETRY_DISABLED=1 npm run build
-
-  # Prepare standalone: save static, copy standalone to root, restore static
-  mv .next/static /tmp/frost-static
-  cp -r .next/standalone/* .
-  mv /tmp/frost-static .next/static
 fi
 
 # Create data directory
@@ -191,6 +186,13 @@ bun run setup "$FROST_PASSWORD" || {
 echo ""
 echo -e "${YELLOW}Creating systemd service...${NC}"
 
+# Tarball mode uses standalone server.js, branch mode uses npm run start
+if [ "$USE_TARBALL" = true ]; then
+  EXEC_START="/usr/local/bin/bun $FROST_DIR/server.js"
+else
+  EXEC_START="/usr/bin/npm run start"
+fi
+
 cat > /etc/systemd/system/frost.service << EOF
 [Unit]
 Description=Frost
@@ -201,7 +203,7 @@ Type=simple
 WorkingDirectory=$FROST_DIR
 TimeoutStartSec=300
 ExecStartPre=/bin/bash -c 'test -f $FROST_DIR/data/.update-requested && curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/update.sh | bash -s -- --pre-start || true'
-ExecStart=/usr/local/bin/bun $FROST_DIR/server.js
+ExecStart=$EXEC_START
 Restart=on-failure
 EnvironmentFile=$FROST_DIR/.env
 
