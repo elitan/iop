@@ -6,25 +6,29 @@ import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useProject, useUpdateProject } from "@/hooks/use-projects";
+import { useService, useUpdateService } from "@/hooks/use-services";
 
-interface ProjectNameCardProps {
+interface ServiceNameCardProps {
+  serviceId: string;
   projectId: string;
 }
 
-export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
-  const { data: project } = useProject(projectId);
-  const updateMutation = useUpdateProject(projectId);
+export function ServiceNameCard({
+  serviceId,
+  projectId,
+}: ServiceNameCardProps) {
+  const { data: service } = useService(serviceId);
+  const updateMutation = useUpdateService(serviceId, projectId);
 
   const [name, setName] = useState("");
   const initialName = useRef("");
 
   useEffect(() => {
-    if (project) {
-      setName(project.name);
-      initialName.current = project.name;
+    if (service) {
+      setName(service.name);
+      initialName.current = service.name;
     }
-  }, [project]);
+  }, [service]);
 
   const hasChanges = name !== initialName.current;
 
@@ -36,18 +40,18 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
     try {
       await updateMutation.mutateAsync({ name: name.trim() });
       initialName.current = name.trim();
-      toast.success("Project name updated");
+      toast.success("Service name updated");
     } catch {
       toast.error("Failed to update");
     }
   }
 
-  if (!project) return null;
+  if (!service) return null;
 
   return (
     <SettingCard
-      title="Project Name"
-      description="Used to identify your project in the dashboard and in service hostnames on the internal network."
+      title="Service Name"
+      description="Used to identify this service and as the hostname for inter-service communication within the project network."
       footerRight={
         <Button
           size="sm"
@@ -65,7 +69,7 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
       <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="my-project"
+        placeholder="my-service"
       />
     </SettingCard>
   );

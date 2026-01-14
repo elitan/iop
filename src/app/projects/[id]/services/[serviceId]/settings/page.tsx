@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ConfigurationCard } from "./_components/configuration-card";
 import { DangerZoneCard } from "./_components/danger-zone-card";
+import { ServiceNameCard } from "./_components/service-name-card";
 
 export default function ServiceSettingsPage() {
   const params = useParams();
@@ -11,7 +11,7 @@ export default function ServiceSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <ConfigurationCard serviceId={serviceId} />
+      <ServiceNameCard serviceId={serviceId} projectId={projectId} />
       <DangerZoneCard serviceId={serviceId} projectId={projectId} />
     </div>
   );
