@@ -42,10 +42,10 @@ jobs:
           # Debug: check original db
           echo "=== Original DB settings ==="
           sqlite3 data/frost.db "SELECT key FROM settings;"
-          echo "=== DB files ==="
+          # Checkpoint and convert to DELETE mode so we can copy just the .db file
+          sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+          echo "=== DB files after conversion ==="
           ls -la data/
-          # Checkpoint WAL to main db file before copying
-          sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE);"
           cp data/frost.db .next/standalone/data/
 
       - name: Verify settings table
