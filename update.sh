@@ -101,75 +101,130 @@ fi
 CURRENT_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 log "Current version: $CURRENT_VERSION"
 
-log "Checking for updates..."
-LATEST_VERSION=$(curl -sL "$FROST_REPO/releases/latest" -o /dev/null -w '%{url_effective}' | sed 's|.*/v||')
-if [ -z "$LATEST_VERSION" ]; then
-  error "Failed to fetch latest release"
-  exit 1
-fi
+# Detect mode: git-based (dev/CI) or tarball (production)
+if [ -d "$FROST_DIR/.git" ]; then
+  # Git mode: pull and rebuild (for dev installs and CI testing)
+  log "Git mode detected"
 
-if [ "v$CURRENT_VERSION" = "v$LATEST_VERSION" ]; then
-  log "Already up to date (v$CURRENT_VERSION)"
+  git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
+
+  log "Checking for updates..."
+  git fetch origin 2>/dev/null
+  LOCAL=$(git rev-parse HEAD)
+  REMOTE=$(git rev-parse @{u} 2>/dev/null || git rev-parse origin/main)
+
+  if [ "$LOCAL" = "$REMOTE" ]; then
+    log "Already up to date (v$CURRENT_VERSION)"
+    if [ "$PRE_START" = false ]; then
+      systemctl start frost 2>/dev/null || true
+    fi
+    exit 0
+  fi
+
+  log "Updates available"
+
   if [ "$PRE_START" = false ]; then
-    systemctl start frost 2>/dev/null || true
+    log "Stopping Frost..."
+    systemctl stop frost 2>/dev/null || true
   fi
-  exit 0
+
+  log "Backing up current build..."
+  rm -rf "$BACKUP_DIR"
+  mkdir -p "$BACKUP_DIR"
+  [ -d "$FROST_DIR/.next" ] && cp -r "$FROST_DIR/.next" "$BACKUP_DIR/.next"
+
+  log "Pulling updates..."
+  git reset --hard origin/main 2>/dev/null || git reset --hard @{u}
+
+  log "Installing dependencies..."
+  NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1
+
+  log "Building..."
+  NEXT_TELEMETRY_DISABLED=1 npm run build 2>&1
+
+  log "Running migrations..."
+  bun run migrate 2>&1
+
+  NEW_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+  rm -rf "$BACKUP_DIR"
+
+  echo "success:$NEW_VERSION" > "$UPDATE_RESULT"
+
+  if [ "$PRE_START" = false ]; then
+    log "Starting Frost..."
+    systemctl start frost
+  fi
+
+  echo ""
+  success "Update complete! v$CURRENT_VERSION → v$NEW_VERSION"
+else
+  # Tarball mode: download prebuilt release
+  log "Checking for updates..."
+  LATEST_VERSION=$(curl -sL "$FROST_REPO/releases/latest" -o /dev/null -w '%{url_effective}' | sed 's|.*/v||')
+  if [ -z "$LATEST_VERSION" ]; then
+    error "Failed to fetch latest release"
+    exit 1
+  fi
+
+  if [ "v$CURRENT_VERSION" = "v$LATEST_VERSION" ]; then
+    log "Already up to date (v$CURRENT_VERSION)"
+    if [ "$PRE_START" = false ]; then
+      systemctl start frost 2>/dev/null || true
+    fi
+    exit 0
+  fi
+
+  log "New version available: v$LATEST_VERSION"
+
+  if [ "$PRE_START" = false ]; then
+    log "Stopping Frost..."
+    systemctl stop frost 2>/dev/null || true
+  fi
+
+  log "Backing up current installation..."
+  rm -rf "$BACKUP_DIR"
+  mkdir -p "$BACKUP_DIR"
+  for item in "$FROST_DIR"/*; do
+    base=$(basename "$item")
+    if [ "$base" != "data" ] && [ "$base" != ".backup" ]; then
+      cp -r "$item" "$BACKUP_DIR/"
+    fi
+  done
+  cp "$FROST_DIR/.env" "$BACKUP_DIR/.env" 2>/dev/null || true
+
+  log "Downloading Frost v$LATEST_VERSION..."
+  TARBALL_URL="$FROST_REPO/releases/download/v$LATEST_VERSION/frost-v${LATEST_VERSION}.tar.gz"
+  curl -fsSL "$TARBALL_URL" -o /tmp/frost-update.tar.gz
+
+  for item in "$FROST_DIR"/*; do
+    base=$(basename "$item")
+    if [ "$base" != "data" ] && [ "$base" != ".backup" ]; then
+      rm -rf "$item"
+    fi
+  done
+
+  tar -xzf /tmp/frost-update.tar.gz -C "$FROST_DIR"
+  rm /tmp/frost-update.tar.gz
+
+  log "Installing dependencies..."
+  npm install --omit=dev --legacy-peer-deps --silent 2>&1
+
+  log "Running migrations..."
+  bun run migrate 2>&1
+
+  rm -rf "$BACKUP_DIR"
+
+  echo "success:$LATEST_VERSION" > "$UPDATE_RESULT"
+
+  if [ "$PRE_START" = false ]; then
+    log "Starting Frost..."
+    systemctl start frost
+  fi
+
+  echo ""
+  success "Update complete! v$CURRENT_VERSION → v$LATEST_VERSION"
 fi
 
-log "New version available: v$LATEST_VERSION"
-
-if [ "$PRE_START" = false ]; then
-  log "Stopping Frost..."
-  systemctl stop frost 2>/dev/null || true
-fi
-
-log "Backing up current installation..."
-rm -rf "$BACKUP_DIR"
-mkdir -p "$BACKUP_DIR"
-# Backup everything except data and .env (they stay in place)
-for item in "$FROST_DIR"/*; do
-  base=$(basename "$item")
-  if [ "$base" != "data" ] && [ "$base" != ".backup" ]; then
-    cp -r "$item" "$BACKUP_DIR/"
-  fi
-done
-cp "$FROST_DIR/.env" "$BACKUP_DIR/.env" 2>/dev/null || true
-
-log "Downloading Frost v$LATEST_VERSION..."
-TARBALL_URL="$FROST_REPO/releases/download/v$LATEST_VERSION/frost-v${LATEST_VERSION}.tar.gz"
-
-# Download to temp, then extract
-curl -fsSL "$TARBALL_URL" -o /tmp/frost-update.tar.gz
-
-# Remove old files (except data, .env, .backup)
-for item in "$FROST_DIR"/*; do
-  base=$(basename "$item")
-  if [ "$base" != "data" ] && [ "$base" != ".backup" ]; then
-    rm -rf "$item"
-  fi
-done
-
-# Extract new version
-tar -xzf /tmp/frost-update.tar.gz -C "$FROST_DIR"
-rm /tmp/frost-update.tar.gz
-
-log "Installing dependencies..."
-npm install --omit=dev --legacy-peer-deps --silent 2>&1
-
-log "Running migrations..."
-bun run migrate 2>&1
-
-rm -rf "$BACKUP_DIR"
-
-echo "success:$LATEST_VERSION" > "$UPDATE_RESULT"
-
-if [ "$PRE_START" = false ]; then
-  log "Starting Frost..."
-  systemctl start frost
-fi
-
-echo ""
-success "Update complete! v$CURRENT_VERSION → v$LATEST_VERSION"
 echo ""
 if [ "$PRE_START" = true ]; then
   echo "Frost will start automatically"
