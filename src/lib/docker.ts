@@ -358,9 +358,18 @@ export async function waitForHealthy(
   return false;
 }
 
+export function isPortConflictError(error: string): boolean {
+  return (
+    error.includes("port is already allocated") ||
+    error.includes("address already in use") ||
+    error.includes("Bind for 0.0.0.0:")
+  );
+}
+
 export async function getAvailablePort(
   start: number = 10000,
   end: number = 20000,
+  exclude?: Set<number>,
 ): Promise<number> {
   const usedPorts = new Set<number>();
 
@@ -375,7 +384,7 @@ export async function getAvailablePort(
   }
 
   for (let port = start; port < end; port++) {
-    if (!usedPorts.has(port)) {
+    if (!usedPorts.has(port) && !exclude?.has(port)) {
       return port;
     }
   }

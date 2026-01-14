@@ -15,7 +15,9 @@ import {
   getAvailablePort,
   getRegistryUrl,
   imageExists,
+  isPortConflictError,
   pullImage,
+  type RunContainerOptions,
   runContainer,
   stopContainer,
   type VolumeMount,
@@ -104,6 +106,38 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
     envVars[e.key] = e.value;
   }
   return envVars;
+}
+
+const MAX_PORT_ATTEMPTS = 10;
+
+async function runContainerWithPortRetry(
+  options: Omit<RunContainerOptions, "hostPort">,
+  onRetry?: (port: number, attempt: number) => Promise<void>,
+): Promise<{ containerId: string; hostPort: number }> {
+  const triedPorts = new Set<number>();
+
+  for (let attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt++) {
+    const hostPort = await getAvailablePort(10000, 20000, triedPorts);
+    triedPorts.add(hostPort);
+
+    const result = await runContainer({ ...options, hostPort });
+
+    if (result.success) {
+      return { containerId: result.containerId, hostPort };
+    }
+
+    if (!isPortConflictError(result.error || "")) {
+      throw new Error(result.error || "Failed to start container");
+    }
+
+    if (onRetry) {
+      await onRetry(hostPort, attempt + 1);
+    }
+  }
+
+  throw new Error(
+    `Failed to allocate port after ${MAX_PORT_ATTEMPTS} attempts`,
+  );
 }
 
 function detectRegistryFromImage(imageUrl: string): string | null {
@@ -549,7 +583,6 @@ async function runServiceDeployment(
       await stopContainer(oldContainerName);
     }
 
-    const hostPort = await getAvailablePort();
     const gitInfo =
       service.deployType === "repo" && service.branch
         ? { commitSha: currentCommitSha, branch: service.branch }
@@ -561,33 +594,37 @@ async function runServiceDeployment(
       gitInfo,
     );
     const runtimeEnvVars = { ...frostEnvVars, ...envVars };
-    const runResult = await runContainer({
-      imageName,
-      hostPort,
-      containerPort: service.containerPort ?? undefined,
-      name: containerName,
-      envVars: runtimeEnvVars,
-      network: networkName,
-      hostname: service.name,
-      labels: {
-        ...baseLabels,
-        "frost.deployment.id": deploymentId,
-      },
-      volumes,
-      fileMounts,
-      command,
-      memoryLimit: service.memoryLimit ?? undefined,
-      cpuLimit: service.cpuLimit ?? undefined,
-      shutdownTimeout: service.shutdownTimeout ?? undefined,
-    });
 
-    if (!runResult.success) {
-      throw new Error(runResult.error || "Failed to start container");
-    }
+    const { containerId, hostPort } = await runContainerWithPortRetry(
+      {
+        imageName,
+        containerPort: service.containerPort ?? undefined,
+        name: containerName,
+        envVars: runtimeEnvVars,
+        network: networkName,
+        hostname: service.name,
+        labels: {
+          ...baseLabels,
+          "frost.deployment.id": deploymentId,
+        },
+        volumes,
+        fileMounts,
+        command,
+        memoryLimit: service.memoryLimit ?? undefined,
+        cpuLimit: service.cpuLimit ?? undefined,
+        shutdownTimeout: service.shutdownTimeout ?? undefined,
+      },
+      async (port, attempt) => {
+        await appendLog(
+          deploymentId,
+          `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+        );
+      },
+    );
 
     await appendLog(
       deploymentId,
-      `Container started: ${runResult.containerId.substring(0, 12)}\n`,
+      `Container started: ${containerId.substring(0, 12)}\n`,
     );
     const healthCheckType = service.healthCheckPath
       ? `HTTP ${service.healthCheckPath}`
@@ -598,7 +635,7 @@ async function runServiceDeployment(
     );
 
     const isHealthy = await waitForHealthy({
-      containerId: runResult.containerId,
+      containerId,
       port: hostPort,
       path: service.healthCheckPath,
       timeoutSeconds: service.healthCheckTimeout ?? 60,
@@ -609,8 +646,8 @@ async function runServiceDeployment(
 
     await updateDeployment(deploymentId, {
       status: "running",
-      containerId: runResult.containerId,
-      hostPort: hostPort,
+      containerId,
+      hostPort,
       finishedAt: Date.now(),
     });
 
@@ -862,7 +899,6 @@ async function runRollbackDeployment(
       await stopContainer(oldContainerName);
     }
 
-    const hostPort = await getAvailablePort();
     const gitInfo =
       sourceDeployment.gitCommitSha && sourceDeployment.gitBranch
         ? {
@@ -877,30 +913,38 @@ async function runRollbackDeployment(
       gitInfo,
     );
     const runtimeEnvVars = { ...frostEnvVars, ...envVars };
-    const runResult = await runContainer({
-      imageName: sourceDeployment.imageName!,
-      hostPort,
-      containerPort: sourceDeployment.containerPort ?? undefined,
-      name: containerName,
-      envVars: runtimeEnvVars,
-      network: networkName,
-      hostname: service.name,
-      labels: {
-        ...baseLabels,
-        "frost.deployment.id": deploymentId,
-      },
-      memoryLimit: service.memoryLimit ?? undefined,
-      cpuLimit: service.cpuLimit ?? undefined,
-      shutdownTimeout: service.shutdownTimeout ?? undefined,
-    });
 
-    if (!runResult.success) {
-      throw new Error(runResult.error || "Failed to start container");
+    if (!sourceDeployment.imageName) {
+      throw new Error("Source deployment has no image");
     }
+
+    const { containerId, hostPort } = await runContainerWithPortRetry(
+      {
+        imageName: sourceDeployment.imageName,
+        containerPort: sourceDeployment.containerPort ?? undefined,
+        name: containerName,
+        envVars: runtimeEnvVars,
+        network: networkName,
+        hostname: service.name,
+        labels: {
+          ...baseLabels,
+          "frost.deployment.id": deploymentId,
+        },
+        memoryLimit: service.memoryLimit ?? undefined,
+        cpuLimit: service.cpuLimit ?? undefined,
+        shutdownTimeout: service.shutdownTimeout ?? undefined,
+      },
+      async (port, attempt) => {
+        await appendLog(
+          deploymentId,
+          `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+        );
+      },
+    );
 
     await appendLog(
       deploymentId,
-      `Container started: ${runResult.containerId.substring(0, 12)}\n`,
+      `Container started: ${containerId.substring(0, 12)}\n`,
     );
 
     const healthCheckType = sourceDeployment.healthCheckPath
@@ -912,7 +956,7 @@ async function runRollbackDeployment(
     );
 
     const isHealthy = await waitForHealthy({
-      containerId: runResult.containerId,
+      containerId,
       port: hostPort,
       path: sourceDeployment.healthCheckPath,
       timeoutSeconds: sourceDeployment.healthCheckTimeout ?? 60,
@@ -924,8 +968,8 @@ async function runRollbackDeployment(
 
     await updateDeployment(deploymentId, {
       status: "running",
-      containerId: runResult.containerId,
-      hostPort: hostPort,
+      containerId,
+      hostPort,
       finishedAt: Date.now(),
     });
 
