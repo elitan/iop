@@ -3,7 +3,7 @@ set -e
 
 SERVER_IP=$1
 API_KEY=$2
-BATCH_SIZE=${3:-1}  # Run 1 group at a time (sequential) to avoid port conflicts
+BATCH_SIZE=${3:-4}  # Run 4 groups in parallel (port allocator is thread-safe)
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ]; then
   echo "Usage: $0 <server-ip> <api-key> [batch-size]"
@@ -20,6 +20,11 @@ echo "========================================"
 echo "Running E2E tests against http://$SERVER_IP:3000"
 echo "Batch size: $BATCH_SIZE groups at a time"
 echo "========================================"
+echo ""
+
+echo "Pre-pulling base images to avoid concurrent pull contention..."
+ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "docker pull nginx:alpine & docker pull postgres:17 & docker pull node:20-alpine & wait" 2>&1 | grep -v "already exists" || true
+echo "Base images ready"
 echo ""
 
 chmod +x "$E2E_DIR"/*.sh

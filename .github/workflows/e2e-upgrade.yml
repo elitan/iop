@@ -53,7 +53,7 @@ jobs:
               -H "Content-Type: application/json" \
               -d '{
                 "name": "frost-upgrade-${{ github.run_id }}",
-                "server_type": "cax11",
+                "server_type": "cax21",
                 "image": "${{ env.SNAPSHOT_ID }}",
                 "location": "hel1",
                 "ssh_keys": ["${{ env.SSH_KEY_NAME }}"],
