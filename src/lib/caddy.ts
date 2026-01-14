@@ -2,10 +2,42 @@ const CADDY_ADMIN = "http://localhost:2019";
 const ACME_STAGING_CA =
   "https://acme-staging-v02.api.letsencrypt.org/directory";
 
-function acmeIssuer(email: string, staging: boolean) {
+export function acmeIssuer(email: string, staging: boolean) {
   return staging
     ? { module: "acme", email, ca: ACME_STAGING_CA }
     : { module: "acme", email };
+}
+
+export type DnsProvider = "cloudflare";
+
+export interface DnsConfig {
+  provider: DnsProvider;
+  apiToken: string;
+}
+
+export function dnsAcmeIssuer(
+  email: string,
+  dnsConfig: DnsConfig,
+  staging: boolean,
+) {
+  const base: Record<string, unknown> = {
+    module: "acme",
+    email,
+    challenges: {
+      dns: {
+        provider: {
+          name: dnsConfig.provider,
+          api_token: dnsConfig.apiToken,
+        },
+      },
+    },
+  };
+
+  if (staging) {
+    base.ca = ACME_STAGING_CA;
+  }
+
+  return base;
 }
 
 export async function isCaddyRunning(): Promise<boolean> {

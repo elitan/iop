@@ -41,12 +41,14 @@ interface DomainsSectionProps {
   serviceId: string;
   hasRunningDeployment: boolean;
   serverIp: string | null;
+  wildcardConfigured?: boolean;
 }
 
 export function DomainsSection({
   serviceId,
   hasRunningDeployment,
   serverIp,
+  wildcardConfigured = false,
 }: DomainsSectionProps) {
   const { data: domains, isLoading } = useDomains(serviceId);
   const addMutation = useAddDomain(serviceId);
@@ -369,10 +371,22 @@ export function DomainsSection({
         )}
 
         {domains && domains.length === 0 && !showAddForm && (
-          <p className="text-sm text-neutral-500">
-            No domains configured. Add a domain to access this service via a
-            custom URL.
-          </p>
+          <div className="text-sm text-neutral-500">
+            <p>No domains configured.</p>
+            {!wildcardConfigured && (
+              <p className="mt-2">
+                Configure a{" "}
+                <a
+                  href="/settings/domain"
+                  className="text-blue-400 hover:underline"
+                >
+                  wildcard domain
+                </a>{" "}
+                in settings for auto-generated URLs, or add a custom domain
+                below.
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

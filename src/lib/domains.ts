@@ -1,14 +1,10 @@
 import { promises as dns } from "node:dns";
 import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
+import { acmeIssuer, type DnsConfig, dnsAcmeIssuer } from "./caddy";
 import { db } from "./db";
-import { buildSslipDomain } from "./sslip";
-
-export { buildSslipDomain };
 
 const CADDY_ADMIN = "http://localhost:2019";
-const ACME_STAGING_CA =
-  "https://acme-staging-v02.api.letsencrypt.org/directory";
 
 export interface DomainInput {
   domain: string;
@@ -126,28 +122,30 @@ export async function getSystemDomainForService(serviceId: string) {
   return domain ?? null;
 }
 
-export async function createSystemDomain(
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
+}
+
+export async function createWildcardDomain(
   serviceId: string,
   serviceName: string,
   projectName: string,
 ): Promise<void> {
   if (process.env.NODE_ENV === "development") return;
 
-  let serverIp: string;
-  try {
-    serverIp = await getServerIp();
-  } catch {
-    return;
-  }
+  const wildcardBase = await getSetting("wildcard_domain");
+  if (!wildcardBase) return;
 
+  const slug = slugify(`${serviceName}-${projectName}`);
   let domain: string | null = null;
+
   for (let i = 0; i < 10; i++) {
-    const candidate = buildSslipDomain(
-      serviceName,
-      projectName,
-      serverIp,
-      i === 0 ? undefined : i + 1,
-    );
+    const candidate =
+      i === 0 ? `${slug}.${wildcardBase}` : `${slug}-${i + 1}.${wildcardBase}`;
     const existing = await getDomainByName(candidate);
     if (!existing) {
       domain = candidate;
@@ -157,7 +155,7 @@ export async function createSystemDomain(
 
   if (!domain) {
     console.error(
-      "Could not generate unique sslip.io domain after 10 attempts",
+      "Could not generate unique wildcard domain after 10 attempts",
     );
     return;
   }
@@ -169,64 +167,16 @@ export async function createSystemDomain(
     .insertInto("domains")
     .values({
       id,
-      serviceId: serviceId,
+      serviceId,
       domain,
       type: "proxy",
       redirectTarget: null,
       redirectCode: null,
       dnsVerified: true,
-      sslStatus: "pending",
+      sslStatus: "active",
       createdAt: now,
       isSystem: true,
     })
-    .execute();
-
-  await syncCaddyConfig();
-}
-
-export async function updateSystemDomain(
-  serviceId: string,
-  newServiceName: string,
-  newProjectName: string,
-): Promise<void> {
-  if (process.env.NODE_ENV === "development") return;
-
-  const existing = await getSystemDomainForService(serviceId);
-  if (!existing) return;
-
-  let serverIp: string;
-  try {
-    serverIp = await getServerIp();
-  } catch {
-    return;
-  }
-
-  let domain: string | null = null;
-  for (let i = 0; i < 10; i++) {
-    const candidate = buildSslipDomain(
-      newServiceName,
-      newProjectName,
-      serverIp,
-      i === 0 ? undefined : i + 1,
-    );
-    const existingDomain = await getDomainByName(candidate);
-    if (!existingDomain || existingDomain.id === existing.id) {
-      domain = candidate;
-      break;
-    }
-  }
-
-  if (!domain) {
-    console.error(
-      "Could not generate unique sslip.io domain after 10 attempts",
-    );
-    return;
-  }
-
-  await db
-    .updateTable("domains")
-    .set({ domain })
-    .where("id", "=", existing.id)
     .execute();
 
   await syncCaddyConfig();
@@ -269,12 +219,6 @@ export async function verifyDomainDns(domain: string): Promise<DnsStatus> {
   };
 }
 
-function acmeIssuer(email: string, staging: boolean) {
-  return staging
-    ? { module: "acme", email, ca: ACME_STAGING_CA }
-    : { module: "acme", email };
-}
-
 interface DomainRoute {
   domain: string;
   type: "proxy" | "redirect" | "frost-admin";
@@ -284,16 +228,27 @@ interface DomainRoute {
   requestTimeout?: number;
 }
 
+interface WildcardConfig {
+  domain: string;
+  dnsConfig: DnsConfig;
+}
+
 function buildCaddyConfig(
   routes: DomainRoute[],
   email: string,
   staging: boolean,
+  wildcardConfig?: WildcardConfig,
 ) {
   const httpsRoutes: unknown[] = [];
-  const allDomains: string[] = [];
+  const httpOnlyDomains: string[] = [];
+  const wildcardDomains: string[] = [];
 
   for (const route of routes) {
-    allDomains.push(route.domain);
+    if (wildcardConfig && route.domain.endsWith(`.${wildcardConfig.domain}`)) {
+      wildcardDomains.push(route.domain);
+    } else {
+      httpOnlyDomains.push(route.domain);
+    }
 
     if (route.type === "frost-admin" || route.type === "proxy") {
       const dial =
@@ -333,6 +288,22 @@ function buildCaddyConfig(
     }
   }
 
+  const policies: unknown[] = [];
+
+  if (wildcardConfig && wildcardDomains.length > 0) {
+    policies.push({
+      subjects: [`*.${wildcardConfig.domain}`],
+      issuers: [dnsAcmeIssuer(email, wildcardConfig.dnsConfig, staging)],
+    });
+  }
+
+  if (httpOnlyDomains.length > 0) {
+    policies.push({
+      subjects: httpOnlyDomains,
+      issuers: [acmeIssuer(email, staging)],
+    });
+  }
+
   return {
     apps: {
       http: {
@@ -362,15 +333,10 @@ function buildCaddyConfig(
         },
       },
       tls:
-        allDomains.length > 0
+        policies.length > 0
           ? {
               automation: {
-                policies: [
-                  {
-                    subjects: allDomains,
-                    issuers: [acmeIssuer(email, staging)],
-                  },
-                ],
+                policies,
               },
             }
           : undefined,
@@ -382,6 +348,10 @@ export async function syncCaddyConfig(): Promise<boolean> {
   const frostDomain = await getSetting("domain");
   const email = await getSetting("email");
   const staging = (await getSetting("ssl_staging")) === "true";
+
+  const wildcardDomain = await getSetting("wildcard_domain");
+  const dnsProvider = await getSetting("dns_provider");
+  const dnsApiToken = await getSetting("dns_api_token");
 
   if (!email) {
     return false;
@@ -437,7 +407,23 @@ export async function syncCaddyConfig(): Promise<boolean> {
     return false;
   }
 
-  const config = buildCaddyConfig(routes, email, staging);
+  let wildcardConfig: WildcardConfig | undefined;
+  if (
+    wildcardDomain &&
+    dnsProvider &&
+    dnsApiToken &&
+    dnsProvider === "cloudflare"
+  ) {
+    wildcardConfig = {
+      domain: wildcardDomain,
+      dnsConfig: {
+        provider: dnsProvider,
+        apiToken: dnsApiToken,
+      },
+    };
+  }
+
+  const config = buildCaddyConfig(routes, email, staging, wildcardConfig);
 
   const res = await fetch(`${CADDY_ADMIN}/load`, {
     method: "POST",

@@ -17,12 +17,10 @@ import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useProject } from "@/hooks/use-projects";
 import { useDeployService, useService } from "@/hooks/use-services";
 import type { Deployment, Domain, EnvVar } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/db-templates";
-import { buildSslipDomain } from "@/lib/sslip";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "./_components/service-metrics-card";
 
@@ -81,7 +79,6 @@ export default function ServiceOverviewPage() {
   const projectId = params.id as string;
   const serviceId = params.serviceId as string;
 
-  const { data: project } = useProject(projectId);
   const { data: service } = useService(serviceId);
   const deployMutation = useDeployService(serviceId, projectId);
   const queryClient = useQueryClient();
@@ -367,16 +364,8 @@ export default function ServiceOverviewPage() {
                         <code className="flex-1 rounded bg-neutral-800 px-3 py-2 font-mono text-xs text-neutral-300">
                           {buildConnectionString(
                             service.imageUrl?.split(":")[0] ?? "",
-                            serverIp === "localhost"
-                              ? "localhost"
-                              : buildSslipDomain(
-                                  service.name,
-                                  project?.name ?? "",
-                                  serverIp,
-                                ),
-                            serverIp === "localhost"
-                              ? (currentDeployment.hostPort ?? tcpProxy.port)
-                              : tcpProxy.port,
+                            serverIp,
+                            tcpProxy.port,
                             JSON.parse(service.envVars).reduce(
                               (acc: Record<string, string>, v: EnvVar) => {
                                 acc[v.key] = v.value;
@@ -393,17 +382,8 @@ export default function ServiceOverviewPage() {
                             navigator.clipboard.writeText(
                               buildConnectionString(
                                 service.imageUrl?.split(":")[0] ?? "",
-                                serverIp === "localhost"
-                                  ? "localhost"
-                                  : buildSslipDomain(
-                                      service.name,
-                                      project?.name ?? "",
-                                      serverIp,
-                                    ),
-                                serverIp === "localhost"
-                                  ? (currentDeployment.hostPort ??
-                                      tcpProxy.port!)
-                                  : tcpProxy.port!,
+                                serverIp,
+                                tcpProxy.port!,
                                 JSON.parse(service.envVars).reduce(
                                   (acc: Record<string, string>, v: EnvVar) => {
                                     acc[v.key] = v.value;
