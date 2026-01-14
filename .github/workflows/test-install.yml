@@ -39,19 +39,21 @@ jobs:
 
       - name: Copy database to standalone
         run: |
-          # Debug: check original db
-          echo "=== Original DB settings ==="
-          sqlite3 data/frost.db "SELECT key FROM settings;"
-          # Checkpoint and convert to DELETE mode so we can copy just the .db file
+          echo "=== Standalone data dir BEFORE copy ==="
+          ls -la .next/standalone/data/ || echo "(empty)"
+
+          # Checkpoint and convert to DELETE mode
           sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
-          echo "=== DB files after conversion ==="
-          ls -la data/
+
+          # Remove any existing WAL files in standalone
+          rm -f .next/standalone/data/frost.db*
+
+          # Copy only the main db file
           cp data/frost.db .next/standalone/data/
 
-      - name: Verify settings table
-        run: |
-          echo "=== Copied DB files ==="
+          echo "=== Standalone data dir AFTER copy ==="
           ls -la .next/standalone/data/
+
           echo "=== Querying copied DB ==="
           sqlite3 .next/standalone/data/frost.db "SELECT * FROM settings;"
 
