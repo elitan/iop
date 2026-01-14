@@ -179,6 +179,37 @@ jobs:
           rm -rf frost-release
           ls -lh "frost-v${VERSION}.tar.gz"
 
+      - name: Test tarball
+        run: |
+          VERSION="${{ steps.new.outputs.version }}"
+          mkdir -p /tmp/frost-test
+          tar -xzf "frost-v${VERSION}.tar.gz" -C /tmp/frost-test
+          cd /tmp/frost-test
+
+          mkdir -p data
+          bun run migrate
+          bun run setup testpassword123
+
+          FROST_JWT_SECRET=smoke-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
+          SERVER_PID=$!
+          sleep 5
+
+          echo "=== Server log ==="
+          cat /tmp/frost.log
+
+          echo "=== Testing auth endpoint ==="
+          RESPONSE=$(curl -sf -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"password":"testpassword123"}')
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep -q '"success":true' || { echo "Auth test failed"; kill $SERVER_PID 2>/dev/null; exit 1; }
+
+          echo "=== Verifying static files ==="
+          ls -la .next/static/ || { echo "Static files missing"; kill $SERVER_PID 2>/dev/null; exit 1; }
+
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Tarball smoke test passed"
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
