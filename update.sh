@@ -109,7 +109,7 @@ if [ -d "$FROST_DIR/.git" ]; then
   git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
 
   log "Checking for updates..."
-  git fetch origin 2>/dev/null
+  git fetch origin main 2>/dev/null
   LOCAL=$(git rev-parse HEAD)
   REMOTE=$(git rev-parse @{u} 2>/dev/null || git rev-parse origin/main)
 
