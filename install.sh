@@ -1,20 +1,24 @@
 #!/bin/bash
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
 FROST_DIR="/opt/frost"
-FROST_REPO="https://github.com/elitan/frost.git"
+FROST_REPO="https://github.com/elitan/frost"
 FROST_VERSION=""
 FROST_BRANCH=""
+USE_TARBALL=true
 
 while getopts "v:b:" opt; do
   case $opt in
     v) FROST_VERSION="$OPTARG" ;;
-    b) FROST_BRANCH="$OPTARG" ;;
+    b) FROST_BRANCH="$OPTARG"; USE_TARBALL=false ;;
     *) echo "Usage: $0 [-v version] [-b branch]"; exit 1 ;;
   esac
 done
@@ -163,25 +167,48 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 echo ""
 echo -e "${YELLOW}Setting up Frost...${NC}"
 
-# Clone or update Frost
+# Remove existing installation
 if [ -d "$FROST_DIR" ]; then
   echo "Removing existing installation..."
   rm -rf "$FROST_DIR"
 fi
 
-echo "Cloning Frost..."
-if [ -n "$FROST_BRANCH" ]; then
-  echo "Using branch: $FROST_BRANCH"
-  git clone -b "$FROST_BRANCH" "$FROST_REPO" "$FROST_DIR"
-else
-  git clone "$FROST_REPO" "$FROST_DIR"
-fi
-git config --global --add safe.directory "$FROST_DIR"
-cd "$FROST_DIR"
+if [ "$USE_TARBALL" = true ]; then
+  # Download release tarball
+  if [ -n "$FROST_VERSION" ]; then
+    TARBALL_URL="$FROST_REPO/releases/download/$FROST_VERSION/frost-${FROST_VERSION}.tar.gz"
+  else
+    echo "Fetching latest release..."
+    FROST_VERSION=$(curl -sL "$FROST_REPO/releases/latest" -o /dev/null -w '%{url_effective}' | sed 's|.*/||')
+    if [ -z "$FROST_VERSION" ] || [ "$FROST_VERSION" = "releases" ]; then
+      echo -e "${RED}Failed to get latest release${NC}"
+      exit 1
+    fi
+    TARBALL_URL="$FROST_REPO/releases/download/$FROST_VERSION/frost-${FROST_VERSION}.tar.gz"
+  fi
 
-if [ -n "$FROST_VERSION" ]; then
-  echo "Checking out version $FROST_VERSION..."
-  git checkout "$FROST_VERSION"
+  echo "Downloading Frost $FROST_VERSION..."
+  mkdir -p "$FROST_DIR"
+  curl -fsSL "$TARBALL_URL" | tar -xz -C "$FROST_DIR"
+
+  cd "$FROST_DIR"
+
+  # Install production deps for scripts (migrate, setup, etc.)
+  echo "Installing dependencies..."
+  npm install --omit=dev --legacy-peer-deps --silent
+else
+  # Branch mode: clone and build from source (like main branch behavior)
+  echo "Cloning Frost..."
+  echo "Using branch: $FROST_BRANCH"
+  git clone -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
+  git config --global --add safe.directory "$FROST_DIR"
+  cd "$FROST_DIR"
+
+  echo "Installing dependencies..."
+  NODE_ENV=development npm install --legacy-peer-deps --silent
+
+  echo "Building..."
+  NEXT_TELEMETRY_DISABLED=1 npm run build
 fi
 
 # Create data directory
@@ -192,13 +219,6 @@ cat > "$FROST_DIR/.env" << EOF
 FROST_JWT_SECRET=$FROST_JWT_SECRET
 NODE_ENV=production
 EOF
-
-# Install dependencies and build
-echo "Installing dependencies..."
-NODE_ENV=development npm install --legacy-peer-deps --silent
-
-echo "Building..."
-npm run build
 
 echo "Running migrations..."
 bun run migrate
@@ -214,6 +234,13 @@ bun run setup "$FROST_PASSWORD" || {
 echo ""
 echo -e "${YELLOW}Creating systemd service...${NC}"
 
+# Tarball mode uses standalone server.js, branch mode uses npm run start
+if [ "$USE_TARBALL" = true ]; then
+  EXEC_START="/usr/local/bin/bun $FROST_DIR/server.js"
+else
+  EXEC_START="/usr/bin/npm run start"
+fi
+
 cat > /etc/systemd/system/frost.service << EOF
 [Unit]
 Description=Frost
@@ -224,7 +251,7 @@ Type=simple
 WorkingDirectory=$FROST_DIR
 TimeoutStartSec=300
 ExecStartPre=/bin/bash -c 'test -f $FROST_DIR/data/.update-requested && curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/update.sh | bash -s -- --pre-start || true'
-ExecStart=/usr/bin/npm run start
+ExecStart=$EXEC_START
 Restart=on-failure
 EnvironmentFile=$FROST_DIR/.env
 

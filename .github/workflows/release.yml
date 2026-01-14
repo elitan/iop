@@ -153,10 +153,37 @@ jobs:
 
           echo -e "$notes" > release_notes.md
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: NEXT_TELEMETRY_DISABLED=1 bun run build
+
+      - name: Create release tarball
+        run: |
+          VERSION="${{ steps.new.outputs.version }}"
+          mkdir -p frost-release/.next
+          cp -r .next/standalone/* frost-release/
+          cp -r .next/static frost-release/.next/static
+          cp -r schema scripts frost-release/
+          mkdir -p frost-release/src
+          cp -r src/scripts frost-release/src/scripts
+          cp package.json frost-release/
+          cp install.sh update.sh cleanup.sh frost-release/
+          tar -czf "frost-v${VERSION}.tar.gz" -C frost-release .
+          rm -rf frost-release
+          ls -lh "frost-v${VERSION}.tar.gz"
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "v${{ steps.new.outputs.version }}" \
             --title "v${{ steps.new.outputs.version }}" \
-            --notes-file release_notes.md
+            --notes-file release_notes.md \
+            "frost-v${{ steps.new.outputs.version }}.tar.gz"

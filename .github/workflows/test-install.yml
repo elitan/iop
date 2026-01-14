@@ -29,16 +29,25 @@ jobs:
       - name: Build Frost
         run: bun run build
 
+      - name: Prepare standalone
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          mkdir -p .next/standalone/data
+
       - name: Setup admin password
         run: bun run setup testpassword123
 
-      - name: Verify settings table
+      - name: Copy database to standalone
         run: |
-          sqlite3 data/frost.db "SELECT key FROM settings;"
+          # Checkpoint and convert to DELETE mode for clean copy
+          sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+          # Remove any existing WAL files, copy main db
+          rm -f .next/standalone/data/frost.db*
+          cp data/frost.db .next/standalone/data/
 
-      - name: Start Frost
+      - name: Start Frost (standalone)
         run: |
-          FROST_JWT_SECRET=gh-action-test-secret nohup bun run start > /tmp/frost.log 2>&1 &
+          cd .next/standalone && FROST_JWT_SECRET=gh-action-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
           sleep 5
           cat /tmp/frost.log
 
