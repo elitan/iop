@@ -41,7 +41,7 @@ jobs:
 
       - name: Start Frost (standalone)
         run: |
-          FROST_JWT_SECRET=gh-action-test-secret nohup node .next/standalone/server.js > /tmp/frost.log 2>&1 &
+          FROST_JWT_SECRET=gh-action-test-secret nohup bun .next/standalone/server.js > /tmp/frost.log 2>&1 &
           sleep 5
           cat /tmp/frost.log
 

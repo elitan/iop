@@ -201,7 +201,7 @@ Type=simple
 WorkingDirectory=$FROST_DIR
 TimeoutStartSec=300
 ExecStartPre=/bin/bash -c 'test -f $FROST_DIR/data/.update-requested && curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/update.sh | bash -s -- --pre-start || true'
-ExecStart=/usr/bin/node $FROST_DIR/server.js
+ExecStart=/usr/local/bin/bun $FROST_DIR/server.js
 Restart=on-failure
 EnvironmentFile=$FROST_DIR/.env
 
