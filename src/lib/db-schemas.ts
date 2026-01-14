@@ -1,30 +1,30 @@
 import { z } from "zod";
 
-export const migrationSchema = z.object({
+export const migrationsSchema = z.object({
   id: z.number(),
   name: z.string(),
   appliedAt: z.number(),
 });
 
-export const newMigrationSchema = z.object({
+export const newMigrationsSchema = z.object({
   id: z.number().optional(),
   name: z.string(),
   appliedAt: z.number(),
 });
 
-export const migrationUpdateSchema = z.object({
+export const migrationsUpdateSchema = z.object({
   id: z.number().optional(),
   name: z.string().optional(),
   appliedAt: z.number().optional(),
 });
 
-export type Migration = z.infer<typeof migrationSchema>;
+export type Migrations = z.infer<typeof migrationsSchema>;
 
-export type NewMigration = z.infer<typeof newMigrationSchema>;
+export type NewMigrations = z.infer<typeof newMigrationsSchema>;
 
-export type MigrationUpdate = z.infer<typeof migrationUpdateSchema>;
+export type MigrationsUpdate = z.infer<typeof migrationsUpdateSchema>;
 
-export const apiKeySchema = z.object({
+export const apiKeysSchema = z.object({
   id: z.string(),
   name: z.string(),
   keyPrefix: z.string(),
@@ -33,7 +33,7 @@ export const apiKeySchema = z.object({
   lastUsedAt: z.string().nullable(),
 });
 
-export const newApiKeySchema = z.object({
+export const newApiKeysSchema = z.object({
   id: z.string(),
   name: z.string(),
   keyPrefix: z.string(),
@@ -42,7 +42,7 @@ export const newApiKeySchema = z.object({
   lastUsedAt: z.string().nullable(),
 });
 
-export const apiKeyUpdateSchema = z.object({
+export const apiKeysUpdateSchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   keyPrefix: z.string().optional(),
@@ -51,13 +51,13 @@ export const apiKeyUpdateSchema = z.object({
   lastUsedAt: z.string().nullable().optional(),
 });
 
-export type ApiKey = z.infer<typeof apiKeySchema>;
+export type ApiKeys = z.infer<typeof apiKeysSchema>;
 
-export type NewApiKey = z.infer<typeof newApiKeySchema>;
+export type NewApiKeys = z.infer<typeof newApiKeysSchema>;
 
-export type ApiKeyUpdate = z.infer<typeof apiKeyUpdateSchema>;
+export type ApiKeysUpdate = z.infer<typeof apiKeysUpdateSchema>;
 
-export const deploymentSchema = z.object({
+export const deploymentsSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   serviceId: z.string(),
@@ -78,9 +78,11 @@ export const deploymentSchema = z.object({
   volumes: z.string().nullable(),
   rollbackEligible: z.number().nullable(),
   rollbackSourceId: z.string().nullable(),
+  gitCommitSha: z.string().nullable(),
+  gitBranch: z.string().nullable(),
 });
 
-export const newDeploymentSchema = z.object({
+export const newDeploymentsSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   serviceId: z.string(),
@@ -101,9 +103,11 @@ export const newDeploymentSchema = z.object({
   volumes: z.string().nullable(),
   rollbackEligible: z.number().nullable().optional(),
   rollbackSourceId: z.string().nullable(),
+  gitCommitSha: z.string().nullable(),
+  gitBranch: z.string().nullable(),
 });
 
-export const deploymentUpdateSchema = z.object({
+export const deploymentsUpdateSchema = z.object({
   id: z.string().optional(),
   projectId: z.string().optional(),
   serviceId: z.string().optional(),
@@ -124,15 +128,17 @@ export const deploymentUpdateSchema = z.object({
   volumes: z.string().nullable().optional(),
   rollbackEligible: z.number().nullable().optional(),
   rollbackSourceId: z.string().nullable().optional(),
+  gitCommitSha: z.string().nullable().optional(),
+  gitBranch: z.string().nullable().optional(),
 });
 
-export type Deployment = z.infer<typeof deploymentSchema>;
+export type Deployments = z.infer<typeof deploymentsSchema>;
 
-export type NewDeployment = z.infer<typeof newDeploymentSchema>;
+export type NewDeployments = z.infer<typeof newDeploymentsSchema>;
 
-export type DeploymentUpdate = z.infer<typeof deploymentUpdateSchema>;
+export type DeploymentsUpdate = z.infer<typeof deploymentsUpdateSchema>;
 
-export const domainSchema = z.object({
+export const domainsSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
   domain: z.string(),
@@ -145,7 +151,7 @@ export const domainSchema = z.object({
   isSystem: z.coerce.boolean().nullable(),
 });
 
-export const newDomainSchema = z.object({
+export const newDomainsSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
   domain: z.string(),
@@ -161,7 +167,7 @@ export const newDomainSchema = z.object({
   isSystem: z.coerce.boolean().nullable().optional(),
 });
 
-export const domainUpdateSchema = z.object({
+export const domainsUpdateSchema = z.object({
   id: z.string().optional(),
   serviceId: z.string().optional(),
   domain: z.string().optional(),
@@ -177,13 +183,13 @@ export const domainUpdateSchema = z.object({
   isSystem: z.coerce.boolean().nullable().optional(),
 });
 
-export type Domain = z.infer<typeof domainSchema>;
+export type Domains = z.infer<typeof domainsSchema>;
 
-export type NewDomain = z.infer<typeof newDomainSchema>;
+export type NewDomains = z.infer<typeof newDomainsSchema>;
 
-export type DomainUpdate = z.infer<typeof domainUpdateSchema>;
+export type DomainsUpdate = z.infer<typeof domainsUpdateSchema>;
 
-export const githubInstallationSchema = z.object({
+export const githubInstallationsSchema = z.object({
   id: z.string(),
   installationId: z.string(),
   accountLogin: z.string(),
@@ -191,7 +197,7 @@ export const githubInstallationSchema = z.object({
   createdAt: z.number(),
 });
 
-export const newGithubInstallationSchema = z.object({
+export const newGithubInstallationsSchema = z.object({
   id: z.string(),
   installationId: z.string(),
   accountLogin: z.string(),
@@ -199,7 +205,7 @@ export const newGithubInstallationSchema = z.object({
   createdAt: z.number(),
 });
 
-export const githubInstallationUpdateSchema = z.object({
+export const githubInstallationsUpdateSchema = z.object({
   id: z.string().optional(),
   installationId: z.string().optional(),
   accountLogin: z.string().optional(),
@@ -207,15 +213,17 @@ export const githubInstallationUpdateSchema = z.object({
   createdAt: z.number().optional(),
 });
 
-export type GithubInstallation = z.infer<typeof githubInstallationSchema>;
+export type GithubInstallations = z.infer<typeof githubInstallationsSchema>;
 
-export type NewGithubInstallation = z.infer<typeof newGithubInstallationSchema>;
-
-export type GithubInstallationUpdate = z.infer<
-  typeof githubInstallationUpdateSchema
+export type NewGithubInstallations = z.infer<
+  typeof newGithubInstallationsSchema
 >;
 
-export const metricSchema = z.object({
+export type GithubInstallationsUpdate = z.infer<
+  typeof githubInstallationsUpdateSchema
+>;
+
+export const metricsSchema = z.object({
   id: z.number(),
   timestamp: z.number(),
   type: z.string(),
@@ -230,7 +238,7 @@ export const metricSchema = z.object({
   createdAt: z.string().nullable(),
 });
 
-export const newMetricSchema = z.object({
+export const newMetricsSchema = z.object({
   id: z.number().optional(),
   timestamp: z.number(),
   type: z.string(),
@@ -245,7 +253,7 @@ export const newMetricSchema = z.object({
   createdAt: z.string().nullable().optional(),
 });
 
-export const metricUpdateSchema = z.object({
+export const metricsUpdateSchema = z.object({
   id: z.number().optional(),
   timestamp: z.number().optional(),
   type: z.string().optional(),
@@ -260,40 +268,84 @@ export const metricUpdateSchema = z.object({
   createdAt: z.string().nullable().optional(),
 });
 
-export type Metric = z.infer<typeof metricSchema>;
+export type Metrics = z.infer<typeof metricsSchema>;
 
-export type NewMetric = z.infer<typeof newMetricSchema>;
+export type NewMetrics = z.infer<typeof newMetricsSchema>;
 
-export type MetricUpdate = z.infer<typeof metricUpdateSchema>;
+export type MetricsUpdate = z.infer<typeof metricsUpdateSchema>;
 
-export const projectSchema = z.object({
+export const projectsSchema = z.object({
   id: z.string(),
   name: z.string(),
   envVars: z.string(),
   createdAt: z.number(),
+  hostname: z.string().nullable(),
 });
 
-export const newProjectSchema = z.object({
+export const newProjectsSchema = z.object({
   id: z.string(),
   name: z.string(),
   envVars: z.string().optional(),
   createdAt: z.number(),
+  hostname: z.string().nullable(),
 });
 
-export const projectUpdateSchema = z.object({
+export const projectsUpdateSchema = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   envVars: z.string().optional(),
   createdAt: z.number().optional(),
+  hostname: z.string().nullable().optional(),
 });
 
-export type Project = z.infer<typeof projectSchema>;
+export type Projects = z.infer<typeof projectsSchema>;
 
-export type NewProject = z.infer<typeof newProjectSchema>;
+export type NewProjects = z.infer<typeof newProjectsSchema>;
 
-export type ProjectUpdate = z.infer<typeof projectUpdateSchema>;
+export type ProjectsUpdate = z.infer<typeof projectsUpdateSchema>;
 
-export const serviceSchema = z.object({
+export const registriesSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  url: z.string().nullable(),
+  username: z.string(),
+  passwordEncrypted: z.string(),
+  createdAt: z.number(),
+});
+
+export const newRegistriesSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  url: z.string().nullable(),
+  username: z.string(),
+  passwordEncrypted: z.string(),
+  createdAt: z.number(),
+});
+
+export const registriesUpdateSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  url: z.string().nullable().optional(),
+  username: z.string().optional(),
+  passwordEncrypted: z.string().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type Registries = z.infer<typeof registriesSchema>;
+
+export type NewRegistries = z.infer<typeof newRegistriesSchema>;
+
+export type RegistriesUpdate = z.infer<typeof registriesUpdateSchema>;
+
+export const registryOutputSchema = registriesSchema.omit({
+  passwordEncrypted: true,
+});
+export type RegistryOutput = z.infer<typeof registryOutputSchema>;
+
+export const servicesSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   name: z.string(),
@@ -317,9 +369,10 @@ export const serviceSchema = z.object({
   shutdownTimeout: z.number().nullable(),
   requestTimeout: z.number().nullable(),
   registryId: z.string().nullable(),
+  hostname: z.string().nullable(),
 });
 
-export const newServiceSchema = z.object({
+export const newServicesSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   name: z.string(),
@@ -338,14 +391,15 @@ export const newServiceSchema = z.object({
   volumes: z.string().nullable().optional(),
   tcpProxyPort: z.number().nullable().optional(),
   currentDeploymentId: z.string().nullable(),
-  memoryLimit: z.string().nullable().optional(),
-  cpuLimit: z.number().nullable().optional(),
-  shutdownTimeout: z.number().nullable().optional(),
-  requestTimeout: z.number().nullable().optional(),
-  registryId: z.string().nullable().optional(),
+  memoryLimit: z.string().nullable(),
+  cpuLimit: z.number().nullable(),
+  shutdownTimeout: z.number().nullable(),
+  requestTimeout: z.number().nullable(),
+  registryId: z.string().nullable(),
+  hostname: z.string().nullable(),
 });
 
-export const serviceUpdateSchema = z.object({
+export const servicesUpdateSchema = z.object({
   id: z.string().optional(),
   projectId: z.string().optional(),
   name: z.string().optional(),
@@ -369,49 +423,32 @@ export const serviceUpdateSchema = z.object({
   shutdownTimeout: z.number().nullable().optional(),
   requestTimeout: z.number().nullable().optional(),
   registryId: z.string().nullable().optional(),
+  hostname: z.string().nullable().optional(),
 });
 
-export type Service = z.infer<typeof serviceSchema>;
+export type Services = z.infer<typeof servicesSchema>;
 
-export type NewService = z.infer<typeof newServiceSchema>;
+export type NewServices = z.infer<typeof newServicesSchema>;
 
-export type ServiceUpdate = z.infer<typeof serviceUpdateSchema>;
+export type ServicesUpdate = z.infer<typeof servicesUpdateSchema>;
 
-export const settingSchema = z.object({
+export const settingsSchema = z.object({
   key: z.string(),
   value: z.string(),
 });
 
-export const newSettingSchema = z.object({
+export const newSettingsSchema = z.object({
   key: z.string(),
   value: z.string(),
 });
 
-export const settingUpdateSchema = z.object({
+export const settingsUpdateSchema = z.object({
   key: z.string().optional(),
   value: z.string().optional(),
 });
 
-export type Setting = z.infer<typeof settingSchema>;
+export type Settings = z.infer<typeof settingsSchema>;
 
-export type NewSetting = z.infer<typeof newSettingSchema>;
+export type NewSettings = z.infer<typeof newSettingsSchema>;
 
-export type SettingUpdate = z.infer<typeof settingUpdateSchema>;
-
-export const registrySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  type: z.enum(["ghcr", "dockerhub", "custom"]),
-  url: z.string().nullable(),
-  username: z.string(),
-  passwordEncrypted: z.string(),
-  createdAt: z.number(),
-});
-
-export const registryOutputSchema = registrySchema.omit({
-  passwordEncrypted: true,
-});
-
-export type Registry = z.infer<typeof registrySchema>;
-
-export type RegistryOutput = z.infer<typeof registryOutputSchema>;
+export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;

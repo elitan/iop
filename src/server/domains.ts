@@ -3,7 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { domainSchema } from "@/lib/db-schemas";
+import { domainsSchema } from "@/lib/db-schemas";
 import {
   addDomain,
   getDomain,
@@ -64,7 +64,7 @@ export const domains = {
   get: os
     .route({ method: "GET", path: "/domains/{id}" })
     .input(z.object({ id: z.string() }))
-    .output(domainSchema)
+    .output(domainsSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {
@@ -76,7 +76,7 @@ export const domains = {
   listByService: os
     .route({ method: "GET", path: "/services/{serviceId}/domains" })
     .input(z.object({ serviceId: z.string() }))
-    .output(z.array(domainSchema))
+    .output(z.array(domainsSchema))
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -102,7 +102,7 @@ export const domains = {
         redirectCode: z.union([z.literal(301), z.literal(307)]).optional(),
       }),
     )
-    .output(domainSchema)
+    .output(domainsSchema)
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -145,7 +145,7 @@ export const domains = {
         redirectCode: z.union([z.literal(301), z.literal(307)]).optional(),
       }),
     )
-    .output(domainSchema)
+    .output(domainsSchema)
     .handler(async ({ input }) => {
       const domain = await getDomain(input.id);
       if (!domain) {

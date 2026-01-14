@@ -6,7 +6,7 @@ import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
 import { decrypt } from "./crypto";
 import { db } from "./db";
-import type { Project, Registrie, Service } from "./db-types";
+import type { Projects, Registries, Services } from "./db-types";
 import {
   buildImage,
   createNetwork,
@@ -158,8 +158,8 @@ function detectRegistryFromImage(imageUrl: string): string | null {
 }
 
 async function getRegistryForPull(
-  service: Selectable<Service>,
-): Promise<Selectable<Registrie> | null> {
+  service: Selectable<Services>,
+): Promise<Selectable<Registries> | null> {
   if (service.registryId) {
     const registry = await db
       .selectFrom("registries")
@@ -188,8 +188,8 @@ async function getRegistryForPull(
 
 function buildFrostEnvVars(
   deploymentId: string,
-  service: Selectable<Service>,
-  project: Selectable<Project>,
+  service: Selectable<Services>,
+  project: Selectable<Projects>,
   gitInfo?: { commitSha: string; branch: string },
 ): Record<string, string> {
   const vars: Record<string, string> = {
@@ -328,8 +328,8 @@ export async function deployService(
 
 async function runServiceDeployment(
   deploymentId: string,
-  service: Selectable<Service>,
-  project: Selectable<Project>,
+  service: Selectable<Services>,
+  project: Selectable<Projects>,
   options?: DeployOptions,
 ) {
   let currentCommitSha = options?.commitSha || "HEAD";
@@ -869,8 +869,8 @@ async function runRollbackDeployment(
     gitCommitSha: string | null;
     gitBranch: string | null;
   },
-  service: Selectable<Service>,
-  project: Selectable<Project>,
+  service: Selectable<Services>,
+  project: Selectable<Projects>,
 ) {
   const containerName = sanitizeDockerName(
     `frost-${service.id}-${deploymentId}`,

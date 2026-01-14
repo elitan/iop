@@ -53,7 +53,8 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "kysely-gen": "0.12.1",
+    "better-sqlite3": "^12.6.0",
+    "kysely-gen": "0.14.1",
     "postcss": "^8",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2"

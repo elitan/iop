@@ -20,13 +20,13 @@ export type JsonObject = { [key: string]: JsonValue };
 
 export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
-export interface Migration {
+export interface Migrations {
   id: Generated<number>;
   name: string;
   appliedAt: number;
 }
 
-export interface ApiKey {
+export interface ApiKeys {
   id: string;
   name: string;
   keyPrefix: string;
@@ -35,7 +35,7 @@ export interface ApiKey {
   lastUsedAt: string | null;
 }
 
-export interface Deployment {
+export interface Deployments {
   id: string;
   projectId: string;
   serviceId: string;
@@ -60,7 +60,7 @@ export interface Deployment {
   gitBranch: string | null;
 }
 
-export interface Domain {
+export interface Domains {
   id: string;
   serviceId: string;
   domain: string;
@@ -73,7 +73,7 @@ export interface Domain {
   isSystem: Generated<boolean | null>;
 }
 
-export interface GithubInstallation {
+export interface GithubInstallations {
   id: string;
   installationId: string;
   accountLogin: string;
@@ -81,7 +81,7 @@ export interface GithubInstallation {
   createdAt: number;
 }
 
-export interface Metric {
+export interface Metrics {
   id: Generated<number>;
   timestamp: number;
   'type': string;
@@ -96,15 +96,15 @@ export interface Metric {
   createdAt: Generated<string | null>;
 }
 
-export interface Project {
+export interface Projects {
   id: string;
   name: string;
-  hostname: string | null;
   envVars: Generated<string>;
   createdAt: number;
+  hostname: string | null;
 }
 
-export interface Registrie {
+export interface Registries {
   id: string;
   name: string;
   'type': string;
@@ -114,11 +114,10 @@ export interface Registrie {
   createdAt: number;
 }
 
-export interface Service {
+export interface Services {
   id: string;
   projectId: string;
   name: string;
-  hostname: string | null;
   deployType: Generated<string>;
   repoUrl: string | null;
   branch: Generated<string | null>;
@@ -139,22 +138,23 @@ export interface Service {
   shutdownTimeout: number | null;
   requestTimeout: number | null;
   registryId: string | null;
+  hostname: string | null;
 }
 
-export interface Setting {
+export interface Settings {
   key: string;
   value: string;
 }
 
 export interface DB {
-  _Migrations: Migration;
-  apiKeys: ApiKey;
-  deployments: Deployment;
-  domains: Domain;
-  githubInstallations: GithubInstallation;
-  metrics: Metric;
-  projects: Project;
-  registries: Registrie;
-  services: Service;
-  settings: Setting;
+  _Migrations: Migrations;
+  apiKeys: ApiKeys;
+  deployments: Deployments;
+  domains: Domains;
+  githubInstallations: GithubInstallations;
+  metrics: Metrics;
+  projects: Projects;
+  registries: Registries;
+  services: Services;
+  settings: Settings;
 }

@@ -2,10 +2,10 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { generateApiKey, hashApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { apiKeySchema } from "@/lib/db-schemas";
+import { apiKeysSchema } from "@/lib/db-schemas";
 import { os } from "@/lib/orpc";
 
-const apiKeyOutputSchema = apiKeySchema.omit({ keyHash: true });
+const apiKeyOutputSchema = apiKeysSchema.omit({ keyHash: true });
 
 export const apiKeys = {
   list: os

@@ -8,6 +8,7 @@ export interface ProjectLatestDeployment {
 export interface Project {
   id: string;
   name: string;
+  hostname: string | null;
   envVars: string;
   createdAt: number;
   services?: Service[];
@@ -21,6 +22,7 @@ export interface Service {
   id: string;
   projectId: string;
   name: string;
+  hostname: string | null;
   deployType: "repo" | "image";
   repoUrl: string | null;
   branch: string | null;

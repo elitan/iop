@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { deploymentSchema, serviceSchema } from "@/lib/db-schemas";
+import { deploymentsSchema, servicesSchema } from "@/lib/db-schemas";
 import { generateCredential, getTemplate } from "@/lib/db-templates";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
@@ -19,8 +19,8 @@ const envVarSchema = z.object({
 
 const idParamSchema = z.object({ id: z.string() });
 
-const serviceWithDeploymentSchema = serviceSchema.extend({
-  latestDeployment: deploymentSchema.nullable(),
+const serviceWithDeploymentSchema = servicesSchema.extend({
+  latestDeployment: deploymentsSchema.nullable(),
 });
 
 export const services = {
@@ -103,7 +103,7 @@ export const services = {
         registryId: z.string().optional(),
       }),
     )
-    .output(serviceSchema)
+    .output(servicesSchema)
     .handler(async ({ input }) => {
       if (input.deployType === "repo" && !input.repoUrl) {
         throw new ORPCError("BAD_REQUEST", {
@@ -278,7 +278,7 @@ export const services = {
         registryId: z.string().nullable().optional(),
       }),
     )
-    .output(serviceSchema)
+    .output(servicesSchema)
     .handler(async ({ input }) => {
       const service = await db
         .selectFrom("services")
@@ -410,7 +410,7 @@ export const services = {
   listDeployments: os
     .route({ method: "GET", path: "/services/{id}/deployments" })
     .input(idParamSchema)
-    .output(z.array(deploymentSchema))
+    .output(z.array(deploymentsSchema))
     .handler(async ({ input }) => {
       const deployments = await db
         .selectFrom("deployments")

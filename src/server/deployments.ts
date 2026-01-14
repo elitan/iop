@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { deploymentSchema } from "@/lib/db-schemas";
+import { deploymentsSchema } from "@/lib/db-schemas";
 import { rollbackDeployment } from "@/lib/deployer";
 import { imageExists } from "@/lib/docker";
 import { os } from "@/lib/orpc";
@@ -10,7 +10,7 @@ export const deployments = {
   get: os
     .route({ method: "GET", path: "/deployments/{id}" })
     .input(z.object({ id: z.string() }))
-    .output(deploymentSchema)
+    .output(deploymentsSchema)
     .handler(async ({ input }) => {
       const deployment = await db
         .selectFrom("deployments")
