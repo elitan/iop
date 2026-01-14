@@ -167,8 +167,8 @@ jobs:
       - name: Create release tarball
         run: |
           VERSION="${{ steps.new.outputs.version }}"
-          mkdir -p frost-release/.next
-          cp -r .next/standalone/* frost-release/
+          mkdir -p frost-release
+          cp -r .next/standalone/. frost-release/
           cp -r .next/static frost-release/.next/static
           cp -r schema scripts frost-release/
           mkdir -p frost-release/src
