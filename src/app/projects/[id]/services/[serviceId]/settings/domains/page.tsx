@@ -12,9 +12,14 @@ export default function ServiceDomainsPage() {
 
   const { data: service } = useService(serviceId);
   const [serverIp, setServerIp] = useState<string | null>(null);
+  const [wildcardConfigured, setWildcardConfigured] = useState(false);
 
   useEffect(() => {
     api.settings.get().then((s) => setServerIp(s.serverIp));
+    fetch("/api/settings/wildcard")
+      .then((res) => res.json())
+      .then((data) => setWildcardConfigured(data.configured))
+      .catch(() => {});
   }, []);
 
   if (!service) return null;
@@ -24,6 +29,7 @@ export default function ServiceDomainsPage() {
       serviceId={serviceId}
       hasRunningDeployment={!!service.currentDeploymentId}
       serverIp={serverIp}
+      wildcardConfigured={wildcardConfigured}
     />
   );
 }

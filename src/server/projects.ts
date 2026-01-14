@@ -10,7 +10,6 @@ import {
 } from "@/lib/db-schemas";
 import { deployProject } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
-import { updateSystemDomain } from "@/lib/domains";
 import { os } from "@/lib/orpc";
 
 const envVarSchema = z.object({
@@ -220,17 +219,6 @@ export const projects = {
           .set(updates)
           .where("id", "=", input.id)
           .execute();
-      }
-
-      if (input.name !== undefined && input.name !== project.name) {
-        const services = await db
-          .selectFrom("services")
-          .select(["id", "name"])
-          .where("projectId", "=", input.id)
-          .execute();
-        for (const svc of services) {
-          await updateSystemDomain(svc.id, svc.name, input.name);
-        }
       }
 
       const updated = await db

@@ -67,14 +67,62 @@ else
   echo "Docker already installed"
 fi
 
-# Install Caddy if not present
+# Install Go if not present (needed for xcaddy)
+if ! command -v go &> /dev/null; then
+  echo "Installing Go..."
+  GO_VERSION="1.22.5"
+  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf /tmp/go.tar.gz
+  rm /tmp/go.tar.gz
+  export PATH="/usr/local/go/bin:$PATH"
+else
+  echo "Go already installed"
+fi
+export PATH="/usr/local/go/bin:$PATH"
+
+# Install xcaddy and build Caddy with DNS modules
 if ! command -v caddy &> /dev/null; then
-  echo "Installing Caddy..."
-  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl > /dev/null
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' 2>/dev/null | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' 2>/dev/null | tee /etc/apt/sources.list.d/caddy-stable.list > /dev/null
-  apt-get update -qq
-  apt-get install -y -qq caddy > /dev/null
+  echo "Installing xcaddy..."
+  go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+  export PATH="$HOME/go/bin:$PATH"
+
+  echo "Building Caddy with DNS modules..."
+  cd /tmp
+  xcaddy build --with github.com/caddy-dns/cloudflare
+  mv caddy /usr/bin/caddy
+  chmod +x /usr/bin/caddy
+  cd -
+
+  echo "Configuring Caddy service..."
+  groupadd --system caddy 2>/dev/null || true
+  useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy 2>/dev/null || true
+
+  cat > /etc/systemd/system/caddy.service << 'CADDY_SERVICE'
+[Unit]
+Description=Caddy
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=notify
+User=caddy
+Group=caddy
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+LimitNPROC=512
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+CADDY_SERVICE
+
+  mkdir -p /etc/caddy
+  systemctl daemon-reload
   systemctl enable caddy
 else
   echo "Caddy already installed"

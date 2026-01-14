@@ -6,11 +6,7 @@ import { deploymentSchema, serviceSchema } from "@/lib/db-schemas";
 import { generateCredential, getTemplate } from "@/lib/db-templates";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
-import {
-  createSystemDomain,
-  syncCaddyConfig,
-  updateSystemDomain,
-} from "@/lib/domains";
+import { createWildcardDomain, syncCaddyConfig } from "@/lib/domains";
 import { os } from "@/lib/orpc";
 import { generateSelfSignedCert, removeSSLCerts } from "@/lib/ssl";
 import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
@@ -217,10 +213,6 @@ export const services = {
           .execute();
       }
 
-      if (input.deployType !== "database") {
-        await createSystemDomain(id, input.name, project.name);
-      }
-
       const service = await db
         .selectFrom("services")
         .selectAll()
@@ -231,6 +223,10 @@ export const services = {
         throw new ORPCError("INTERNAL_SERVER_ERROR", {
           message: "Failed to create service",
         });
+      }
+
+      if (input.deployType !== "database") {
+        await createWildcardDomain(id, input.name, project.name);
       }
 
       deployService(id).catch((err) => {
@@ -324,17 +320,6 @@ export const services = {
           .set(updates)
           .where("id", "=", input.id)
           .execute();
-      }
-
-      if (input.name !== undefined && input.name !== service.name) {
-        const project = await db
-          .selectFrom("projects")
-          .select("name")
-          .where("id", "=", service.projectId)
-          .executeTakeFirst();
-        if (project) {
-          await updateSystemDomain(input.id, input.name, project.name);
-        }
       }
 
       const updated = await db
