@@ -39,6 +39,11 @@ jobs:
 
       - name: Copy database to standalone
         run: |
+          # Debug: check original db
+          echo "=== Original DB settings ==="
+          sqlite3 data/frost.db "SELECT key FROM settings;"
+          echo "=== DB files ==="
+          ls -la data/
           # Checkpoint WAL to main db file before copying
           sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE);"
           cp data/frost.db .next/standalone/data/
