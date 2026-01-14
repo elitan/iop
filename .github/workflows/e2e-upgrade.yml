@@ -17,7 +17,7 @@ env:
 jobs:
   e2e-upgrade:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -43,32 +43,48 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
-          RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "name": "frost-upgrade-${{ github.run_id }}",
-              "server_type": "cax11",
-              "image": "${{ env.SNAPSHOT_ID }}",
-              "location": "hel1",
-              "ssh_keys": ["${{ env.SSH_KEY_NAME }}"],
-              "start_after_create": true,
-              "labels": {"purpose": "frost-e2e-upgrade"}
-            }' \
-            "https://api.hetzner.cloud/v1/servers")
+          DELAYS=(30 60 120 240 600 1200)
+          MAX_ATTEMPTS=${#DELAYS[@]}
 
-          SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
-          SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Attempt $attempt/$MAX_ATTEMPTS..."
+            RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "name": "frost-upgrade-${{ github.run_id }}",
+                "server_type": "cax11",
+                "image": "${{ env.SNAPSHOT_ID }}",
+                "location": "hel1",
+                "ssh_keys": ["${{ env.SSH_KEY_NAME }}"],
+                "start_after_create": true,
+                "labels": {"purpose": "frost-e2e-upgrade"}
+              }' \
+              "https://api.hetzner.cloud/v1/servers")
 
-          if [ "$SERVER_ID" = "null" ] || [ -z "$SERVER_ID" ]; then
-            echo "Failed to create server:"
+            SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
+            SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
+
+            if [ "$SERVER_ID" != "null" ] && [ -n "$SERVER_ID" ]; then
+              echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+              echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+              echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
+              exit 0
+            fi
+
+            ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error.code // empty')
+            echo "Failed to create server (error: $ERROR_CODE):"
             echo "$RESPONSE" | jq
-            exit 1
-          fi
 
-          echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
-          echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
-          echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              DELAY=${DELAYS[$((attempt - 1))]}
+              echo "Waiting ${DELAY}s before retry..."
+              sleep $DELAY
+            fi
+          done
+
+          echo "All $MAX_ATTEMPTS attempts failed"
+          exit 1
 
       - name: Wait for server ready
         if: steps.release.outputs.skip != 'true'
