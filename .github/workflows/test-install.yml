@@ -50,7 +50,10 @@ jobs:
 
       - name: Verify settings table
         run: |
-          sqlite3 .next/standalone/data/frost.db "SELECT key FROM settings;"
+          echo "=== Copied DB files ==="
+          ls -la .next/standalone/data/
+          echo "=== Querying copied DB ==="
+          sqlite3 .next/standalone/data/frost.db "SELECT * FROM settings;"
 
       - name: Start Frost (standalone)
         run: |
