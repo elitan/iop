@@ -51,7 +51,7 @@ export function ServiceNameCard({
   return (
     <SettingCard
       title="Service Name"
-      description="Used to identify this service and as the hostname for inter-service communication within the project network."
+      description="Display name for this service."
       footerRight={
         <Button
           size="sm"
@@ -66,11 +66,24 @@ export function ServiceNameCard({
         </Button>
       }
     >
-      <Input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="my-service"
-      />
+      <div className="space-y-4">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="my-service"
+        />
+        {service.hostname && (
+          <div>
+            <span className="text-sm text-neutral-500">Hostname</span>
+            <p className="mt-1 font-mono text-sm text-neutral-300">
+              {service.hostname}
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Used for inter-service communication within the project network
+            </p>
+          </div>
+        )}
+      </div>
     </SettingCard>
   );
 }

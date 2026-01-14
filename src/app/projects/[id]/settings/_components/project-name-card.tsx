@@ -47,7 +47,7 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
   return (
     <SettingCard
       title="Project Name"
-      description="Used to identify your project in the dashboard and in service hostnames on the internal network."
+      description="Display name for this project."
       footerRight={
         <Button
           size="sm"
@@ -62,11 +62,24 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
         </Button>
       }
     >
-      <Input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="my-project"
-      />
+      <div className="space-y-4">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="my-project"
+        />
+        {project.hostname && (
+          <div>
+            <span className="text-sm text-neutral-500">Hostname</span>
+            <p className="mt-1 font-mono text-sm text-neutral-300">
+              {project.hostname}
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Used in wildcard domains and service hostnames
+            </p>
+          </div>
+        )}
+      </div>
     </SettingCard>
   );
 }

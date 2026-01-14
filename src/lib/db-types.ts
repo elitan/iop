@@ -99,6 +99,7 @@ export interface Metric {
 export interface Project {
   id: string;
   name: string;
+  hostname: string | null;
   envVars: Generated<string>;
   createdAt: number;
 }
@@ -117,6 +118,7 @@ export interface Service {
   id: string;
   projectId: string;
   name: string;
+  hostname: string | null;
   deployType: Generated<string>;
   repoUrl: string | null;
   branch: Generated<string | null>;

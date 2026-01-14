@@ -122,25 +122,17 @@ export async function getSystemDomainForService(serviceId: string) {
   return domain ?? null;
 }
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-+/g, "-");
-}
-
 export async function createWildcardDomain(
   serviceId: string,
-  serviceName: string,
-  projectName: string,
+  serviceHostname: string,
+  projectHostname: string,
 ): Promise<void> {
   if (process.env.NODE_ENV === "development") return;
 
   const wildcardBase = await getSetting("wildcard_domain");
   if (!wildcardBase) return;
 
-  const slug = slugify(`${serviceName}-${projectName}`);
+  const slug = `${serviceHostname}-${projectHostname}`;
   let domain: string | null = null;
 
   for (let i = 0; i < 10; i++) {

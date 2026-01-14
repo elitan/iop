@@ -131,7 +131,7 @@ export const services = {
 
       const project = await db
         .selectFrom("projects")
-        .select(["id", "name"])
+        .select(["id", "name", "hostname"])
         .where("id", "=", input.projectId)
         .executeTakeFirst();
 
@@ -230,7 +230,11 @@ export const services = {
       }
 
       if (input.deployType !== "database") {
-        await createWildcardDomain(id, input.name, project.name);
+        await createWildcardDomain(
+          id,
+          hostname,
+          project.hostname ?? slugify(project.name),
+        );
       }
 
       deployService(id).catch((err) => {
