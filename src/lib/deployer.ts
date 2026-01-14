@@ -15,6 +15,7 @@ import {
   getAvailablePort,
   getRegistryUrl,
   imageExists,
+  isContainerNameConflictError,
   isPortConflictError,
   pullImage,
   type RunContainerOptions,
@@ -126,8 +127,16 @@ async function runContainerWithPortRetry(
       return { containerId: result.containerId, hostPort };
     }
 
-    if (!isPortConflictError(result.error || "")) {
-      throw new Error(result.error || "Failed to start container");
+    const error = result.error || "";
+    const isRetryable =
+      isPortConflictError(error) || isContainerNameConflictError(error);
+
+    if (!isRetryable) {
+      throw new Error(error || "Failed to start container");
+    }
+
+    if (isContainerNameConflictError(error)) {
+      await stopContainer(options.name);
     }
 
     if (onRetry) {

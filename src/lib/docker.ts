@@ -366,6 +366,10 @@ export function isPortConflictError(error: string): boolean {
   );
 }
 
+export function isContainerNameConflictError(error: string): boolean {
+  return error.includes("is already in use by container");
+}
+
 export async function getAvailablePort(
   start: number = 10000,
   end: number = 20000,
