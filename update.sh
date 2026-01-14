@@ -37,9 +37,15 @@ cleanup_on_failure() {
   error "Update failed!"
   echo "failed" > "$UPDATE_RESULT"
 
-  if [ -d "$BACKUP_DIR" ]; then
+  if [ -d "$BACKUP_DIR/.next" ]; then
+    # Git mode: only .next was backed up
+    log "Restoring previous build..."
+    rm -rf "$FROST_DIR/.next"
+    mv "$BACKUP_DIR/.next" "$FROST_DIR/.next"
+    rm -rf "$BACKUP_DIR"
+  elif [ -d "$BACKUP_DIR" ]; then
+    # Tarball mode: full backup
     log "Restoring previous version..."
-    # Preserve data and env during restore
     mv "$FROST_DIR/data" /tmp/frost-data-restore 2>/dev/null || true
     mv "$FROST_DIR/.env" /tmp/frost-env-restore 2>/dev/null || true
     rm -rf "$FROST_DIR"
