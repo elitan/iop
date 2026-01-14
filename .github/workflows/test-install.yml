@@ -38,7 +38,10 @@ jobs:
         run: bun run setup testpassword123
 
       - name: Copy database to standalone
-        run: cp data/frost.db .next/standalone/data/
+        run: |
+          # Checkpoint WAL to main db file before copying
+          sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE);"
+          cp data/frost.db .next/standalone/data/
 
       - name: Verify settings table
         run: |
