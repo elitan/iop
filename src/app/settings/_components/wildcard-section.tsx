@@ -1,7 +1,15 @@
 "use client";
 
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Loader2,
+  XCircle,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +31,8 @@ export function WildcardSection() {
   const [tokenValid, setTokenValid] = useState<boolean | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [serverIp, setServerIp] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings/wildcard")
@@ -33,6 +43,11 @@ export function WildcardSection() {
           setDomain(data.wildcardDomain);
         }
       })
+      .catch(() => {});
+
+    fetch("/api/settings/server-ip")
+      .then((res) => res.json())
+      .then((data: { ip: string }) => setServerIp(data.ip))
       .catch(() => {});
   }, []);
 
@@ -89,6 +104,13 @@ export function WildcardSection() {
       if (!res.ok) {
         setError(data.error || "Failed to save settings");
         return;
+      }
+
+      if (data.dnsWarning) {
+        toast.warning("DNS record not created", {
+          description: data.dnsWarning,
+          duration: 10000,
+        });
       }
 
       setSuccess(true);
@@ -184,15 +206,25 @@ export function WildcardSection() {
           </div>
         )}
 
-        <div className="rounded-md bg-neutral-800/50 p-3">
-          <p className="text-sm text-neutral-400">
-            <strong className="text-neutral-300">Setup required:</strong> Create
-            a wildcard A record pointing to your server IP:
-          </p>
-          <code className="mt-2 block text-sm text-neutral-300">
-            *.{domain || "apps.example.com"} → [your server IP]
-          </code>
-        </div>
+        {serverIp && (
+          <div className="flex items-center gap-2 rounded-md bg-neutral-800/50 p-3">
+            <span className="text-sm text-neutral-400">Your server IP:</span>
+            <code className="text-sm font-mono text-neutral-200">
+              {serverIp}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => {
+                navigator.clipboard.writeText(serverIp);
+                toast.success("Copied to clipboard");
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         <div className="grid gap-2">
           <Label htmlFor="wildcard-domain" className="text-sm text-neutral-400">
@@ -254,9 +286,47 @@ export function WildcardSection() {
                 )}
               </Button>
             </div>
-            <p className="text-xs text-neutral-500">
-              Token needs Zone:DNS:Edit permission for your domain
-            </p>
+            <button
+              type="button"
+              onClick={() => setShowInstructions(!showInstructions)}
+              className="mt-1 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+            >
+              {showInstructions ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+              How to create a Cloudflare token
+            </button>
+
+            {showInstructions && (
+              <div className="mt-2 rounded-md bg-neutral-800/50 p-3 text-xs text-neutral-400">
+                <ol className="list-inside list-decimal space-y-1">
+                  <li>
+                    Go to{" "}
+                    <a
+                      href="https://dash.cloudflare.com/profile/api-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline"
+                    >
+                      Cloudflare API Tokens
+                    </a>
+                  </li>
+                  <li>
+                    Click{" "}
+                    <strong className="text-neutral-300">Create Token</strong>
+                  </li>
+                  <li>
+                    Find{" "}
+                    <strong className="text-neutral-300">Edit zone DNS</strong>{" "}
+                    → Use template
+                  </li>
+                  <li>Zone Resources → select your domain</li>
+                  <li>Create Token → copy it</li>
+                </ol>
+              </div>
+            )}
           </div>
         )}
 

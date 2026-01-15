@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSetting, setSetting } from "@/lib/auth";
-import { syncCaddyConfig } from "@/lib/domains";
+import { createWildcardARecord } from "@/lib/cloudflare";
+import { getServerIp, syncCaddyConfig } from "@/lib/domains";
 
 export async function GET() {
   const [wildcardDomain, dnsProvider, dnsApiToken] = await Promise.all([
@@ -51,6 +52,15 @@ export async function POST(request: Request) {
 
   const domainWithoutWildcard = wildcardDomain.replace(/^\*\./, "");
 
+  let dnsWarning: string | undefined;
+  try {
+    const serverIp = await getServerIp();
+    await createWildcardARecord(dnsApiToken, domainWithoutWildcard, serverIp);
+  } catch (error) {
+    dnsWarning =
+      error instanceof Error ? error.message : "DNS record creation failed";
+  }
+
   try {
     await setSetting("wildcard_domain", domainWithoutWildcard);
     await setSetting("dns_provider", dnsProvider);
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
       await syncCaddyConfig();
     } catch {}
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, dnsWarning });
   } catch (error) {
     return NextResponse.json(
       {
