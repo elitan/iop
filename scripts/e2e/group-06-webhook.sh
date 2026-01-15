@@ -73,8 +73,16 @@ log "Webhook triggered deployment: $TRIGGERED"
 
 wait_for_deployment "$TRIGGERED" 90 || fail "Webhook deployment failed"
 
-HOST_PORT=$(api "$BASE_URL/api/deployments/$TRIGGERED" | jq -r '.hostPort')
+DEPLOY_INFO=$(api "$BASE_URL/api/deployments/$TRIGGERED")
+log "Deployment info: $DEPLOY_INFO"
+HOST_PORT=$(echo "$DEPLOY_INFO" | jq -r '.hostPort')
+log "Host port: $HOST_PORT"
+
+sleep 2
+
+log "Curling http://$SERVER_IP:$HOST_PORT ..."
 RESPONSE=$(curl -sf "http://$SERVER_IP:$HOST_PORT" 2>&1 || true)
+log "Response: $RESPONSE"
 echo "$RESPONSE" | grep -q "Hello from simple-node" || fail "Service response unexpected: $RESPONSE"
 log "Webhook-deployed service responds correctly"
 
