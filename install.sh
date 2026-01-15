@@ -71,11 +71,15 @@ FROST_JWT_SECRET=$(openssl rand -base64 32)
 echo ""
 timer "Installing dependencies..."
 
-# Install build tools
-timer "apt-get update..."
-apt-get update -qq
-timer "apt-get install build tools..."
-apt-get install -y -qq git unzip build-essential > /dev/null
+# Install build tools if not present
+if ! command -v git &> /dev/null || ! command -v unzip &> /dev/null; then
+  timer "apt-get update..."
+  apt-get update -qq
+  timer "apt-get install build tools..."
+  apt-get install -y -qq git unzip build-essential > /dev/null
+else
+  timer "Build tools already installed"
+fi
 
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
@@ -210,17 +214,17 @@ if [ "$USE_TARBALL" = true ]; then
   cd "$FROST_DIR"
 
   # Install production deps for scripts (migrate, setup, etc.)
-  timer "Installing dependencies (npm)..."
-  npm install --omit=dev --legacy-peer-deps --silent
+  timer "Installing dependencies (bun)..."
+  bun install --production
 else
   # Branch mode: clone and build from source (like main branch behavior)
   timer "Cloning Frost (branch: $FROST_BRANCH)..."
-  git clone -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
+  git clone --depth 1 -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
   git config --global --add safe.directory "$FROST_DIR"
   cd "$FROST_DIR"
 
-  timer "Installing dependencies (npm)..."
-  NODE_ENV=development npm install --legacy-peer-deps --silent
+  timer "Installing dependencies (bun)..."
+  bun install
 
   timer "Building (npm run build)..."
   NEXT_TELEMETRY_DISABLED=1 npm run build
