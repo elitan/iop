@@ -4,6 +4,18 @@ import { db } from "./db";
 
 const GITHUB_API = "https://api.github.com";
 
+function parseLinkHeader(header: string | null): { next?: string } {
+  if (!header) return {};
+  const links: { next?: string } = {};
+  for (const part of header.split(",")) {
+    const match = part.match(/<([^>]+)>;\s*rel="([^"]+)"/);
+    if (match && match[2] === "next") {
+      links.next = match[1];
+    }
+  }
+  return links;
+}
+
 export interface GitHubInstallation {
   id: string;
   installationId: string;
@@ -432,22 +444,28 @@ export async function listInstallationRepos(): Promise<{
   repos: GitHubRepo[];
 }> {
   const token = await generateInstallationToken();
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
 
-  const res = await fetch(`${GITHUB_API}/installation/repositories`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+  const allRawRepos: any[] = [];
+  let url: string | null =
+    `${GITHUB_API}/installation/repositories?per_page=100`;
 
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Failed to list repos: ${error}`);
+  while (url) {
+    const res: Response = await fetch(url, { headers });
+    if (!res.ok) {
+      const error = await res.text();
+      throw new Error(`Failed to list repos: ${error}`);
+    }
+    const data = await res.json();
+    allRawRepos.push(...data.repositories);
+    url = parseLinkHeader(res.headers.get("Link")).next ?? null;
   }
 
-  const data = await res.json();
-  const repos: GitHubRepo[] = data.repositories.map((repo: any) => ({
+  const repos: GitHubRepo[] = allRawRepos.map((repo: any) => ({
     id: repo.id,
     name: repo.name,
     full_name: repo.full_name,
@@ -461,18 +479,12 @@ export async function listInstallationRepos(): Promise<{
   }));
 
   const ownerMap = new Map<string, GitHubOwner>();
-  for (const repo of repos) {
+  for (const repo of allRawRepos) {
     if (!ownerMap.has(repo.owner.login)) {
-      const originalRepo = data.repositories.find(
-        (r: any) => r.owner.login === repo.owner.login,
-      );
       ownerMap.set(repo.owner.login, {
         login: repo.owner.login,
         avatar_url: repo.owner.avatar_url,
-        type:
-          originalRepo?.owner?.type === "Organization"
-            ? "Organization"
-            : "User",
+        type: repo.owner.type === "Organization" ? "Organization" : "User",
       });
     }
   }
