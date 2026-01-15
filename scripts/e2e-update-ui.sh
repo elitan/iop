@@ -44,7 +44,7 @@ remote "cd /opt/frost && \
 
 echo ""
 echo "=== Disabling git fetch in update.sh to preserve our fake origin/main ==="
-remote "sed -i 's|git fetch origin main|:|' /opt/frost/update.sh"
+remote "sed -i 's|git fetch origin main.*|:|' /opt/frost/update.sh"
 
 echo ""
 echo "=== Updating systemd service to use our update.sh ==="
