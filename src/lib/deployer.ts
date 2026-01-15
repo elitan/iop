@@ -652,10 +652,7 @@ async function runServiceDeployment(
     });
     if (!isHealthy) {
       const containerStatus = await getContainerStatus(containerId);
-      await appendLog(
-        deploymentId,
-        `Container status: ${containerStatus}\n`,
-      );
+      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
       try {
         const { stdout: logs } = await execAsync(
           `docker logs ${containerId} 2>&1 | tail -50`,
@@ -987,10 +984,7 @@ async function runRollbackDeployment(
 
     if (!isHealthy) {
       const containerStatus = await getContainerStatus(containerId);
-      await appendLog(
-        deploymentId,
-        `Container status: ${containerStatus}\n`,
-      );
+      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
       try {
         const { stdout: logs } = await execAsync(
           `docker logs ${containerId} 2>&1 | tail -50`,

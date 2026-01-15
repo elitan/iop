@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 env:
-  SSH_KEY_NAME: frost-snapshot-setup
+  SSH_KEY_NAME: frost-debug
 
 jobs:
   e2e-upgrade:
@@ -23,10 +23,10 @@ jobs:
         include:
           - arch: arm64
             server_type: cax21
-            snapshot_id: "349758922"
+            snapshot_id: "349804713"
           - arch: amd64
             server_type: cx23
-            snapshot_id: "349758923"
+            snapshot_id: "349800326"
 
     name: e2e-upgrade (${{ matrix.arch }})
 
