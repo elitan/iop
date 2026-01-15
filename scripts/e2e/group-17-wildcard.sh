@@ -27,7 +27,13 @@ log "Configuring wildcard domain..."
 WILDCARD_RESULT=$(api -X POST "$BASE_URL/api/settings/wildcard" \
   -d "{\"wildcardDomain\":\"$WILDCARD_DOMAIN\",\"dnsProvider\":\"cloudflare\",\"dnsApiToken\":\"$CLOUDFLARE_TOKEN\"}")
 WILDCARD_SUCCESS=$(echo "$WILDCARD_RESULT" | jq -r '.success // .error')
+DNS_WARNING=$(echo "$WILDCARD_RESULT" | jq -r '.dnsWarning // empty')
 log "Wildcard config result: $WILDCARD_SUCCESS"
+if [ -n "$DNS_WARNING" ]; then
+  log "DNS warning: $DNS_WARNING"
+else
+  log "DNS A record created successfully"
+fi
 
 log "Verifying wildcard is configured..."
 WILDCARD_STATUS=$(api "$BASE_URL/api/settings/wildcard")

@@ -20,7 +20,7 @@ interface DnsRecord {
   content: string;
 }
 
-function getRootDomain(domain: string): string {
+export function getRootDomain(domain: string): string {
   const rootDomain = psl.get(domain);
   if (!rootDomain) {
     throw new Error(`Invalid domain: ${domain}`);
