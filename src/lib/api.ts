@@ -228,6 +228,7 @@ export interface UpdateServiceInput {
   shutdownTimeout?: number | null;
   requestTimeout?: number | null;
   volumes?: VolumeConfig[];
+  registryId?: string | null;
 }
 
 export interface HostResources {
