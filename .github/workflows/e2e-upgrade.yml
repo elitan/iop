@@ -183,10 +183,16 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
-            git remote set-url origin https://github.com/${REPO}.git && \
+            git config --global --add safe.directory /opt/frost && \
+            if [ ! -d .git ]; then \
+              echo 'Initializing git repo (tarball installation detected)'; \
+              git init && \
+              git remote add origin https://github.com/${REPO}.git; \
+            else \
+              git remote set-url origin https://github.com/${REPO}.git; \
+            fi && \
             git fetch origin ${BRANCH} && \
-            git checkout ${BRANCH} && \
-            git reset --hard origin/${BRANCH} && \
+            git checkout -f -B ${BRANCH} origin/${BRANCH} && \
             rm -rf node_modules package-lock.json && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
@@ -246,6 +252,8 @@ jobs:
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
             npm run build 2>&1 && \
             bun run migrate 2>&1 && \
+            sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
+            systemctl daemon-reload && \
             systemctl start frost"
 
           echo "Waiting for Frost on port 3000..."
@@ -319,6 +327,8 @@ jobs:
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
             npm run build 2>&1 && \
             bun run migrate 2>&1 && \
+            sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
+            systemctl daemon-reload && \
             systemctl start frost"
 
           echo "Waiting for Frost on port 3000..."
