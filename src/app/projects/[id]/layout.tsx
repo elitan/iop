@@ -19,7 +19,9 @@ export default function ProjectLayout({
   const pathname = usePathname();
   const projectId = params.id as string;
 
-  const isServiceRoute = pathname.includes("/services/") && params.serviceId;
+  const isServiceRoute =
+    (pathname.includes("/services/") && params.serviceId) ||
+    pathname.endsWith("/services/new");
 
   const { data: project, isLoading } = useProject(projectId);
   const deployProjectMutation = useDeployProject(projectId);
