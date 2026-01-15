@@ -23,7 +23,7 @@ jobs:
             snapshot_id: "349804713"
           - arch: amd64
             server_type: cx23
-            snapshot_id: "349800326"
+            snapshot_id: "349804999"
 
     name: e2e-vps (${{ matrix.arch }})
 
