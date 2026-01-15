@@ -192,7 +192,7 @@ jobs:
               git remote set-url origin https://github.com/${REPO}.git; \
             fi && \
             git fetch origin ${BRANCH} && \
-            git checkout -B ${BRANCH} origin/${BRANCH} && \
+            git checkout -f -B ${BRANCH} origin/${BRANCH} && \
             rm -rf node_modules package-lock.json && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
