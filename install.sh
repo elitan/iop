@@ -14,12 +14,19 @@ FROST_REPO="https://github.com/elitan/frost"
 FROST_VERSION=""
 FROST_BRANCH=""
 USE_TARBALL=true
+CREATE_API_KEY=false
+
+for arg in "$@"; do
+  case $arg in
+    --create-api-key) CREATE_API_KEY=true; shift ;;
+  esac
+done
 
 while getopts "v:b:" opt; do
   case $opt in
     v) FROST_VERSION="$OPTARG" ;;
     b) FROST_BRANCH="$OPTARG"; USE_TARBALL=false ;;
-    *) echo "Usage: $0 [-v version] [-b branch]"; exit 1 ;;
+    *) echo "Usage: $0 [-v version] [-b branch] [--create-api-key]"; exit 1 ;;
   esac
 done
 
@@ -304,19 +311,19 @@ fi
 # Get server IP
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
 
-# Create initial API key
-echo "Creating initial API key..."
-FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
-
 echo ""
 echo -e "${GREEN}Installation complete!${NC}"
 echo ""
 echo -e "Frost is running at: ${GREEN}http://$SERVER_IP${NC}"
-echo ""
-echo -e "API Key: ${YELLOW}$FROST_API_KEY${NC}"
-echo "(use with X-Frost-Token header)"
-echo ""
-echo "You can manage API keys in Settings > API Keys"
+
+if [ "$CREATE_API_KEY" = true ]; then
+  echo ""
+  echo "Creating API key..."
+  FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
+  echo -e "API Key: ${YELLOW}$FROST_API_KEY${NC}"
+  echo "(use with X-Frost-Token header)"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  1. Point your domain to $SERVER_IP"
