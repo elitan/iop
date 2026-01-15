@@ -183,6 +183,7 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
+            git config --global --add safe.directory /opt/frost && \
             if [ ! -d .git ]; then \
               echo 'Initializing git repo (tarball installation detected)'; \
               git init && \
