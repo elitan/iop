@@ -9,6 +9,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+START_TIME=$(date +%s)
+timer() {
+  local now=$(date +%s)
+  local elapsed=$((now - START_TIME))
+  echo -e "${YELLOW}[${elapsed}s]${NC} $1"
+}
+
 FROST_DIR="/opt/frost"
 FROST_REPO="https://github.com/elitan/frost"
 FROST_VERSION=""
@@ -62,25 +69,31 @@ fi
 FROST_JWT_SECRET=$(openssl rand -base64 32)
 
 echo ""
-echo -e "${YELLOW}Installing dependencies...${NC}"
+timer "Installing dependencies..."
 
-# Install build tools
-apt-get update -qq
-apt-get install -y -qq git unzip build-essential > /dev/null
+# Install build tools if not present
+if ! command -v git &> /dev/null || ! command -v unzip &> /dev/null; then
+  timer "apt-get update..."
+  apt-get update -qq
+  timer "apt-get install build tools..."
+  apt-get install -y -qq git unzip build-essential > /dev/null
+else
+  timer "Build tools already installed"
+fi
 
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
-  echo "Installing Docker..."
+  timer "Installing Docker..."
   curl -fsSL https://get.docker.com | sh
   systemctl enable docker
   systemctl start docker
 else
-  echo "Docker already installed"
+  timer "Docker already installed"
 fi
 
 # Install Go if not present (needed for xcaddy)
 if ! command -v go &> /dev/null; then
-  echo "Installing Go..."
+  timer "Installing Go..."
   GO_VERSION="1.22.5"
   curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
   rm -rf /usr/local/go
@@ -88,24 +101,24 @@ if ! command -v go &> /dev/null; then
   rm /tmp/go.tar.gz
   export PATH="/usr/local/go/bin:$PATH"
 else
-  echo "Go already installed"
+  timer "Go already installed"
 fi
 export PATH="/usr/local/go/bin:$PATH"
 
 # Install xcaddy and build Caddy with DNS modules
 if ! command -v caddy &> /dev/null; then
-  echo "Installing xcaddy..."
+  timer "Installing xcaddy..."
   go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
   export PATH="$HOME/go/bin:$PATH"
 
-  echo "Building Caddy with DNS modules..."
+  timer "Building Caddy with DNS modules..."
   cd /tmp
   xcaddy build --with github.com/caddy-dns/cloudflare
   mv caddy /usr/bin/caddy
   chmod +x /usr/bin/caddy
   cd -
 
-  echo "Configuring Caddy service..."
+  timer "Configuring Caddy service..."
   groupadd --system caddy 2>/dev/null || true
   useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy 2>/dev/null || true
 
@@ -136,11 +149,11 @@ CADDY_SERVICE
   systemctl daemon-reload
   systemctl enable caddy
 else
-  echo "Caddy already installed"
+  timer "Caddy already installed"
 fi
 
 # Configure Caddy to proxy to Frost
-echo "Configuring Caddy..."
+timer "Configuring Caddy..."
 cat > /etc/caddy/Caddyfile << 'EOF'
 :80 {
   reverse_proxy localhost:3000
@@ -150,33 +163,33 @@ systemctl restart caddy
 
 # Install Node.js if not present
 if ! command -v node &> /dev/null; then
-  echo "Installing Node.js..."
+  timer "Installing Node.js..."
   curl -fsSL https://deb.nodesource.com/setup_22.x 2>/dev/null | bash - > /dev/null 2>&1
   apt-get install -y -qq nodejs > /dev/null
 else
-  echo "Node.js already installed"
+  timer "Node.js already installed"
 fi
 
 # Install Bun if not present (needed for setup script)
 if ! command -v bun &> /dev/null; then
-  echo "Installing Bun..."
+  timer "Installing Bun..."
   curl -fsSL https://bun.sh/install 2>/dev/null | bash > /dev/null 2>&1
   export BUN_INSTALL="$HOME/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
   ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
 else
-  echo "Bun already installed"
+  timer "Bun already installed"
 fi
 
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 echo ""
-echo -e "${YELLOW}Setting up Frost...${NC}"
+timer "Setting up Frost..."
 
 # Remove existing installation
 if [ -d "$FROST_DIR" ]; then
-  echo "Removing existing installation..."
+  timer "Removing existing installation..."
   rm -rf "$FROST_DIR"
 fi
 
@@ -185,7 +198,7 @@ if [ "$USE_TARBALL" = true ]; then
   if [ -n "$FROST_VERSION" ]; then
     TARBALL_URL="$FROST_REPO/releases/download/$FROST_VERSION/frost-${FROST_VERSION}.tar.gz"
   else
-    echo "Fetching latest release..."
+    timer "Fetching latest release..."
     FROST_VERSION=$(curl -sL "$FROST_REPO/releases/latest" -o /dev/null -w '%{url_effective}' | sed 's|.*/||')
     if [ -z "$FROST_VERSION" ] || [ "$FROST_VERSION" = "releases" ]; then
       echo -e "${RED}Failed to get latest release${NC}"
@@ -194,27 +207,26 @@ if [ "$USE_TARBALL" = true ]; then
     TARBALL_URL="$FROST_REPO/releases/download/$FROST_VERSION/frost-${FROST_VERSION}.tar.gz"
   fi
 
-  echo "Downloading Frost $FROST_VERSION..."
+  timer "Downloading Frost $FROST_VERSION..."
   mkdir -p "$FROST_DIR"
   curl -fsSL "$TARBALL_URL" | tar -xz -C "$FROST_DIR"
 
   cd "$FROST_DIR"
 
   # Install production deps for scripts (migrate, setup, etc.)
-  echo "Installing dependencies..."
-  npm install --omit=dev --legacy-peer-deps --silent
+  timer "Installing dependencies (bun)..."
+  bun install --production
 else
   # Branch mode: clone and build from source (like main branch behavior)
-  echo "Cloning Frost..."
-  echo "Using branch: $FROST_BRANCH"
-  git clone -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
+  timer "Cloning Frost (branch: $FROST_BRANCH)..."
+  git clone --depth 1 -b "$FROST_BRANCH" "${FROST_REPO}.git" "$FROST_DIR"
   git config --global --add safe.directory "$FROST_DIR"
   cd "$FROST_DIR"
 
-  echo "Installing dependencies..."
-  NODE_ENV=development npm install --legacy-peer-deps --silent
+  timer "Installing dependencies (bun)..."
+  bun install
 
-  echo "Building..."
+  timer "Building (npm run build)..."
   NEXT_TELEMETRY_DISABLED=1 npm run build
 fi
 
@@ -227,11 +239,11 @@ FROST_JWT_SECRET=$FROST_JWT_SECRET
 NODE_ENV=production
 EOF
 
-echo "Running migrations..."
+timer "Running migrations..."
 bun run migrate
 
 # Run setup to set admin password (uses bun:sqlite)
-echo "Setting admin password..."
+timer "Setting admin password..."
 bun run setup "$FROST_PASSWORD" || {
   echo -e "${RED}Failed to set admin password. Check bun installation.${NC}"
   exit 1
@@ -239,7 +251,7 @@ bun run setup "$FROST_PASSWORD" || {
 
 # Create systemd service
 echo ""
-echo -e "${YELLOW}Creating systemd service...${NC}"
+timer "Creating systemd service..."
 
 # Tarball mode uses standalone server.js, branch mode uses npm run start
 if [ "$USE_TARBALL" = true ]; then
@@ -298,12 +310,12 @@ systemctl start frost-cleanup.timer
 systemctl restart frost
 
 # Wait for Frost to start
-echo "Waiting for Frost to start..."
+timer "Waiting for Frost to start..."
 sleep 3
 
 # Health check
 if curl -s -o /dev/null -w "" http://localhost:3000 2>/dev/null; then
-  echo "Frost is running"
+  timer "Frost is running"
 else
   echo -e "${YELLOW}Warning: Could not reach Frost. Check: journalctl -u frost -f${NC}"
 fi
@@ -311,14 +323,15 @@ fi
 # Get server IP
 SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
 
+TOTAL_TIME=$(($(date +%s) - START_TIME))
 echo ""
-echo -e "${GREEN}Installation complete!${NC}"
+echo -e "${GREEN}Installation complete! (${TOTAL_TIME}s total)${NC}"
 echo ""
 echo -e "Frost is running at: ${GREEN}http://$SERVER_IP${NC}"
 
 if [ "$CREATE_API_KEY" = true ]; then
   echo ""
-  echo "Creating API key..."
+  timer "Creating API key..."
   FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
   echo -e "API Key: ${YELLOW}$FROST_API_KEY${NC}"
   echo "(use with X-Frost-Token header)"

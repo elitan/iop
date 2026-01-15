@@ -143,7 +143,7 @@ if [ -d "$FROST_DIR/.git" ]; then
   git reset --hard origin/main 2>/dev/null || git reset --hard @{u}
 
   log "Installing dependencies..."
-  NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1
+  bun install 2>&1
 
   log "Building..."
   NEXT_TELEMETRY_DISABLED=1 npm run build 2>&1
@@ -213,7 +213,7 @@ else
   rm /tmp/frost-update.tar.gz
 
   log "Installing dependencies..."
-  npm install --omit=dev --legacy-peer-deps --silent 2>&1
+  bun install --production 2>&1
 
   log "Running migrations..."
   bun run migrate 2>&1
