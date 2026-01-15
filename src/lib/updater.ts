@@ -226,7 +226,13 @@ export async function getUpdateStatus(): Promise<UpdateInfo> {
   const lastCheck = lastCheckStr ? Number.parseInt(lastCheckStr, 10) : null;
   const availableVersion = await getSetting("update_available");
 
-  if (!availableVersion) {
+  if (
+    !availableVersion ||
+    compareVersions(currentVersion, availableVersion) >= 0
+  ) {
+    if (availableVersion) {
+      await setSetting("update_available", "");
+    }
     return {
       currentVersion,
       availableVersion: null,
