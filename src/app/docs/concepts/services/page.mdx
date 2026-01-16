@@ -1,0 +1,70 @@
+# Services
+
+A **service** is a deployable workload within a project. Services can be deployed from:
+
+- **Git repositories** (builds with Dockerfile)
+- **Docker images** (pulls pre-built images)
+
+## Deploy Types
+
+### Repository (`repo`)
+
+Builds from a git repository:
+
+- `repo_url` - Git clone URL (HTTPS or SSH)
+- `branch` - Branch to deploy (default: `main`)
+- `dockerfile_path` - Path to Dockerfile (default: `Dockerfile`)
+
+```
+repo_url: https://github.com/user/app.git
+branch: main
+dockerfile_path: Dockerfile
+```
+
+### Image (`image`)
+
+Pulls a pre-built Docker image:
+
+- `image_url` - Full image reference
+
+```
+image_url: ghcr.io/user/app:latest
+```
+
+## PORT Handling
+
+Frost sets the `PORT` environment variable for your container (default: 8080). Your app should listen on this port.
+
+For images that ignore `PORT` and have a hardcoded port, set `container_port` on the service to match:
+
+```
+container_port: 3000  // For apps that always listen on 3000
+```
+
+## Inter-Service Communication
+
+Services in the same project can communicate using the service name as hostname:
+
+| Service Name | Hostname |
+|-------------|----------|
+| api         | `api`    |
+| worker      | `worker` |
+| redis       | `redis`  |
+
+Example: `http://api:8080/health`
+
+## Resource Limits
+
+Configure memory and CPU limits:
+
+- `memory_limit` - e.g., "512m", "1g"
+- `cpu_limit` - e.g., 0.5, 1, 2
+
+## Health Checks
+
+Services support TCP and HTTP health checks:
+
+- **TCP** (default): Checks if port is accepting connections
+- **HTTP**: Checks if endpoint returns 2xx status
+
+Configure health check path in service settings for HTTP checks.

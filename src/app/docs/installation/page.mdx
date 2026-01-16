@@ -1,0 +1,58 @@
+# Installation
+
+Frost runs on any Linux server with Docker installed.
+
+## Requirements
+
+- Linux server (Ubuntu 22.04+ recommended)
+- Docker Engine 24+
+- Port 80 and 443 available
+- A domain pointing to your server (for SSL)
+
+## Quick Install
+
+Run the install script on your server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | bash
+```
+
+You'll be prompted to set an admin password.
+
+## Manual Install
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/elitan/frost.git /opt/frost
+cd /opt/frost
+```
+
+2. Run setup:
+
+```bash
+bun install
+bun run setup
+```
+
+3. Start Frost:
+
+```bash
+bun run start
+```
+
+## Updating
+
+To update an existing installation:
+
+```bash
+/opt/frost/update.sh
+```
+
+## Configuration
+
+After installation, visit your server's IP or domain to complete setup:
+
+1. Set your domain (e.g., `frost.example.com`)
+2. Configure SSL with Let's Encrypt
+3. Create your first project
