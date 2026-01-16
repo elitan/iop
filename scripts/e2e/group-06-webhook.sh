@@ -5,6 +5,9 @@ source "$SCRIPT_DIR/common.sh"
 
 log "=== GitHub Webhook ==="
 
+TEST_BRANCH="${E2E_BRANCH:-main}"
+log "Using branch: $TEST_BRANCH"
+
 log "Checking webhook endpoint is public..."
 WEBHOOK_RESPONSE=$(curl -sS -X POST "$BASE_URL/api/github/webhook" 2>&1)
 echo "$WEBHOOK_RESPONSE" | grep -q '"error":"unauthorized"' && fail "Webhook blocked by auth"
@@ -50,7 +53,7 @@ PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"
 PROJECT2_ID=$(echo "$PROJECT2" | jq -r '.id')
 
 SERVICE2=$(api -X POST "$BASE_URL/api/projects/$PROJECT2_ID/services" \
-  -d '{"name":"webhook-deploy-test","repoUrl":"https://github.com/elitan/frost.git","dockerfilePath":"test/fixtures/simple-node/Dockerfile"}')
+  -d "{\"name\":\"webhook-deploy-test\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"test/fixtures/simple-node/Dockerfile\"}")
 SERVICE2_ID=$(echo "$SERVICE2" | jq -r '.id')
 log "Created service: $SERVICE2_ID"
 
@@ -60,7 +63,7 @@ log "Waiting for initial deployment: $DEPLOY_INITIAL"
 wait_for_deployment "$DEPLOY_INITIAL" 90 || fail "Initial deployment failed"
 
 COMMIT_SHA="e2etest$(date +%s)"
-WEBHOOK_PAYLOAD="{\"ref\":\"refs/heads/main\",\"after\":\"$COMMIT_SHA\",\"repository\":{\"default_branch\":\"main\",\"clone_url\":\"https://github.com/elitan/frost.git\",\"html_url\":\"https://github.com/elitan/frost\"},\"head_commit\":{\"message\":\"e2e test commit\"}}"
+WEBHOOK_PAYLOAD="{\"ref\":\"refs/heads/$TEST_BRANCH\",\"after\":\"$COMMIT_SHA\",\"repository\":{\"default_branch\":\"$TEST_BRANCH\",\"clone_url\":\"https://github.com/elitan/frost.git\",\"html_url\":\"https://github.com/elitan/frost\"},\"head_commit\":{\"message\":\"e2e test commit\"}}"
 WEBHOOK_SIGNATURE="sha256=$(echo -n "$WEBHOOK_PAYLOAD" | openssl dgst -sha256 -hmac "$TEST_WEBHOOK_SECRET" | awk '{print $2}')"
 
 log "Sending webhook..."
