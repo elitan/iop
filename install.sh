@@ -226,8 +226,11 @@ else
   timer "Installing dependencies (bun)..."
   bun install
 
-  timer "Building (npm run build)..."
-  NEXT_TELEMETRY_DISABLED=1 npm run build
+  timer "Clearing Next.js cache..."
+  rm -rf .next node_modules/.cache
+
+  timer "Building (bun run build)..."
+  NEXT_TELEMETRY_DISABLED=1 bun run build
 fi
 
 # Create data directory
@@ -253,11 +256,11 @@ bun run setup "$FROST_PASSWORD" || {
 echo ""
 timer "Creating systemd service..."
 
-# Tarball mode uses standalone server.js, branch mode uses npm run start
+# Tarball mode uses standalone server.js, branch mode uses bun run start
 if [ "$USE_TARBALL" = true ]; then
   EXEC_START="/usr/local/bin/bun $FROST_DIR/server.js"
 else
-  EXEC_START="/usr/bin/npm run start"
+  EXEC_START="/usr/local/bin/bun run start"
 fi
 
 cat > /etc/systemd/system/frost.service << EOF
