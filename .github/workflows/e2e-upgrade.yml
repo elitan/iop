@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 env:
-  SSH_KEY_NAME: frost-debug
+  SSH_KEY_NAME: frost-e2e-ci
 
 jobs:
   e2e-upgrade:

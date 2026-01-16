@@ -2,7 +2,7 @@
 set -e
 
 HETZNER_TOKEN="${HETZNER_API_KEY:?HETZNER_API_KEY required}"
-SSH_KEY_NAME="${SSH_KEY_NAME:-frost-debug}"
+SSH_KEY_NAME="${SSH_KEY_NAME:-frost-e2e-ci}"
 
 usage() {
   echo "Usage: $0 <arch>"
