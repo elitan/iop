@@ -488,6 +488,7 @@ async function runServiceDeployment(
         repoPath,
         imageName,
         dockerfilePath: service.dockerfilePath,
+        buildContext: service.buildContext ?? undefined,
         envVars,
         labels: baseLabels,
       });

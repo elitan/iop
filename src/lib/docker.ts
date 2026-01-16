@@ -1,6 +1,6 @@
 import { exec, spawn } from "node:child_process";
 import { createConnection } from "node:net";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
@@ -22,6 +22,7 @@ export interface BuildImageOptions {
   repoPath: string;
   imageName: string;
   dockerfilePath?: string;
+  buildContext?: string;
   envVars?: Record<string, string>;
   labels?: Record<string, string>;
 }
@@ -46,6 +47,7 @@ export async function buildImage(
     repoPath,
     imageName,
     dockerfilePath = "Dockerfile",
+    buildContext,
     envVars,
     labels,
   } = options;
@@ -56,8 +58,8 @@ export async function buildImage(
 
   return new Promise((resolve) => {
     let log = "";
-    const buildContext = join(repoPath, dirname(dockerfilePath));
-    const args = ["build", "-t", imageName, "-f", basename(dockerfilePath)];
+    const contextPath = buildContext ? join(repoPath, buildContext) : repoPath;
+    const args = ["build", "-t", imageName, "-f", dockerfilePath];
     if (envVars) {
       for (const [key, value] of Object.entries(envVars)) {
         args.push("--build-arg", `${key}=${value}`);
@@ -70,7 +72,7 @@ export async function buildImage(
     }
     args.push(".");
     const proc = spawn("docker", args, {
-      cwd: buildContext,
+      cwd: contextPath,
     });
 
     proc.stdout.on("data", (data) => {

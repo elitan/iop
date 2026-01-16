@@ -27,29 +27,38 @@ export function BuildConfigCard({
 
   const [branch, setBranch] = useState("");
   const [dockerfilePath, setDockerfilePath] = useState("");
-  const initialValues = useRef({ branch: "", dockerfilePath: "" });
+  const [buildContext, setBuildContext] = useState("");
+  const initialValues = useRef({
+    branch: "",
+    dockerfilePath: "",
+    buildContext: "",
+  });
 
   useEffect(() => {
     if (service) {
       const b = service.branch ?? "main";
       const d = service.dockerfilePath ?? "Dockerfile";
+      const c = service.buildContext ?? "";
       setBranch(b);
       setDockerfilePath(d);
-      initialValues.current = { branch: b, dockerfilePath: d };
+      setBuildContext(c);
+      initialValues.current = { branch: b, dockerfilePath: d, buildContext: c };
     }
   }, [service]);
 
   const hasChanges =
     branch !== initialValues.current.branch ||
-    dockerfilePath !== initialValues.current.dockerfilePath;
+    dockerfilePath !== initialValues.current.dockerfilePath ||
+    buildContext !== initialValues.current.buildContext;
 
   async function handleSave() {
     try {
       await updateMutation.mutateAsync({
         branch: branch.trim() || "main",
         dockerfilePath: dockerfilePath.trim() || "Dockerfile",
+        buildContext: buildContext.trim() || null,
       });
-      initialValues.current = { branch, dockerfilePath };
+      initialValues.current = { branch, dockerfilePath, buildContext };
       toast.success("Build configuration saved", {
         description: "Redeploy required for changes to take effect",
         duration: 10000,
@@ -103,6 +112,20 @@ export function BuildConfigCard({
             placeholder="Dockerfile"
             className="max-w-sm font-mono"
           />
+        </div>
+        <div>
+          <span className="mb-2 block text-sm text-neutral-400">
+            Build Context
+          </span>
+          <Input
+            value={buildContext}
+            onChange={(e) => setBuildContext(e.target.value)}
+            placeholder=". (repo root)"
+            className="max-w-sm font-mono"
+          />
+          <p className="mt-1 text-xs text-neutral-500">
+            Leave empty for repo root.
+          </p>
         </div>
       </div>
     </SettingCard>

@@ -122,6 +122,7 @@ export interface Services {
   repoUrl: string | null;
   branch: Generated<string | null>;
   dockerfilePath: Generated<string | null>;
+  buildContext: string | null;
   imageUrl: string | null;
   envVars: Generated<string>;
   createdAt: number;

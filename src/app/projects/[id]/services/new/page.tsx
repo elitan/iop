@@ -109,6 +109,8 @@ export default function NewServicePage() {
       data.branch = (formData.get("branch") as string) || "main";
       data.dockerfilePath =
         (formData.get("dockerfile_path") as string) || "Dockerfile";
+      data.buildContext =
+        (formData.get("build_context") as string) || undefined;
     } else if (deployType === "image") {
       data.imageUrl = formData.get("image_url") as string;
       if (selectedRegistryId && selectedRegistryId !== "auto") {
@@ -333,6 +335,27 @@ export default function NewServicePage() {
                             className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
                           />
                         </div>
+                      </div>
+                    )}
+
+                    {(selectedRepo || showManualInput) && (
+                      <div className="grid gap-3">
+                        <Label
+                          htmlFor="build_context"
+                          className="text-neutral-300"
+                        >
+                          Build Context
+                        </Label>
+                        <Input
+                          id="build_context"
+                          name="build_context"
+                          placeholder=". (repo root)"
+                          className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
+                        />
+                        <p className="text-xs text-neutral-500">
+                          Directory for Docker build context. Leave empty for
+                          repo root. Useful for monorepos.
+                        </p>
                       </div>
                     )}
                   </div>
