@@ -474,10 +474,7 @@ async function runServiceDeployment(
       }
 
       await updateDeployment(deploymentId, { status: "building" });
-      await appendLog(
-        deploymentId,
-        `\nBuilding image... (v2 with buildContext fix)\n`,
-      );
+      await appendLog(deploymentId, `\nBuilding image...\n`);
       await updateCommitStatusIfGitHub(
         service.repoUrl,
         currentCommitSha,
@@ -487,10 +484,6 @@ async function runServiceDeployment(
       );
 
       imageName = `${sanitizeDockerName(`frost-${project.id}-${service.name}`)}:${commitSha}`;
-      await appendLog(
-        deploymentId,
-        `DEBUG: repoPath=${repoPath}, dockerfilePath=${service.dockerfilePath}, buildContext=${service.buildContext}\n`,
-      );
       const buildResult = await buildImage({
         repoPath,
         imageName,
