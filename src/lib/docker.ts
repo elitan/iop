@@ -57,8 +57,8 @@ export async function buildImage(
   }
 
   return new Promise((resolve) => {
-    let log = "";
     const contextPath = buildContext ? join(repoPath, buildContext) : repoPath;
+    let log = `Build context: ${contextPath}\nDockerfile: ${dockerfilePath}\n\n`;
     const args = ["build", "-t", imageName, "-f", dockerfilePath];
     if (envVars) {
       for (const [key, value] of Object.entries(envVars)) {
