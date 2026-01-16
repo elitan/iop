@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { join } from "node:path";
 import {
   buildImage,
   runContainer,
@@ -17,13 +16,18 @@ import {
 const TEST_IMAGE = "frost-test-health-check:latest";
 const TEST_CONTAINER = "frost-test-health-check";
 const TEST_PORT = 19999;
-const FIXTURE_PATH = join(process.cwd(), "test/fixtures/health-check-app");
+const REPO_ROOT = process.cwd();
+const DOCKERFILE_PATH = "test/fixtures/health-check-app/Dockerfile";
 
 describe("health check integration", () => {
   beforeAll(async () => {
     await stopContainer(TEST_CONTAINER);
 
-    const result = await buildImage(FIXTURE_PATH, TEST_IMAGE, "Dockerfile");
+    const result = await buildImage({
+      repoPath: REPO_ROOT,
+      imageName: TEST_IMAGE,
+      dockerfilePath: DOCKERFILE_PATH,
+    });
     if (!result.success) {
       throw new Error(
         `Failed to build test image: ${result.error}\n${result.log}`,
