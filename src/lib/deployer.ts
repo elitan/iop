@@ -484,6 +484,10 @@ async function runServiceDeployment(
       );
 
       imageName = `${sanitizeDockerName(`frost-${project.id}-${service.name}`)}:${commitSha}`;
+      await appendLog(
+        deploymentId,
+        `DEBUG: repoPath=${repoPath}, dockerfilePath=${service.dockerfilePath}, buildContext=${service.buildContext}\n`,
+      );
       const buildResult = await buildImage({
         repoPath,
         imageName,
