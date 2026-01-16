@@ -235,7 +235,7 @@ describe("migrate integration", () => {
       dbPath: TEST_DB,
       schemaDir: PROD_SCHEMA_DIR,
     });
-    expect(first.applied).toBe(22);
+    expect(first.applied).toBe(23);
 
     const second = runMigrations({
       dbPath: TEST_DB,
