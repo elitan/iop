@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server";
-import { clearUpdateResult, getUpdateResult } from "@/lib/updater";
+import {
+  clearPersistedUpdateResult,
+  getPersistedUpdateResult,
+} from "@/lib/updater";
 
 export async function GET() {
-  const result = getUpdateResult();
+  const result = await getPersistedUpdateResult();
 
-  if (result.completed) {
-    clearUpdateResult();
+  if (!result) {
+    return NextResponse.json({
+      completed: false,
+      success: false,
+      newVersion: null,
+      log: null,
+    });
   }
 
   return NextResponse.json(result);
+}
+
+export async function DELETE() {
+  await clearPersistedUpdateResult();
+  return NextResponse.json({ success: true });
 }

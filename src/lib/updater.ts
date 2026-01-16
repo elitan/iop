@@ -321,3 +321,42 @@ export function clearUpdateResult(): void {
     unlinkSync(UPDATE_LOG_PATH);
   }
 }
+
+export async function persistUpdateResult(): Promise<void> {
+  const result = getUpdateResult();
+  if (!result.completed) {
+    return;
+  }
+
+  await setSetting("update_result_success", result.success ? "true" : "false");
+  await setSetting("update_result_version", result.newVersion || "");
+  await setSetting("update_result_log", result.log || "");
+  await setSetting("update_result_at", Date.now().toString());
+
+  clearUpdateResult();
+}
+
+export async function getPersistedUpdateResult(): Promise<UpdateResult | null> {
+  const resultAt = await getSetting("update_result_at");
+  if (!resultAt) {
+    return null;
+  }
+
+  const success = (await getSetting("update_result_success")) === "true";
+  const newVersion = await getSetting("update_result_version");
+  const log = await getSetting("update_result_log");
+
+  return {
+    completed: true,
+    success,
+    newVersion: newVersion || null,
+    log: log || null,
+  };
+}
+
+export async function clearPersistedUpdateResult(): Promise<void> {
+  await setSetting("update_result_success", "");
+  await setSetting("update_result_version", "");
+  await setSetting("update_result_log", "");
+  await setSetting("update_result_at", "");
+}

@@ -43,10 +43,28 @@ export function SystemSection() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetch("/api/updates")
-      .then((res) => res.json())
-      .then(setStatus)
-      .catch(() => setError("Failed to load update status"));
+    async function loadInitialState() {
+      try {
+        const [statusRes, resultRes] = await Promise.all([
+          fetch("/api/updates"),
+          fetch("/api/updates/result"),
+        ]);
+        const statusData = await statusRes.json();
+        const resultData: UpdateResult = await resultRes.json();
+        setStatus(statusData);
+
+        if (resultData.completed) {
+          setUpdateResult(resultData);
+          setUpdateState(resultData.success ? "success" : "failed");
+          if (!resultData.success) {
+            setShowLog(true);
+          }
+        }
+      } catch {
+        setError("Failed to load update status");
+      }
+    }
+    loadInitialState();
   }, []);
 
   useEffect(() => {
@@ -134,7 +152,8 @@ export function SystemSection() {
     }
   }
 
-  function handleDismiss() {
+  async function handleDismiss() {
+    await fetch("/api/updates/result", { method: "DELETE" });
     setUpdateState("idle");
     setUpdateResult(null);
     setShowLog(false);
