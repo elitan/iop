@@ -11,13 +11,24 @@ permissions:
   contents: write
 
 env:
-  SNAPSHOT_ID: 348130680
   SSH_KEY_NAME: frost-e2e-ci
 
 jobs:
   e2e-upgrade:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            server_type: cax21
+            snapshot_id: "349804713"
+          - arch: amd64
+            server_type: cx23
+            snapshot_id: "349804999"
+
+    name: e2e-upgrade (${{ matrix.arch }})
 
     steps:
       - name: Checkout
@@ -52,9 +63,9 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
               -H "Content-Type: application/json" \
               -d '{
-                "name": "frost-upgrade-${{ github.run_id }}",
-                "server_type": "cax21",
-                "image": "${{ env.SNAPSHOT_ID }}",
+                "name": "frost-upgrade-${{ github.run_id }}-${{ matrix.arch }}",
+                "server_type": "${{ matrix.server_type }}",
+                "image": "${{ matrix.snapshot_id }}",
                 "location": "hel1",
                 "ssh_keys": ["${{ env.SSH_KEY_NAME }}"],
                 "start_after_create": true,
@@ -283,7 +294,7 @@ jobs:
         if: steps.release.outputs.skip != 'true'
         id: broken
         run: |
-          BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}"
+          BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}-${{ matrix.arch }}"
           echo "Creating broken branch: $BROKEN_BRANCH"
 
           git config user.email "ci@frost.dev"

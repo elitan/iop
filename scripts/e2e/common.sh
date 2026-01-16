@@ -31,7 +31,7 @@ remote() {
 }
 
 sanitize_name() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g'
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed -E 's/-+/-/g' | sed 's/^-//' | sed 's/-$//'
 }
 
 get_container_name() {

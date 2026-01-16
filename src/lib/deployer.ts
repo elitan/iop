@@ -13,6 +13,7 @@ import {
   dockerLogin,
   type FileMount,
   getAvailablePort,
+  getContainerStatus,
   getRegistryUrl,
   imageExists,
   isContainerNameConflictError,
@@ -650,6 +651,16 @@ async function runServiceDeployment(
       timeoutSeconds: service.healthCheckTimeout ?? 60,
     });
     if (!isHealthy) {
+      const containerStatus = await getContainerStatus(containerId);
+      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
+      try {
+        const { stdout: logs } = await execAsync(
+          `docker logs ${containerId} 2>&1 | tail -50`,
+        );
+        await appendLog(deploymentId, `Container logs:\n${logs}\n`);
+      } catch {
+        await appendLog(deploymentId, `Could not get container logs\n`);
+      }
       throw new Error("Container failed health check");
     }
 
@@ -972,6 +983,16 @@ async function runRollbackDeployment(
     });
 
     if (!isHealthy) {
+      const containerStatus = await getContainerStatus(containerId);
+      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
+      try {
+        const { stdout: logs } = await execAsync(
+          `docker logs ${containerId} 2>&1 | tail -50`,
+        );
+        await appendLog(deploymentId, `Container logs:\n${logs}\n`);
+      } catch {
+        await appendLog(deploymentId, `Could not get container logs\n`);
+      }
       throw new Error("Container failed health check");
     }
 
