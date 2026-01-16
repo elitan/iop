@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { FrostLogo } from "./frost-logo";
-import { SettingsLink } from "./settings-link";
+import { HeaderNav } from "./header-nav";
 
 interface BreadcrumbItem {
   label: string;
@@ -41,9 +41,9 @@ export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
             )}
           </div>
         ))}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-4">
           {actions}
-          <SettingsLink />
+          <HeaderNav />
         </div>
       </div>
     </header>

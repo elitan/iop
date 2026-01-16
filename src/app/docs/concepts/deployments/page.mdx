@@ -1,0 +1,48 @@
+# Deployments
+
+A **deployment** is an immutable record of a service deployment attempt. Each time you deploy a service, Frost creates a new deployment record.
+
+## Deployment Status
+
+Deployments progress through these states:
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Deployment queued |
+| `cloning` | Cloning git repository (repo type) |
+| `pulling` | Pulling Docker image (image type) |
+| `building` | Building Docker image |
+| `deploying` | Starting container |
+| `running` | Container healthy and serving traffic |
+| `failed` | Deployment failed at any stage |
+
+## Deploy Flow
+
+1. **Clone/Pull** - Clone repo or pull image
+2. **Build** - Run `docker build` with merged env vars
+3. **Network** - Create project network if needed
+4. **Run** - Start container on network
+5. **Health check** - Verify container is healthy
+6. **Cutover** - Stop previous deployment, route traffic to new one
+
+## Viewing Deployments
+
+Each service shows its deployment history. Click a deployment to view:
+
+- **Status** - Current state
+- **Build log** - Output from docker build
+- **Container ID** - Running container identifier
+- **Host port** - Port mapped on host machine
+- **Timestamps** - Created and updated times
+
+## Rollback
+
+To rollback, redeploy a previous commit or image tag. Frost doesn't keep old containers running, so rollback triggers a fresh deployment.
+
+## Build Logs
+
+Build logs capture the full `docker build` output. Useful for debugging failed builds:
+
+- Dockerfile syntax errors
+- Missing dependencies
+- Build-time environment issues

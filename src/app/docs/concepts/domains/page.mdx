@@ -1,0 +1,65 @@
+# Domains
+
+**Domains** connect custom hostnames to your services. Each service can have multiple domains attached.
+
+## Domain Types
+
+### Proxy
+
+Routes traffic to a service. The most common type.
+
+```
+example.com → your-service (port 8080)
+```
+
+### Redirect
+
+Performs HTTP redirect to another URL. Useful for:
+
+- Redirecting `www` to apex domain
+- Redirecting old domains to new ones
+
+```
+www.example.com → 301 → example.com
+```
+
+Redirect codes:
+- **301** - Permanent redirect (default)
+- **307** - Temporary redirect
+
+## SSL Certificates
+
+Frost automatically provisions SSL certificates via Let's Encrypt.
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Certificate not yet issued |
+| `active` | Valid certificate installed |
+| `failed` | Certificate issuance failed |
+
+## DNS Setup
+
+Point your domain to your Frost server:
+
+1. **A record** - Point to server IP for apex domains (`example.com`)
+2. **CNAME** - Point to server hostname for subdomains (`app.example.com`)
+
+Frost verifies DNS before issuing certificates.
+
+## Wildcard Domains
+
+For services that need to handle any subdomain, use a wildcard domain:
+
+```
+*.example.com → your-service
+```
+
+Requires DNS wildcard record pointing to your server.
+
+## Multiple Domains
+
+A service can have many domains. Common patterns:
+
+- `example.com` + `www.example.com`
+- Production + staging domains
+- Multiple brands pointing to same app

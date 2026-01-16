@@ -1,0 +1,98 @@
+# Component Demo
+
+A showcase of all documentation components.
+
+## Typography
+
+Regular paragraph text looks like this. It uses neutral-300 color for readability on dark backgrounds.
+
+**Bold text** is used for emphasis. *Italic text* for subtle emphasis.
+
+## Links
+
+Internal link: [Installation](/docs/installation)
+
+External link: [GitHub](https://github.com/elitan/frost)
+
+Another external: [Next.js Documentation](https://nextjs.org/docs)
+
+Frost is built with [Next.js](https://nextjs.org) and uses [Docker](https://docker.com) for containerization. Check out the [GitHub repository](https://github.com/elitan/frost) for more details.
+
+## Code
+
+Inline code looks like `const foo = "bar"` within text.
+
+### Terminal Commands
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | bash
+```
+
+```sh
+git clone https://github.com/elitan/frost.git /opt/frost
+cd /opt/frost
+./setup.sh
+```
+
+### Code Blocks
+
+```typescript
+interface Service {
+  id: string;
+  name: string;
+  deployType: "repo" | "image";
+  repoUrl?: string;
+  imageUrl?: string;
+}
+
+function deployService(service: Service): Promise<Deployment> {
+  console.log(`Deploying ${service.name}...`);
+  return startDeployment(service);
+}
+```
+
+```json
+{
+  "name": "my-service",
+  "port": 8080,
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+```
+
+## Lists
+
+Unordered list:
+
+- First item
+- Second item
+- Third item with longer text that might wrap to multiple lines
+
+Ordered list:
+
+1. Clone the repository
+2. Run the setup script
+3. Configure your domain
+4. Deploy!
+
+## Tables
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Deployment queued |
+| `building` | Docker build in progress |
+| `running` | Container is healthy |
+| `failed` | Deployment failed |
+
+## Blockquotes
+
+> Frost is designed to be simple. If you find yourself fighting the tool, something is wrong.
+
+## Headings
+
+### H3 Heading
+
+#### H4 Heading
+
+##### H5 Heading

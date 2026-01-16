@@ -1,34 +1,6 @@
-import Link from "next/link";
-
-const navigation = [
-  {
-    title: "Getting Started",
-    items: [
-      { title: "Introduction", href: "/docs" },
-      { title: "Installation", href: "/docs/installation" },
-    ],
-  },
-  {
-    title: "Concepts",
-    items: [
-      { title: "Projects", href: "/docs/concepts/projects" },
-      { title: "Services", href: "/docs/concepts/services" },
-      { title: "Deployments", href: "/docs/concepts/deployments" },
-      { title: "Domains", href: "/docs/concepts/domains" },
-    ],
-  },
-  {
-    title: "Guides",
-    items: [
-      { title: "Environment Variables", href: "/docs/guides/env-vars" },
-      { title: "Custom Domains", href: "/docs/guides/custom-domains" },
-    ],
-  },
-  {
-    title: "API",
-    items: [{ title: "API Reference", href: "/api/docs" }],
-  },
-];
+import { BreadcrumbHeader } from "@/components/breadcrumb-header";
+import { DocsNav } from "./_components/docs-nav";
+import { DocsToc } from "./_components/docs-toc";
 
 export default function DocsLayout({
   children,
@@ -36,38 +8,29 @@ export default function DocsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-64 border-r border-border p-6 sticky top-0 h-screen overflow-y-auto">
-        <Link href="/" className="text-lg font-semibold mb-8 block">
-          Frost
-        </Link>
-        <nav className="space-y-6">
-          {navigation.map((section) => (
-            <div key={section.title}>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                {section.title}
-              </h3>
-              <ul className="space-y-1">
-                {section.items.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="block text-sm py-1 text-foreground/80 hover:text-foreground transition-colors"
-                    >
-                      {item.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+    <>
+      <BreadcrumbHeader items={[{ label: "Docs" }]} />
+      <div className="container mx-auto px-4">
+        <div className="flex gap-8 py-8">
+          <aside className="w-56 shrink-0">
+            <div className="sticky top-8">
+              <DocsNav />
             </div>
-          ))}
-        </nav>
-      </aside>
-      <main className="flex-1 p-8 max-w-3xl">
-        <article className="prose prose-invert prose-headings:text-foreground prose-p:text-foreground/80 prose-a:text-accent prose-strong:text-foreground prose-code:text-foreground prose-code:bg-secondary prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-secondary prose-pre:border prose-pre:border-border max-w-none">
-          {children}
-        </article>
-      </main>
-    </div>
+          </aside>
+
+          <main className="min-w-0 flex-1 max-w-2xl">
+            <article className="prose prose-invert prose-headings:text-neutral-100 prose-headings:font-semibold prose-p:text-neutral-300 prose-strong:text-neutral-100 prose-th:text-neutral-100 prose-td:text-neutral-300 prose-pre:m-0 prose-pre:p-0 prose-pre:bg-transparent prose-pre:border-0 max-w-none">
+              {children}
+            </article>
+          </main>
+
+          <aside className="w-56 shrink-0 hidden lg:block">
+            <div className="sticky top-8">
+              <DocsToc />
+            </div>
+          </aside>
+        </div>
+      </div>
+    </>
   );
 }
