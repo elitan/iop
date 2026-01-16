@@ -78,7 +78,13 @@ export default function ServiceVariablesPage() {
       <CardContent>
         <p className="mb-4 text-xs text-neutral-500">
           These are specific to this service (in addition to project-level
-          vars).
+          vars).{" "}
+          <a
+            href="/docs/guides/env-vars"
+            className="text-blue-400 hover:underline"
+          >
+            Learn more
+          </a>
         </p>
         {editing ? (
           <div className="space-y-4">

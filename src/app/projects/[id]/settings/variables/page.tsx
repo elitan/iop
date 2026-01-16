@@ -76,7 +76,13 @@ export default function ProjectVariablesPage() {
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-xs text-neutral-500">
-          These variables are inherited by all services in this project.
+          These variables are inherited by all services in this project.{" "}
+          <a
+            href="/docs/guides/env-vars"
+            className="text-blue-400 hover:underline"
+          >
+            Learn more
+          </a>
         </p>
         {editing ? (
           <div className="space-y-4">

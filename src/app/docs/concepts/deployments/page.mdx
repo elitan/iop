@@ -15,6 +15,7 @@ Deployments progress through these states:
 | `deploying` | Starting container |
 | `running` | Container healthy and serving traffic |
 | `failed` | Deployment failed at any stage |
+| `cancelled` | Deployment was cancelled |
 
 ## Deploy Flow
 
@@ -37,7 +38,13 @@ Each service shows its deployment history. Click a deployment to view:
 
 ## Rollback
 
-To rollback, redeploy a previous commit or image tag. Frost doesn't keep old containers running, so rollback triggers a fresh deployment.
+Frost keeps images from recent successful deployments. To rollback:
+
+1. Go to service deployment history
+2. Find a successful deployment
+3. Click **Rollback** to restore that version
+
+Rollbacks reuse the saved image and environment variables from the target deployment.
 
 ## Build Logs
 

@@ -1,0 +1,51 @@
+# Environment Variables
+
+Configure your services with environment variables at two levels.
+
+## Hierarchy
+
+**Project-level** - Shared across all services in the project. Good for database URLs, shared API keys.
+
+**Service-level** - Specific to one service. Overrides project variables with the same name.
+
+```
+Service variable → Project variable → Default
+```
+
+## Built-in Variables
+
+Frost automatically sets:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Port your app should listen on | `8080` |
+| `FROST` | Set to `1` when running in Frost | `1` |
+| `FROST_SERVICE_NAME` | Name of your service | - |
+
+Your app should listen on `PORT`. Frost routes traffic there.
+
+## Setting Variables
+
+1. Go to **Project → Settings** (project-level) or **Service → Settings** (service-level)
+2. Add key-value pairs
+3. **Redeploy** for changes to take effect
+
+## Common Patterns
+
+```bash
+# Database (using service name as host)
+DATABASE_URL=postgresql://user:pass@postgres:5432/myapp
+
+# External APIs
+STRIPE_SECRET_KEY=sk_live_...
+
+# Feature flags
+DEBUG_MODE=true
+```
+
+## Tips
+
+- Use project-level for shared config (database, logging)
+- Use service-level for service-specific secrets
+- Service vars override project vars with same name
+- Changes require redeploy to take effect

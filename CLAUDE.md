@@ -104,6 +104,7 @@ Types in `src/lib/db-types.ts` are auto-generated. Never modify manually.
 6. Stop previous deployment
 
 ## Conventions
+- When planning features, consider if docs need updating
 - Never use non-null assertions (`!`). Handle undefined properly or throw explicit errors.
 - Breaking backward compatibility is OK - early development phase
 - Use bun, not node/npm/pnpm

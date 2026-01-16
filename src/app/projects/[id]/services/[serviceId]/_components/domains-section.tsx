@@ -213,7 +213,13 @@ export function DomainsSection({
           <div className="mb-4 rounded-md border border-neutral-800 p-4">
             <h3 className="text-lg font-medium text-white">Add Domain</h3>
             <p className="mt-1 text-sm text-neutral-400">
-              Add a domain to connect it to this service.
+              Add a domain to connect it to this service.{" "}
+              <a
+                href="/docs/guides/custom-domains"
+                className="text-blue-400 hover:underline"
+              >
+                Learn more
+              </a>
             </p>
 
             <div className="mt-4 relative">

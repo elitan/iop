@@ -160,7 +160,13 @@ export default function NewServicePage() {
                     />
                     <p className="text-xs text-neutral-500">
                       Other services can reach this service using this name as
-                      hostname.
+                      hostname.{" "}
+                      <a
+                        href="/docs/concepts/services"
+                        className="text-blue-400 hover:underline"
+                      >
+                        Learn more
+                      </a>
                     </p>
                   </div>
 

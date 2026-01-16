@@ -40,8 +40,8 @@ const navigation: NavSection[] = [
     ],
   },
   {
-    title: "Reference",
-    items: [{ title: "Component Demo", href: "/docs/demo" }],
+    title: "Help",
+    items: [{ title: "Troubleshooting", href: "/docs/troubleshooting" }],
   },
 ];
 

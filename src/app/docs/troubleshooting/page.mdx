@@ -1,0 +1,82 @@
+# Troubleshooting
+
+Common issues and fixes.
+
+## Build Failed
+
+**Check build logs** in deployment details. Common causes:
+- Missing or invalid Dockerfile
+- Syntax errors in Dockerfile
+- Missing dependencies
+
+**Test locally:** `docker build -t test .`
+
+## Container Exits Immediately
+
+App crashes on startup. Check container logs in deployment details.
+
+Common causes:
+- App not listening on `PORT` env var (default 8080)
+- Missing environment variables
+- Crash on startup
+
+**Test locally:** `docker run -e PORT=8080 -p 8080:8080 your-image`
+
+## Health Check Failing
+
+Container starts but fails health check.
+
+- **HTTP check:** Is your endpoint returning 2xx?
+- **TCP check:** Is your app accepting connections?
+
+Verify health check path in service settings.
+
+## Domain Issues
+
+**Stuck on pending:**
+- DNS not propagated (wait 5-10 min)
+- Check with [dnschecker.org](https://dnschecker.org)
+
+**SSL failed:**
+- Port 80 must be open
+- Let's Encrypt rate limits (5/domain/week)
+
+## Services Can't Communicate
+
+Services in same project use service name as hostname:
+```
+http://service-name:8080
+```
+
+Verify both services are deployed and in the same project.
+
+## Slow Deployments
+
+- Add `.dockerignore` to exclude unnecessary files
+- Order Dockerfile for better layer caching
+- Use multi-stage builds
+
+## Out of Memory
+
+Container keeps restarting. Check logs for OOM errors.
+
+**Fix:** Increase `memory_limit` in service settings.
+
+## Can't Access Dashboard
+
+```bash
+# Check Frost status
+systemctl status frost
+
+# View logs
+journalctl -u frost -f
+
+# Restart
+systemctl restart frost
+```
+
+## Still Stuck?
+
+1. Check deployment logs for specific errors
+2. Test your Docker setup locally
+3. [Open an issue](https://github.com/elitan/frost/issues)

@@ -1,0 +1,65 @@
+# Custom Domains
+
+Connect your domain to a Frost service.
+
+## Quick Setup
+
+1. Add DNS record pointing to your Frost server IP
+2. Add domain in Service → Domains
+3. SSL certificate issues automatically
+
+## DNS Records
+
+**A Record** (for `example.com`):
+```
+Type: A
+Host: @
+Value: YOUR_SERVER_IP
+```
+
+**CNAME** (for `app.example.com`):
+```
+Type: CNAME
+Host: app
+Value: your-frost-server.com
+```
+
+## Domain Types
+
+**Proxy** - Routes traffic to your service. Most common.
+
+**Redirect** - Redirects to another URL. Use 301 (permanent) or 307 (temporary).
+
+Common pattern: `www.example.com` redirects to `example.com`
+
+## SSL Certificates
+
+Frost uses Let's Encrypt for automatic SSL. After adding a domain:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Waiting for DNS verification |
+| `active` | Certificate working |
+| `failed` | Check DNS, retry |
+
+## Common Issues
+
+**Domain stuck on pending:**
+- DNS not propagated yet (wait 5-10 min)
+- Wrong IP in DNS record
+- Use [dnschecker.org](https://dnschecker.org) to verify
+
+**Certificate failed:**
+- Port 80 must be open for verification
+- Let's Encrypt rate limits (5 certs/domain/week)
+
+## Cloudflare Users
+
+Set proxy status to **DNS only** (gray cloud). Orange cloud can block Let's Encrypt verification.
+
+## Multiple Domains
+
+A service can have many domains. Common setups:
+- `example.com` + `www.example.com` (redirect www)
+- Production + staging domains
+- Multiple brands → same app
