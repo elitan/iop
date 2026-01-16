@@ -122,6 +122,45 @@ export async function getSystemDomainForService(serviceId: string) {
   return domain ?? null;
 }
 
+export async function backfillWildcardDomains(): Promise<number> {
+  if (process.env.NODE_ENV === "development") return 0;
+
+  const wildcardBase = await getSetting("wildcard_domain");
+  if (!wildcardBase) return 0;
+
+  const services = await db
+    .selectFrom("services")
+    .innerJoin("projects", "projects.id", "services.projectId")
+    .select([
+      "services.id",
+      "services.hostname",
+      "projects.hostname as projectHostname",
+    ])
+    .where("services.deployType", "!=", "database")
+    .where("services.hostname", "is not", null)
+    .where("projects.hostname", "is not", null)
+    .where(({ not, exists, selectFrom }) =>
+      not(
+        exists(
+          selectFrom("domains")
+            .whereRef("domains.serviceId", "=", "services.id")
+            .where("domains.isSystem", "=", true)
+            .select("domains.id"),
+        ),
+      ),
+    )
+    .execute();
+
+  let count = 0;
+  for (const { id, hostname, projectHostname } of services) {
+    if (!hostname || !projectHostname) continue;
+    await createWildcardDomain(id, hostname, projectHostname);
+    count++;
+  }
+
+  return count;
+}
+
 export async function createWildcardDomain(
   serviceId: string,
   serviceHostname: string,

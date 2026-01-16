@@ -23,12 +23,35 @@ if [ "$TOKEN_VALID" != "true" ]; then
   exit 0
 fi
 
+log "Creating service BEFORE wildcard config..."
+PRE_PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-backfill"}')
+PRE_PROJECT_ID=$(echo "$PRE_PROJECT" | jq -r '.id')
+log "Created pre-wildcard project: $PRE_PROJECT_ID"
+
+PRE_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PRE_PROJECT_ID/services" \
+  -d '{"name":"backfilltest","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+PRE_SERVICE_ID=$(echo "$PRE_SERVICE" | jq -r '.id')
+log "Created pre-wildcard service: $PRE_SERVICE_ID"
+
+sleep 1
+
+log "Verifying no domain before wildcard..."
+PRE_DOMAINS=$(api "$BASE_URL/api/services/$PRE_SERVICE_ID/domains")
+PRE_COUNT=$(echo "$PRE_DOMAINS" | jq 'length')
+log "Domain count before wildcard: $PRE_COUNT"
+
+if [ "$PRE_COUNT" -ne 0 ]; then
+  fail "Expected no domains before wildcard enabled"
+fi
+
 log "Configuring wildcard domain..."
 WILDCARD_RESULT=$(api -X POST "$BASE_URL/api/settings/wildcard" \
   -d "{\"wildcardDomain\":\"$WILDCARD_DOMAIN\",\"dnsProvider\":\"cloudflare\",\"dnsApiToken\":\"$CLOUDFLARE_TOKEN\"}")
 WILDCARD_SUCCESS=$(echo "$WILDCARD_RESULT" | jq -r '.success // .error')
 DNS_WARNING=$(echo "$WILDCARD_RESULT" | jq -r '.dnsWarning // empty')
+BACKFILLED=$(echo "$WILDCARD_RESULT" | jq -r '.backfilledCount // 0')
 log "Wildcard config result: $WILDCARD_SUCCESS"
+log "Backfilled count: $BACKFILLED"
 if [ -n "$DNS_WARNING" ]; then
   log "DNS warning: $DNS_WARNING"
 else
@@ -42,6 +65,21 @@ log "Wildcard configured: $WILDCARD_CONFIGURED"
 
 if [ "$WILDCARD_CONFIGURED" != "true" ]; then
   fail "Failed to configure wildcard domain"
+fi
+
+log "Verifying backfill created domain for existing service..."
+BACKFILL_DOMAINS=$(api "$BASE_URL/api/services/$PRE_SERVICE_ID/domains")
+BACKFILL_COUNT=$(echo "$BACKFILL_DOMAINS" | jq 'length')
+BACKFILL_DOMAIN=$(echo "$BACKFILL_DOMAINS" | jq -r '.[0].domain // empty')
+log "Domain count after backfill: $BACKFILL_COUNT"
+log "Backfilled domain: $BACKFILL_DOMAIN"
+
+if [ "$BACKFILL_COUNT" -eq 0 ]; then
+  fail "Expected backfilled domain for existing service"
+fi
+
+if [[ "$BACKFILL_DOMAIN" != *"$WILDCARD_DOMAIN" ]]; then
+  fail "Backfilled domain doesn't match wildcard pattern"
 fi
 
 log "Creating service to test auto-domain..."
@@ -67,13 +105,13 @@ if [ "$DOMAIN_COUNT" -eq 0 ]; then
   fail "Expected auto-generated wildcard domain"
 fi
 
-EXPECTED_PATTERN="wildcardtest-e2e-wildcard.$WILDCARD_DOMAIN"
 if [[ "$SYSTEM_DOMAIN" != *"$WILDCARD_DOMAIN" ]]; then
   fail "System domain doesn't match wildcard pattern"
 fi
 log "Domain matches expected pattern"
 
 log "Cleanup..."
+api -X DELETE "$BASE_URL/api/projects/$PRE_PROJECT_ID" > /dev/null
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 api -X DELETE "$BASE_URL/api/settings/wildcard" > /dev/null
 
