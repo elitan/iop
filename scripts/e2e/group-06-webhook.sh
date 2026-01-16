@@ -32,7 +32,7 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 
 log "Testing webhook triggers deployment..."
 TEST_WEBHOOK_SECRET="e2e-test-webhook-secret-$(date +%s)"
-remote "which sqlite3 || apt-get update && apt-get install -y sqlite3" > /dev/null 2>&1
+remote "which sqlite3 || (apt-get update && apt-get install -y sqlite3)"
 remote "sqlite3 /opt/frost/data/frost.db \"
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_slug', 'test-app');
@@ -41,7 +41,10 @@ INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_private_key', '
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_webhook_secret', '$TEST_WEBHOOK_SECRET');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_id', 'test-client-id');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_secret', 'test-client-secret');
-\""
+\"" || fail "Failed to insert GitHub app settings"
+
+SETTING_CHECK=$(remote "sqlite3 /opt/frost/data/frost.db \"SELECT COUNT(*) FROM settings WHERE key = 'github_app_webhook_secret';\"")
+[ "$SETTING_CHECK" != "1" ] && fail "Webhook secret not written to database"
 
 PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"}')
 PROJECT2_ID=$(echo "$PROJECT2" | jq -r '.id')
@@ -67,6 +70,9 @@ WEBHOOK_RESULT=$(curl -sS -X POST "$BASE_URL/api/github/webhook" \
   -H "X-GitHub-Event: push" \
   -d "$WEBHOOK_PAYLOAD")
 
+log "Webhook response: $WEBHOOK_RESULT"
+ERROR=$(echo "$WEBHOOK_RESULT" | jq -r '.error // empty')
+[ -n "$ERROR" ] && fail "Webhook error: $ERROR"
 TRIGGERED=$(echo "$WEBHOOK_RESULT" | jq -r '.deployments[0] // empty')
 [ -z "$TRIGGERED" ] && fail "Webhook did not trigger deployment"
 log "Webhook triggered deployment: $TRIGGERED"
@@ -80,6 +86,6 @@ log "Webhook-deployed service responds correctly"
 
 log "Cleanup..."
 api -X DELETE "$BASE_URL/api/projects/$PROJECT2_ID" > /dev/null
-remote "sqlite3 /opt/frost/data/frost.db \"DELETE FROM settings WHERE key LIKE 'github_app_%';\""
+remote "sqlite3 /opt/frost/data/frost.db \"DELETE FROM settings WHERE key LIKE 'github_app_%';\"" || log "Warning: cleanup of settings failed"
 
 pass

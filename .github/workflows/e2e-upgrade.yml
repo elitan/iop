@@ -147,7 +147,7 @@ jobs:
 
           echo "Installing Frost $TAG from: $INSTALL_URL"
 
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG'" 2>&1 | tee /tmp/install-output.txt
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG' --create-api-key" 2>&1 | tee /tmp/install-output.txt
 
           API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
 
@@ -159,7 +159,7 @@ jobs:
           fi
 
           echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
-          echo "API key extracted"
+          echo "API key extracted: ${API_KEY:0:12}..."
 
       - name: Wait for Frost (pre-upgrade)
         if: steps.release.outputs.skip != 'true'
