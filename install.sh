@@ -23,11 +23,21 @@ FROST_BRANCH=""
 USE_TARBALL=true
 CREATE_API_KEY=false
 
+# Check for --create-api-key before getopts (getopts doesn't handle long options)
 for arg in "$@"; do
   case $arg in
-    --create-api-key) CREATE_API_KEY=true; shift ;;
+    --create-api-key) CREATE_API_KEY=true ;;
   esac
 done
+
+# Filter out --create-api-key for getopts
+ARGS=()
+for arg in "$@"; do
+  if [ "$arg" != "--create-api-key" ]; then
+    ARGS+=("$arg")
+  fi
+done
+set -- "${ARGS[@]}"
 
 while getopts "v:b:" opt; do
   case $opt in
