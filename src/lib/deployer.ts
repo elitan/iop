@@ -474,7 +474,10 @@ async function runServiceDeployment(
       }
 
       await updateDeployment(deploymentId, { status: "building" });
-      await appendLog(deploymentId, `\nBuilding image...\n`);
+      await appendLog(
+        deploymentId,
+        `\nBuilding image... (v2 with buildContext fix)\n`,
+      );
       await updateCommitStatusIfGitHub(
         service.repoUrl,
         currentCommitSha,
