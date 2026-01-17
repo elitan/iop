@@ -15,19 +15,19 @@ log "Webhook endpoint is public"
 
 log "Testing autoDeploy default..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"webhook-test","repoUrl":"https://github.com/test/repo.git"}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
-AUTO_DEPLOY=$(echo "$SERVICE" | jq -r '.autoDeploy')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
+AUTO_DEPLOY=$(json_get "$SERVICE" '.autoDeploy')
 [ "$AUTO_DEPLOY" != "1" ] && fail "autoDeploy should be 1, got: $AUTO_DEPLOY"
 log "autoDeploy enabled by default"
 
 log "Testing autoDeploy toggle..."
 api -X PATCH "$BASE_URL/api/services/$SERVICE_ID" -d '{"autoDeployEnabled":false}' > /dev/null
 SERVICE_UPDATED=$(api "$BASE_URL/api/services/$SERVICE_ID")
-AUTO_DEPLOY_OFF=$(echo "$SERVICE_UPDATED" | jq -r '.autoDeploy')
+AUTO_DEPLOY_OFF=$(json_get "$SERVICE_UPDATED" '.autoDeploy')
 [ "$AUTO_DEPLOY_OFF" != "0" ] && fail "autoDeploy should be 0, got: $AUTO_DEPLOY_OFF"
 log "autoDeploy toggle works"
 
@@ -50,15 +50,16 @@ SETTING_CHECK=$(remote "sqlite3 /opt/frost/data/frost.db \"SELECT COUNT(*) FROM 
 [ "$SETTING_CHECK" != "1" ] && fail "Webhook secret not written to database"
 
 PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"}')
-PROJECT2_ID=$(echo "$PROJECT2" | jq -r '.id')
+PROJECT2_ID=$(require_field "$PROJECT2" '.id' "create project2") || fail "Failed to create project2: $PROJECT2"
 
 SERVICE2=$(api -X POST "$BASE_URL/api/projects/$PROJECT2_ID/services" \
   -d "{\"name\":\"webhook-deploy-test\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"test/fixtures/simple-node/Dockerfile\"}")
-SERVICE2_ID=$(echo "$SERVICE2" | jq -r '.id')
+SERVICE2_ID=$(require_field "$SERVICE2" '.id' "create service2") || fail "Failed to create service2: $SERVICE2"
 log "Created service: $SERVICE2_ID"
 
 sleep 1
-DEPLOY_INITIAL=$(api "$BASE_URL/api/services/$SERVICE2_ID/deployments" | jq -r '.[0].id')
+DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE2_ID/deployments")
+DEPLOY_INITIAL=$(require_field "$DEPLOYS" '.[0].id' "get initial deploy") || fail "No initial deployment: $DEPLOYS"
 log "Waiting for initial deployment: $DEPLOY_INITIAL"
 wait_for_deployment "$DEPLOY_INITIAL" 90 || fail "Initial deployment failed"
 
@@ -74,15 +75,16 @@ WEBHOOK_RESULT=$(curl -sS -X POST "$BASE_URL/api/github/webhook" \
   -d "$WEBHOOK_PAYLOAD")
 
 log "Webhook response: $WEBHOOK_RESULT"
-ERROR=$(echo "$WEBHOOK_RESULT" | jq -r '.error // empty')
-[ -n "$ERROR" ] && fail "Webhook error: $ERROR"
-TRIGGERED=$(echo "$WEBHOOK_RESULT" | jq -r '.deployments[0] // empty')
-[ -z "$TRIGGERED" ] && fail "Webhook did not trigger deployment"
+ERROR=$(json_get "$WEBHOOK_RESULT" '.error // empty')
+[ -n "$ERROR" ] && [ "$ERROR" != "null" ] && fail "Webhook error: $ERROR"
+TRIGGERED=$(json_get "$WEBHOOK_RESULT" '.deployments[0] // empty')
+[ -z "$TRIGGERED" ] || [ "$TRIGGERED" = "null" ] && fail "Webhook did not trigger deployment. Response: $WEBHOOK_RESULT"
 log "Webhook triggered deployment: $TRIGGERED"
 
 wait_for_deployment "$TRIGGERED" 90 || fail "Webhook deployment failed"
 
-HOST_PORT=$(api "$BASE_URL/api/deployments/$TRIGGERED" | jq -r '.hostPort')
+DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$TRIGGERED")
+HOST_PORT=$(require_field "$DEPLOY_DATA" '.hostPort' "get webhook deploy port") || fail "No hostPort: $DEPLOY_DATA"
 RESPONSE=$(curl -sf "http://$SERVER_IP:$HOST_PORT" 2>&1 || true)
 echo "$RESPONSE" | grep -q "Hello from simple-node" || fail "Service response unexpected: $RESPONSE"
 log "Webhook-deployed service responds correctly"

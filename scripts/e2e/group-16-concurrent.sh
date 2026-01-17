@@ -13,14 +13,12 @@ DEPLOY_IDS=()
 log "Creating $NUM_SERVICES projects with services..."
 for i in $(seq 1 $NUM_SERVICES); do
   PROJECT=$(api -X POST "$BASE_URL/api/projects" -d "{\"name\":\"e2e-concurrent-$i\"}")
-  PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
-  [ "$PROJECT_ID" = "null" ] || [ -z "$PROJECT_ID" ] && fail "Failed to create project $i"
+  PROJECT_ID=$(require_field "$PROJECT" '.id' "create project $i") || fail "Failed to create project $i: $PROJECT"
   PROJECT_IDS+=("$PROJECT_ID")
 
   SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
     -d "{\"name\":\"svc-$i\",\"deployType\":\"image\",\"imageUrl\":\"nginx:alpine\",\"containerPort\":80}")
-  SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
-  [ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ] && fail "Failed to create service $i"
+  SERVICE_ID=$(require_field "$SERVICE" '.id' "create service $i") || fail "Failed to create service $i: $SERVICE"
   SERVICE_IDS+=("$SERVICE_ID")
   log "Created project $i: $PROJECT_ID, service: $SERVICE_ID"
 done
@@ -29,7 +27,8 @@ log "Waiting for initial deployments..."
 for i in $(seq 0 $((NUM_SERVICES - 1))); do
   SERVICE_ID=${SERVICE_IDS[$i]}
   sleep 1
-  DEPLOY_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id')
+  DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
+  DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get initial deploy $i") || fail "No initial deployment for service $i: $DEPLOYS"
   wait_for_deployment "$DEPLOY_ID" || fail "Initial deployment for service $i failed"
   log "Service $i initial deployment complete"
 done
@@ -38,8 +37,7 @@ log "Triggering $NUM_SERVICES concurrent deployments..."
 for i in $(seq 0 $((NUM_SERVICES - 1))); do
   SERVICE_ID=${SERVICE_IDS[$i]}
   DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-  DEPLOY_ID=$(echo "$DEPLOY" | jq -r '.deploymentId')
-  [ "$DEPLOY_ID" = "null" ] || [ -z "$DEPLOY_ID" ] && fail "Failed to trigger deployment for service $i"
+  DEPLOY_ID=$(require_field "$DEPLOY" '.deploymentId' "trigger deploy $i") || fail "Failed to trigger deployment for service $i: $DEPLOY"
   DEPLOY_IDS+=("$DEPLOY_ID")
   log "Triggered deployment $DEPLOY_ID for service $i"
 done

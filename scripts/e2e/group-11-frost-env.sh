@@ -7,15 +7,16 @@ log "=== FROST_* Environment Variables ==="
 
 log "Creating service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-frost-env"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"frost-env-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
 sleep 1
-DEPLOY_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id')
+DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
+DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get deploy") || fail "No deployment: $DEPLOYS"
 wait_for_deployment "$DEPLOY_ID" || fail "Deployment failed"
 
 CONTAINER_NAME=$(get_container_name "$SERVICE_ID" "$DEPLOY_ID")
@@ -49,7 +50,7 @@ log "Verifying user env vars can override FROST_*..."
 api -X PATCH "$BASE_URL/api/services/$SERVICE_ID" \
   -d '{"envVars":[{"key":"FROST_SERVICE_NAME","value":"custom-name"}]}' > /dev/null
 DEPLOY2=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOY2_ID=$(echo "$DEPLOY2" | jq -r '.deploymentId')
+DEPLOY2_ID=$(require_field "$DEPLOY2" '.deploymentId' "trigger redeploy") || fail "Failed to trigger redeploy: $DEPLOY2"
 wait_for_deployment "$DEPLOY2_ID" || fail "Redeploy failed"
 
 CONTAINER2_NAME=$(get_container_name "$SERVICE_ID" "$DEPLOY2_ID")

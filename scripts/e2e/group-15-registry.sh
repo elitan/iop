@@ -16,21 +16,19 @@ log "Invalid credentials correctly rejected"
 
 log "Listing registries (should be empty)..."
 REGISTRIES=$(api "$BASE_URL/api/registries")
-REGISTRIES_COUNT=$(echo "$REGISTRIES" | jq 'length')
+REGISTRIES_COUNT=$(json_get "$REGISTRIES" 'length') || REGISTRIES_COUNT=0
 [ "$REGISTRIES_COUNT" != "0" ] && fail "Expected empty registries list, got $REGISTRIES_COUNT"
 log "Registries list empty"
 
 log "Creating service with registryId field..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-registry"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
-[ "$PROJECT_ID" = "null" ] || [ -z "$PROJECT_ID" ] && fail "Failed to create project"
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 log "Created project: $PROJECT_ID"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"reg-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
-[ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ] && fail "Failed to create service"
-REGISTRY_ID=$(echo "$SERVICE" | jq -r '.registryId')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
+REGISTRY_ID=$(json_get "$SERVICE" '.registryId')
 [ "$REGISTRY_ID" != "null" ] && fail "registryId should be null, got: $REGISTRY_ID"
 log "Service registryId field exists and is null"
 

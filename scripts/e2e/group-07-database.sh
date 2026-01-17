@@ -7,31 +7,30 @@ log "=== Database Services ==="
 
 log "Getting database templates..."
 TEMPLATES=$(api "$BASE_URL/api/db-templates")
-POSTGRES_FOUND=$(echo "$TEMPLATES" | jq -r '.[] | select(.id == "postgres-17") | .id')
-[ "$POSTGRES_FOUND" != "postgres-17" ] && fail "postgres-17 template not found"
+POSTGRES_FOUND=$(json_get "$TEMPLATES" '.[] | select(.id == "postgres-17") | .id')
+[ "$POSTGRES_FOUND" != "postgres-17" ] && fail "postgres-17 template not found. Response: $TEMPLATES"
 log "Templates available"
 
 log "Creating database service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-database"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"postgres","deployType":"database","templateId":"postgres-17"}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
-SERVICE_TYPE=$(echo "$SERVICE" | jq -r '.serviceType')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create db service") || fail "Failed to create database service: $SERVICE"
+SERVICE_TYPE=$(json_get "$SERVICE" '.serviceType')
 
-[ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ] && fail "Failed to create database service"
 [ "$SERVICE_TYPE" != "database" ] && fail "Service type should be 'database', got: $SERVICE_TYPE"
 log "Created database service: $SERVICE_ID"
 
 log "Verifying no system domain for database..."
 DOMAINS=$(api "$BASE_URL/api/services/$SERVICE_ID/domains")
-DOMAIN_COUNT=$(echo "$DOMAINS" | jq 'length')
+DOMAIN_COUNT=$(json_get "$DOMAINS" 'length') || DOMAIN_COUNT=0
 [ "$DOMAIN_COUNT" != "0" ] && fail "Database should have no domains, got: $DOMAIN_COUNT"
 log "No system domain (correct)"
 
 log "Verifying database env vars..."
-SERVICE_ENVVARS=$(echo "$SERVICE" | jq -r '.envVars')
+SERVICE_ENVVARS=$(json_get "$SERVICE" '.envVars')
 POSTGRES_USER=$(echo "$SERVICE_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_USER") | .value')
 POSTGRES_PASSWORD=$(echo "$SERVICE_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_PASSWORD") | .value')
 [ -z "$POSTGRES_USER" ] && fail "POSTGRES_USER not set"
@@ -46,16 +45,18 @@ log "SSL certificate generated"
 
 log "Waiting for deployment..."
 sleep 2
-DEPLOY_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id')
+DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
+DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get db deploy") || fail "No db deployment: $DEPLOYS"
 wait_for_deployment "$DEPLOY_ID" 60 || fail "Database deployment failed"
 
 log "Verifying database is accepting connections..."
-HOST_PORT=$(api "$BASE_URL/api/deployments/$DEPLOY_ID" | jq -r '.hostPort')
+DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_ID")
+HOST_PORT=$(require_field "$DEPLOY_DATA" '.hostPort' "get db hostPort") || fail "No db hostPort: $DEPLOY_DATA"
 PG_READY=$(remote "timeout 10 bash -c 'until pg_isready -h localhost -p $HOST_PORT; do sleep 1; done' && echo 'ready'" 2>&1 || echo "not ready")
 echo "$PG_READY" | grep -q "ready" && log "PostgreSQL accepting connections"
 
 log "Verifying SSL in build log..."
-BUILD_LOG=$(api "$BASE_URL/api/deployments/$DEPLOY_ID" | jq -r '.buildLog')
+BUILD_LOG=$(json_get "$DEPLOY_DATA" '.buildLog')
 echo "$BUILD_LOG" | grep -q "SSL enabled for postgres" || fail "SSL enabled message not in build log"
 log "SSL enabled in deployment"
 

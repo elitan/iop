@@ -7,31 +7,32 @@ log "=== Deployment Race Conditions ==="
 
 log "Creating service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-race"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"race-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
-[ "$SERVICE_ID" = "null" ] || [ -z "$SERVICE_ID" ] && fail "Failed to create service: $SERVICE"
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
 sleep 1
-DEPLOY_INITIAL=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id')
+DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
+DEPLOY_INITIAL=$(require_field "$DEPLOYS" '.[0].id' "get initial deploy") || fail "No initial deployment: $DEPLOYS"
 log "Waiting for initial deployment: $DEPLOY_INITIAL"
 wait_for_deployment "$DEPLOY_INITIAL" || fail "Initial deployment failed"
 
 log "Rapid double-deploy..."
 DEPLOY_A=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOY_A_ID=$(echo "$DEPLOY_A" | jq -r '.deploymentId')
+DEPLOY_A_ID=$(require_field "$DEPLOY_A" '.deploymentId' "trigger deploy A") || fail "Failed to trigger deploy A: $DEPLOY_A"
 log "First deploy: $DEPLOY_A_ID"
 
 DEPLOY_B=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOY_B_ID=$(echo "$DEPLOY_B" | jq -r '.deploymentId')
+DEPLOY_B_ID=$(require_field "$DEPLOY_B" '.deploymentId' "trigger deploy B") || fail "Failed to trigger deploy B: $DEPLOY_B"
 log "Second deploy: $DEPLOY_B_ID"
 
 wait_for_deployment "$DEPLOY_B_ID" || fail "Second deployment failed"
 
-STATUS_A=$(api "$BASE_URL/api/deployments/$DEPLOY_A_ID" | jq -r '.status')
+DEPLOY_A_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_A_ID")
+STATUS_A=$(json_get "$DEPLOY_A_DATA" '.status')
 [ "$STATUS_A" != "cancelled" ] && fail "First deployment should be cancelled, got: $STATUS_A"
 log "First deployment correctly cancelled"
 

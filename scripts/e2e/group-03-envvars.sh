@@ -8,17 +8,18 @@ log "=== Env var inheritance ==="
 log "Creating project with env vars..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" \
   -d '{"name":"e2e-envtest","envVars":[{"key":"SHARED","value":"from-project"},{"key":"PROJECT_ONLY","value":"proj-val"}]}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 log "Created project: $PROJECT_ID"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"envcheck","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"envVars":[{"key":"SHARED","value":"from-service"},{"key":"SERVICE_ONLY","value":"svc-val"}]}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
 log "Waiting for deployment..."
 sleep 1
-DEPLOY_ID=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" | jq -r '.[0].id')
+DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
+DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get deploy") || fail "No deployment: $DEPLOYS"
 wait_for_deployment "$DEPLOY_ID" || fail "Deployment failed"
 
 log "Verifying env vars..."

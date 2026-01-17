@@ -7,7 +7,16 @@ export BASE_URL="http://$SERVER_IP:3000"
 api() {
   local RESPONSE
   local HTTP_CODE
-  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@")
+  local CURL_EXIT
+  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@" 2>&1)
+  CURL_EXIT=$?
+
+  if [ $CURL_EXIT -ne 0 ]; then
+    echo "curl failed (exit $CURL_EXIT): $RESPONSE" >&2
+    echo "{}"
+    return 1
+  fi
+
   HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
   RESPONSE=$(echo "$RESPONSE" | sed '$d')
 
@@ -17,21 +26,71 @@ api() {
   echo "$RESPONSE"
 }
 
+json_get() {
+  local JSON="$1"
+  local FIELD="$2"
+  local RESULT
+
+  if [ -z "$JSON" ]; then
+    echo "json_get: empty input for field '$FIELD'" >&2
+    return 1
+  fi
+
+  RESULT=$(echo "$JSON" | jq -r "$FIELD" 2>&1)
+  if [ $? -ne 0 ]; then
+    echo "json_get: jq parse error for '$FIELD'" >&2
+    echo "Input was: ${JSON:0:500}" >&2
+    return 1
+  fi
+
+  echo "$RESULT"
+}
+
+require_field() {
+  local JSON="$1"
+  local FIELD="$2"
+  local CONTEXT="${3:-}"
+  local VALUE
+
+  VALUE=$(json_get "$JSON" "$FIELD")
+  if [ $? -ne 0 ]; then
+    [ -n "$CONTEXT" ] && echo "$CONTEXT: " >&2
+    return 1
+  fi
+
+  if [ "$VALUE" = "null" ] || [ -z "$VALUE" ]; then
+    echo "Required field '$FIELD' is null/empty${CONTEXT:+ ($CONTEXT)}" >&2
+    echo "Response: ${JSON:0:500}" >&2
+    return 1
+  fi
+
+  echo "$VALUE"
+}
+
 wait_for_deployment() {
   local DEPLOYMENT_ID=$1
   local MAX=${2:-60}
+  local RESPONSE
+  local STATUS
   for i in $(seq 1 $MAX); do
-    STATUS=$(api "$BASE_URL/api/deployments/$DEPLOYMENT_ID" | jq -r '.status')
+    RESPONSE=$(api "$BASE_URL/api/deployments/$DEPLOYMENT_ID")
+    STATUS=$(json_get "$RESPONSE" '.status')
+    if [ $? -ne 0 ]; then
+      echo "  wait_for_deployment: failed to get status for $DEPLOYMENT_ID" >&2
+      echo "  Response: $RESPONSE" >&2
+      sleep 2
+      continue
+    fi
     if [ "$STATUS" = "running" ]; then
       return 0
     elif [ "$STATUS" = "failed" ]; then
-      echo "  Deployment $DEPLOYMENT_ID failed"
-      api "$BASE_URL/api/deployments/$DEPLOYMENT_ID" | jq
+      echo "  Deployment $DEPLOYMENT_ID failed" >&2
+      echo "$RESPONSE" | jq >&2 || echo "$RESPONSE" >&2
       return 1
     fi
     sleep 2
   done
-  echo "  Deployment $DEPLOYMENT_ID timed out"
+  echo "  Deployment $DEPLOYMENT_ID timed out (last status: $STATUS)" >&2
   return 1
 }
 

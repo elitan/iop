@@ -7,11 +7,11 @@ log "=== User-Configurable Volumes ==="
 
 log "Creating service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-volumes"}')
-PROJECT_ID=$(echo "$PROJECT" | jq -r '.id')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
   -d '{"name":"volume-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
-SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
 log "Adding volume..."
@@ -19,13 +19,13 @@ api -X PATCH "$BASE_URL/api/services/$SERVICE_ID" \
   -d '{"volumes":[{"name":"data","path":"/data"}]}' > /dev/null
 
 SERVICE_UPDATED=$(api "$BASE_URL/api/services/$SERVICE_ID")
-VOLUMES_JSON=$(echo "$SERVICE_UPDATED" | jq -r '.volumes')
+VOLUMES_JSON=$(json_get "$SERVICE_UPDATED" '.volumes')
 echo "$VOLUMES_JSON" | grep -q '"path":"/data"' || fail "Volume not added"
 log "Volume added"
 
 log "Deploying and verifying volume created..."
 DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOY_ID=$(echo "$DEPLOY" | jq -r '.deploymentId')
+DEPLOY_ID=$(require_field "$DEPLOY" '.deploymentId' "trigger deploy") || fail "Failed to trigger deploy: $DEPLOY"
 wait_for_deployment "$DEPLOY_ID" || fail "Deployment failed"
 
 EXPECTED_VOLUME="frost-${SERVICE_ID}-data"
@@ -33,7 +33,8 @@ VOLUME_EXISTS=$(remote "docker volume ls --filter name=$EXPECTED_VOLUME --format
 echo "$VOLUME_EXISTS" | grep -q "$EXPECTED_VOLUME" || fail "Volume not created"
 log "Volume created: $EXPECTED_VOLUME"
 
-BUILD_LOG=$(api "$BASE_URL/api/deployments/$DEPLOY_ID" | jq -r '.buildLog')
+DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_ID")
+BUILD_LOG=$(json_get "$DEPLOY_DATA" '.buildLog')
 echo "$BUILD_LOG" | grep -q "Created 1 volume(s)" || fail "Volume creation not logged"
 log "Volume creation logged"
 
@@ -45,7 +46,7 @@ FILE_CONTENT=$(remote "docker exec $CONTAINER_NAME cat /data/test.txt")
 log "File written"
 
 DEPLOY2=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-DEPLOY2_ID=$(echo "$DEPLOY2" | jq -r '.deploymentId')
+DEPLOY2_ID=$(require_field "$DEPLOY2" '.deploymentId' "trigger second deploy") || fail "Failed to trigger second deploy: $DEPLOY2"
 wait_for_deployment "$DEPLOY2_ID" || fail "Second deployment failed"
 
 CONTAINER2_NAME=$(get_container_name "$SERVICE_ID" "$DEPLOY2_ID")
@@ -55,7 +56,7 @@ log "File persisted across redeploy"
 
 log "Testing getVolumes API..."
 VOLUMES_INFO=$(api "$BASE_URL/api/services/$SERVICE_ID/volumes")
-VOLUME_PATH=$(echo "$VOLUMES_INFO" | jq -r '.[0].path')
+VOLUME_PATH=$(json_get "$VOLUMES_INFO" '.[0].path')
 [ "$VOLUME_PATH" != "/data" ] && fail "getVolumes returned wrong path"
 log "getVolumes endpoint works"
 
