@@ -21,6 +21,7 @@ import { useDeployService, useService } from "@/hooks/use-services";
 import type { Deployment, Domain, EnvVar } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/db-templates";
+import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "./_components/service-metrics-card";
 
@@ -84,7 +85,7 @@ export default function ServiceOverviewPage() {
   const queryClient = useQueryClient();
 
   const [serverIp, setServerIp] = useState<string | null>(null);
-  const [systemDomain, setSystemDomain] = useState<Domain | null>(null);
+  const [preferredDomain, setPreferredDomain] = useState<Domain | null>(null);
   const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(
     null,
   );
@@ -134,8 +135,7 @@ export default function ServiceOverviewPage() {
   useEffect(() => {
     if (!serviceId) return;
     api.domains.list(serviceId).then((domains) => {
-      const sys = domains.find((d) => d.isSystem === 1);
-      setSystemDomain(sys ?? null);
+      setPreferredDomain(getPreferredDomain(domains));
     });
   }, [serviceId]);
 
@@ -182,8 +182,8 @@ export default function ServiceOverviewPage() {
                   {service.serviceType !== "database" && (
                     <a
                       href={
-                        systemDomain
-                          ? `https://${systemDomain.domain}`
+                        preferredDomain
+                          ? `https://${preferredDomain.domain}`
                           : `http://${serverIp || "localhost"}:${currentDeployment.hostPort}`
                       }
                       target="_blank"
@@ -198,16 +198,16 @@ export default function ServiceOverviewPage() {
                 {service.serviceType !== "database" && (
                   <a
                     href={
-                      systemDomain
-                        ? `https://${systemDomain.domain}`
+                      preferredDomain
+                        ? `https://${preferredDomain.domain}`
                         : `http://${serverIp || "localhost"}:${currentDeployment.hostPort}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block font-mono text-sm text-blue-400 hover:text-blue-300 truncate"
                   >
-                    {systemDomain
-                      ? systemDomain.domain
+                    {preferredDomain
+                      ? preferredDomain.domain
                       : `${serverIp || "localhost"}:${currentDeployment.hostPort}`}
                   </a>
                 )}

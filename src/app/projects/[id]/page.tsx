@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useProject } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
+import { getPreferredDomain } from "@/lib/service-url";
 import { ServiceCard } from "./_components/service-card";
 
 export default function ProjectServicesPage() {
@@ -29,9 +30,9 @@ export default function ProjectServicesPage() {
       const domainMap: Record<string, string> = {};
       for (const service of project!.services || []) {
         const serviceDomains = await api.domains.list(service.id);
-        const systemDomain = serviceDomains.find((d) => d.isSystem === 1);
-        if (systemDomain) {
-          domainMap[service.id] = systemDomain.domain;
+        const preferred = getPreferredDomain(serviceDomains);
+        if (preferred) {
+          domainMap[service.id] = preferred.domain;
         }
       }
       setDomains(domainMap);
