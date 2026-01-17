@@ -255,7 +255,7 @@ jobs:
             systemctl stop frost && \
             rm -rf repos && \
             git fetch origin && \
-            git checkout $TAG && \
+            git checkout -f $TAG && \
             git reset --hard $TAG && \
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
@@ -330,7 +330,7 @@ jobs:
             systemctl stop frost && \
             rm -rf repos && \
             git fetch origin && \
-            git checkout $TAG && \
+            git checkout -f $TAG && \
             git reset --hard $TAG && \
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
