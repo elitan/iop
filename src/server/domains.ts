@@ -18,9 +18,10 @@ import { os } from "@/lib/orpc";
 
 const dnsVerifyResultSchema = z.object({
   valid: z.boolean(),
-  ip: z.string().nullable().optional(),
-  expectedIp: z.string().nullable().optional(),
+  serverIp: z.string(),
+  domainIp: z.string().nullable(),
   dnsVerified: z.boolean(),
+  errorType: z.enum(["no_record", "wrong_ip"]).optional(),
 });
 
 const sslVerifyResultSchema = z.object({

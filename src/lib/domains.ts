@@ -17,6 +17,7 @@ export interface DnsStatus {
   valid: boolean;
   serverIp: string;
   domainIp: string | null;
+  errorType?: "no_record" | "wrong_ip";
 }
 
 export async function addDomain(serviceId: string, input: DomainInput) {
@@ -243,10 +244,17 @@ export async function verifyDomainDns(domain: string): Promise<DnsStatus> {
     resolveDomain(domain),
   ]);
 
+  const valid = domainIps.includes(serverIp);
+  let errorType: "no_record" | "wrong_ip" | undefined;
+  if (!valid) {
+    errorType = domainIps.length === 0 ? "no_record" : "wrong_ip";
+  }
+
   return {
-    valid: domainIps.includes(serverIp),
+    valid,
     serverIp,
     domainIp: domainIps[0] || null,
+    errorType,
   };
 }
 
