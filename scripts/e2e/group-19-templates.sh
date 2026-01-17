@@ -59,8 +59,8 @@ wait_for_deployment "$DEPLOY_ID" 60 || fail "nginx deployment failed"
 log "Verifying nginx responds..."
 DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_ID")
 HOST_PORT=$(require_field "$DEPLOY_DATA" '.hostPort' "get hostPort") || fail "No hostPort"
-NGINX_RESP=$(remote "curl -sf http://localhost:$HOST_PORT/ | head -1" 2>&1 || echo "failed")
-echo "$NGINX_RESP" | grep -qi "nginx\|welcome" || fail "nginx not responding: $NGINX_RESP"
+NGINX_RESP=$(remote "curl -sf http://localhost:$HOST_PORT/" 2>&1 || echo "failed")
+echo "$NGINX_RESP" | grep -qi "nginx\|welcome\|DOCTYPE" || fail "nginx not responding: $NGINX_RESP"
 log "nginx responding on port $HOST_PORT"
 
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null

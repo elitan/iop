@@ -55,7 +55,7 @@ log "Rollback service responding"
 
 log "Verifying rollback blocked for database services..."
 SERVICE_DB=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
-  -d '{"name":"db-rollback-test","deployType":"database","templateId":"postgres-17"}')
+  -d '{"name":"db-rollback-test","deployType":"database","templateId":"postgres"}')
 SERVICE_DB_ID=$(require_field "$SERVICE_DB" '.id' "create db service") || fail "Failed to create db service: $SERVICE_DB"
 
 sleep 2

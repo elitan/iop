@@ -8,7 +8,7 @@ if [ -z "$HETZNER_API_KEY" ]; then
 fi
 
 SERVER_NAME="frost-e2e-$(date +%s)"
-SERVER_TYPE="cx22"
+SERVER_TYPE="cax21"
 IMAGE="ubuntu-24.04"
 LOCATION="fsn1"
 INSTALL_PASSWORD="e2e-test-$(openssl rand -hex 8)"
