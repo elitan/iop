@@ -1,8 +1,6 @@
 # Frost
 
-Vercel DX for Docker infrastructure.
-
-Open source PaaS combining Railway's infrastructure scope with Vercel's developer experience.
+Open source Railway alternative.
 
 ## Features
 
@@ -20,6 +18,9 @@ Open source PaaS combining Railway's infrastructure scope with Vercel's develope
 
 ## Installation
 
+**Need a server?** See [INSTALL.md](INSTALL.md) for AI-assisted VPS provisioning.
+
+**Already have a server?**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | sudo bash
 ```

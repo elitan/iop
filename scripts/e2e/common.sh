@@ -5,23 +5,37 @@ export API_KEY="${API_KEY:?API_KEY required}"
 export BASE_URL="http://$SERVER_IP:3000"
 
 api() {
+  local FULL_RESPONSE
   local RESPONSE
   local HTTP_CODE
+  local REQUEST_ID
   local CURL_EXIT
-  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@" 2>&1)
+  local HEADER_FILE=$(mktemp)
+
+  FULL_RESPONSE=$(curl -sS --max-time 30 -D "$HEADER_FILE" -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@" 2>&1)
   CURL_EXIT=$?
 
+  REQUEST_ID=$(grep -i "x-request-id:" "$HEADER_FILE" 2>/dev/null | tr -d '\r' | cut -d' ' -f2)
+  rm -f "$HEADER_FILE"
+
   if [ $CURL_EXIT -ne 0 ]; then
-    echo "curl failed (exit $CURL_EXIT): $RESPONSE" >&2
+    echo "curl failed (exit $CURL_EXIT): $FULL_RESPONSE" >&2
     echo "{}"
     return 1
   fi
 
-  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-  RESPONSE=$(echo "$RESPONSE" | sed '$d')
+  HTTP_CODE=$(echo "$FULL_RESPONSE" | tail -n1)
+  RESPONSE=$(echo "$FULL_RESPONSE" | sed '$d')
 
   if [ "$HTTP_CODE" -ge 400 ] 2>/dev/null; then
     echo "API error (HTTP $HTTP_CODE): $RESPONSE" >&2
+    if [ "$HTTP_CODE" = "500" ] && [ -n "$REQUEST_ID" ]; then
+      echo "Request ID: $REQUEST_ID" >&2
+      echo "--- Server logs for request $REQUEST_ID ---" >&2
+      ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
+        "journalctl -u frost --no-pager -n 50 2>/dev/null | grep -A 20 '\[$REQUEST_ID\]'" 2>&1 | head -30 >&2
+      echo "--- End server logs ---" >&2
+    fi
   fi
   echo "$RESPONSE"
 }
@@ -115,6 +129,10 @@ log() {
 
 fail() {
   log "FAIL: $*"
+  echo "--- Recent server logs (last 30 lines) ---" >&2
+  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
+    "journalctl -u frost --no-pager -n 30" 2>&1 | tail -30 >&2
+  echo "--- End server logs ---" >&2
   exit 1
 }
 
