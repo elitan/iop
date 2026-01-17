@@ -5,7 +5,16 @@ export API_KEY="${API_KEY:?API_KEY required}"
 export BASE_URL="http://$SERVER_IP:3000"
 
 api() {
-  curl -sS --max-time 30 -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@"
+  local RESPONSE
+  local HTTP_CODE
+  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@")
+  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+  RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+  if [ "$HTTP_CODE" -ge 400 ] 2>/dev/null; then
+    echo "API error (HTTP $HTTP_CODE): $RESPONSE" >&2
+  fi
+  echo "$RESPONSE"
 }
 
 wait_for_deployment() {
