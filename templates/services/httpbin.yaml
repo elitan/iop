@@ -1,0 +1,9 @@
+name: HTTPBin
+description: HTTP request/response testing
+category: testing
+docs: https://httpbin.org/
+
+services:
+  httpbin:
+    image: kennethreitz/httpbin
+    port: 80

@@ -1,8 +1,9 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Package } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { EnvVarEditor } from "@/components/env-var-editor";
@@ -10,14 +11,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useCreateProject } from "@/hooks/use-projects";
-import type { CreateProjectInput, EnvVar } from "@/lib/api";
+import type { CreateProjectInput, EnvVar, Template } from "@/lib/api";
 
 export default function NewProjectPage() {
   const router = useRouter();
   const createMutation = useCreateProject();
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: projectTemplates } = useQuery({
+    queryKey: ["project-templates"],
+    queryFn: async () => {
+      const res = await fetch("/api/templates/projects");
+      return res.json() as Promise<Template[]>;
+    },
+  });
+
+  function handleTemplateChange(templateId: string) {
+    setSelectedTemplate(templateId);
+    const template = projectTemplates?.find((t) => t.id === templateId);
+    if (template && nameInputRef.current && !nameInputRef.current.value) {
+      nameInputRef.current.value = template.id;
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,6 +53,7 @@ export default function NewProjectPage() {
     const data: CreateProjectInput = {
       name: formData.get("name") as string,
       envVars: validEnvVars,
+      templateId: selectedTemplate || undefined,
     };
 
     try {
@@ -51,11 +78,83 @@ export default function NewProjectPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
+                {projectTemplates && projectTemplates.length > 0 && (
+                  <>
+                    <div className="grid gap-3">
+                      <Label className="text-neutral-300">Template</Label>
+                      <Select
+                        value={selectedTemplate}
+                        onValueChange={handleTemplateChange}
+                      >
+                        <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                          <SelectValue placeholder="Start from scratch" />
+                        </SelectTrigger>
+                        <SelectContent className="border-neutral-700 bg-neutral-800">
+                          {projectTemplates.map((t) => (
+                            <SelectItem
+                              key={t.id}
+                              value={t.id}
+                              className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Package className="h-3.5 w-3.5 text-neutral-400" />
+                                {t.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-neutral-500">
+                        Templates pre-configure multiple services. Leave empty
+                        to start from scratch.
+                      </p>
+                    </div>
+
+                    {selectedTemplate &&
+                      (() => {
+                        const template = projectTemplates.find(
+                          (t) => t.id === selectedTemplate,
+                        );
+                        if (!template) return null;
+                        const serviceCount = Object.keys(
+                          template.services,
+                        ).length;
+                        return (
+                          <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
+                            <p className="mb-2 font-medium text-neutral-300">
+                              {template.description}
+                            </p>
+                            <p>
+                              Creates {serviceCount} service
+                              {serviceCount > 1 ? "s" : ""}:{" "}
+                              {Object.keys(template.services).join(", ")}
+                            </p>
+                            {template.docs && (
+                              <p className="mt-2">
+                                <a
+                                  href={template.docs}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:underline"
+                                >
+                                  Documentation
+                                </a>
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                    <Separator className="bg-neutral-800" />
+                  </>
+                )}
+
                 <div className="grid gap-3">
                   <Label htmlFor="name" className="text-neutral-300">
                     Name
                   </Label>
                   <Input
+                    ref={nameInputRef}
                     id="name"
                     name="name"
                     required

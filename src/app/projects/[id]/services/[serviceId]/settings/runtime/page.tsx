@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { CommandCard } from "../_components/command-card";
 import { CpuLimitCard } from "../_components/cpu-limit-card";
 import { HealthCheckCard } from "../_components/health-check-card";
 import { MemoryLimitCard } from "../_components/memory-limit-card";
@@ -14,6 +15,7 @@ export default function ServiceRuntimePage() {
 
   return (
     <div className="space-y-6">
+      <CommandCard serviceId={serviceId} projectId={projectId} />
       <HealthCheckCard serviceId={serviceId} projectId={projectId} />
       <RequestTimeoutCard serviceId={serviceId} projectId={projectId} />
       <ShutdownTimeoutCard serviceId={serviceId} projectId={projectId} />

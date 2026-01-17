@@ -43,6 +43,7 @@ export interface Service {
   shutdownTimeout: number | null;
   requestTimeout: number | null;
   registryId: string | null;
+  command: string | null;
   latestDeployment?: Deployment;
 }
 
@@ -123,6 +124,7 @@ export interface Settings {
 export interface CreateProjectInput {
   name: string;
   envVars?: EnvVar[];
+  templateId?: string;
 }
 
 export interface UpdateProjectInput {
@@ -144,15 +146,32 @@ export interface CreateServiceInput {
   registryId?: string;
 }
 
-export interface DatabaseTemplate {
+export interface ServiceDefinition {
+  image: string;
+  port: number;
+  main?: boolean;
+  type?: "database" | "app";
+  command?: string;
+  environment?: Record<string, unknown>;
+  volumes?: string[];
+  health_check?: {
+    path?: string;
+    timeout: number;
+  };
+  ssl?: boolean;
+}
+
+export interface Template {
   id: string;
   name: string;
-  image: string;
-  containerPort: number;
-  envVars: { key: string; value: string; generated?: boolean }[];
-  volumes: { name: string; path: string }[];
-  healthCheckTimeout: number;
+  description: string;
+  category: string;
+  docs?: string;
+  type: "database" | "service" | "project";
+  services: Record<string, ServiceDefinition>;
 }
+
+export type DatabaseTemplate = Template;
 
 export interface TcpProxyStatus {
   enabled: boolean;
@@ -233,6 +252,7 @@ export interface UpdateServiceInput {
   requestTimeout?: number | null;
   volumes?: VolumeConfig[];
   registryId?: string | null;
+  command?: string | null;
 }
 
 export interface HostResources {

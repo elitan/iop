@@ -3,13 +3,13 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { deploymentsSchema, servicesSchema } from "@/lib/db-schemas";
-import { generateCredential, getTemplate } from "@/lib/db-templates";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
 import { createWildcardDomain, syncCaddyConfig } from "@/lib/domains";
 import { os } from "@/lib/orpc";
 import { slugify } from "@/lib/slugify";
 import { generateSelfSignedCert, removeSSLCerts } from "@/lib/ssl";
+import { getTemplate, resolveTemplateServices } from "@/lib/templates";
 import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
 
 const envVarSchema = z.object({
@@ -159,10 +159,8 @@ export const services = {
 
       if (input.deployType === "database") {
         const template = getTemplate(input.templateId!)!;
-        const dbEnvVars = template.envVars.map((e) => ({
-          key: e.key,
-          value: e.generated ? generateCredential() : e.value,
-        }));
+        const resolved = resolveTemplateServices(template);
+        const serviceConfig = resolved[0];
 
         await db
           .insertInto("services")
@@ -175,18 +173,20 @@ export const services = {
             repoUrl: null,
             branch: null,
             dockerfilePath: null,
-            imageUrl: template.image,
-            envVars: JSON.stringify(dbEnvVars),
-            containerPort: template.containerPort,
-            healthCheckTimeout: template.healthCheckTimeout,
+            imageUrl: serviceConfig.image,
+            envVars: JSON.stringify(serviceConfig.envVars),
+            containerPort: serviceConfig.port,
+            healthCheckPath: serviceConfig.healthCheckPath ?? null,
+            healthCheckTimeout: serviceConfig.healthCheckTimeout,
             autoDeploy: 0,
             serviceType: "database",
-            volumes: JSON.stringify(template.volumes),
+            volumes: JSON.stringify(serviceConfig.volumes),
+            command: serviceConfig.command ?? null,
             createdAt: now,
           })
           .execute();
 
-        if (template.supportsSSL) {
+        if (serviceConfig.ssl) {
           await generateSelfSignedCert(id);
         }
       } else {
@@ -280,6 +280,7 @@ export const services = {
           )
           .optional(),
         registryId: z.string().nullable().optional(),
+        command: z.string().nullable().optional(),
       }),
     )
     .output(servicesSchema)
@@ -327,6 +328,7 @@ export const services = {
       if (input.volumes !== undefined)
         updates.volumes = JSON.stringify(input.volumes);
       if (input.registryId !== undefined) updates.registryId = input.registryId;
+      if (input.command !== undefined) updates.command = input.command;
 
       if (Object.keys(updates).length > 0) {
         await db

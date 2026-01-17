@@ -1,0 +1,9 @@
+name: Whoami
+description: Shows request headers/info
+category: testing
+docs: https://github.com/traefik/whoami
+
+services:
+  whoami:
+    image: traefik/whoami
+    port: 80

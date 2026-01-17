@@ -1,0 +1,20 @@
+name: PostgreSQL 17
+description: Reliable SQL database
+category: database
+docs: https://www.postgresql.org/docs/
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: postgres
+    volumes:
+      - data:/var/lib/postgresql/data
+    health_check:
+      timeout: 60
+    ssl: true

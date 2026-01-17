@@ -539,8 +539,13 @@ async function runServiceDeployment(
 
     let fileMounts: FileMount[] | undefined;
     let command: string[] | undefined;
+
+    if (service.command) {
+      command = ["sh", "-c", service.command];
+    }
+
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
-    if (service.serviceType === "database" && isPostgres) {
+    if (service.serviceType === "database" && isPostgres && !service.command) {
       if (!sslCertsExist(service.id)) {
         await generateSelfSignedCert(service.id);
         await appendLog(

@@ -1,0 +1,14 @@
+name: Redis 7
+description: In-memory data store
+category: database
+docs: https://redis.io/docs/
+
+services:
+  redis:
+    image: redis:7-alpine
+    port: 6379
+    type: database
+    volumes:
+      - data:/data
+    health_check:
+      timeout: 30

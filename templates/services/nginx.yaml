@@ -1,0 +1,9 @@
+name: Nginx
+description: Static file server
+category: webserver
+docs: https://nginx.org/en/docs/
+
+services:
+  nginx:
+    image: nginx:alpine
+    port: 80

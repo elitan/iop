@@ -1,52 +1,74 @@
 import { z } from "zod";
-import { DATABASE_TEMPLATES } from "@/lib/db-templates";
 import { os } from "@/lib/orpc";
-import { SERVICE_TEMPLATES } from "@/lib/templates";
+import {
+  getDatabaseTemplates,
+  getProjectTemplates,
+  getServiceTemplates,
+  getTemplates,
+} from "@/lib/templates";
 
-const serviceTemplateSchema = z.object({
+const serviceDefinitionSchema = z.object({
+  image: z.string(),
+  port: z.number(),
+  main: z.boolean().optional(),
+  type: z.enum(["database", "app"]).optional(),
+  command: z.string().optional(),
+  environment: z.record(z.string(), z.unknown()).optional(),
+  volumes: z.array(z.string()).optional(),
+  health_check: z
+    .object({
+      path: z.string().optional(),
+      timeout: z.number(),
+    })
+    .optional(),
+  ssl: z.boolean().optional(),
+});
+
+const templateSchema = z.object({
   id: z.string(),
   name: z.string(),
-  image: z.string(),
   description: z.string(),
-  containerPort: z.number().optional(),
-});
-
-const volumeMountSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-});
-
-const dbTemplateSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  image: z.string(),
-  containerPort: z.number(),
-  envVars: z.array(
-    z.object({
-      key: z.string(),
-      value: z.string(),
-      generated: z.boolean().optional(),
-    }),
-  ),
-  volumes: z.array(volumeMountSchema),
-  healthCheckTimeout: z.number(),
-  supportsSSL: z.boolean(),
+  category: z.string(),
+  docs: z.string().optional(),
+  type: z.enum(["database", "service", "project"]),
+  services: z.record(z.string(), serviceDefinitionSchema),
 });
 
 export const templates = {
   list: os
     .route({ method: "GET", path: "/templates" })
-    .output(z.array(serviceTemplateSchema))
+    .output(z.array(templateSchema))
     .handler(async () => {
-      return SERVICE_TEMPLATES;
+      return getTemplates();
+    }),
+
+  services: os
+    .route({ method: "GET", path: "/templates/services" })
+    .output(z.array(templateSchema))
+    .handler(async () => {
+      return getServiceTemplates();
+    }),
+
+  projects: os
+    .route({ method: "GET", path: "/templates/projects" })
+    .output(z.array(templateSchema))
+    .handler(async () => {
+      return getProjectTemplates();
+    }),
+
+  databases: os
+    .route({ method: "GET", path: "/templates/databases" })
+    .output(z.array(templateSchema))
+    .handler(async () => {
+      return getDatabaseTemplates();
     }),
 };
 
 export const dbTemplates = {
   list: os
     .route({ method: "GET", path: "/db-templates" })
-    .output(z.array(dbTemplateSchema))
+    .output(z.array(templateSchema))
     .handler(async () => {
-      return DATABASE_TEMPLATES;
+      return getDatabaseTemplates();
     }),
 };

@@ -23,7 +23,6 @@ import { useProject } from "@/hooks/use-projects";
 import { useCreateService } from "@/hooks/use-services";
 import type { CreateServiceInput, EnvVar } from "@/lib/api";
 import { api } from "@/lib/api";
-import { SERVICE_TEMPLATES } from "@/lib/templates";
 import { RepoSelector } from "./_components/repo-selector";
 
 type DeployType = "repo" | "image" | "database";
@@ -54,6 +53,14 @@ export default function NewServicePage() {
     queryFn: () => api.dbTemplates.list(),
   });
 
+  const { data: serviceTemplates } = useQuery({
+    queryKey: ["service-templates"],
+    queryFn: async () => {
+      const res = await fetch("/api/templates/services");
+      return res.json();
+    },
+  });
+
   const { data: registries } = useQuery({
     queryKey: ["registries"],
     queryFn: async () => {
@@ -66,13 +73,20 @@ export default function NewServicePage() {
 
   function handleTemplateChange(templateId: string) {
     setSelectedTemplate(templateId);
-    const template = SERVICE_TEMPLATES.find((t) => t.id === templateId);
+    const templates = serviceTemplates?.filter(
+      (t: { type: string }) => t.type === "service",
+    );
+    const template = templates?.find(
+      (t: { id: string }) => t.id === templateId,
+    );
     if (template) {
+      const serviceName = Object.keys(template.services)[0];
+      const svc = template.services[serviceName];
       if (imageUrlRef.current) {
-        imageUrlRef.current.value = template.image;
+        imageUrlRef.current.value = svc.image;
       }
       if (containerPortRef.current) {
-        containerPortRef.current.value = String(template.containerPort ?? 8080);
+        containerPortRef.current.value = String(svc.port ?? 8080);
       }
       if (nameInputRef.current && !nameInputRef.current.value) {
         nameInputRef.current.value = template.id;
@@ -383,15 +397,25 @@ export default function NewServicePage() {
                           <SelectValue placeholder="Select a template (optional)" />
                         </SelectTrigger>
                         <SelectContent className="border-neutral-700 bg-neutral-800">
-                          {SERVICE_TEMPLATES.map((t) => (
-                            <SelectItem
-                              key={t.id}
-                              value={t.id}
-                              className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                            >
-                              {t.name} - {t.description}
-                            </SelectItem>
-                          ))}
+                          {serviceTemplates
+                            ?.filter(
+                              (t: { type: string }) => t.type === "service",
+                            )
+                            .map(
+                              (t: {
+                                id: string;
+                                name: string;
+                                description: string;
+                              }) => (
+                                <SelectItem
+                                  key={t.id}
+                                  value={t.id}
+                                  className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
+                                >
+                                  {t.name} - {t.description}
+                                </SelectItem>
+                              ),
+                            )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -502,37 +526,38 @@ export default function NewServicePage() {
                       </Select>
                     </div>
 
-                    {selectedDbTemplate && (
-                      <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
-                        <p className="mb-2 font-medium text-neutral-300">
-                          Auto-configured:
-                        </p>
-                        <ul className="space-y-1">
-                          <li>
-                            Image:{" "}
-                            <code className="text-neutral-300">
-                              {
-                                dbTemplates?.find(
-                                  (t) => t.id === selectedDbTemplate,
-                                )?.image
-                              }
-                            </code>
-                          </li>
-                          <li>
-                            Port:{" "}
-                            <code className="text-neutral-300">
-                              {
-                                dbTemplates?.find(
-                                  (t) => t.id === selectedDbTemplate,
-                                )?.containerPort
-                              }
-                            </code>
-                          </li>
-                          <li>Volume mounted for data persistence</li>
-                          <li>Credentials auto-generated</li>
-                        </ul>
-                      </div>
-                    )}
+                    {selectedDbTemplate &&
+                      (() => {
+                        const template = dbTemplates?.find(
+                          (t: { id: string }) => t.id === selectedDbTemplate,
+                        );
+                        if (!template) return null;
+                        const serviceName = Object.keys(template.services)[0];
+                        const svc = template.services[serviceName];
+                        return (
+                          <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
+                            <p className="mb-2 font-medium text-neutral-300">
+                              Auto-configured:
+                            </p>
+                            <ul className="space-y-1">
+                              <li>
+                                Image:{" "}
+                                <code className="text-neutral-300">
+                                  {svc.image}
+                                </code>
+                              </li>
+                              <li>
+                                Port:{" "}
+                                <code className="text-neutral-300">
+                                  {svc.port}
+                                </code>
+                              </li>
+                              <li>Volume mounted for data persistence</li>
+                              <li>Credentials auto-generated</li>
+                            </ul>
+                          </div>
+                        );
+                      })()}
                   </div>
                 )}
 

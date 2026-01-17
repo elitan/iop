@@ -7,8 +7,8 @@ log "=== Database Services ==="
 
 log "Getting database templates..."
 TEMPLATES=$(api "$BASE_URL/api/db-templates")
-POSTGRES_FOUND=$(json_get "$TEMPLATES" '.[] | select(.id == "postgres-17") | .id')
-[ "$POSTGRES_FOUND" != "postgres-17" ] && fail "postgres-17 template not found. Response: $TEMPLATES"
+POSTGRES_FOUND=$(json_get "$TEMPLATES" '.[] | select(.id == "postgres") | .id')
+[ "$POSTGRES_FOUND" != "postgres" ] && fail "postgres template not found. Response: $TEMPLATES"
 log "Templates available"
 
 log "Creating database service..."
@@ -16,7 +16,7 @@ PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-database"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
-  -d '{"name":"postgres","deployType":"database","templateId":"postgres-17"}')
+  -d '{"name":"postgres","deployType":"database","templateId":"postgres"}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create db service") || fail "Failed to create database service: $SERVICE"
 SERVICE_TYPE=$(json_get "$SERVICE" '.serviceType')
 

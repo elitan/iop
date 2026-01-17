@@ -140,6 +140,7 @@ export interface Services {
   requestTimeout: number | null;
   registryId: string | null;
   hostname: string | null;
+  command: string | null;
 }
 
 export interface Settings {

@@ -8,10 +8,12 @@ import {
   projectsSchema,
   servicesSchema,
 } from "@/lib/db-schemas";
-import { deployProject } from "@/lib/deployer";
+import { deployProject, deployService } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
 import { os } from "@/lib/orpc";
 import { slugify } from "@/lib/slugify";
+import { generateSelfSignedCert } from "@/lib/ssl";
+import { getTemplate, resolveTemplateServices } from "@/lib/templates";
 
 const envVarSchema = z.object({
   key: z.string(),
@@ -153,10 +155,25 @@ export const projects = {
       z.object({
         name: z.string().min(1),
         envVars: z.array(envVarSchema).default([]),
+        templateId: z.string().optional(),
       }),
     )
     .output(projectsSchema)
     .handler(async ({ input }) => {
+      if (input.templateId) {
+        const template = getTemplate(input.templateId);
+        if (!template) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: "Unknown template",
+          });
+        }
+        if (template.type !== "project") {
+          throw new ORPCError("BAD_REQUEST", {
+            message: "Template is not a project template",
+          });
+        }
+      }
+
       const id = nanoid();
       const now = Date.now();
       const hostname = slugify(input.name);
@@ -182,6 +199,48 @@ export const projects = {
         throw new ORPCError("INTERNAL_SERVER_ERROR", {
           message: "Failed to create project",
         });
+      }
+
+      if (input.templateId) {
+        const template = getTemplate(input.templateId)!;
+        const resolved = resolveTemplateServices(template);
+
+        for (const svc of resolved) {
+          const serviceId = nanoid();
+          const serviceHostname = slugify(svc.name);
+
+          await db
+            .insertInto("services")
+            .values({
+              id: serviceId,
+              projectId: id,
+              name: svc.name,
+              hostname: serviceHostname,
+              deployType: "image",
+              repoUrl: null,
+              branch: null,
+              dockerfilePath: null,
+              imageUrl: svc.image,
+              envVars: JSON.stringify(svc.envVars),
+              containerPort: svc.port,
+              healthCheckPath: svc.healthCheckPath ?? null,
+              healthCheckTimeout: svc.healthCheckTimeout,
+              autoDeploy: 0,
+              serviceType: svc.isDatabase ? "database" : "app",
+              volumes: JSON.stringify(svc.volumes),
+              command: svc.command ?? null,
+              createdAt: now,
+            })
+            .execute();
+
+          if (svc.ssl) {
+            await generateSelfSignedCert(serviceId);
+          }
+
+          deployService(serviceId).catch((err) => {
+            console.error(`Auto-deploy failed for service ${serviceId}:`, err);
+          });
+        }
       }
 
       return project;
