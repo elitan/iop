@@ -1,55 +1,19 @@
 # Deployments
 
-A **deployment** is an immutable record of a service deployment attempt. Each time you deploy a service, Frost creates a new deployment record.
+A **deployment** is a record of a service deployment attempt.
 
-## Deployment Status
-
-Deployments progress through these states:
+## Status
 
 | Status | Description |
 |--------|-------------|
-| `pending` | Deployment queued |
-| `cloning` | Cloning git repository (repo type) |
-| `pulling` | Pulling Docker image (image type) |
+| `pending` | Queued |
+| `cloning` | Cloning git repository |
+| `pulling` | Pulling Docker image |
 | `building` | Building Docker image |
 | `deploying` | Starting container |
-| `running` | Container healthy and serving traffic |
-| `failed` | Deployment failed at any stage |
-| `cancelled` | Deployment was cancelled |
-
-## Deploy Flow
-
-1. **Clone/Pull** - Clone repo or pull image
-2. **Build** - Run `docker build` with merged env vars
-3. **Network** - Create project network if needed
-4. **Run** - Start container on network
-5. **Health check** - Verify container is healthy
-6. **Cutover** - Stop previous deployment, route traffic to new one
-
-## Viewing Deployments
-
-Each service shows its deployment history. Click a deployment to view:
-
-- **Status** - Current state
-- **Build log** - Output from docker build
-- **Container ID** - Running container identifier
-- **Host port** - Port mapped on host machine
-- **Timestamps** - Created and updated times
+| `running` | Container healthy |
+| `failed` | Deployment failed |
 
 ## Rollback
 
-Frost keeps images from recent successful deployments. To rollback:
-
-1. Go to service deployment history
-2. Find a successful deployment
-3. Click **Rollback** to restore that version
-
-Rollbacks reuse the saved image and environment variables from the target deployment.
-
-## Build Logs
-
-Build logs capture the full `docker build` output. Useful for debugging failed builds:
-
-- Dockerfile syntax errors
-- Missing dependencies
-- Build-time environment issues
+To rollback, go to deployment history and click **Rollback** on a previous successful deployment.

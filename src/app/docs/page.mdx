@@ -1,31 +1,16 @@
-# Frost Documentation
+# Frost
 
-Frost is a simple deployment platform. Docker-only, single-user. Think of it as a self-hosted alternative to Vercel or Railway.
+Simple deployment platform. Docker-only, single-user.
 
-## Quick Overview
+## Overview
 
-- **Projects** - containers for related services with shared environment variables
-- **Services** - deployable workloads (from git repos or Docker images)
-- **Deployments** - immutable records of each deploy attempt
-- **Domains** - custom domains attached to services
-
-## Key Features
-
-- Deploy from **Git repositories** or **Docker images**
-- Automatic **SSL certificates** via Let's Encrypt
-- **Environment variables** at project and service level
-- **Custom domains** with proxy and redirect support
-- Built-in **health checks** and auto-restart
+- **Projects** - Group related services with shared environment variables
+- **Services** - Deploy from git repos or Docker images
+- **Domains** - Attach custom domains with automatic SSL
 
 ## Getting Started
 
 1. [Install Frost](/docs/installation) on your server
-2. Create a [project](/docs/concepts/projects)
-3. Add a [service](/docs/concepts/services)
-4. Deploy!
-
-## PORT Handling
-
-Apps should listen on the `PORT` environment variable (default 8080). Frost automatically sets this for your containers.
-
-For images with hardcoded ports, set `container_port` on the service to match.
+2. Create a project
+3. Add a service
+4. Deploy

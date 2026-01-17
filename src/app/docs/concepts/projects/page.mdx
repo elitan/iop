@@ -1,43 +1,14 @@
 # Projects
 
-A **project** is a container for related services. Projects provide:
+A **project** groups related services together. Projects provide:
 
-- Logical grouping of services
 - Shared environment variables inherited by all services
 - Isolated Docker network for inter-service communication
 
-## Creating a Project
-
-1. Click **New Project** from the dashboard
-2. Enter a name (e.g., "my-app", "staging-env")
-3. Optionally add project-level environment variables
-
-## Environment Variables
-
-Project environment variables are inherited by all services within the project. This is useful for shared configuration:
-
-- Database connection strings
-- API keys used by multiple services
-- Feature flags
-
-Service-level variables override project-level ones with the same name.
-
 ## Networking
 
-Each project gets its own Docker network (`frost-net-{projectId}`). Services within a project can communicate using their service name as hostname:
+Services in the same project can communicate using the service name as hostname:
 
-```javascript
-// Service "api" connecting to service "db"
-const db = new Database("postgres://db:5432/myapp");
 ```
-
-## Deleting a Project
-
-Deleting a project will:
-
-1. Stop all running services
-2. Remove all deployments
-3. Delete associated domains
-4. Clean up the Docker network
-
-This action cannot be undone.
+http://api:8080/health
+```
