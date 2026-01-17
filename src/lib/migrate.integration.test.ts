@@ -28,7 +28,7 @@ describe("migrate integration", () => {
       schemaDir: PROD_SCHEMA_DIR,
     });
 
-    expect(result.applied).toBe(22);
+    expect(result.applied).toBe(23);
     expect(result.bootstrapped).toBe(false);
   });
 
@@ -95,6 +95,7 @@ describe("migrate integration", () => {
     expect(columnNames).toContain("repo_url");
     expect(columnNames).toContain("branch");
     expect(columnNames).toContain("dockerfile_path");
+    expect(columnNames).toContain("build_context");
     expect(columnNames).toContain("image_url");
     expect(columnNames).toContain("env_vars");
     expect(columnNames).toContain("container_port");
@@ -234,7 +235,7 @@ describe("migrate integration", () => {
       dbPath: TEST_DB,
       schemaDir: PROD_SCHEMA_DIR,
     });
-    expect(first.applied).toBe(22);
+    expect(first.applied).toBe(23);
 
     const second = runMigrations({
       dbPath: TEST_DB,
@@ -249,7 +250,7 @@ describe("migrate integration", () => {
       .all() as Array<{ name: string }>;
     db.close();
 
-    expect(migrations).toHaveLength(22);
+    expect(migrations).toHaveLength(23);
   });
 
   test("running migrations three times remains stable", () => {
@@ -268,7 +269,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(22);
+    expect(count.count).toBe(23);
   });
 
   test("migration tracking records correct timestamps", () => {
@@ -299,7 +300,7 @@ describe("migrate integration", () => {
 
     expect(migrations[0].name).toBe("001-init.sql");
     expect(migrations[1].name).toBe("002-env-vars.sql");
-    expect(migrations[21].name).toBe("022-hostname.sql");
+    expect(migrations[22].name).toBe("023-build-context.sql");
 
     for (let i = 1; i < migrations.length; i++) {
       expect(migrations[i].name > migrations[i - 1].name).toBe(true);
@@ -450,7 +451,7 @@ describe("migrate integration", () => {
     ]);
 
     const totalApplied = results.reduce((sum, r) => sum + r.applied, 0);
-    expect(totalApplied).toBe(22);
+    expect(totalApplied).toBe(23);
 
     const db = new Database(TEST_DB);
     const count = db
@@ -458,7 +459,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(22);
+    expect(count.count).toBe(23);
   });
 });
 
@@ -505,7 +506,7 @@ describe("migrate bootstrap scenarios", () => {
       .all() as Array<{ name: string }>;
     db2.close();
 
-    expect(migrations).toHaveLength(22);
+    expect(migrations).toHaveLength(23);
   });
 
   test("bootstrap preserves existing data", () => {

@@ -157,6 +157,8 @@ jobs:
           exit 1
 
       - name: Run E2E tests
+        env:
+          E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           chmod +x ./scripts/e2e-test.sh
           ./scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"

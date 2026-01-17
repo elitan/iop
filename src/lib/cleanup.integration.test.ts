@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { exec } from "node:child_process";
-import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   buildImage,
@@ -21,7 +20,8 @@ const execAsync = promisify(exec);
 
 const TEST_PREFIX = "frost-cleanup-test";
 const TEST_NETWORK = "frost-net-cleanup-test";
-const FIXTURE_PATH = join(process.cwd(), "test/fixtures/simple-node");
+const REPO_ROOT = process.cwd();
+const DOCKERFILE_PATH = "test/fixtures/simple-node/Dockerfile";
 
 const TEST_LABELS = {
   "frost.managed": "true",
@@ -53,9 +53,9 @@ describe("cleanup docker functions", () => {
 
   test("listFrostImages returns labeled images only", async () => {
     const result = await buildImage({
-      repoPath: FIXTURE_PATH,
+      repoPath: REPO_ROOT,
       imageName: `${TEST_PREFIX}-svc:v1`,
-      dockerfilePath: "Dockerfile",
+      dockerfilePath: DOCKERFILE_PATH,
       labels: TEST_LABELS,
     });
     expect(result.success).toBe(true);
@@ -68,9 +68,9 @@ describe("cleanup docker functions", () => {
 
   test("unlabeled images are not returned by listFrostImages", async () => {
     const result = await buildImage({
-      repoPath: FIXTURE_PATH,
+      repoPath: REPO_ROOT,
       imageName: `${TEST_PREFIX}-unlabeled:v1`,
-      dockerfilePath: "Dockerfile",
+      dockerfilePath: DOCKERFILE_PATH,
     });
     expect(result.success).toBe(true);
 
@@ -93,9 +93,9 @@ describe("cleanup docker functions", () => {
 
   test("removeImage deletes an image", async () => {
     await buildImage({
-      repoPath: FIXTURE_PATH,
+      repoPath: REPO_ROOT,
       imageName: `${TEST_PREFIX}-todelete:v1`,
-      dockerfilePath: "Dockerfile",
+      dockerfilePath: DOCKERFILE_PATH,
       labels: TEST_LABELS,
     });
 

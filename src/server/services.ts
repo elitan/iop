@@ -88,6 +88,7 @@ export const services = {
         repoUrl: z.string().optional(),
         branch: z.string().default("main"),
         dockerfilePath: z.string().default("Dockerfile"),
+        buildContext: z.string().optional(),
         imageUrl: z.string().optional(),
         envVars: z.array(envVarSchema).default([]),
         containerPort: z.number().min(1).max(65535).optional(),
@@ -201,6 +202,8 @@ export const services = {
             branch: input.deployType === "repo" ? input.branch : null,
             dockerfilePath:
               input.deployType === "repo" ? input.dockerfilePath : null,
+            buildContext:
+              input.deployType === "repo" ? (input.buildContext ?? null) : null,
             imageUrl: input.deployType === "image" ? input.imageUrl! : null,
             envVars: JSON.stringify(input.envVars),
             containerPort: input.containerPort ?? null,
@@ -254,6 +257,7 @@ export const services = {
         containerPort: z.number().min(1).max(65535).optional(),
         branch: z.string().optional(),
         dockerfilePath: z.string().optional(),
+        buildContext: z.string().nullable().optional(),
         repoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
         healthCheckPath: z.string().nullable().optional(),
@@ -300,6 +304,8 @@ export const services = {
         if (input.branch !== undefined) updates.branch = input.branch;
         if (input.dockerfilePath !== undefined)
           updates.dockerfilePath = input.dockerfilePath;
+        if (input.buildContext !== undefined)
+          updates.buildContext = input.buildContext;
         if (input.repoUrl !== undefined) updates.repoUrl = input.repoUrl;
       }
       if (service.deployType === "image" && input.imageUrl !== undefined) {

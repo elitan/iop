@@ -27,6 +27,7 @@ export interface Service {
   repoUrl: string | null;
   branch: string | null;
   dockerfilePath: string | null;
+  buildContext: string | null;
   imageUrl: string | null;
   envVars: string;
   containerPort: number | null;
@@ -134,6 +135,7 @@ export interface CreateServiceInput {
   repoUrl?: string;
   branch?: string;
   dockerfilePath?: string;
+  buildContext?: string;
   imageUrl?: string;
   envVars?: EnvVar[];
   containerPort?: number;
@@ -217,6 +219,7 @@ export interface UpdateServiceInput {
   envVars?: EnvVar[];
   branch?: string;
   dockerfilePath?: string;
+  buildContext?: string | null;
   repoUrl?: string;
   imageUrl?: string;
   containerPort?: number;

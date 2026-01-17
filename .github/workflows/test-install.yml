@@ -74,6 +74,15 @@ jobs:
           echo "Authenticated status: $STATUS"
           [ "$STATUS" = "200" ] || exit 1
 
+      - name: Test static files served
+        run: |
+          STATIC_FILE=$(find .next/static -name "*.js" -o -name "*.css" | head -1)
+          STATIC_PATH=${STATIC_FILE#.next}
+          echo "Testing: /_next$STATIC_PATH"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/_next$STATIC_PATH")
+          echo "Status: $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+
       - name: Test wrong password
         run: |
           RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/login \
