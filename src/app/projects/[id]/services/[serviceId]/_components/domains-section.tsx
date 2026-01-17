@@ -37,6 +37,24 @@ import {
 import type { Domain } from "@/lib/api";
 import { extractSubdomain } from "@/lib/domain-utils";
 
+interface VerificationState {
+  isChecking: boolean;
+  attemptCount: number;
+  lastError: "no_record" | "wrong_ip" | null;
+  domainIp: string | null;
+}
+
+const DNS_SHOW_ATTEMPT_THRESHOLD = 3;
+
+function getDefaultVerificationState(): VerificationState {
+  return {
+    isChecking: false,
+    attemptCount: 0,
+    lastError: null,
+    domainIp: null,
+  };
+}
+
 interface DomainsSectionProps {
   serviceId: string;
   hasRunningDeployment: boolean;
@@ -61,6 +79,9 @@ export function DomainsSection({
   const [domainType, setDomainType] = useState<"proxy" | "redirect">("proxy");
   const [redirectTarget, setRedirectTarget] = useState("");
   const [redirectCode, setRedirectCode] = useState<"301" | "307">("301");
+  const [verificationState, setVerificationState] = useState<
+    Map<string, VerificationState>
+  >(new Map());
 
   const proxyDomains = domains?.filter((d) => d.type === "proxy") || [];
   const systemDomains = domains?.filter((d) => d.isSystem === 1) || [];
@@ -84,16 +105,43 @@ export function DomainsSection({
   useEffect(() => {
     if (unverifiedDomainIds.length === 0) return;
 
+    function updateState(
+      id: string,
+      updater: (current: VerificationState) => VerificationState | null,
+    ): void {
+      setVerificationState((prev) => {
+        const next = new Map(prev);
+        const current = next.get(id) || getDefaultVerificationState();
+        const updated = updater(current);
+        if (updated === null) {
+          next.delete(id);
+        } else {
+          next.set(id, updated);
+        }
+        return next;
+      });
+    }
+
     const interval = setInterval(async () => {
       for (const id of unverifiedDomainIds) {
+        updateState(id, (current) => ({ ...current, isChecking: true }));
+
         try {
           const result = await verifyDnsMutation.mutateAsync(id);
           if (result.dnsVerified) {
             const domain = domains?.find((d) => d.id === id);
             toast.success(`DNS verified for ${domain?.domain}`);
+            updateState(id, () => null);
+          } else {
+            updateState(id, (current) => ({
+              isChecking: false,
+              attemptCount: current.attemptCount + 1,
+              lastError: result.errorType || null,
+              domainIp: result.domainIp,
+            }));
           }
         } catch {
-          // Silently ignore polling errors
+          updateState(id, (current) => ({ ...current, isChecking: false }));
         }
       }
     }, 5000);
@@ -346,6 +394,7 @@ export function DomainsSection({
                 onDelete={() => handleDelete(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={hasOtherVerifiedDomains}
+                verificationState={verificationState.get(domain.id)}
               />
             ))}
           </div>
@@ -371,6 +420,7 @@ export function DomainsSection({
                 onDelete={() => handleDelete(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={true}
+                verificationState={verificationState.get(domain.id)}
               />
             ))}
           </div>
@@ -406,6 +456,7 @@ interface DomainRowProps {
   onDelete: () => void;
   isVerifying: boolean;
   canDelete: boolean;
+  verificationState?: VerificationState;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -427,6 +478,102 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function DomainStatusDisplay({
+  isVerified,
+  isActive,
+  isSystem,
+  serverIp,
+  verificationState,
+  isExpanded,
+  setIsExpanded,
+}: {
+  isVerified: boolean;
+  isActive: boolean;
+  isSystem: boolean;
+  serverIp: string | null;
+  verificationState: VerificationState | undefined;
+  isExpanded: boolean;
+  setIsExpanded: (v: boolean) => void;
+}): React.ReactNode {
+  if (isVerified && isActive) {
+    return (
+      <span className="text-xs text-neutral-400">Valid Configuration</span>
+    );
+  }
+
+  if (isVerified) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-neutral-400">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Requesting certificate...
+      </span>
+    );
+  }
+
+  if (isSystem) {
+    return null;
+  }
+
+  if (verificationState?.isChecking) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-neutral-400">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Checking DNS...
+      </span>
+    );
+  }
+
+  const showAttemptCount =
+    verificationState &&
+    verificationState.attemptCount >= DNS_SHOW_ATTEMPT_THRESHOLD;
+
+  if (showAttemptCount && verificationState.lastError === "wrong_ip") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
+      >
+        DNS points to {verificationState.domainIp}, expected {serverIp}
+      </Badge>
+    );
+  }
+
+  if (showAttemptCount) {
+    return (
+      <Badge
+        variant="outline"
+        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
+      >
+        Waiting for DNS propagation (attempt {verificationState.attemptCount})
+      </Badge>
+    );
+  }
+
+  return (
+    <>
+      <Badge
+        variant="outline"
+        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
+      >
+        Verification Needed
+      </Badge>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="h-auto px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200"
+      >
+        Learn more
+        {isExpanded ? (
+          <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
+      </Button>
+    </>
+  );
+}
+
 function DomainRow({
   domain,
   serverIp,
@@ -434,6 +581,7 @@ function DomainRow({
   onDelete,
   isVerifying,
   canDelete,
+  verificationState,
 }: DomainRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isVerified = domain.dnsVerified === 1;
@@ -483,42 +631,15 @@ function DomainRow({
                   Auto-generated
                 </Badge>
               )}
-              {isVerified ? (
-                isActive ? (
-                  <span className="text-xs text-neutral-400">
-                    Valid Configuration
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-xs text-neutral-400">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Provisioning SSL...
-                  </span>
-                )
-              ) : (
-                !isSystem && (
-                  <>
-                    <Badge
-                      variant="outline"
-                      className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
-                    >
-                      Verification Needed
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="h-auto px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200"
-                    >
-                      Learn more
-                      {isExpanded ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </Button>
-                  </>
-                )
-              )}
+              <DomainStatusDisplay
+                isVerified={isVerified}
+                isActive={isActive}
+                isSystem={isSystem}
+                serverIp={serverIp}
+                verificationState={verificationState}
+                isExpanded={isExpanded}
+                setIsExpanded={setIsExpanded}
+              />
               {domain.type === "redirect" && (
                 <Badge
                   variant="outline"

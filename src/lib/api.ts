@@ -104,6 +104,7 @@ export interface DnsStatus {
   serverIp: string;
   domainIp: string | null;
   dnsVerified: boolean;
+  errorType?: "no_record" | "wrong_ip";
 }
 
 export interface SslStatus {

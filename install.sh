@@ -115,13 +115,17 @@ else
 fi
 export PATH="/usr/local/go/bin:$PATH"
 
-# Install xcaddy and build Caddy with DNS modules
-if ! command -v caddy &> /dev/null; then
+# Install/rebuild Caddy with DNS modules if missing
+if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
+  timer "Building Caddy with DNS modules..."
+
+  systemctl stop caddy 2>/dev/null || true
+  rm -f /usr/bin/caddy
+
   timer "Installing xcaddy..."
   go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
   export PATH="$HOME/go/bin:$PATH"
 
-  timer "Building Caddy with DNS modules..."
   cd /tmp
   xcaddy build --with github.com/caddy-dns/cloudflare
   mv caddy /usr/bin/caddy
@@ -159,7 +163,7 @@ CADDY_SERVICE
   systemctl daemon-reload
   systemctl enable caddy
 else
-  timer "Caddy already installed"
+  timer "Caddy DNS modules present"
 fi
 
 # Configure Caddy to proxy to Frost
