@@ -233,11 +233,10 @@ function createJWT(appId: string, privateKeyPem: string): string {
 }
 
 export function extractAccountFromRepoUrl(repoUrl: string): string | null {
-  const httpsMatch = repoUrl.match(/github\.com\/([^/]+)\//);
-  if (httpsMatch) return httpsMatch[1];
-  const sshMatch = repoUrl.match(/git@github\.com:([^/]+)\//);
-  if (sshMatch) return sshMatch[1];
-  return null;
+  const match =
+    repoUrl.match(/github\.com\/([^/]+)\//) ||
+    repoUrl.match(/git@github\.com:([^/]+)\//);
+  return match?.[1] ?? null;
 }
 
 async function findInstallationId(repoUrl?: string): Promise<string> {
@@ -302,10 +301,10 @@ export function isGitHubRepo(repoUrl: string): boolean {
 }
 
 export function normalizeGitHubUrl(url: string): string {
-  if (url.startsWith("git@github.com:")) {
-    url = url.replace("git@github.com:", "https://github.com/");
-  }
-  return url.replace(/\.git$/, "");
+  const httpsUrl = url.startsWith("git@github.com:")
+    ? url.replace("git@github.com:", "https://github.com/")
+    : url;
+  return httpsUrl.replace(/\.git$/, "");
 }
 
 export function parseOwnerRepoFromUrl(
@@ -359,15 +358,13 @@ export async function createCommitStatus(params: {
 }
 
 export function injectTokenIntoUrl(repoUrl: string, token: string): string {
+  const authPrefix = `https://x-access-token:${token}@github.com/`;
+
   if (repoUrl.startsWith("https://github.com/")) {
-    return repoUrl.replace(
-      "https://github.com/",
-      `https://x-access-token:${token}@github.com/`,
-    );
+    return repoUrl.replace("https://github.com/", authPrefix);
   }
   if (repoUrl.startsWith("git@github.com:")) {
-    const path = repoUrl.replace("git@github.com:", "");
-    return `https://x-access-token:${token}@github.com/${path}`;
+    return authPrefix + repoUrl.replace("git@github.com:", "");
   }
   return repoUrl;
 }
