@@ -1,6 +1,7 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { nanoid } from "nanoid";
 import { router } from "@/server";
 import type { Context } from "@/server/context";
 
@@ -28,6 +29,7 @@ async function getSpec() {
 
 async function handleRequest(request: Request) {
   const url = new URL(request.url);
+  const requestId = nanoid(10);
 
   if (url.pathname === "/api/openapi.json") {
     const spec = await getSpec();
@@ -36,11 +38,17 @@ async function handleRequest(request: Request) {
 
   const { matched, response } = await handler.handle(request, {
     prefix: "/api",
-    context: { headers: request.headers },
+    context: { headers: request.headers, requestId },
   });
 
-  if (matched) {
-    return response;
+  if (matched && response) {
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("X-Request-Id", requestId);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   }
 
   return new Response("Not Found", { status: 404 });
