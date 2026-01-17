@@ -27,15 +27,14 @@ Provision a VPS and install the Frost deployment platform.
 
 ## PROVIDER SELECTION
 
-Ask user which cloud provider to use. Common options:
-- Hetzner (best value)
-- DigitalOcean
-- Vultr
-- Linode
-- AWS Lightsail
-- Other (user specifies)
+Ask user which cloud provider to use. Suggest options like Hetzner, DigitalOcean, Vultr, Linode, AWS Lightsail, or let them specify another.
 
-Look up current pricing and API docs for the chosen provider.
+Once provider is chosen, use web search to find:
+- Current pricing for smallest 2GB+ RAM instance
+- API documentation URL
+- API endpoint for creating servers
+- API endpoint for adding SSH keys
+- Available regions
 
 ---
 
@@ -59,11 +58,12 @@ Ask user:
 ## PROVISIONING
 
 For the chosen provider:
-1. Look up their API documentation
+1. Use web search to find API docs and exact curl commands
 2. Guide user to create API token in provider console
 3. Add SSH key via API
 4. Create server via API (smallest instance with 2GB+ RAM, Ubuntu 24.04)
-5. Poll until server is ready and SSH accessible
+5. Poll status endpoint until server is ready
+6. Test SSH connectivity before proceeding
 
 ---
 
@@ -111,4 +111,4 @@ API Token (for server management): {token}
 
 ## CLEANUP (Optional)
 
-To delete the server and stop billing, look up the provider's API delete endpoint and execute it with the server ID.
+To delete the server and stop billing, use web search to find the provider's API delete endpoint and execute it with the server ID.
