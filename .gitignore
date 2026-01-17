@@ -42,7 +42,7 @@ yarn-error.log*
 /data/
 /repos/
 
-# test fixture git repos
+# test fixture git repos (init'd by CI workflow)
 /test/fixtures/*/.git/
 
 # bun

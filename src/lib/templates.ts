@@ -90,35 +90,24 @@ function loadTemplatesFromDir(dirPath: string, type: TemplateType): Template[] {
     return [];
   }
 
-  const templates: Template[] = [];
-  const files = readdirSync(dirPath).filter((f) => f.endsWith(".yaml"));
-
-  for (const file of files) {
-    const filePath = join(dirPath, file);
-    const content = readFileSync(filePath, "utf-8");
-    const parsed = parseYaml(content);
-    const validated = templateFileSchema.parse(parsed);
-    const id = basename(file, ".yaml");
-
-    templates.push({
-      id,
-      name: validated.name,
-      description: validated.description,
-      category: validated.category,
-      docs: validated.docs,
-      type,
-      services: validated.services,
+  return readdirSync(dirPath)
+    .filter((f) => f.endsWith(".yaml"))
+    .map((file) => {
+      const content = readFileSync(join(dirPath, file), "utf-8");
+      const validated = templateFileSchema.parse(parseYaml(content));
+      return {
+        id: basename(file, ".yaml"),
+        name: validated.name,
+        description: validated.description,
+        category: validated.category,
+        docs: validated.docs,
+        type,
+        services: validated.services,
+      };
     });
-  }
-
-  return templates;
 }
 
 function getTemplatesDir(): string {
-  const devPath = join(process.cwd(), "templates");
-  if (existsSync(devPath)) {
-    return devPath;
-  }
   return join(process.cwd(), "templates");
 }
 
@@ -169,23 +158,18 @@ export function getDatabaseTemplates(): Template[] {
   return loadAllTemplates().filter((t) => t.type === "database");
 }
 
+function randomBase64(bytes: number): string {
+  return Buffer.from(
+    Array.from({ length: bytes }, () => Math.floor(Math.random() * 256)),
+  ).toString("base64");
+}
+
 export function generateCredential(
   type: "password" | "base64_32" | "base64_64" = "password",
 ): string {
-  switch (type) {
-    case "password":
-      return nanoid(32);
-    case "base64_32":
-      return Buffer.from(
-        Array.from({ length: 32 }, () => Math.floor(Math.random() * 256)),
-      ).toString("base64");
-    case "base64_64":
-      return Buffer.from(
-        Array.from({ length: 64 }, () => Math.floor(Math.random() * 256)),
-      ).toString("base64");
-    default:
-      return nanoid(32);
-  }
+  if (type === "base64_32") return randomBase64(32);
+  if (type === "base64_64") return randomBase64(64);
+  return nanoid(32);
 }
 
 export function isGeneratedValue(value: EnvValue): value is GeneratedValue {
@@ -237,12 +221,7 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
       }
     }
 
-    const volumes: VolumeMount[] = [];
-    if (service.volumes) {
-      for (const vol of service.volumes) {
-        volumes.push(parseVolumeString(vol));
-      }
-    }
+    const volumes = service.volumes?.map(parseVolumeString) ?? [];
 
     resolved.push({
       name: serviceName,
