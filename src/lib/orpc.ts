@@ -12,10 +12,9 @@ export const os = baseOs
   })
   .use(
     onError((error, { context }) => {
-      const requestId = context.requestId ?? "unknown";
-      console.error(`[${requestId}] API Error:`, error);
+      console.error(`[${context.requestId}] API Error:`, error);
       if (error.cause) {
-        console.error(`[${requestId}] Cause:`, error.cause);
+        console.error(`[${context.requestId}] Cause:`, error.cause);
       }
     }),
   );
