@@ -104,7 +104,7 @@ fi
 # Install Go if not present (needed for xcaddy)
 if ! command -v go &> /dev/null; then
   timer "Installing Go..."
-  GO_VERSION="1.22.5"
+  GO_VERSION="1.24.1"
   ARCH=$(uname -m)
   case $ARCH in
     x86_64) GO_ARCH="amd64" ;;
