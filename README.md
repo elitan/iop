@@ -18,6 +18,9 @@ Open source Railway alternative.
 
 ## Installation
 
+**Need a server?** See [INSTALL.md](INSTALL.md) for AI-assisted VPS provisioning.
+
+**Already have a server?**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | sudo bash
 ```
