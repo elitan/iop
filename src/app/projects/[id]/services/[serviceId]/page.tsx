@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { useDeployService, useService } from "@/hooks/use-services";
 import type { Deployment, Domain, EnvVar } from "@/lib/api";
 import { api } from "@/lib/api";
-import { buildConnectionString } from "@/lib/templates";
+import { buildConnectionString } from "@/lib/connection-strings";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "./_components/service-metrics-card";
 
