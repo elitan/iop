@@ -48,11 +48,14 @@ export function useDeleteDomain(serviceId: string) {
 export function useVerifyDomainDns(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.domains.verifyDns(id),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: ["services", serviceId, "domains"],
-      });
+    mutationFn: async (id: string) => {
+      const result = await api.domains.verifyDns(id);
+      if (result.dnsVerified) {
+        await queryClient.refetchQueries({
+          queryKey: ["services", serviceId, "domains"],
+        });
+      }
+      return result;
     },
   });
 }
@@ -60,11 +63,14 @@ export function useVerifyDomainDns(serviceId: string) {
 export function useVerifyDomainSsl(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.domains.verifySsl(id),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: ["services", serviceId, "domains"],
-      });
+    mutationFn: async (id: string) => {
+      const result = await api.domains.verifySsl(id);
+      if (result.working) {
+        await queryClient.refetchQueries({
+          queryKey: ["services", serviceId, "domains"],
+        });
+      }
+      return result;
     },
   });
 }
