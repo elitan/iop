@@ -15,6 +15,7 @@ export const db = new Kysely<DB>({
     url: DB_PATH,
     onCreateConnection: async (conn) => {
       await conn.executeQuery(CompiledQuery.raw("PRAGMA journal_mode = WAL"));
+      await conn.executeQuery(CompiledQuery.raw("PRAGMA busy_timeout = 5000"));
       await conn.executeQuery(CompiledQuery.raw("PRAGMA foreign_keys = ON"));
     },
   }),
