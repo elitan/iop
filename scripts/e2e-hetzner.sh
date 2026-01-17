@@ -54,19 +54,16 @@ for i in {1..60}; do
   sleep 5
 done
 
-echo "Installing Frost..."
-ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "curl -fsSL https://raw.githubusercontent.com/elitan/frost/feat/unified-templates/install.sh -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '$INSTALL_PASSWORD' | /tmp/install.sh"
+BRANCH="${1:-feat/unified-templates}"
+echo "Installing Frost from branch: $BRANCH..."
+INSTALL_OUTPUT=$(ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "curl -fsSL https://raw.githubusercontent.com/elitan/frost/$BRANCH/install.sh -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '$INSTALL_PASSWORD' | /tmp/install.sh" 2>&1)
+echo "$INSTALL_OUTPUT"
 
 echo "Waiting for Frost to start..."
 sleep 10
 
 echo "Getting API key..."
-API_KEY=$(ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "cat /opt/frost/data/frost.db" | strings | grep -E '^[a-zA-Z0-9_-]{32,}$' | head -1 || echo "")
-
-if [ -z "$API_KEY" ]; then
-  echo "Extracting API key from database..."
-  API_KEY=$(ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "sqlite3 /opt/frost/data/frost.db \"SELECT key_prefix || '.' || substr(key_hash, 1, 32) FROM api_keys LIMIT 1\"" 2>/dev/null || echo "")
-fi
+API_KEY=$(echo "$INSTALL_OUTPUT" | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
 
 if [ -z "$API_KEY" ]; then
   echo "Could not extract API key. Check server manually: ssh root@$SERVER_IP"
