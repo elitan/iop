@@ -97,6 +97,25 @@ log "Upgrading bun..."
 curl -fsSL https://bun.sh/install 2>/dev/null | bash > /dev/null 2>&1 || true
 
 mkdir -p /usr/local/bin
+
+# Rebuild Caddy if DNS modules missing (fixes apt-installed Caddy)
+if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
+  log "Rebuilding Caddy with DNS modules..."
+  systemctl stop caddy 2>/dev/null || true
+  rm -f /usr/bin/caddy
+
+  export PATH="/usr/local/go/bin:$PATH"
+  go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest 2>/dev/null || true
+  export PATH="$HOME/go/bin:$PATH"
+
+  cd /tmp
+  xcaddy build --with github.com/caddy-dns/cloudflare
+  mv caddy /usr/bin/caddy
+  chmod +x /usr/bin/caddy
+  cd - > /dev/null
+
+  systemctl start caddy 2>/dev/null || true
+fi
 if [ -f "$BUN_INSTALL/bin/bun" ]; then
   ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
 else
