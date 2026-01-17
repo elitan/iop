@@ -2,9 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Domain } from "./api";
 import { getPreferredDomain, getServiceUrl } from "./service-url";
 
-function makeDomain(
-  overrides: Partial<Domain> & { domain: string },
-): Domain {
+function makeDomain(overrides: Partial<Domain> & { domain: string }): Domain {
   return {
     id: "d1",
     serviceId: "s1",
