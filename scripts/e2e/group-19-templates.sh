@@ -40,28 +40,106 @@ SERVICES=$(echo "$POSTGRES_TEMPLATE" | jq -r '.services | keys | length')
 [ "$SERVICES" != "1" ] && fail "Expected 1 service definition, got: $SERVICES"
 log "Template structure valid"
 
-log "Creating service from database template..."
-PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-template-test"}')
-PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
+log "=== Service Template (nginx) ==="
+
+log "Creating nginx from service template..."
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-svc-template"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
 
 SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
-  -d '{"name":"testdb","deployType":"database","templateId":"redis"}')
-SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
+  -d '{"name":"nginx","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+SERVICE_ID=$(require_field "$SERVICE" '.id' "create nginx") || fail "Failed: $SERVICE"
 
-SERVICE_TYPE=$(json_get "$SERVICE" '.serviceType')
-IMAGE_URL=$(json_get "$SERVICE" '.imageUrl')
-
-[ "$SERVICE_TYPE" != "database" ] && fail "Service type should be 'database', got: $SERVICE_TYPE"
-echo "$IMAGE_URL" | grep -q "redis" || fail "Image should contain 'redis', got: $IMAGE_URL"
-log "Database template service created correctly"
-
-log "Waiting for deployment..."
+log "Waiting for nginx deployment..."
 sleep 2
 DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
 DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get deploy") || fail "No deployment: $DEPLOYS"
-wait_for_deployment "$DEPLOY_ID" 60 || fail "Deployment failed"
+wait_for_deployment "$DEPLOY_ID" 60 || fail "nginx deployment failed"
+
+log "Verifying nginx responds..."
+DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_ID")
+HOST_PORT=$(require_field "$DEPLOY_DATA" '.hostPort' "get hostPort") || fail "No hostPort"
+NGINX_RESP=$(remote "curl -sf http://localhost:$HOST_PORT/ | head -1" 2>&1 || echo "failed")
+echo "$NGINX_RESP" | grep -qi "nginx\|welcome" || fail "nginx not responding: $NGINX_RESP"
+log "nginx responding on port $HOST_PORT"
+
+api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
+log "Cleaned up nginx test"
+
+log "=== Database + App Integration ==="
+
+log "Creating project with postgres + app..."
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-db-app"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
+
+log "Adding postgres from template..."
+DB_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+  -d '{"name":"postgres","deployType":"database","templateId":"postgres"}')
+DB_SERVICE_ID=$(require_field "$DB_SERVICE" '.id' "create postgres") || fail "Failed: $DB_SERVICE"
+
+log "Extracting postgres credentials..."
+DB_ENVVARS=$(json_get "$DB_SERVICE" '.envVars')
+PG_USER=$(echo "$DB_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_USER") | .value')
+PG_PASS=$(echo "$DB_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_PASSWORD") | .value')
+PG_DB=$(echo "$DB_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_DB") | .value')
+[ -z "$PG_PASS" ] && fail "POSTGRES_PASSWORD not generated"
+log "Credentials generated (pw length: ${#PG_PASS})"
+
+log "Waiting for postgres..."
+sleep 2
+DB_DEPLOYS=$(api "$BASE_URL/api/services/$DB_SERVICE_ID/deployments")
+DB_DEPLOY_ID=$(require_field "$DB_DEPLOYS" '.[0].id' "get db deploy") || fail "No deploy: $DB_DEPLOYS"
+wait_for_deployment "$DB_DEPLOY_ID" 90 || fail "postgres deployment failed"
+
+log "Verifying postgres is ready..."
+DB_DEPLOY=$(api "$BASE_URL/api/deployments/$DB_DEPLOY_ID")
+DB_HOST_PORT=$(require_field "$DB_DEPLOY" '.hostPort' "get db hostPort") || fail "No hostPort"
+PG_READY=$(remote "timeout 30 bash -c 'until pg_isready -h localhost -p $DB_HOST_PORT; do sleep 1; done' && echo 'ready'" 2>&1 || echo "not ready")
+echo "$PG_READY" | grep -q "ready" || fail "postgres not ready"
+log "postgres ready on port $DB_HOST_PORT"
+
+log "Adding app service from test fixture..."
+APP_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+  -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"./test/fixtures/db-health-check\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB?sslmode=require\"}]}")
+APP_SERVICE_ID=$(require_field "$APP_SERVICE" '.id' "create app") || fail "Failed: $APP_SERVICE"
+
+log "Waiting for app deployment..."
+sleep 2
+APP_DEPLOYS=$(api "$BASE_URL/api/services/$APP_SERVICE_ID/deployments")
+APP_DEPLOY_ID=$(require_field "$APP_DEPLOYS" '.[0].id' "get app deploy") || fail "No deploy: $APP_DEPLOYS"
+wait_for_deployment "$APP_DEPLOY_ID" 120 || fail "app deployment failed"
+
+log "Verifying app can connect to database..."
+APP_DEPLOY=$(api "$BASE_URL/api/deployments/$APP_DEPLOY_ID")
+APP_HOST_PORT=$(require_field "$APP_DEPLOY" '.hostPort' "get app hostPort") || fail "No hostPort"
+
+HEALTH_RESP=$(remote "curl -sf http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
+HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error")
+[ "$HEALTH_STATUS" != "ok" ] && fail "App health check failed: $HEALTH_RESP"
+log "App connected to database successfully!"
+
+log "Verifying cross-service communication via hostname..."
+NETWORK_NAME="frost-net-$PROJECT_ID"
+NETWORK_EXISTS=$(remote "docker network ls --filter name=$NETWORK_NAME --format '{{.Name}}'" 2>&1)
+echo "$NETWORK_EXISTS" | grep -q "$NETWORK_NAME" || fail "Project network not found"
+log "Services on shared network: $NETWORK_NAME"
 
 log "Cleanup..."
+api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
+
+log "=== Edge Cases ==="
+
+log "Testing invalid template ID..."
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-invalid-template"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
+
+INVALID_RESP=$(curl -sf -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"name":"test","deployType":"database","templateId":"nonexistent"}' 2>&1 || echo '{"error":"expected"}')
+echo "$INVALID_RESP" | grep -qi "unknown\|error\|not found" || fail "Expected error for invalid template: $INVALID_RESP"
+log "Invalid template correctly rejected"
+
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 
 pass
