@@ -28,7 +28,7 @@ describe("migrate integration", () => {
       schemaDir: PROD_SCHEMA_DIR,
     });
 
-    expect(result.applied).toBe(23);
+    expect(result.applied).toBe(24);
     expect(result.bootstrapped).toBe(false);
   });
 
@@ -235,7 +235,7 @@ describe("migrate integration", () => {
       dbPath: TEST_DB,
       schemaDir: PROD_SCHEMA_DIR,
     });
-    expect(first.applied).toBe(23);
+    expect(first.applied).toBe(24);
 
     const second = runMigrations({
       dbPath: TEST_DB,
@@ -250,7 +250,7 @@ describe("migrate integration", () => {
       .all() as Array<{ name: string }>;
     db.close();
 
-    expect(migrations).toHaveLength(23);
+    expect(migrations).toHaveLength(24);
   });
 
   test("running migrations three times remains stable", () => {
@@ -269,7 +269,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(23);
+    expect(count.count).toBe(24);
   });
 
   test("migration tracking records correct timestamps", () => {
@@ -451,7 +451,7 @@ describe("migrate integration", () => {
     ]);
 
     const totalApplied = results.reduce((sum, r) => sum + r.applied, 0);
-    expect(totalApplied).toBe(23);
+    expect(totalApplied).toBe(24);
 
     const db = new Database(TEST_DB);
     const count = db
@@ -459,7 +459,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(23);
+    expect(count.count).toBe(24);
   });
 });
 
@@ -506,7 +506,7 @@ describe("migrate bootstrap scenarios", () => {
       .all() as Array<{ name: string }>;
     db2.close();
 
-    expect(migrations).toHaveLength(23);
+    expect(migrations).toHaveLength(24);
   });
 
   test("bootstrap preserves existing data", () => {
