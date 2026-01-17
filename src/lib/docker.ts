@@ -339,11 +339,19 @@ export async function waitForHealthy(
   const { containerId, port, path, timeoutSeconds = 60 } = options;
   const intervalMs = 1000;
   const maxAttempts = timeoutSeconds;
+  let consecutiveExited = 0;
+  const maxConsecutiveExited = 10;
 
   for (let i = 0; i < maxAttempts; i++) {
     const status = await getContainerStatus(containerId);
+
     if (status === "exited" || status === "dead") {
-      return false;
+      consecutiveExited++;
+      if (consecutiveExited >= maxConsecutiveExited) {
+        return false;
+      }
+    } else {
+      consecutiveExited = 0;
     }
 
     if (status === "running") {
