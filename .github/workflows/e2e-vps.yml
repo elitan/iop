@@ -144,7 +144,7 @@ jobs:
           # Initialize git repos for test fixtures (needed for local repo cloning)
           ssh root@${{ steps.server.outputs.ip }} 'for dir in /opt/frost/test/fixtures/*/; do
             if [ ! -d "$dir/.git" ]; then
-              cd "$dir" && git init && git add -A && git commit -m "init" 2>/dev/null || true
+              cd "$dir" && git init -b main && git add -A && git commit -m "init" 2>/dev/null || true
             fi
           done'
 
