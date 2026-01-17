@@ -8,7 +8,7 @@ services:
     image: ghcr.io/plausible/community-edition:v3.0.1
     port: 8000
     main: true
-    command: /bin/sh -c "/entrypoint.sh db migrate && exec /entrypoint.sh run"
+    command: /entrypoint.sh db migrate && exec /entrypoint.sh run
     environment:
       DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/plausible
       CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events_db
