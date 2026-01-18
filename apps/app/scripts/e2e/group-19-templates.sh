@@ -3,6 +3,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+TEST_BRANCH="${E2E_BRANCH:-main}"
+
 log "=== Template APIs ==="
 
 log "Fetching all templates..."
@@ -113,7 +115,7 @@ remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networ
 
 log "Adding app service from test fixture..."
 APP_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
-  -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"./apps/app/test/fixtures/db-health-check\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB\"}]}")
+  -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"apps/app/test/fixtures/db-health-check/Dockerfile\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB\"}]}")
 APP_SERVICE_ID=$(require_field "$APP_SERVICE" '.id' "create app") || fail "Failed: $APP_SERVICE"
 
 log "Waiting for app deployment..."
