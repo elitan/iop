@@ -167,7 +167,11 @@ log "App connected to database successfully!"
 
 log "Verifying cross-service communication via hostname..."
 NETWORK_NAME=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]')
+log "Looking for network: $NETWORK_NAME"
+log "All frost networks:"
+remote "docker network ls --filter name=frost-net --format '{{.Name}}'" || true
 NETWORK_EXISTS=$(remote "docker network ls --filter name=$NETWORK_NAME --format '{{.Name}}'" 2>&1)
+log "Filter result: $NETWORK_EXISTS"
 echo "$NETWORK_EXISTS" | grep -q "$NETWORK_NAME" || fail "Project network not found"
 log "Services on shared network: $NETWORK_NAME"
 
