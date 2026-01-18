@@ -143,7 +143,7 @@ jobs:
 
           # Initialize git repos for test fixtures (needed for local repo cloning)
           ssh root@${{ steps.server.outputs.ip }} 'git config --global user.email "ci@frost.dev" && git config --global user.name "Frost CI" && git config --global --add safe.directory "*"
-            for dir in /opt/frost/test/fixtures/*/; do
+            for dir in /opt/frost/apps/app/test/fixtures/*/; do
               if [ ! -d "$dir/.git" ]; then
                 cd "$dir" && git init -b main && git add -A && git commit -m "init"
               fi
@@ -168,8 +168,8 @@ jobs:
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
-          chmod +x ./scripts/e2e-test.sh
-          ./scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          chmod +x ./apps/app/scripts/e2e-test.sh
+          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
 
       - name: Collect logs on failure
         if: failure()

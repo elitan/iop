@@ -41,9 +41,9 @@ jobs:
       - run: bun install
 
       - name: Setup database
-        run: bun migrate
+        run: bun run migrate
         env:
           NODE_ENV: development
 
       - name: Test
-        run: bun test
+        run: bun run test

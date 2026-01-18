@@ -31,7 +31,7 @@ jobs:
 
       - name: Get current version
         id: current
-        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+        run: echo "version=$(jq -r .version apps/app/package.json)" >> $GITHUB_OUTPUT
 
       - name: Calculate new version
         id: new
@@ -60,10 +60,12 @@ jobs:
         run: |
           jq '.version = "${{ steps.new.outputs.version }}"' package.json > tmp.json
           mv tmp.json package.json
+          jq '.version = "${{ steps.new.outputs.version }}"' apps/app/package.json > tmp.json
+          mv tmp.json apps/app/package.json
 
       - name: Commit version bump
         run: |
-          git add package.json
+          git add package.json apps/app/package.json
           git commit -m "chore: bump version to ${{ steps.new.outputs.version }}"
           git push
 
@@ -133,7 +135,7 @@ jobs:
 
           # Migration warning at top
           if [ -n "$last_tag" ]; then
-            schema_changes=$(git diff --name-only "$last_tag" HEAD -- schema/ | wc -l)
+            schema_changes=$(git diff --name-only "$last_tag" HEAD -- apps/app/schema/ | wc -l)
             if [ "$schema_changes" -gt 0 ]; then
               notes="> **This release includes database migrations.** Back up your data before updating.\n\n"
             fi
@@ -168,12 +170,12 @@ jobs:
         run: |
           VERSION="${{ steps.new.outputs.version }}"
           mkdir -p frost-release
-          cp -r .next/standalone/. frost-release/
-          cp -r .next/static frost-release/.next/static
-          cp -r schema scripts frost-release/
+          cp -r apps/app/.next/standalone/. frost-release/
+          cp -r apps/app/.next/static frost-release/.next/static
+          cp -r apps/app/schema apps/app/scripts frost-release/
           mkdir -p frost-release/src
-          cp -r src/scripts frost-release/src/scripts
-          cp package.json frost-release/
+          cp -r apps/app/src/scripts frost-release/src/scripts
+          cp apps/app/package.json frost-release/
           cp install.sh update.sh cleanup.sh frost-release/
           tar -czf "frost-v${VERSION}.tar.gz" -C frost-release .
           rm -rf frost-release

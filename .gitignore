@@ -12,7 +12,7 @@
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production
@@ -43,7 +43,7 @@ yarn-error.log*
 /repos/
 
 # test fixture git repos (init'd by CI workflow)
-/test/fixtures/*/.git/
+**/test/fixtures/*/.git/
 
 # bun
 bun.lockb

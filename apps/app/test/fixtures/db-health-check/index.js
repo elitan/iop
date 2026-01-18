@@ -1,4 +1,4 @@
-const http = require("http");
+const http = require("node:http");
 const { Client } = require("pg");
 
 const PORT = process.env.PORT || 8080;

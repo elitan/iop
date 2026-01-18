@@ -355,7 +355,11 @@ echo -e "Frost is running at: ${GREEN}http://$SERVER_IP${NC}"
 if [ "$CREATE_API_KEY" = true ]; then
   echo ""
   timer "Creating API key..."
-  FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
+  if [ "$USE_TARBALL" = true ]; then
+    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun run scripts/create-api-key.ts install)
+  else
+    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" bun --cwd apps/app scripts/create-api-key.ts install)
+  fi
   echo -e "API Key: ${YELLOW}$FROST_API_KEY${NC}"
   echo "(use with X-Frost-Token header)"
 fi

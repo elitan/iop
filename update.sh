@@ -123,10 +123,14 @@ else
   exit 1
 fi
 
-CURRENT_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+# Detect mode: git-based (dev/CI) or tarball (production)
+if [ -d "$FROST_DIR/.git" ]; then
+  CURRENT_VERSION=$(cat apps/app/package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+else
+  CURRENT_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+fi
 log "Current version: $CURRENT_VERSION"
 
-# Detect mode: git-based (dev/CI) or tarball (production)
 if [ -d "$FROST_DIR/.git" ]; then
   # Git mode: pull and rebuild (for dev installs and CI testing)
   log "Git mode detected"
@@ -165,12 +169,12 @@ if [ -d "$FROST_DIR/.git" ]; then
   bun install 2>&1
 
   log "Building..."
-  NEXT_TELEMETRY_DISABLED=1 npm run build 2>&1
+  NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1
 
   log "Running migrations..."
   bun run migrate 2>&1
 
-  NEW_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+  NEW_VERSION=$(cat apps/app/package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
   rm -rf "$BACKUP_DIR"
 
   echo "success:$NEW_VERSION" > "$UPDATE_RESULT"
