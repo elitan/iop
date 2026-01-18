@@ -36,6 +36,8 @@ interface ContextMenuState {
 }
 
 const GRID_SIZE = 20;
+const NODE_WIDTH = 256;
+const NODE_HEIGHT = 100;
 const nodeTypes = { service: ServiceNode } as const;
 
 const ARROW_KEY_DELTAS: Record<string, [number, number]> = {
@@ -44,6 +46,24 @@ const ARROW_KEY_DELTAS: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
 };
+
+function calculateViewportForNode(
+  nodePos: { x: number; y: number },
+  containerWidth: number,
+  containerHeight: number,
+  currentZoom: number,
+): { x: number; y: number; zoom: number } {
+  const zoom = Math.max(currentZoom, 1.25);
+  const nodeCenterX = nodePos.x + NODE_WIDTH / 2;
+  const nodeCenterY = nodePos.y + NODE_HEIGHT / 2;
+  const targetScreenX = containerWidth * 0.2;
+  const targetScreenY = containerHeight / 2;
+  return {
+    x: targetScreenX - nodeCenterX * zoom,
+    y: targetScreenY - nodeCenterY * zoom,
+    zoom,
+  };
+}
 
 interface CanvasViewProps {
   projectId: string;
@@ -141,35 +161,19 @@ function CanvasViewInner({
 
     if (isNewSelection) {
       const node = nodes.find((n) => n.id === selectedServiceId);
-      if (node) {
-        const container = containerRef.current;
-        if (container) {
-          setTimeout(() => {
-            canvasMovedRef.current = false;
-            ignoreMoveRef.current = true;
-
-            const currentZoom = getZoom();
-            const zoom = Math.max(currentZoom, 1.25);
-            const containerWidth = container.offsetWidth;
-            const containerHeight = container.offsetHeight;
-
-            const nodeWidth = 256;
-            const nodeHeight = 100;
-            const nodeCenterX = node.position.x + nodeWidth / 2;
-            const nodeCenterY = node.position.y + nodeHeight / 2;
-
-            const targetScreenX = containerWidth * 0.2;
-            const targetScreenY = containerHeight / 2;
-
-            const viewportX = targetScreenX - nodeCenterX * zoom;
-            const viewportY = targetScreenY - nodeCenterY * zoom;
-
-            setViewport(
-              { x: viewportX, y: viewportY, zoom },
-              { duration: 300 },
-            );
-          }, 50);
-        }
+      const container = containerRef.current;
+      if (node && container) {
+        setTimeout(() => {
+          canvasMovedRef.current = false;
+          ignoreMoveRef.current = true;
+          const viewport = calculateViewportForNode(
+            node.position,
+            container.offsetWidth,
+            container.offsetHeight,
+            getZoom(),
+          );
+          setViewport(viewport, { duration: 300 });
+        }, 50);
       }
     }
 
@@ -229,23 +233,13 @@ function CanvasViewInner({
     const container = containerRef.current;
     if (!container) return;
 
-    const currentZoom = getZoom();
-    const zoom = Math.max(currentZoom, 1.25);
-    const containerWidth = container.offsetWidth;
-    const containerHeight = container.offsetHeight;
-
-    const nodeWidth = 256;
-    const nodeHeight = 100;
-    const nodeCenterX = node.position.x + nodeWidth / 2;
-    const nodeCenterY = node.position.y + nodeHeight / 2;
-
-    const targetScreenX = containerWidth * 0.2;
-    const targetScreenY = containerHeight / 2;
-
-    const viewportX = targetScreenX - nodeCenterX * zoom;
-    const viewportY = targetScreenY - nodeCenterY * zoom;
-
-    setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 300 });
+    const viewport = calculateViewportForNode(
+      node.position,
+      container.offsetWidth,
+      container.offsetHeight,
+      getZoom(),
+    );
+    setViewport(viewport, { duration: 300 });
   }
 
   function onMoveEnd(): void {

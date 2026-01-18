@@ -112,10 +112,17 @@ export function CreateServiceModal({
 
   useEffect(() => {
     if (!open) return;
-    setTimeout(() => {
-      if (step === "category") searchInputRef.current?.focus();
-      else if (step === "database") dbSearchInputRef.current?.focus();
-    }, 0);
+    const inputRefs: Record<
+      Step,
+      React.RefObject<HTMLInputElement | null> | null
+    > = {
+      category: searchInputRef,
+      database: dbSearchInputRef,
+      repo: null,
+      image: null,
+    };
+    const ref = inputRefs[step];
+    if (ref) setTimeout(() => ref.current?.focus(), 0);
   }, [open, step]);
 
   function resetState(): void {
@@ -194,14 +201,14 @@ export function CreateServiceModal({
     });
   }
 
-  async function handleDbSelect(templateId: string) {
-    const template = dbTemplates?.find((t) => t.id === templateId);
+  async function handleDbSelect(dbId: string) {
+    const template = (dbTemplates ?? []).find((t) => t.id.startsWith(dbId));
     if (!template) return;
 
     await createService({
-      name: templateId.split("-")[0],
+      name: template.id.split("-")[0],
       deployType: "database",
-      templateId,
+      templateId: template.id,
       containerPort: template.containerPort,
       envVars: [],
     });
@@ -245,11 +252,6 @@ export function CreateServiceModal({
       e.preventDefault();
       resetState();
     }
-  }
-
-  function handleDbSelectById(id: string): void {
-    const template = (dbTemplates ?? []).find((t) => t.id.startsWith(id));
-    if (template) handleDbSelect(template.id);
   }
 
   const STEP_TITLES: Record<Step, string> = {
@@ -330,22 +332,22 @@ export function CreateServiceModal({
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) =>
-                handleSearchKeyDown(e, filteredDbOptions, handleDbSelectById)
+                handleSearchKeyDown(e, filteredDbOptions, handleDbSelect)
               }
               placeholder="Which database?"
               className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
             />
             <div className="space-y-1">
               {filteredDbOptions.map((db, index) => {
-                const template = (dbTemplates ?? []).find((t) =>
+                const hasTemplate = (dbTemplates ?? []).some((t) =>
                   t.id.startsWith(db.id),
                 );
-                if (!template) return null;
+                if (!hasTemplate) return null;
                 return (
                   <button
                     key={db.id}
                     type="button"
-                    onClick={() => handleDbSelect(template.id)}
+                    onClick={() => handleDbSelect(db.id)}
                     disabled={createMutation.isPending}
                     className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50 ${
                       index === selectedIndex

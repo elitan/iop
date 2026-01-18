@@ -59,11 +59,10 @@ export default function ProjectServicesPage() {
 
   const handleSelectService = useCallback(
     (serviceId: string | null) => {
-      if (serviceId) {
-        router.push(`/projects/${projectId}?service=${serviceId}`);
-      } else {
-        router.push(`/projects/${projectId}`);
-      }
+      const url = serviceId
+        ? `/projects/${projectId}?service=${serviceId}`
+        : `/projects/${projectId}`;
+      router.push(url);
     },
     [projectId, router],
   );
@@ -75,12 +74,11 @@ export default function ProjectServicesPage() {
   if (!project) return null;
 
   const services = project.services || [];
-  const hasServices = services.length > 0;
   const canvasPositions: CanvasPositions = project.canvasPositions
     ? JSON.parse(project.canvasPositions)
     : {};
 
-  if (!hasServices) {
+  if (services.length === 0) {
     if (isMobile) {
       return (
         <Card className="bg-neutral-900 border-neutral-800">
