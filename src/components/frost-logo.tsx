@@ -3,7 +3,7 @@ interface FrostLogoProps {
   size?: number;
 }
 
-export function FrostLogo({ className, size = 20 }: FrostLogoProps) {
+export function FrostLogo({ className, size = 32 }: FrostLogoProps) {
   return (
     <svg
       width={size}

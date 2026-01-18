@@ -26,7 +26,7 @@ export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
         {items.map((item) => (
           <div
             key={item.href ?? item.label}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2.5"
           >
             <span className="text-neutral-600">/</span>
             {item.href ? (
