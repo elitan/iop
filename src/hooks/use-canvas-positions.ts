@@ -55,7 +55,9 @@ export function useCanvasPositions(
     if (positionsRef.current[serviceId]) {
       return positionsRef.current[serviceId];
     }
-    return calculateNewPosition(positionsRef.current);
+    const newPos = calculateNewPosition(positionsRef.current);
+    positionsRef.current = { ...positionsRef.current, [serviceId]: newPos };
+    return newPos;
   }, []);
 
   return { updatePosition, getPosition };
