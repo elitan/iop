@@ -163,17 +163,15 @@ function CanvasViewInner({
       const node = nodes.find((n) => n.id === selectedServiceId);
       const container = containerRef.current;
       if (node && container) {
-        setTimeout(() => {
-          canvasMovedRef.current = false;
-          ignoreMoveRef.current = true;
-          const viewport = calculateViewportForNode(
-            node.position,
-            container.offsetWidth,
-            container.offsetHeight,
-            getZoom(),
-          );
-          setViewport(viewport, { duration: 300 });
-        }, 50);
+        canvasMovedRef.current = false;
+        ignoreMoveRef.current = true;
+        const viewport = calculateViewportForNode(
+          node.position,
+          container.offsetWidth,
+          container.offsetHeight,
+          getZoom(),
+        );
+        setViewport(viewport, { duration: 300 });
       }
     }
 
@@ -222,24 +220,8 @@ function CanvasViewInner({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedServiceId, updatePosition]);
 
-  function onNodeClick(
-    _: unknown,
-    node: { id: string; position: { x: number; y: number } },
-  ): void {
-    canvasMovedRef.current = false;
-    ignoreMoveRef.current = true;
+  function onNodeClick(_: unknown, node: { id: string }): void {
     onSelectService(node.id);
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const viewport = calculateViewportForNode(
-      node.position,
-      container.offsetWidth,
-      container.offsetHeight,
-      getZoom(),
-    );
-    setViewport(viewport, { duration: 300 });
   }
 
   function onMoveEnd(): void {
