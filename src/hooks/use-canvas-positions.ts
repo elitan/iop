@@ -5,6 +5,11 @@ export type CanvasPositions = Record<string, { x: number; y: number }>;
 
 const NODE_HEIGHT = 100;
 const GAP = 40;
+const GRID_SIZE = 20;
+
+function snapToGrid(value: number): number {
+  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+}
 
 function calculateNewPosition(existingPositions: CanvasPositions): {
   x: number;
@@ -12,11 +17,11 @@ function calculateNewPosition(existingPositions: CanvasPositions): {
 } {
   const positionValues = Object.values(existingPositions);
   if (positionValues.length === 0) {
-    return { x: 50, y: 50 };
+    return { x: 60, y: 60 };
   }
 
   let maxY = -Infinity;
-  let xAtMaxY = 50;
+  let xAtMaxY = 60;
   for (const pos of positionValues) {
     if (pos.y > maxY) {
       maxY = pos.y;
@@ -24,7 +29,10 @@ function calculateNewPosition(existingPositions: CanvasPositions): {
     }
   }
 
-  return { x: xAtMaxY, y: maxY + NODE_HEIGHT + GAP };
+  return {
+    x: snapToGrid(xAtMaxY),
+    y: snapToGrid(maxY + NODE_HEIGHT + GAP),
+  };
 }
 
 export function useCanvasPositions(
