@@ -209,6 +209,8 @@ jobs:
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
             npm run build 2>&1 && \
+            grep -q FROST_DATA_DIR .env || echo 'FROST_DATA_DIR=/opt/frost/data' >> .env && \
+            ln -sf /opt/frost/.env /opt/frost/apps/app/.env && \
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*bun.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
