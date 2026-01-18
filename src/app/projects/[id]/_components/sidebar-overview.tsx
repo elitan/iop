@@ -1,11 +1,16 @@
 "use client";
 
-import { ExternalLink, GitBranch, Github, Package } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, Database, ExternalLink, GitBranch, Github, Globe, Package } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { StatusDot } from "@/components/status-dot";
-import { Card, CardContent } from "@/components/ui/card";
-import type { Deployment, Domain, Service } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { useDeployService } from "@/hooks/use-services";
+import type { Deployment, Domain, EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
+import { buildConnectionString } from "@/lib/db-templates";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "../services/[serviceId]/_components/service-metrics-card";

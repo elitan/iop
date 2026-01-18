@@ -41,3 +41,28 @@ body {
 .container {
   max-width: 1200px;
 }
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #404040 transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #404040;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #525252;
+  }
+}

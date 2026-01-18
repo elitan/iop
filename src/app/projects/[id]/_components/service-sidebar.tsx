@@ -3,8 +3,8 @@
 import { Loader2, Rocket, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { StateTabs } from "@/components/state-tabs";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDeployService, useService } from "@/hooks/use-services";
 import { cn } from "@/lib/utils";
 import { SidebarDeployments } from "./sidebar-deployments";
@@ -25,7 +25,9 @@ export function ServiceSidebar({
 }: ServiceSidebarProps) {
   const { data: service } = useService(serviceId || "");
   const deployMutation = useDeployService(serviceId || "", projectId);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "deployments" | "logs" | "settings"
+  >("overview");
 
   async function handleDeploy() {
     if (!serviceId) return;
@@ -81,67 +83,36 @@ export function ServiceSidebar({
             </div>
           </div>
 
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex h-[calc(100%-57px)] flex-col"
-          >
-            <TabsList className="h-10 w-full justify-start rounded-none border-b border-neutral-800 bg-transparent px-4">
-              <TabsTrigger
-                value="overview"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent"
-              >
-                Overview
-              </TabsTrigger>
-              <TabsTrigger
-                value="deployments"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent"
-              >
-                Deployments
-              </TabsTrigger>
-              <TabsTrigger
-                value="logs"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent"
-              >
-                Logs
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent"
-              >
-                Settings
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex h-[calc(100%-57px)] flex-col">
+            <StateTabs
+              tabs={[
+                { id: "overview", label: "Overview" },
+                { id: "deployments", label: "Deployments" },
+                { id: "logs", label: "Logs" },
+                { id: "settings", label: "Settings" },
+              ]}
+              value={activeTab}
+              onChange={setActiveTab}
+              layoutId="sidebar-tabs"
+            />
 
-            <TabsContent
-              value="overview"
-              className="mt-0 flex-1 overflow-auto p-4"
-            >
-              <SidebarOverview
-                service={service}
-                projectId={projectId}
-                onDeploy={handleDeploy}
-              />
-            </TabsContent>
-
-            <TabsContent
-              value="deployments"
-              className="mt-0 flex-1 overflow-auto p-4"
-            >
-              <SidebarDeployments service={service} projectId={projectId} />
-            </TabsContent>
-
-            <TabsContent value="logs" className="mt-0 flex-1 overflow-auto p-4">
-              <SidebarLogs service={service} />
-            </TabsContent>
-
-            <TabsContent
-              value="settings"
-              className="mt-0 flex-1 overflow-auto p-4"
-            >
-              <SidebarSettings service={service} projectId={projectId} />
-            </TabsContent>
-          </Tabs>
+            <div className="flex-1 overflow-auto p-4">
+              {activeTab === "overview" && (
+                <SidebarOverview
+                  service={service}
+                  projectId={projectId}
+                  onDeploy={handleDeploy}
+                />
+              )}
+              {activeTab === "deployments" && (
+                <SidebarDeployments service={service} projectId={projectId} />
+              )}
+              {activeTab === "logs" && <SidebarLogs service={service} />}
+              {activeTab === "settings" && (
+                <SidebarSettings service={service} projectId={projectId} />
+              )}
+            </div>
+          </div>
         </>
       )}
     </div>
