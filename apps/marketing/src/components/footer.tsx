@@ -54,7 +54,7 @@ export function Footer() {
         >
           <span>Open source under MIT License</span>
           <span className="flex items-center gap-1.5">
-            by{" "}
+            Built by{" "}
             <a
               href="https://x.com/elitasson"
               target="_blank"
@@ -63,8 +63,7 @@ export function Footer() {
             >
               Johan
             </a>
-            <span className="text-border mx-1">·</span>
-            Sweden
+            {" "}in Sweden
             <svg width="14" height="10" viewBox="0 0 16 12" className="rounded-[2px] ml-0.5">
               <rect width="16" height="12" fill="#006AA7" />
               <rect x="5" width="2" height="12" fill="#FECC00" />
