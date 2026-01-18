@@ -1,11 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Database, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Container,
+  Database,
+  Github,
+  Loader2,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { EnvVarEditor } from "@/components/env-var-editor";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +20,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,578 +27,417 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { useCreateService } from "@/hooks/use-services";
-import type { CreateServiceInput, EnvVar } from "@/lib/api";
+import type { CreateServiceInput } from "@/lib/api";
 import { api } from "@/lib/api";
 import { SERVICE_TEMPLATES } from "@/lib/templates";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 
-type DeployType = "repo" | "image" | "database";
+type Step = "category" | "repo" | "database" | "image";
 
 interface CreateServiceModalProps {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onServiceCreated?: (serviceId: string) => void;
+}
+
+interface CategoryOption {
+  id: Step;
+  label: string;
+  icon: LucideIcon;
+  keywords: string[];
+}
+
+const CATEGORIES: CategoryOption[] = [
+  {
+    id: "repo",
+    label: "GitHub Repo",
+    icon: Github,
+    keywords: ["github", "repo", "git", "repository"],
+  },
+  {
+    id: "database",
+    label: "Database",
+    icon: Database,
+    keywords: ["database", "db", "postgres", "mysql", "redis", "mongo"],
+  },
+  {
+    id: "image",
+    label: "Docker Image",
+    icon: Container,
+    keywords: ["docker", "image", "container"],
+  },
+];
+
+const DB_OPTIONS = [
+  { id: "postgres", name: "PostgreSQL", color: "text-blue-400" },
+  { id: "mysql", name: "MySQL", color: "text-orange-400" },
+  { id: "redis", name: "Redis", color: "text-red-400" },
+  { id: "mongodb", name: "MongoDB", color: "text-green-400" },
+];
+
+function matchesSearch(search: string, ...terms: string[]): boolean {
+  if (!search) return true;
+  const q = search.toLowerCase();
+  return terms.some((t) => t.toLowerCase().includes(q));
 }
 
 export function CreateServiceModal({
   projectId,
   open,
   onOpenChange,
-}: CreateServiceModalProps) {
-  const router = useRouter();
+  onServiceCreated,
+}: CreateServiceModalProps): React.ReactElement {
   const createMutation = useCreateService(projectId);
-  const [deployType, setDeployType] = useState<DeployType>("repo");
-  const [envVars, setEnvVars] = useState<EnvVar[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState<{
-    url: string;
-    branch: string;
-    name: string;
-    ownerAvatar?: string;
-  } | null>(null);
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [selectedDbTemplate, setSelectedDbTemplate] = useState<string>("");
-  const nameInputRef = useRef<HTMLInputElement>(null);
-  const imageUrlRef = useRef<HTMLInputElement>(null);
-  const containerPortRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<Step>("category");
+  const [search, setSearch] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const dbSearchInputRef = useRef<HTMLInputElement>(null);
+  const imageNameRef = useRef<HTMLInputElement>(null);
 
   const { data: dbTemplates } = useQuery({
     queryKey: ["db-templates"],
     queryFn: () => api.dbTemplates.list(),
   });
 
-  const { data: registries } = useQuery({
-    queryKey: ["registries"],
-    queryFn: async () => {
-      const res = await fetch("/api/registries");
-      return res.json();
-    },
-  });
+  const filteredCategories = CATEGORIES.filter((cat) =>
+    matchesSearch(search, cat.label, ...cat.keywords),
+  );
 
-  const [selectedRegistryId, setSelectedRegistryId] = useState<string>("");
+  const filteredDbOptions = DB_OPTIONS.filter((db) =>
+    matchesSearch(search, db.name, db.id),
+  );
 
-  function handleTemplateChange(templateId: string) {
-    setSelectedTemplate(templateId);
-    const template = SERVICE_TEMPLATES.find((t) => t.id === templateId);
-    if (template) {
-      if (imageUrlRef.current) {
-        imageUrlRef.current.value = template.image;
-      }
-      if (containerPortRef.current) {
-        containerPortRef.current.value = String(template.containerPort ?? 8080);
-      }
-      if (nameInputRef.current && !nameInputRef.current.value) {
-        nameInputRef.current.value = template.id;
-      }
+  useEffect(() => {
+    if (!open) return;
+    setTimeout(() => {
+      if (step === "category") searchInputRef.current?.focus();
+      else if (step === "database") dbSearchInputRef.current?.focus();
+    }, 0);
+  }, [open, step]);
+
+  function resetState(): void {
+    setStep("category");
+    setSearch("");
+    setSelectedIndex(0);
+  }
+
+  function handleOpenChange(isOpen: boolean): void {
+    if (!isOpen) resetState();
+    onOpenChange(isOpen);
+  }
+
+  function handleSearchKeyDown(
+    e: React.KeyboardEvent,
+    items: { id: string }[],
+    onSelect: (id: string) => void,
+  ): void {
+    switch (e.key) {
+      case "Backspace":
+        if (search === "") {
+          e.preventDefault();
+          resetState();
+        }
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(i + 1, items.length - 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(i - 1, 0));
+        break;
+      case "Enter":
+        if (items.length > 0 && items[selectedIndex]) {
+          e.preventDefault();
+          onSelect(items[selectedIndex].id);
+        }
+        break;
     }
   }
 
-  function handleDbTemplateChange(templateId: string) {
-    setSelectedDbTemplate(templateId);
-    const template = dbTemplates?.find((t) => t.id === templateId);
-    if (template && nameInputRef.current && !nameInputRef.current.value) {
-      nameInputRef.current.value = template.id.split("-")[0];
-    }
+  function handleCategorySelect(id: string): void {
+    setSearch("");
+    setSelectedIndex(0);
+    setStep(id as Step);
   }
 
-  function resetForm() {
-    setDeployType("repo");
-    setEnvVars([]);
-    setSelectedRepo(null);
-    setShowManualInput(false);
-    setSelectedTemplate("");
-    setSelectedDbTemplate("");
-    setSelectedRegistryId("");
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const validEnvVars = envVars.filter((v) => v.key.trim() !== "");
-    const containerPort = parseInt(
-      formData.get("container_port") as string,
-      10,
-    );
-
-    const data: CreateServiceInput = {
-      name: formData.get("name") as string,
-      deployType: deployType,
-      envVars: validEnvVars,
-      containerPort: containerPort || 8080,
-    };
-
-    if (deployType === "repo") {
-      data.repoUrl = formData.get("repo_url") as string;
-      data.branch = (formData.get("branch") as string) || "main";
-      data.dockerfilePath =
-        (formData.get("dockerfile_path") as string) || "Dockerfile";
-      data.buildContext =
-        (formData.get("build_context") as string) || undefined;
-    } else if (deployType === "image") {
-      data.imageUrl = formData.get("image_url") as string;
-      if (selectedRegistryId && selectedRegistryId !== "auto") {
-        data.registryId = selectedRegistryId;
-      }
-    } else if (deployType === "database") {
-      data.templateId = selectedDbTemplate;
-    }
-
+  async function createService(input: CreateServiceInput): Promise<void> {
     try {
-      await createMutation.mutateAsync(data);
+      const result = await createMutation.mutateAsync(input);
       toast.success("Service created");
-      resetForm();
+      resetState();
       onOpenChange(false);
-      router.refresh();
+      if (onServiceCreated && result.id) {
+        onServiceCreated(result.id);
+      }
     } catch {
       toast.error("Failed to create service");
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto border-neutral-800 bg-neutral-900 sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-medium text-neutral-100">
-            New Service
-          </DialogTitle>
-        </DialogHeader>
+  async function handleRepoSelect(repo: {
+    url: string;
+    branch: string;
+    name: string;
+  }) {
+    await createService({
+      name: repo.name,
+      deployType: "repo",
+      repoUrl: repo.url,
+      branch: repo.branch,
+      dockerfilePath: "Dockerfile",
+      containerPort: 8080,
+      envVars: [],
+    });
+  }
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-4">
-            <div className="grid gap-3">
-              <Label htmlFor="name" className="text-neutral-300">
-                Name
-              </Label>
-              <Input
-                ref={nameInputRef}
-                id="name"
-                name="name"
-                required
-                placeholder="api"
-                className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
-              />
-              <p className="text-xs text-neutral-500">
-                Other services can reach this service using this name as
-                hostname.
-              </p>
-            </div>
+  async function handleDbSelect(templateId: string) {
+    const template = dbTemplates?.find((t) => t.id === templateId);
+    if (!template) return;
 
-            <div className="grid gap-3">
-              <Label className="text-neutral-300">Deploy Type</Label>
-              <div className="flex flex-wrap gap-4">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deploy_type"
-                    value="repo"
-                    checked={deployType === "repo"}
-                    onChange={() => setDeployType("repo")}
-                    className="accent-blue-500"
-                  />
-                  <span className="text-sm text-neutral-300">
-                    Build from Repository
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deploy_type"
-                    value="image"
-                    checked={deployType === "image"}
-                    onChange={() => setDeployType("image")}
-                    className="accent-blue-500"
-                  />
-                  <span className="text-sm text-neutral-300">
-                    Use Docker Image
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    name="deploy_type"
-                    value="database"
-                    checked={deployType === "database"}
-                    onChange={() => setDeployType("database")}
-                    className="accent-blue-500"
-                  />
-                  <span className="flex items-center gap-1.5 text-sm text-neutral-300">
-                    <Database className="h-3.5 w-3.5" />
-                    Database
-                  </span>
-                </label>
-              </div>
+    await createService({
+      name: templateId.split("-")[0],
+      deployType: "database",
+      templateId,
+      containerPort: template.containerPort,
+      envVars: [],
+    });
+  }
+
+  async function handleImageSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const imageName = imageNameRef.current?.value.trim();
+    if (!imageName) return;
+
+    const name = imageName.split("/").pop()?.split(":")[0] || "service";
+    await createService({
+      name,
+      deployType: "image",
+      imageUrl: imageName,
+      containerPort: 8080,
+      envVars: [],
+    });
+  }
+
+  async function handleTemplateSelect(templateId: string) {
+    const template = SERVICE_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+
+    await createService({
+      name: template.id,
+      deployType: "image",
+      imageUrl: template.image,
+      containerPort: template.containerPort ?? 8080,
+      envVars: [],
+    });
+  }
+
+  function handleSearchChange(value: string): void {
+    setSearch(value);
+    setSelectedIndex(0);
+  }
+
+  function handleImageKeyDown(e: React.KeyboardEvent): void {
+    if (e.key === "Backspace" && imageNameRef.current?.value === "") {
+      e.preventDefault();
+      resetState();
+    }
+  }
+
+  function handleDbSelectById(id: string): void {
+    const template = (dbTemplates ?? []).find((t) => t.id.startsWith(id));
+    if (template) handleDbSelect(template.id);
+  }
+
+  const STEP_TITLES: Record<Step, string> = {
+    category: "Add New Service",
+    repo: "Import from GitHub",
+    database: "Add Database",
+    image: "Deploy Docker Image",
+  };
+
+  function renderStepContent(): React.ReactElement {
+    switch (step) {
+      case "category":
+        return (
+          <div className="space-y-3">
+            <Input
+              ref={searchInputRef}
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) =>
+                handleSearchKeyDown(e, filteredCategories, handleCategorySelect)
+              }
+              placeholder="What do you need?"
+              className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
+            />
+            <div className="space-y-1">
+              {filteredCategories.map((cat, index) => {
+                const Icon = cat.icon;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleCategorySelect(cat.id)}
+                    className={`flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors ${
+                      index === selectedIndex
+                        ? "border-blue-500 bg-blue-500/10"
+                        : "border-neutral-700 bg-neutral-800 hover:border-neutral-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-4 w-4 text-neutral-400" />
+                      <span className="text-sm text-neutral-100">
+                        {cat.label}
+                      </span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-neutral-500" />
+                  </button>
+                );
+              })}
+              {filteredCategories.length === 0 && (
+                <p className="py-4 text-center text-sm text-neutral-500">
+                  No matches
+                </p>
+              )}
             </div>
           </div>
+        );
 
-          <Separator className="bg-neutral-800" />
+      case "repo":
+        return (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={resetState}
+              className="flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <RepoSelector onSelect={handleRepoSelect} />
+          </div>
+        );
 
-          {deployType === "repo" && (
-            <div className="space-y-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                Import Git Repository
-              </p>
-
-              {!selectedRepo && !showManualInput ? (
-                <>
-                  <RepoSelector
-                    onSelect={(repo) => {
-                      setSelectedRepo(repo);
-                      if (nameInputRef.current && !nameInputRef.current.value) {
-                        nameInputRef.current.value = repo.name;
-                      }
-                    }}
-                  />
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => setShowManualInput(true)}
-                      className="text-xs text-neutral-500 hover:text-neutral-300"
-                    >
-                      Or enter a public repository URL manually
-                    </button>
-                  </div>
-                </>
-              ) : showManualInput && !selectedRepo ? (
-                <div className="space-y-3">
-                  <div className="grid gap-3">
-                    <Label htmlFor="repo_url" className="text-neutral-300">
-                      Repository URL
-                    </Label>
-                    <Input
-                      id="repo_url"
-                      name="repo_url"
-                      required
-                      placeholder="https://github.com/user/repo"
-                      className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                    />
-                  </div>
+      case "database":
+        return (
+          <div className="space-y-3">
+            <Input
+              ref={dbSearchInputRef}
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={(e) =>
+                handleSearchKeyDown(e, filteredDbOptions, handleDbSelectById)
+              }
+              placeholder="Which database?"
+              className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
+            />
+            <div className="space-y-1">
+              {filteredDbOptions.map((db, index) => {
+                const template = (dbTemplates ?? []).find((t) =>
+                  t.id.startsWith(db.id),
+                );
+                if (!template) return null;
+                return (
                   <button
+                    key={db.id}
                     type="button"
-                    onClick={() => setShowManualInput(false)}
-                    className="text-xs text-neutral-500 hover:text-neutral-300"
+                    onClick={() => handleDbSelect(template.id)}
+                    disabled={createMutation.isPending}
+                    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50 ${
+                      index === selectedIndex
+                        ? "border-blue-500 bg-blue-500/10"
+                        : "border-neutral-700 bg-neutral-800 hover:border-neutral-600"
+                    }`}
                   >
-                    ← Back to repository list
+                    <Database className={`h-4 w-4 ${db.color}`} />
+                    <span className="text-sm text-neutral-100">{db.name}</span>
                   </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-lg border border-neutral-700 bg-neutral-800 p-3">
-                    <div className="flex items-center gap-3">
-                      {selectedRepo?.ownerAvatar && (
-                        <img
-                          src={selectedRepo.ownerAvatar}
-                          alt=""
-                          className="h-6 w-6 rounded-full"
-                        />
-                      )}
-                      <p className="text-sm font-medium text-neutral-100">
-                        {selectedRepo?.url.replace("https://github.com/", "")}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setSelectedRepo(null)}
-                    >
-                      Change
-                    </Button>
-                  </div>
-                  <input
-                    type="hidden"
-                    name="repo_url"
-                    value={selectedRepo?.url}
-                  />
-                </div>
-              )}
-
-              {(selectedRepo || showManualInput) && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-3">
-                    <Label htmlFor="branch" className="text-neutral-300">
-                      Branch
-                    </Label>
-                    <Input
-                      id="branch"
-                      name="branch"
-                      placeholder="main"
-                      defaultValue={selectedRepo?.branch || "main"}
-                      key={selectedRepo?.branch}
-                      className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                    />
-                  </div>
-
-                  <div className="grid gap-3">
-                    <Label
-                      htmlFor="dockerfile_path"
-                      className="text-neutral-300"
-                    >
-                      Dockerfile
-                    </Label>
-                    <Input
-                      id="dockerfile_path"
-                      name="dockerfile_path"
-                      placeholder="Dockerfile"
-                      defaultValue="Dockerfile"
-                      className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {(selectedRepo || showManualInput) && (
-                <div className="grid gap-3">
-                  <Label htmlFor="build_context" className="text-neutral-300">
-                    Build Context
-                  </Label>
-                  <Input
-                    id="build_context"
-                    name="build_context"
-                    placeholder=". (repo root)"
-                    className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                  />
-                  <p className="text-xs text-neutral-500">
-                    Directory for Docker build context. Leave empty for repo
-                    root. Useful for monorepos.
-                  </p>
-                </div>
+                );
+              })}
+              {filteredDbOptions.length === 0 && (
+                <p className="py-4 text-center text-sm text-neutral-500">
+                  No matches
+                </p>
               )}
             </div>
-          )}
+          </div>
+        );
 
-          {deployType === "image" && (
-            <div className="space-y-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                Image Settings
-              </p>
-
-              <div className="grid gap-3">
-                <Label className="text-neutral-300">Template</Label>
-                <Select
-                  value={selectedTemplate}
-                  onValueChange={handleTemplateChange}
-                >
-                  <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                    <SelectValue placeholder="Select a template (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="border-neutral-700 bg-neutral-800">
-                    {SERVICE_TEMPLATES.map((t) => (
-                      <SelectItem
-                        key={t.id}
-                        value={t.id}
-                        className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                      >
-                        {t.name} - {t.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-3">
-                <Label htmlFor="image_url" className="text-neutral-300">
-                  Image
-                </Label>
-                <Input
-                  ref={imageUrlRef}
-                  id="image_url"
-                  name="image_url"
-                  required
-                  placeholder="nginx:alpine"
-                  className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                />
-                <p className="text-xs text-neutral-500">
-                  Docker Hub image or full registry URL (e.g.,
-                  ghcr.io/user/image:tag)
-                </p>
-              </div>
-
-              <div className="grid gap-3">
-                <Label className="text-neutral-300">Registry</Label>
-                {registries && registries.length > 0 ? (
+      case "image":
+        return (
+          <div className="space-y-4">
+            <form onSubmit={handleImageSubmit} className="space-y-3">
+              <Input
+                ref={imageNameRef}
+                id="image_name"
+                name="image_name"
+                autoFocus
+                required
+                onKeyDown={handleImageKeyDown}
+                placeholder="Enter image name..."
+                className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
+              />
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                size="sm"
+              >
+                {createMutation.isPending ? (
                   <>
-                    <Select
-                      value={selectedRegistryId}
-                      onValueChange={setSelectedRegistryId}
-                    >
-                      <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                        <SelectValue placeholder="Auto-detect from image URL" />
-                      </SelectTrigger>
-                      <SelectContent className="border-neutral-700 bg-neutral-800">
-                        <SelectItem
-                          value="auto"
-                          className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                        >
-                          Auto-detect from image URL
-                        </SelectItem>
-                        {registries.map(
-                          (r: { id: string; name: string; type: string }) => (
-                            <SelectItem
-                              key={r.id}
-                              value={r.id}
-                              className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                            >
-                              {r.name}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-neutral-500">
-                      Credentials for private registries. Auto-detect uses the
-                      registry matching the image URL.
-                    </p>
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    Creating
                   </>
                 ) : (
-                  <p className="text-xs text-neutral-500">
-                    Pulling from a private registry?{" "}
-                    <a
-                      href="/settings/registries"
-                      className="text-blue-400 hover:underline"
-                    >
-                      Add credentials in Settings
-                    </a>
-                  </p>
+                  "Create"
                 )}
+              </Button>
+            </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-700" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-neutral-900 px-2 text-xs text-neutral-500">
+                  or choose a template
+                </span>
               </div>
             </div>
-          )}
 
-          {deployType === "database" && (
-            <div className="space-y-4">
-              <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                Database Settings
-              </p>
-
-              <div className="grid gap-3">
-                <Label className="text-neutral-300">Database Type</Label>
-                <Select
-                  value={selectedDbTemplate}
-                  onValueChange={handleDbTemplateChange}
-                  required
-                >
-                  <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                    <SelectValue placeholder="Select a database" />
-                  </SelectTrigger>
-                  <SelectContent className="border-neutral-700 bg-neutral-800">
-                    {dbTemplates?.map((t) => (
-                      <SelectItem
-                        key={t.id}
-                        value={t.id}
-                        className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Database className="h-3.5 w-3.5 text-neutral-400" />
-                          {t.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedDbTemplate && (
-                <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
-                  <p className="mb-2 font-medium text-neutral-300">
-                    Auto-configured:
-                  </p>
-                  <ul className="space-y-1">
-                    <li>
-                      Image:{" "}
-                      <code className="text-neutral-300">
-                        {
-                          dbTemplates?.find((t) => t.id === selectedDbTemplate)
-                            ?.image
-                        }
-                      </code>
-                    </li>
-                    <li>
-                      Port:{" "}
-                      <code className="text-neutral-300">
-                        {
-                          dbTemplates?.find((t) => t.id === selectedDbTemplate)
-                            ?.containerPort
-                        }
-                      </code>
-                    </li>
-                    <li>Volume mounted for data persistence</li>
-                    <li>Credentials auto-generated</li>
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {deployType !== "database" && (
-            <>
-              <Separator className="bg-neutral-800" />
-
-              <div className="space-y-4">
-                <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                  Container Settings
-                </p>
-
-                <div className="grid gap-3">
-                  <Label htmlFor="container_port" className="text-neutral-300">
-                    Container Port
-                  </Label>
-                  <Input
-                    ref={containerPortRef}
-                    id="container_port"
-                    name="container_port"
-                    type="number"
-                    placeholder="8080"
-                    defaultValue="8080"
-                    min={1}
-                    max={65535}
-                    className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-                  />
-                  <p className="text-xs text-neutral-500">
-                    Port your container listens on. Use this if your image
-                    ignores the PORT env var.
-                  </p>
-                </div>
-              </div>
-
-              <Separator className="bg-neutral-800" />
-
-              <div className="space-y-4">
-                <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                  Service Environment Variables
-                </p>
-                <p className="text-xs text-neutral-500">
-                  These are in addition to any shared project variables.
-                </p>
-                <EnvVarEditor value={envVars} onChange={setEnvVars} />
-              </div>
-            </>
-          )}
-
-          <Separator className="bg-neutral-800" />
-
-          <div className="flex gap-2">
-            <Button type="submit" disabled={createMutation.isPending} size="sm">
-              {createMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  Creating
-                </>
-              ) : (
-                "Create Service"
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
+            <Select onValueChange={handleTemplateSelect}>
+              <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                <SelectValue placeholder="Select a template" />
+              </SelectTrigger>
+              <SelectContent className="border-neutral-700 bg-neutral-800">
+                {SERVICE_TEMPLATES.map((template) => (
+                  <SelectItem
+                    key={template.id}
+                    value={template.id}
+                    className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
+                  >
+                    {template.name} - {template.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </form>
+        );
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto border-neutral-800 bg-neutral-900 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-medium text-neutral-100">
+            {STEP_TITLES[step]}
+          </DialogTitle>
+        </DialogHeader>
+        {renderStepContent()}
       </DialogContent>
     </Dialog>
   );

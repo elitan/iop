@@ -179,6 +179,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
       <nav className="w-32 shrink-0 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <button
+            type="button"
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className="relative block w-full rounded-md px-3 py-2 text-left text-sm transition-colors"

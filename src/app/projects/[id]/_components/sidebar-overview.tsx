@@ -8,7 +8,9 @@ import {
   GitBranch,
   Github,
   Globe,
+  Loader2,
   Package,
+  Rocket,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -114,12 +116,36 @@ export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
 
   if (!currentDeployment) {
     return (
-      <Card className="bg-neutral-800 border-neutral-700">
-        <CardContent className="py-8 text-center">
-          <p className="text-neutral-500">No active deployment</p>
-          <p className="mt-1 text-sm text-neutral-600">
-            Click Deploy to create the first deployment
-          </p>
+      <Card className="border-blue-500/30 bg-blue-950/20">
+        <CardContent className="py-6">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-full bg-blue-500/10 p-3">
+              <Rocket className="h-6 w-6 text-blue-400" />
+            </div>
+            <div>
+              <p className="font-medium text-neutral-200">Ready to deploy</p>
+              <p className="mt-1 text-sm text-neutral-400">
+                This service hasn&apos;t been deployed yet
+              </p>
+            </div>
+            <Button
+              onClick={() => deployMutation.mutateAsync()}
+              disabled={deployMutation.isPending}
+              className="w-full"
+            >
+              {deployMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Deploying...
+                </>
+              ) : (
+                <>
+                  <Rocket className="mr-1.5 h-4 w-4" />
+                  Deploy Now
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

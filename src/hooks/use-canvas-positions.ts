@@ -1,46 +1,62 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { useUpdateProject } from "./use-projects";
 
 export type CanvasPositions = Record<string, { x: number; y: number }>;
+
+const NODE_HEIGHT = 100;
+const GAP = 40;
+
+function calculateNewPosition(existingPositions: CanvasPositions): {
+  x: number;
+  y: number;
+} {
+  const positionValues = Object.values(existingPositions);
+  if (positionValues.length === 0) {
+    return { x: 50, y: 50 };
+  }
+
+  let maxY = -Infinity;
+  let xAtMaxY = 50;
+  for (const pos of positionValues) {
+    if (pos.y > maxY) {
+      maxY = pos.y;
+      xAtMaxY = pos.x;
+    }
+  }
+
+  return { x: xAtMaxY, y: maxY + NODE_HEIGHT + GAP };
+}
 
 export function useCanvasPositions(
   projectId: string,
   initialPositions: CanvasPositions,
 ) {
-  const [positions, setPositions] = useState<CanvasPositions>(initialPositions);
+  const positionsRef = useRef<CanvasPositions>(initialPositions);
   const updateProject = useUpdateProject(projectId);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updatePosition = useCallback(
     (serviceId: string, x: number, y: number) => {
-      setPositions((prev) => {
-        const updated = { ...prev, [serviceId]: { x, y } };
+      const updated = { ...positionsRef.current, [serviceId]: { x, y } };
+      positionsRef.current = updated;
 
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-        }
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
 
-        saveTimeoutRef.current = setTimeout(() => {
-          updateProject.mutate({ canvasPositions: JSON.stringify(updated) });
-        }, 500);
-
-        return updated;
-      });
+      saveTimeoutRef.current = setTimeout(() => {
+        updateProject.mutate({ canvasPositions: JSON.stringify(updated) });
+      }, 500);
     },
     [updateProject],
   );
 
-  const getPosition = useCallback(
-    (serviceId: string, index: number) => {
-      if (positions[serviceId]) {
-        return positions[serviceId];
-      }
-      const col = index % 3;
-      const row = Math.floor(index / 3);
-      return { x: 50 + col * 300, y: 50 + row * 200 };
-    },
-    [positions],
-  );
+  const getPosition = useCallback((serviceId: string) => {
+    if (positionsRef.current[serviceId]) {
+      return positionsRef.current[serviceId];
+    }
+    return calculateNewPosition(positionsRef.current);
+  }, []);
 
-  return { positions, updatePosition, getPosition };
+  return { updatePosition, getPosition };
 }

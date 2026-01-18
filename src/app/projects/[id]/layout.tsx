@@ -1,8 +1,13 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useParams, usePathname } from "next/navigation";
-import { useState } from "react";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+import { useEffect, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
@@ -18,6 +23,8 @@ export default function ProjectLayout({
 }) {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = params.id as string;
 
   const isServiceRoute =
@@ -28,6 +35,13 @@ export default function ProjectLayout({
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data: project, isLoading } = useProject(projectId);
+
+  useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setCreateModalOpen(true);
+      router.replace(`/projects/${projectId}`);
+    }
+  }, [searchParams, projectId, router]);
 
   if (isServiceRoute) {
     return <>{children}</>;
@@ -95,6 +109,9 @@ export default function ProjectLayout({
         projectId={projectId}
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
+        onServiceCreated={(serviceId) => {
+          router.push(`/projects/${projectId}?service=${serviceId}`);
+        }}
       />
     </>
   );

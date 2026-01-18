@@ -68,6 +68,10 @@ export default function ProjectServicesPage() {
     [projectId, router],
   );
 
+  const handleOpenCreateModal = useCallback(() => {
+    router.push(`/projects/${projectId}?create=true`);
+  }, [projectId, router]);
+
   if (!project) return null;
 
   const services = project.services || [];
@@ -106,6 +110,7 @@ export default function ProjectServicesPage() {
         serverIp={serverIp}
         selectedServiceId={null}
         onSelectService={handleSelectService}
+        onOpenCreateModal={handleOpenCreateModal}
       />
     );
   }
@@ -136,6 +141,7 @@ export default function ProjectServicesPage() {
         serverIp={serverIp}
         selectedServiceId={selectedServiceId}
         onSelectService={handleSelectService}
+        onOpenCreateModal={handleOpenCreateModal}
       />
       <ServiceSidebar
         projectId={projectId}

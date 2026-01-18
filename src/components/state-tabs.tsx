@@ -26,6 +26,7 @@ export function StateTabs<T extends string>({
       <div className="flex gap-6 px-4">
         {tabs.map((tab) => (
           <button
+            type="button"
             key={tab.id}
             onClick={() => onChange(tab.id)}
             className={cn(
