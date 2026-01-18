@@ -53,9 +53,19 @@ export function Footer() {
           className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted"
         >
           <span>Open source under MIT License</span>
-          <span className="flex items-center gap-2">
-            Built in Sweden
-            <svg width="16" height="12" viewBox="0 0 16 12" className="rounded-sm">
+          <span className="flex items-center gap-1.5">
+            by{" "}
+            <a
+              href="https://x.com/elitasson"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              Johan
+            </a>
+            <span className="text-border mx-1">·</span>
+            Sweden
+            <svg width="14" height="10" viewBox="0 0 16 12" className="rounded-[2px] ml-0.5">
               <rect width="16" height="12" fill="#006AA7" />
               <rect x="5" width="2" height="12" fill="#FECC00" />
               <rect y="5" width="16" height="2" fill="#FECC00" />
