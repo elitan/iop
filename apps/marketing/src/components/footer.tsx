@@ -53,7 +53,14 @@ export function Footer() {
           className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted"
         >
           <span>Open source under MIT License</span>
-          <span>Made with precision</span>
+          <span className="flex items-center gap-2">
+            Built in Sweden
+            <svg width="16" height="12" viewBox="0 0 16 12" className="rounded-sm">
+              <rect width="16" height="12" fill="#006AA7" />
+              <rect x="5" width="2" height="12" fill="#FECC00" />
+              <rect y="5" width="16" height="2" fill="#FECC00" />
+            </svg>
+          </span>
         </motion.div>
       </div>
     </footer>
