@@ -31,6 +31,7 @@ jobs:
 
       - name: Prepare standalone
         run: |
+          mkdir -p apps/app/.next/standalone/.next
           cp -r apps/app/.next/static apps/app/.next/standalone/.next/static
           mkdir -p apps/app/.next/standalone/data
 
