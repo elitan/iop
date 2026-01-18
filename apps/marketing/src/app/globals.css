@@ -46,7 +46,6 @@
 }
 
 :root {
-  --color-accent: #f97316;
   --color-accent-rgb: 249, 115, 22;
 }
 
@@ -59,6 +58,7 @@
   --color-border-subtle: #14141c;
   --color-muted-foreground: #71717a;
   --color-muted: #52525b;
+  --color-accent: #f97316;
 }
 
 body {
