@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { getDbPath } from "./paths.js";
 
 export interface MigrationResult {
   applied: number;
@@ -12,15 +13,8 @@ export interface MigrationOptions {
   schemaDir?: string;
 }
 
-function getDataDir(): string {
-  if (process.env.FROST_DATA_DIR) {
-    return process.env.FROST_DATA_DIR;
-  }
-  return join(process.cwd(), "data");
-}
-
 export function runMigrations(options?: MigrationOptions): MigrationResult {
-  const dbPath = options?.dbPath ?? join(getDataDir(), "frost.db");
+  const dbPath = options?.dbPath ?? getDbPath();
   const schemaDir = options?.schemaDir ?? join(process.cwd(), "schema");
 
   const dbDir = dirname(dbPath);
@@ -112,11 +106,10 @@ function runMigrationsWithDb(
     }
   }
 
-  if (appliedCount === 0 && appliedSet.size > 0) {
-  } else if (appliedCount === 0) {
-    console.log("[migrate] No migrations to apply");
-  } else {
+  if (appliedCount > 0) {
     console.log(`[migrate] Applied ${appliedCount} migration(s)`);
+  } else if (appliedSet.size === 0) {
+    console.log("[migrate] No migrations to apply");
   }
 
   return { applied: appliedCount, bootstrapped: false };

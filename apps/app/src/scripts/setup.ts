@@ -1,20 +1,14 @@
 import { Database } from "bun:sqlite";
 import { randomBytes, scrypt } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname } from "node:path";
 import { promisify } from "node:util";
+import { getDbPath } from "../lib/paths.js";
 
 const scryptAsync = promisify(scrypt);
 
-function getDataDir(): string {
-  if (process.env.FROST_DATA_DIR) {
-    return process.env.FROST_DATA_DIR;
-  }
-  return join(process.cwd(), "data");
-}
-
-const DATA_DIR = getDataDir();
-const DB_PATH = join(DATA_DIR, "frost.db");
+const DB_PATH = getDbPath();
+const DATA_DIR = dirname(DB_PATH);
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");

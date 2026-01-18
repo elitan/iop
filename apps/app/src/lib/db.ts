@@ -1,18 +1,12 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname } from "node:path";
 import { CamelCasePlugin, CompiledQuery, Kysely } from "kysely";
 import { BunSqliteDialect } from "kysely-bun-worker/normal";
-import type { DB } from "./db-types";
+import type { DB } from "./db-types.js";
+import { getDbPath } from "./paths.js";
 
-function getDataDir(): string {
-  if (process.env.FROST_DATA_DIR) {
-    return process.env.FROST_DATA_DIR;
-  }
-  return join(process.cwd(), "data");
-}
-
-const DATA_DIR = getDataDir();
-const DB_PATH = join(DATA_DIR, "frost.db");
+const DB_PATH = getDbPath();
+const DATA_DIR = dirname(DB_PATH);
 
 if (!existsSync(DATA_DIR)) {
   mkdirSync(DATA_DIR, { recursive: true });

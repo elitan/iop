@@ -1,20 +1,9 @@
 import { Database } from "bun:sqlite";
 import { createHmac, randomBytes } from "node:crypto";
-import { join } from "node:path";
 import { nanoid } from "nanoid";
+import { getDbPath } from "../src/lib/paths.js";
 
 const name = process.argv[2] || "install";
-
-function getDbPath(): string {
-  if (process.env.FROST_DB_PATH) {
-    return process.env.FROST_DB_PATH;
-  }
-  if (process.env.FROST_DATA_DIR) {
-    return join(process.env.FROST_DATA_DIR, "frost.db");
-  }
-  return "./data/frost.db";
-}
-
 const dbPath = getDbPath();
 const jwtSecret = process.env.FROST_JWT_SECRET;
 
