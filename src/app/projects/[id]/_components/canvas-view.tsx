@@ -12,7 +12,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,9 +28,15 @@ import {
   type ServiceNodeType,
 } from "./service-node";
 
-const nodeTypes = {
-  service: ServiceNode,
-} as const;
+const GRID_SIZE = 20;
+const nodeTypes = { service: ServiceNode } as const;
+
+const ARROW_KEY_DELTAS: Record<string, [number, number]> = {
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+};
 
 interface CanvasViewProps {
   projectId: string;
@@ -57,6 +63,9 @@ function CanvasViewInner({
   );
   const { fitView, zoomIn, zoomOut, setViewport, getZoom } = useReactFlow();
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasMovedRef = useRef(false);
+  const ignoreMoveRef = useRef(false);
+  const prevSelectedRef = useRef<string | null>(null);
 
   const [nodes, setNodes] = useState<ServiceNodeType[]>([]);
 
@@ -81,10 +90,68 @@ function CanvasViewInner({
   }, [services, domains, serverIp, selectedServiceId, getPosition]);
 
   useEffect(() => {
-    if (!selectedServiceId || nodes.length === 0) return;
+    const wasSelected = prevSelectedRef.current !== null;
+    const isNowDeselected = selectedServiceId === null;
 
-    const selectedNode = nodes.find((n) => n.id === selectedServiceId);
-    if (!selectedNode) return;
+    if (wasSelected && isNowDeselected && !canvasMovedRef.current) {
+      setTimeout(() => {
+        ignoreMoveRef.current = true;
+        fitView({ maxZoom: 1.25, duration: 200 });
+      }, 150);
+    }
+
+    prevSelectedRef.current = selectedServiceId;
+  }, [selectedServiceId, fitView]);
+
+  function onNodesChange(changes: NodeChange<ServiceNodeType>[]): void {
+    setNodes((nds) => applyNodeChanges(changes, nds));
+  }
+
+  function onNodeDragStop(
+    _: unknown,
+    node: { id: string; position: { x: number; y: number } },
+  ): void {
+    updatePosition(node.id, node.position.x, node.position.y);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (!selectedServiceId) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      const delta = ARROW_KEY_DELTAS[e.key];
+      if (!delta) return;
+
+      e.preventDefault();
+      const [dx, dy] = delta;
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id !== selectedServiceId) return n;
+          const newPos = {
+            x: n.position.x + dx * GRID_SIZE,
+            y: n.position.y + dy * GRID_SIZE,
+          };
+          updatePosition(n.id, newPos.x, newPos.y);
+          return { ...n, position: newPos };
+        }),
+      );
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedServiceId, updatePosition]);
+
+  function onNodeClick(
+    _: unknown,
+    node: { id: string; position: { x: number; y: number } },
+  ): void {
+    canvasMovedRef.current = false;
+    ignoreMoveRef.current = true;
+    onSelectService(node.id);
 
     const container = containerRef.current;
     if (!container) return;
@@ -96,8 +163,8 @@ function CanvasViewInner({
 
     const nodeWidth = 256;
     const nodeHeight = 100;
-    const nodeCenterX = selectedNode.position.x + nodeWidth / 2;
-    const nodeCenterY = selectedNode.position.y + nodeHeight / 2;
+    const nodeCenterX = node.position.x + nodeWidth / 2;
+    const nodeCenterY = node.position.y + nodeHeight / 2;
 
     const targetScreenX = containerWidth * 0.2;
     const targetScreenY = containerHeight / 2;
@@ -106,32 +173,21 @@ function CanvasViewInner({
     const viewportY = targetScreenY - nodeCenterY * zoom;
 
     setViewport({ x: viewportX, y: viewportY, zoom }, { duration: 300 });
-  }, [selectedServiceId, nodes, setViewport, getZoom]);
+  }
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange<ServiceNodeType>[]) => {
-      setNodes((nds) => applyNodeChanges(changes, nds));
-    },
-    [],
-  );
+  function onMoveEnd(): void {
+    if (ignoreMoveRef.current) {
+      ignoreMoveRef.current = false;
+      return;
+    }
+    if (selectedServiceId) {
+      canvasMovedRef.current = true;
+    }
+  }
 
-  const onNodeDragStop = useCallback(
-    (_: unknown, node: { id: string; position: { x: number; y: number } }) => {
-      updatePosition(node.id, node.position.x, node.position.y);
-    },
-    [updatePosition],
-  );
-
-  const onNodeClick = useCallback(
-    (_: unknown, node: { id: string }) => {
-      onSelectService(node.id);
-    },
-    [onSelectService],
-  );
-
-  const onPaneClick = useCallback(() => {
+  function onPaneClick(): void {
     onSelectService(null);
-  }, [onSelectService]);
+  }
 
   if (services.length === 0) {
     return (
@@ -166,6 +222,9 @@ function CanvasViewInner({
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onMoveEnd={onMoveEnd}
+        snapToGrid
+        snapGrid={[GRID_SIZE, GRID_SIZE]}
         fitView
         fitViewOptions={{ maxZoom: 1.25 }}
         minZoom={0.25}
@@ -174,14 +233,14 @@ function CanvasViewInner({
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
+          gap={GRID_SIZE}
           size={1}
           color="#404040"
         />
       </ReactFlow>
       <CanvasControls
-        onZoomIn={() => zoomIn()}
-        onZoomOut={() => zoomOut()}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
         onFitView={() => fitView({ maxZoom: 1.25 })}
       />
     </div>
