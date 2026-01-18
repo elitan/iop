@@ -1,9 +1,9 @@
 import { exec } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { promisify } from "node:util";
-import { getSSLDir, getSSLPaths } from "./paths.js";
+import { getSSLDir, getSSLPaths } from "./paths";
 
-export { getSSLDir, getSSLPaths } from "./paths.js";
+export { getSSLDir, getSSLPaths } from "./paths";
 
 const execAsync = promisify(exec);
 

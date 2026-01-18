@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getDbPath } from "./paths.js";
+import { getDbPath } from "./paths";
 
 export interface MigrationResult {
   applied: number;

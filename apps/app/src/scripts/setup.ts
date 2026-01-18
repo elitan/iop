@@ -3,7 +3,7 @@ import { randomBytes, scrypt } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
-import { getDbPath } from "../lib/paths.js";
+import { getDbPath } from "../lib/paths";
 
 const scryptAsync = promisify(scrypt);
 

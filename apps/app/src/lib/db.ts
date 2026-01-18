@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { CamelCasePlugin, CompiledQuery, Kysely } from "kysely";
 import { BunSqliteDialect } from "kysely-bun-worker/normal";
 import type { DB } from "./db-types.js";
-import { getDbPath } from "./paths.js";
+import { getDbPath } from "./paths";
 
 const DB_PATH = getDbPath();
 const DATA_DIR = dirname(DB_PATH);
