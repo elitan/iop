@@ -20,7 +20,7 @@ SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
     \"deployType\":\"repo\",
     \"repoUrl\":\"https://github.com/elitan/frost.git\",
     \"branch\":\"$TEST_BRANCH\",
-    \"dockerfilePath\":\"test/fixtures/monorepo/apps/api/Dockerfile\",
+    \"dockerfilePath\":\"apps/app/test/fixtures/monorepo/apps/api/Dockerfile\",
     \"containerPort\":8080
   }")
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create monorepo service") || fail "Failed to create service: $SERVICE"
