@@ -269,7 +269,7 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
-            rm -rf repos && \
+            rm -rf repos apps && \
             git fetch origin && \
             git checkout -f $TAG && \
             git reset --hard $TAG && \
@@ -344,7 +344,7 @@ jobs:
 
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
             systemctl stop frost && \
-            rm -rf repos && \
+            rm -rf repos apps && \
             git fetch origin && \
             git checkout -f $TAG && \
             git reset --hard $TAG && \
