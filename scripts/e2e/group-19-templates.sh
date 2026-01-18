@@ -112,10 +112,27 @@ wait_for_deployment "$APP_DEPLOY_ID" 120 || fail "app deployment failed"
 log "Verifying app can connect to database..."
 APP_DEPLOY=$(api "$BASE_URL/api/deployments/$APP_DEPLOY_ID")
 APP_HOST_PORT=$(require_field "$APP_DEPLOY" '.hostPort' "get app hostPort") || fail "No hostPort"
+APP_CONTAINER_ID=$(json_get "$APP_DEPLOY" '.containerId')
+log "App container: $APP_CONTAINER_ID on port $APP_HOST_PORT"
+
+sleep 3
+
+CONTAINER_STATUS=$(remote "docker inspect $APP_CONTAINER_ID --format '{{.State.Status}}'" 2>&1 || echo "unknown")
+log "Container status: $CONTAINER_STATUS"
+
+if [ "$CONTAINER_STATUS" != "running" ]; then
+  log "Container logs:"
+  remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -20" || true
+  fail "App container not running: $CONTAINER_STATUS"
+fi
 
 HEALTH_RESP=$(remote "curl -sf http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
 HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error")
-[ "$HEALTH_STATUS" != "ok" ] && fail "App health check failed: $HEALTH_RESP"
+if [ "$HEALTH_STATUS" != "ok" ]; then
+  log "Health check failed, container logs:"
+  remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -30" || true
+  fail "App health check failed: $HEALTH_RESP"
+fi
 log "App connected to database successfully!"
 
 log "Verifying cross-service communication via hostname..."
