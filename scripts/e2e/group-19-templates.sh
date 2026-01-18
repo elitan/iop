@@ -126,11 +126,18 @@ if [ "$CONTAINER_STATUS" != "running" ]; then
   fail "App container not running: $CONTAINER_STATUS"
 fi
 
-HEALTH_RESP=$(remote "curl -sf http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
+log "Checking root endpoint first..."
+ROOT_RESP=$(remote "curl -sf --max-time 5 http://localhost:$APP_HOST_PORT/" 2>&1 || echo "curl failed")
+log "Root response: $ROOT_RESP"
+
+log "Checking health endpoint..."
+HEALTH_RESP=$(remote "curl -sf --max-time 10 http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
 HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error")
 if [ "$HEALTH_STATUS" != "ok" ]; then
   log "Health check failed, container logs:"
   remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -30" || true
+  log "Checking network connectivity..."
+  remote "docker inspect $APP_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
   fail "App health check failed: $HEALTH_RESP"
 fi
 log "App connected to database successfully!"
