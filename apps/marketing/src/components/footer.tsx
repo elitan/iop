@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FrostLogo } from "./frost-logo";
 import { Github } from "lucide-react";
+import { FrostLogo } from "./frost-logo";
 
 export function Footer() {
   return (
@@ -52,9 +52,16 @@ export function Footer() {
               className="hover:text-foreground transition-colors"
             >
               Johan
-            </a>
-            {" "}in Sweden
-            <svg width="14" height="10" viewBox="0 0 16 12" className="rounded-[2px] ml-0.5">
+            </a>{" "}
+            in Sweden
+            <svg
+              width="14"
+              height="10"
+              viewBox="0 0 16 12"
+              className="rounded-[2px] ml-0.5"
+              role="img"
+              aria-label="Swedish flag"
+            >
               <rect width="16" height="12" fill="#006AA7" />
               <rect x="5" width="2" height="12" fill="#FECC00" />
               <rect y="5" width="16" height="2" fill="#FECC00" />

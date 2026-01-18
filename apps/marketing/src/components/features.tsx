@@ -22,7 +22,8 @@ const features = [
   {
     icon: Zap,
     title: "Fast Deploys",
-    description: "Instant rollbacks. Zero-downtime deployments. Built-in health checks.",
+    description:
+      "Instant rollbacks. Zero-downtime deployments. Built-in health checks.",
   },
 ];
 

@@ -36,32 +36,31 @@ export function SSLSection() {
                   Every domain gets automatic Let's Encrypt certificates.
                   Renewed automatically. No DNS verification needed.
                 </p>
-                <a
-                  href="#"
-                  className="text-accent hover:underline text-sm flex items-center gap-1"
-                >
-                  Learn more <ArrowRight size={14} />
-                </a>
+                <span className="text-accent text-sm flex items-center gap-1">
+                  Zero config required <ArrowRight size={14} />
+                </span>
               </div>
 
               <div className="space-y-3">
-                {["app.example.com", "api.example.com", "admin.example.com"].map(
-                  (domain) => (
-                    <div
-                      key={domain}
-                      className="flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Globe size={16} className="text-accent" />
-                        <span className="font-mono text-sm">{domain}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-green-400">
-                        <Check size={14} />
-                        SSL Active
-                      </div>
+                {[
+                  "app.example.com",
+                  "api.example.com",
+                  "admin.example.com",
+                ].map((domain) => (
+                  <div
+                    key={domain}
+                    className="flex items-center justify-between bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Globe size={16} className="text-accent" />
+                      <span className="font-mono text-sm">{domain}</span>
                     </div>
-                  )
-                )}
+                    <div className="flex items-center gap-2 text-xs text-green-400">
+                      <Check size={14} />
+                      SSL Active
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Terminal, Plus, Rocket } from "lucide-react";
+import { Plus, Rocket, Terminal } from "lucide-react";
 
 const steps = [
   {
@@ -52,7 +52,10 @@ export function Steps() {
 
           <motion.div
             className="hidden md:block absolute top-1/2 left-0 h-px -translate-y-1/2"
-            style={{ background: "linear-gradient(to right, var(--color-accent), transparent)" }}
+            style={{
+              background:
+                "linear-gradient(to right, var(--color-accent), transparent)",
+            }}
             initial={{ width: 0 }}
             whileInView={{ width: "100%" }}
             viewport={{ once: true }}

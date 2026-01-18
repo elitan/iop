@@ -1,7 +1,7 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
 import { Bot, Check, Copy, Terminal } from "lucide-react";
 import { useState } from "react";
 

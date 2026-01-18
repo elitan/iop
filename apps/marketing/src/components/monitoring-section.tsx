@@ -81,13 +81,10 @@ export function MonitoringSection() {
                         <StatusDot status="running" />
                         <span className="text-xs text-green-400">Running</span>
                       </div>
-                      <a
-                        href="#"
-                        className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                      >
+                      <span className="text-sm text-blue-400 flex items-center gap-1">
                         api.example.com
                         <ExternalLink size={12} />
-                      </a>
+                      </span>
                     </div>
                   </div>
                   <button
@@ -107,7 +104,8 @@ export function MonitoringSection() {
                     <span>elitan/my-app</span>
                   </div>
                   <div className="mt-2 text-xs text-neutral-500">
-                    main · <span className="font-mono text-accent">a3f8c2d</span>
+                    main ·{" "}
+                    <span className="font-mono text-accent">a3f8c2d</span>
                   </div>
                 </div>
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">

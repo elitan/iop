@@ -38,11 +38,20 @@ export function ProductShowcase() {
             </div>
             <div className="p-4 font-mono text-sm space-y-2">
               <div className="text-neutral-500">$ git push origin main</div>
-              <div className="text-neutral-400">Enumerating objects: 5, done.</div>
-              <div className="text-neutral-400">Counting objects: 100% (5/5), done.</div>
-              <div className="text-neutral-400">Writing objects: 100% (3/3), 312 bytes</div>
+              <div className="text-neutral-400">
+                Enumerating objects: 5, done.
+              </div>
+              <div className="text-neutral-400">
+                Counting objects: 100% (5/5), done.
+              </div>
+              <div className="text-neutral-400">
+                Writing objects: 100% (3/3), 312 bytes
+              </div>
               <div className="text-green-400">To github.com:user/app.git</div>
-              <div className="text-green-400">   a3f8c2d..b7e4f1a  main → main</div>
+              <div className="text-green-400">
+                {" "}
+                a3f8c2d..b7e4f1a main → main
+              </div>
             </div>
           </div>
 

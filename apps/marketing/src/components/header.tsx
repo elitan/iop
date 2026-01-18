@@ -1,8 +1,8 @@
 "use client";
 
 import { Github } from "lucide-react";
-import { FrostLogo } from "./frost-logo";
 import { useEffect, useState } from "react";
+import { FrostLogo } from "./frost-logo";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -70,7 +70,9 @@ export function Header() {
         >
           <Github size={16} className="text-muted-foreground" />
           {stars !== null && (
-            <span className="text-muted-foreground font-mono text-xs">{stars}</span>
+            <span className="text-muted-foreground font-mono text-xs">
+              {stars}
+            </span>
           )}
         </a>
       </div>
