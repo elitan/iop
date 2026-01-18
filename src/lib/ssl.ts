@@ -43,6 +43,11 @@ export async function generateSelfSignedCert(serviceId: string): Promise<void> {
   );
 
   await execAsync(`chmod 600 "${key}"`);
+  try {
+    await execAsync(`chown 70:70 "${key}" "${cert}"`);
+  } catch {
+    // chown requires root - on dev/CI this will fail but that's ok
+  }
 }
 
 export async function removeSSLCerts(serviceId: string): Promise<void> {
