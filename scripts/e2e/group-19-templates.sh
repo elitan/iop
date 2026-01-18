@@ -100,6 +100,8 @@ PG_READY=$(remote "timeout 30 bash -c 'until pg_isready -h localhost -p $DB_HOST
 echo "$PG_READY" | grep -q "ready" || fail "postgres not ready"
 log "postgres ready on port $DB_HOST_PORT"
 
+log "Checking postgres container state..."
+remote "docker inspect $DB_CONTAINER_ID --format '{{.State.Status}} {{.State.Running}}'" || true
 log "Checking postgres network aliases..."
 remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
 
@@ -143,8 +145,12 @@ if [ "$HEALTH_STATUS" != "ok" ]; then
   remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -30" || true
   log "Checking app network..."
   remote "docker inspect $APP_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
+  log "Checking postgres state..."
+  remote "docker inspect $DB_CONTAINER_ID --format '{{.State.Status}} {{.State.Running}}'" || true
   log "Checking postgres network..."
   remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
+  log "Listing all containers on network..."
+  remote "docker network inspect frost-net-$PROJECT_ID --format '{{json .Containers}}'" || true
   log "Testing DNS resolution from app to postgres..."
   remote "docker exec $APP_CONTAINER_ID getent hosts postgres" || log "DNS resolution failed"
   log "Testing direct connection from app to postgres..."
