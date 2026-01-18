@@ -210,6 +210,8 @@ jobs:
             NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
             npm run build 2>&1 && \
             bun run migrate 2>&1 && \
+            sed -i 's|ExecStart=.*bun.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
+            systemctl daemon-reload && \
             systemctl start frost"
 
       - name: Initialize test fixture git repos

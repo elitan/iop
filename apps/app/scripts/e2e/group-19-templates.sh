@@ -113,7 +113,7 @@ remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networ
 
 log "Adding app service from test fixture..."
 APP_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
-  -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"./test/fixtures/db-health-check\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB\"}]}")
+  -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"./apps/app/test/fixtures/db-health-check\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB\"}]}")
 APP_SERVICE_ID=$(require_field "$APP_SERVICE" '.id' "create app") || fail "Failed: $APP_SERVICE"
 
 log "Waiting for app deployment..."

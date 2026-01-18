@@ -53,7 +53,7 @@ PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"
 PROJECT2_ID=$(require_field "$PROJECT2" '.id' "create project2") || fail "Failed to create project2: $PROJECT2"
 
 SERVICE2=$(api -X POST "$BASE_URL/api/projects/$PROJECT2_ID/services" \
-  -d "{\"name\":\"webhook-deploy-test\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"test/fixtures/simple-node/Dockerfile\"}")
+  -d "{\"name\":\"webhook-deploy-test\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"apps/app/test/fixtures/simple-node/Dockerfile\"}")
 SERVICE2_ID=$(require_field "$SERVICE2" '.id' "create service2") || fail "Failed to create service2: $SERVICE2"
 log "Created service: $SERVICE2_ID"
 

@@ -178,7 +178,7 @@ jobs:
           mkdir -p frost-release/.next
           cp -r apps/app/.next/static frost-release/.next/static
           # Copy additional required files
-          cp -r apps/app/schema apps/app/scripts frost-release/
+          cp -r apps/app/schema apps/app/scripts apps/app/templates frost-release/
           mkdir -p frost-release/src
           cp -r apps/app/src/scripts frost-release/src/scripts
           cp apps/app/package.json frost-release/
