@@ -101,7 +101,13 @@ echo "$PG_READY" | grep -q "ready" || fail "postgres not ready"
 log "postgres ready on port $DB_HOST_PORT"
 
 log "Checking postgres container state..."
-remote "docker inspect $DB_CONTAINER_ID --format '{{.State.Status}} {{.State.Running}}'" || true
+PG_STATE=$(remote "docker inspect $DB_CONTAINER_ID --format '{{.State.Status}}'" 2>&1 || echo "unknown")
+log "Postgres state: $PG_STATE"
+if [ "$PG_STATE" != "running" ]; then
+  log "Postgres container is not running! Logs:"
+  remote "docker logs $DB_CONTAINER_ID 2>&1 | tail -30" || true
+  fail "Postgres container exited unexpectedly"
+fi
 log "Checking postgres network aliases..."
 remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
 
