@@ -1,6 +1,6 @@
 # Frost
 
-Open source Railway alternative.
+Deploy Docker apps. Simply.
 
 ## Features
 
@@ -22,7 +22,7 @@ Open source Railway alternative.
 
 **Already have a server?**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | sudo bash
+curl -fsSL https://frost.build/install.sh | sudo bash
 ```
 
 ## Local Development
