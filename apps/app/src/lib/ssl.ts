@@ -5,8 +5,15 @@ import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 
+function getDataDir(): string {
+  if (process.env.FROST_DATA_DIR) {
+    return process.env.FROST_DATA_DIR;
+  }
+  return join(process.cwd(), "data");
+}
+
 function getSSLBasePath(): string {
-  return process.env.FROST_SSL_PATH || join(process.cwd(), "data", "ssl");
+  return process.env.FROST_SSL_PATH || join(getDataDir(), "ssl");
 }
 
 export function getSSLDir(serviceId: string): string {
