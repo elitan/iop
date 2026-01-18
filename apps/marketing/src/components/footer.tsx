@@ -24,25 +24,15 @@ export function Footer() {
             </p>
           </div>
 
-          <div className="flex items-center gap-8">
-            <a
-              href="https://github.com/elitan/frost"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Github size={18} />
-              <span className="text-sm">GitHub</span>
-            </a>
-            <a
-              href="https://github.com/elitan/frost#readme"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Documentation
-            </a>
-          </div>
+          <a
+            href="https://github.com/elitan/frost"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Github size={18} />
+            <span className="text-sm">GitHub</span>
+          </a>
         </motion.div>
 
         <motion.div
