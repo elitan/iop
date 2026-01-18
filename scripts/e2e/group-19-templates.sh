@@ -94,9 +94,14 @@ wait_for_deployment "$DB_DEPLOY_ID" 90 || fail "postgres deployment failed"
 log "Verifying postgres is ready..."
 DB_DEPLOY=$(api "$BASE_URL/api/deployments/$DB_DEPLOY_ID")
 DB_HOST_PORT=$(require_field "$DB_DEPLOY" '.hostPort' "get db hostPort") || fail "No hostPort"
+DB_CONTAINER_ID=$(json_get "$DB_DEPLOY" '.containerId')
+log "Postgres container: $DB_CONTAINER_ID"
 PG_READY=$(remote "timeout 30 bash -c 'until pg_isready -h localhost -p $DB_HOST_PORT; do sleep 1; done' && echo 'ready'" 2>&1 || echo "not ready")
 echo "$PG_READY" | grep -q "ready" || fail "postgres not ready"
 log "postgres ready on port $DB_HOST_PORT"
+
+log "Checking postgres network aliases..."
+remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
 
 log "Adding app service from test fixture..."
 APP_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
@@ -136,8 +141,14 @@ HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error
 if [ "$HEALTH_STATUS" != "ok" ]; then
   log "Health check failed, container logs:"
   remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -30" || true
-  log "Checking network connectivity..."
+  log "Checking app network..."
   remote "docker inspect $APP_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
+  log "Checking postgres network..."
+  remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
+  log "Testing DNS resolution from app to postgres..."
+  remote "docker exec $APP_CONTAINER_ID getent hosts postgres" || log "DNS resolution failed"
+  log "Testing direct connection from app to postgres..."
+  remote "docker exec $APP_CONTAINER_ID nc -zv postgres 5432 2>&1" || log "Direct connection failed"
   fail "App health check failed: $HEALTH_RESP"
 fi
 log "App connected to database successfully!"
