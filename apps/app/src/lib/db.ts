@@ -4,10 +4,18 @@ import { CamelCasePlugin, CompiledQuery, Kysely } from "kysely";
 import { BunSqliteDialect } from "kysely-bun-worker/normal";
 import type { DB } from "./db-types";
 
-const DB_PATH = join(process.cwd(), "data", "frost.db");
+function getDataDir(): string {
+  if (process.env.FROST_DATA_DIR) {
+    return process.env.FROST_DATA_DIR;
+  }
+  return join(process.cwd(), "data");
+}
 
-if (!existsSync(join(process.cwd(), "data"))) {
-  mkdirSync(join(process.cwd(), "data"), { recursive: true });
+const DATA_DIR = getDataDir();
+const DB_PATH = join(DATA_DIR, "frost.db");
+
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
 }
 
 export const db = new Kysely<DB>({

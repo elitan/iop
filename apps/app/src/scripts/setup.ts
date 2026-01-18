@@ -5,7 +5,16 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 const scryptAsync = promisify(scrypt);
-const DB_PATH = join(process.cwd(), "data", "frost.db");
+
+function getDataDir(): string {
+  if (process.env.FROST_DATA_DIR) {
+    return process.env.FROST_DATA_DIR;
+  }
+  return join(process.cwd(), "data");
+}
+
+const DATA_DIR = getDataDir();
+const DB_PATH = join(DATA_DIR, "frost.db");
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -26,8 +35,8 @@ async function setup() {
     process.exit(1);
   }
 
-  if (!existsSync(join(process.cwd(), "data"))) {
-    mkdirSync(join(process.cwd(), "data"), { recursive: true });
+  if (!existsSync(DATA_DIR)) {
+    mkdirSync(DATA_DIR, { recursive: true });
   }
 
   const db = new Database(DB_PATH);

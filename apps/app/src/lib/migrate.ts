@@ -12,8 +12,15 @@ export interface MigrationOptions {
   schemaDir?: string;
 }
 
+function getDataDir(): string {
+  if (process.env.FROST_DATA_DIR) {
+    return process.env.FROST_DATA_DIR;
+  }
+  return join(process.cwd(), "data");
+}
+
 export function runMigrations(options?: MigrationOptions): MigrationResult {
-  const dbPath = options?.dbPath ?? join(process.cwd(), "data", "frost.db");
+  const dbPath = options?.dbPath ?? join(getDataDir(), "frost.db");
   const schemaDir = options?.schemaDir ?? join(process.cwd(), "schema");
 
   const dbDir = dirname(dbPath);

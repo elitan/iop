@@ -259,6 +259,7 @@ mkdir -p "$FROST_DIR/data"
 # Create .env file
 cat > "$FROST_DIR/.env" << EOF
 FROST_JWT_SECRET=$FROST_JWT_SECRET
+FROST_DATA_DIR=$FROST_DIR/data
 NODE_ENV=production
 EOF
 
