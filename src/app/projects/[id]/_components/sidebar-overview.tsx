@@ -5,6 +5,7 @@ import { Copy, Database, ExternalLink, GitBranch, Github, Globe, Package } from 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StatusDot } from "@/components/status-dot";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useDeployService } from "@/hooks/use-services";
@@ -28,11 +29,51 @@ interface SidebarOverviewProps {
 }
 
 export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
+  const queryClient = useQueryClient();
+  const deployMutation = useDeployService(service.id, projectId);
   const [serverIp, setServerIp] = useState<string | null>(null);
   const [preferredDomain, setPreferredDomain] = useState<Domain | null>(null);
   const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(
     null,
   );
+
+  const { data: tcpProxy } = useQuery({
+    queryKey: ["tcp-proxy", service.id],
+    queryFn: () => api.tcpProxy.get(service.id),
+    enabled: service.serviceType === "database",
+  });
+
+  const enableTcpProxyMutation = useMutation({
+    mutationFn: () => api.tcpProxy.enable(service.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tcp-proxy", service.id] });
+      toast.success("External access enabled", {
+        description: "Redeploy required for changes to take effect",
+        duration: 10000,
+        action: {
+          label: "Redeploy",
+          onClick: () => deployMutation.mutateAsync(),
+        },
+      });
+    },
+    onError: () => toast.error("Failed to enable external access"),
+  });
+
+  const disableTcpProxyMutation = useMutation({
+    mutationFn: () => api.tcpProxy.disable(service.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tcp-proxy", service.id] });
+      toast.success("External access disabled", {
+        description: "Redeploy required for changes to take effect",
+        duration: 10000,
+        action: {
+          label: "Redeploy",
+          onClick: () => deployMutation.mutateAsync(),
+        },
+      });
+    },
+    onError: () => toast.error("Failed to disable external access"),
+  });
 
   useEffect(() => {
     api.settings.get().then((s) => setServerIp(s.serverIp));
@@ -171,6 +212,138 @@ export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
       </Card>
 
       <ServiceMetricsCard serviceId={service.id} />
+
+      {service.serviceType === "database" && currentDeployment && (
+        <Card className="bg-neutral-800 border-neutral-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-neutral-300">
+              <Database className="h-4 w-4" />
+              Database Connection
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="mb-1 text-xs text-neutral-500">
+                Internal Connection (within project)
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
+                  {buildConnectionString(
+                    service.imageUrl?.split(":")[0] ?? "",
+                    service.name,
+                    service.containerPort ?? 5432,
+                    JSON.parse(service.envVars || "[]").reduce(
+                      (acc: Record<string, string>, v: EnvVar) => {
+                        acc[v.key] = v.value;
+                        return acc;
+                      },
+                      {},
+                    ),
+                  )}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      buildConnectionString(
+                        service.imageUrl?.split(":")[0] ?? "",
+                        service.name,
+                        service.containerPort ?? 5432,
+                        JSON.parse(service.envVars || "[]").reduce(
+                          (acc: Record<string, string>, v: EnvVar) => {
+                            acc[v.key] = v.value;
+                            return acc;
+                          },
+                          {},
+                        ),
+                      ),
+                    );
+                    toast.success("Copied to clipboard");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t border-neutral-700 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="flex items-center gap-2 text-sm text-neutral-300">
+                    <Globe className="h-4 w-4" />
+                    External Access
+                  </span>
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    Expose database to external connections
+                  </p>
+                </div>
+                <Switch
+                  checked={tcpProxy?.enabled ?? false}
+                  disabled={
+                    enableTcpProxyMutation.isPending ||
+                    disableTcpProxyMutation.isPending
+                  }
+                  onCheckedChange={(checked: boolean) => {
+                    if (checked) {
+                      enableTcpProxyMutation.mutate();
+                    } else {
+                      disableTcpProxyMutation.mutate();
+                    }
+                  }}
+                />
+              </div>
+
+              {tcpProxy?.enabled && tcpProxy.port && serverIp && (
+                <div className="mt-3">
+                  <p className="mb-1 text-xs text-neutral-500">
+                    External Connection
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
+                      {buildConnectionString(
+                        service.imageUrl?.split(":")[0] ?? "",
+                        serverIp,
+                        tcpProxy.port,
+                        JSON.parse(service.envVars || "[]").reduce(
+                          (acc: Record<string, string>, v: EnvVar) => {
+                            acc[v.key] = v.value;
+                            return acc;
+                          },
+                          {},
+                        ),
+                      )}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          buildConnectionString(
+                            service.imageUrl?.split(":")[0] ?? "",
+                            serverIp,
+                            tcpProxy.port!,
+                            JSON.parse(service.envVars || "[]").reduce(
+                              (acc: Record<string, string>, v: EnvVar) => {
+                                acc[v.key] = v.value;
+                                return acc;
+                              },
+                              {},
+                            ),
+                          ),
+                        );
+                        toast.success("Copied to clipboard");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

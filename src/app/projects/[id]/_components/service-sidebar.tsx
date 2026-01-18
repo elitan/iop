@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Rocket, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StateTabs } from "@/components/state-tabs";
 import { Button } from "@/components/ui/button";
@@ -41,10 +41,20 @@ export function ServiceSidebar({
 
   const isOpen = !!serviceId;
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   return (
     <div
       className={cn(
-        "absolute right-0 top-0 z-20 h-full w-[60vw] border-l border-neutral-800 bg-neutral-900 transition-transform duration-300 ease-in-out",
+        "absolute bottom-0 right-0 top-8 z-20 w-[60vw] rounded-tl-xl border-l border-t border-neutral-800 bg-neutral-900 transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "translate-x-full",
       )}
     >
