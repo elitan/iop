@@ -102,6 +102,7 @@ export interface Projects {
   envVars: Generated<string>;
   createdAt: number;
   hostname: string | null;
+  canvasPositions: Generated<string | null>;
 }
 
 export interface Registries {
@@ -122,7 +123,6 @@ export interface Services {
   repoUrl: string | null;
   branch: Generated<string | null>;
   dockerfilePath: Generated<string | null>;
-  buildContext: string | null;
   imageUrl: string | null;
   envVars: Generated<string>;
   createdAt: number;
@@ -140,6 +140,7 @@ export interface Services {
   requestTimeout: number | null;
   registryId: string | null;
   hostname: string | null;
+  buildContext: string | null;
 }
 
 export interface Settings {

@@ -11,6 +11,7 @@ export interface Project {
   hostname: string | null;
   envVars: string;
   createdAt: number;
+  canvasPositions?: string | null;
   services?: Service[];
   servicesCount?: number;
   latestDeployment?: ProjectLatestDeployment | null;
@@ -128,6 +129,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   envVars?: EnvVar[];
+  canvasPositions?: string;
 }
 
 export interface CreateServiceInput {

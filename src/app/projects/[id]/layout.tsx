@@ -9,6 +9,7 @@ import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeployProject, useProject } from "@/hooks/use-projects";
+import { cn } from "@/lib/utils";
 
 export default function ProjectLayout({
   children,
@@ -22,6 +23,8 @@ export default function ProjectLayout({
   const isServiceRoute =
     (pathname.includes("/services/") && params.serviceId) ||
     pathname.endsWith("/services/new");
+
+  const isServicesPage = pathname === `/projects/${projectId}`;
 
   const { data: project, isLoading } = useProject(projectId);
   const deployProjectMutation = useDeployProject(projectId);
@@ -110,7 +113,15 @@ export default function ProjectLayout({
     <>
       <BreadcrumbHeader items={[{ label: project.name }]} actions={actions} />
       <TabNav tabs={tabs} layoutId="project-tabs" />
-      <main className="container mx-auto px-4 py-8">{children}</main>
+      <main
+        className={cn(
+          isServicesPage
+            ? "h-[calc(100vh-120px)]"
+            : "container mx-auto px-4 py-8",
+        )}
+      >
+        {children}
+      </main>
     </>
   );
 }
