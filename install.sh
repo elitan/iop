@@ -263,6 +263,11 @@ FROST_DATA_DIR=$FROST_DIR/data
 NODE_ENV=production
 EOF
 
+# For branch mode, symlink .env to apps/app so it's accessible when running from there
+if [ "$USE_TARBALL" = false ] && [ -d "$FROST_DIR/apps/app" ]; then
+  ln -sf "$FROST_DIR/.env" "$FROST_DIR/apps/app/.env"
+fi
+
 timer "Running migrations..."
 bun run migrate
 
