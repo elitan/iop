@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/header";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export const metadata: Metadata = {
   title: "Frost - Deploy Docker apps. Simply.",
@@ -23,7 +22,6 @@ export default function RootLayout({
         <div className="noise-overlay" />
         <Header />
         {children}
-        <ThemeSwitcher />
       </body>
     </html>
   );
