@@ -9,6 +9,7 @@
     "migrate": "bun scripts/migrate.ts",
     "setup": "bun src/scripts/setup.ts",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "db:gen": "node ./node_modules/.bin/kysely-gen --url ./data/frost.db --dialect sqlite --camel-case --out ./src/lib/db-types.ts"
   },
   "dependencies": {

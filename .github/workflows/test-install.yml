@@ -31,8 +31,8 @@ jobs:
 
       - name: Prepare standalone
         run: |
-          cp -r .next/static .next/standalone/.next/static
-          mkdir -p .next/standalone/data
+          cp -r apps/app/.next/static apps/app/.next/standalone/.next/static
+          mkdir -p apps/app/.next/standalone/data
 
       - name: Setup admin password
         run: bun run setup testpassword123
@@ -40,14 +40,14 @@ jobs:
       - name: Copy database to standalone
         run: |
           # Checkpoint and convert to DELETE mode for clean copy
-          sqlite3 data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
+          sqlite3 apps/app/data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
           # Remove any existing WAL files, copy main db
-          rm -f .next/standalone/data/frost.db*
-          cp data/frost.db .next/standalone/data/
+          rm -f apps/app/.next/standalone/data/frost.db*
+          cp apps/app/data/frost.db apps/app/.next/standalone/data/
 
       - name: Start Frost (standalone)
         run: |
-          cd .next/standalone && FROST_JWT_SECRET=gh-action-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
+          cd apps/app/.next/standalone && FROST_JWT_SECRET=gh-action-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
           sleep 5
           cat /tmp/frost.log
 
@@ -76,8 +76,8 @@ jobs:
 
       - name: Test static files served
         run: |
-          STATIC_FILE=$(find .next/static -name "*.js" -o -name "*.css" | head -1)
-          STATIC_PATH=${STATIC_FILE#.next}
+          STATIC_FILE=$(find apps/app/.next/static -name "*.js" -o -name "*.css" | head -1)
+          STATIC_PATH=${STATIC_FILE#apps/app/.next}
           echo "Testing: /_next$STATIC_PATH"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/_next$STATIC_PATH")
           echo "Status: $STATUS"
