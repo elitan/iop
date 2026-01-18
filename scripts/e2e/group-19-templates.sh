@@ -156,7 +156,8 @@ if [ "$HEALTH_STATUS" != "ok" ]; then
   log "Checking postgres network..."
   remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
   log "Listing all containers on network..."
-  remote "docker network inspect $(echo frost-net-$PROJECT_ID | tr '[:upper:]' '[:lower:]') --format '{{json .Containers}}'" || true
+  SANITIZED_NET=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+  remote "docker network inspect $SANITIZED_NET --format '{{json .Containers}}'" || true
   log "Testing DNS resolution from app to postgres..."
   remote "docker exec $APP_CONTAINER_ID getent hosts postgres" || log "DNS resolution failed"
   log "Testing direct connection from app to postgres..."
@@ -166,7 +167,8 @@ fi
 log "App connected to database successfully!"
 
 log "Verifying cross-service communication via hostname..."
-NETWORK_NAME=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]')
+# Replicate sanitizeDockerName: lowercase, replace non-alphanumeric with -, collapse --, remove leading/trailing -
+NETWORK_NAME=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
 log "Looking for network: $NETWORK_NAME"
 log "All frost networks:"
 remote "docker network ls --filter name=frost-net --format '{{.Name}}'" || true
