@@ -149,34 +149,6 @@ export function Install(): React.ReactElement {
             delay={0.2}
           />
         </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-muted-foreground"
-        >
-          <a
-            href="https://github.com/elitan/frost#readme"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 hover:text-accent transition-colors"
-          >
-            <span>Read the docs</span>
-            <span>→</span>
-          </a>
-          <span className="hidden sm:block text-border">|</span>
-          <a
-            href="https://github.com/elitan/frost"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 hover:text-accent transition-colors"
-          >
-            <span>View on GitHub</span>
-            <span>→</span>
-          </a>
-        </motion.div>
       </div>
     </section>
   );
