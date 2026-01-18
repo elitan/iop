@@ -206,6 +206,7 @@ export interface RunContainerOptions {
   envVars?: Record<string, string>;
   network?: string;
   hostname?: string;
+  networkAlias?: string;
   labels?: Record<string, string>;
   volumes?: VolumeMount[];
   fileMounts?: FileMount[];
@@ -226,6 +227,7 @@ export async function runContainer(
     envVars,
     network,
     hostname,
+    networkAlias,
     labels,
     volumes,
     fileMounts,
@@ -240,6 +242,8 @@ export async function runContainer(
       .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
       .join(" ");
     const networkFlag = network ? `--network ${network}` : "";
+    const networkAliasFlag =
+      network && networkAlias ? `--network-alias ${networkAlias}` : "";
     const hostnameFlag = hostname ? `--hostname ${hostname}` : "";
     const labelFlags = labels
       ? Object.entries(labels)
@@ -264,7 +268,7 @@ export async function runContainer(
       ? `--stop-timeout ${shutdownTimeout}`
       : "";
     const { stdout } = await execAsync(
-      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
+      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${networkAliasFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
         /\s+/g,
         " ",
       ),

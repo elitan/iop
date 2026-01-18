@@ -619,6 +619,7 @@ async function runServiceDeployment(
         envVars: runtimeEnvVars,
         network: networkName,
         hostname: service.hostname ?? service.name,
+        networkAlias: service.name,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,
@@ -952,6 +953,7 @@ async function runRollbackDeployment(
         envVars: runtimeEnvVars,
         network: networkName,
         hostname: service.hostname ?? service.name,
+        networkAlias: service.name,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,

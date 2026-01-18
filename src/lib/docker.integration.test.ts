@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import {
   buildImage,
+  createNetwork,
+  removeNetwork,
   runContainer,
   stopContainer,
   waitForHealthy,
@@ -12,6 +16,8 @@ import {
   removeVolume,
   volumeExists,
 } from "./volumes";
+
+const execAsync = promisify(exec);
 
 const TEST_IMAGE = "frost-test-health-check:latest";
 const TEST_CONTAINER = "frost-test-health-check";
@@ -183,4 +189,39 @@ describe("volume integration", () => {
     const size = await getVolumeSize("frost-nonexistent-volume-99999");
     expect(size).toBeNull();
   });
+});
+
+describe("network alias integration", () => {
+  const NETWORK_NAME = "frost-test-network-alias";
+  const CONTAINER_NAME = "frost-test-alias-container";
+
+  beforeAll(async () => {
+    await stopContainer(CONTAINER_NAME);
+    await createNetwork(NETWORK_NAME, {});
+  }, 30000);
+
+  afterAll(async () => {
+    await stopContainer(CONTAINER_NAME);
+    await removeNetwork(NETWORK_NAME);
+  });
+
+  test("runContainer with networkAlias sets alias on network", async () => {
+    const run = await runContainer({
+      imageName: TEST_IMAGE,
+      hostPort: TEST_PORT,
+      containerPort: 8080,
+      name: CONTAINER_NAME,
+      network: NETWORK_NAME,
+      networkAlias: "my-service",
+    });
+    expect(run.success).toBe(true);
+
+    const { stdout } = await execAsync(
+      `docker inspect ${CONTAINER_NAME} --format '{{json .NetworkSettings.Networks}}'`,
+    );
+    const networks = JSON.parse(stdout.trim());
+    const aliases = networks[NETWORK_NAME]?.Aliases || [];
+    expect(aliases).toContain("my-service");
+    await stopContainer(CONTAINER_NAME);
+  }, 60000);
 });
