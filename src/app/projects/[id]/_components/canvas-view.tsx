@@ -89,7 +89,8 @@ function CanvasViewInner({
     const container = containerRef.current;
     if (!container) return;
 
-    const zoom = getZoom();
+    const currentZoom = getZoom();
+    const zoom = Math.max(currentZoom, 1.25);
     const containerWidth = container.offsetWidth;
     const containerHeight = container.offsetHeight;
 
