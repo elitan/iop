@@ -99,13 +99,23 @@ export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
   useEffect(() => {
     if (!service) return;
     async function fetchCurrentDeployment() {
-      if (!service?.currentDeploymentId) {
-        setCurrentDeployment(null);
-        return;
-      }
       const deps = await api.deployments.listByService(service.id);
-      const current = deps.find((d) => d.id === service.currentDeploymentId);
-      setCurrentDeployment(current ?? null);
+      if (service.currentDeploymentId) {
+        const current = deps.find((d) => d.id === service.currentDeploymentId);
+        setCurrentDeployment(current ?? null);
+      } else {
+        const inProgressStatuses = [
+          "pending",
+          "cloning",
+          "pulling",
+          "building",
+          "deploying",
+        ];
+        const inProgress = deps.find((d) =>
+          inProgressStatuses.includes(d.status),
+        );
+        setCurrentDeployment(inProgress ?? null);
+      }
     }
     fetchCurrentDeployment();
     const interval = setInterval(fetchCurrentDeployment, 2000);
