@@ -31,24 +31,26 @@ jobs:
 
       - name: Prepare standalone
         run: |
-          mkdir -p apps/app/.next/standalone/.next
-          cp -r apps/app/.next/static apps/app/.next/standalone/.next/static
-          mkdir -p apps/app/.next/standalone/data
+          STANDALONE_APP=apps/app/.next/standalone/apps/app
+          mkdir -p $STANDALONE_APP/.next
+          cp -r apps/app/.next/static $STANDALONE_APP/.next/static
+          mkdir -p $STANDALONE_APP/data
 
       - name: Setup admin password
         run: bun run setup testpassword123
 
       - name: Copy database to standalone
         run: |
+          STANDALONE_APP=apps/app/.next/standalone/apps/app
           # Checkpoint and convert to DELETE mode for clean copy
           sqlite3 apps/app/data/frost.db "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"
           # Remove any existing WAL files, copy main db
-          rm -f apps/app/.next/standalone/data/frost.db*
-          cp apps/app/data/frost.db apps/app/.next/standalone/data/
+          rm -f $STANDALONE_APP/data/frost.db*
+          cp apps/app/data/frost.db $STANDALONE_APP/data/
 
       - name: Start Frost (standalone)
         run: |
-          cd apps/app/.next/standalone && FROST_JWT_SECRET=gh-action-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
+          cd apps/app/.next/standalone/apps/app && FROST_JWT_SECRET=gh-action-test-secret nohup bun server.js > /tmp/frost.log 2>&1 &
           sleep 5
           cat /tmp/frost.log
 
