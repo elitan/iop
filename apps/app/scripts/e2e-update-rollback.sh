@@ -41,6 +41,10 @@ remote "cd /opt/frost && \
   git fetch origin ${BROKEN_BRANCH}:refs/remotes/origin/main -f"
 
 echo ""
+echo "=== Copying current update.sh to server ==="
+scp -o StrictHostKeyChecking=no -o LogLevel=ERROR "$(dirname "$0")/../../../update.sh" root@$SERVER_IP:/opt/frost/update.sh
+
+echo ""
 echo "=== Disabling git fetch in update.sh to preserve our fake origin/main ==="
 remote "sed -i 's|git fetch origin main.*|:|' /opt/frost/update.sh"
 
