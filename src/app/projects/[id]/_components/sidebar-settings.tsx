@@ -110,7 +110,11 @@ function VariablesTab({
                   "Save"
                 )}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditing(false)}
+              >
                 Cancel
               </Button>
             </div>

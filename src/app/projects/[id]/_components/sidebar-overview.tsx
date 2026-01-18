@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Database, ExternalLink, GitBranch, Github, Globe, Package } from "lucide-react";
+import {
+  Copy,
+  Database,
+  ExternalLink,
+  GitBranch,
+  Github,
+  Globe,
+  Package,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StatusDot } from "@/components/status-dot";

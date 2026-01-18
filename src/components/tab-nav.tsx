@@ -13,41 +13,45 @@ interface Tab {
 interface TabNavProps {
   tabs: Tab[];
   layoutId: string;
+  actions?: React.ReactNode;
 }
 
-export function TabNav({ tabs, layoutId }: TabNavProps) {
+export function TabNav({ tabs, layoutId, actions }: TabNavProps) {
   const pathname = usePathname();
 
   return (
     <nav className="border-b border-neutral-800">
       <div className="container mx-auto flex gap-6 px-4">
-        {tabs.map((tab) => {
-          const isActive =
-            pathname === tab.href ||
-            (tab.href !== tabs[0].href && pathname.startsWith(tab.href));
+        <div className="flex flex-1 gap-6">
+          {tabs.map((tab) => {
+            const isActive =
+              pathname === tab.href ||
+              (tab.href !== tabs[0].href && pathname.startsWith(tab.href));
 
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={cn(
-                "relative py-3 text-sm transition-colors",
-                isActive
-                  ? "text-neutral-100"
-                  : "text-neutral-500 hover:text-neutral-300",
-              )}
-            >
-              {tab.label}
-              {isActive && (
-                <motion.span
-                  layoutId={layoutId}
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-100"
-                  transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
-                />
-              )}
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={cn(
+                  "relative py-3 text-sm transition-colors",
+                  isActive
+                    ? "text-neutral-100"
+                    : "text-neutral-500 hover:text-neutral-300",
+                )}
+              >
+                {tab.label}
+                {isActive && (
+                  <motion.span
+                    layoutId={layoutId}
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-100"
+                    transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+        {actions && <div className="ml-auto flex items-center">{actions}</div>}
       </div>
     </nav>
   );

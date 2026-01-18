@@ -1,15 +1,15 @@
 "use client";
 
-import { Loader2, Plus, Rocket } from "lucide-react";
-import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useParams, usePathname } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDeployProject, useProject } from "@/hooks/use-projects";
+import { useProject } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
+import { CreateServiceModal } from "./_components/create-service-modal";
 
 export default function ProjectLayout({
   children,
@@ -26,26 +26,17 @@ export default function ProjectLayout({
 
   const isServicesPage = pathname === `/projects/${projectId}`;
 
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data: project, isLoading } = useProject(projectId);
-  const deployProjectMutation = useDeployProject(projectId);
 
   if (isServiceRoute) {
     return <>{children}</>;
   }
 
   const tabs = [
-    { label: "Services", href: `/projects/${projectId}` },
+    { label: "Overview", href: `/projects/${projectId}` },
     { label: "Settings", href: `/projects/${projectId}/settings` },
   ];
-
-  async function handleDeployAll() {
-    try {
-      await deployProjectMutation.mutateAsync();
-      toast.success("Deploying all services");
-    } catch {
-      toast.error("Failed to start deployment");
-    }
-  }
 
   if (isLoading) {
     return (
@@ -76,43 +67,21 @@ export default function ProjectLayout({
     );
   }
 
-  const services = project.services || [];
-  const hasServices = services.length > 0;
-
-  const actions = (
-    <>
-      <Button asChild variant="outline" size="sm">
-        <Link href={`/projects/${projectId}/services/new`}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add Service
-        </Link>
-      </Button>
-      {hasServices && (
-        <Button
-          onClick={handleDeployAll}
-          disabled={deployProjectMutation.isPending}
-          size="sm"
-        >
-          {deployProjectMutation.isPending ? (
-            <>
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              Deploying
-            </>
-          ) : (
-            <>
-              <Rocket className="mr-1.5 h-4 w-4" />
-              Deploy All
-            </>
-          )}
-        </Button>
-      )}
-    </>
+  const tabActions = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setCreateModalOpen(true)}
+    >
+      <Plus className="mr-1.5 h-4 w-4" />
+      Create
+    </Button>
   );
 
   return (
     <>
-      <BreadcrumbHeader items={[{ label: project.name }]} actions={actions} />
-      <TabNav tabs={tabs} layoutId="project-tabs" />
+      <BreadcrumbHeader items={[{ label: project.name }]} />
+      <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />
       <main
         className={cn(
           isServicesPage
@@ -122,6 +91,11 @@ export default function ProjectLayout({
       >
         {children}
       </main>
+      <CreateServiceModal
+        projectId={projectId}
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+      />
     </>
   );
 }
