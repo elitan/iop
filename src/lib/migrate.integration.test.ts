@@ -1,12 +1,21 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { runMigrations } from "./migrate";
 
 const TEST_DIR = join(process.cwd(), "test-migrate-integration-tmp");
 const TEST_DB = join(TEST_DIR, "test.db");
 const PROD_SCHEMA_DIR = join(process.cwd(), "schema");
+const MIGRATION_COUNT = readdirSync(PROD_SCHEMA_DIR).filter((f) =>
+  f.endsWith(".sql"),
+).length;
 
 describe("migrate integration", () => {
   beforeEach(() => {
@@ -28,7 +37,7 @@ describe("migrate integration", () => {
       schemaDir: PROD_SCHEMA_DIR,
     });
 
-    expect(result.applied).toBe(23);
+    expect(result.applied).toBe(MIGRATION_COUNT);
     expect(result.bootstrapped).toBe(false);
   });
 
@@ -235,7 +244,7 @@ describe("migrate integration", () => {
       dbPath: TEST_DB,
       schemaDir: PROD_SCHEMA_DIR,
     });
-    expect(first.applied).toBe(23);
+    expect(first.applied).toBe(MIGRATION_COUNT);
 
     const second = runMigrations({
       dbPath: TEST_DB,
@@ -250,7 +259,7 @@ describe("migrate integration", () => {
       .all() as Array<{ name: string }>;
     db.close();
 
-    expect(migrations).toHaveLength(23);
+    expect(migrations).toHaveLength(MIGRATION_COUNT);
   });
 
   test("running migrations three times remains stable", () => {
@@ -269,7 +278,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(23);
+    expect(count.count).toBe(MIGRATION_COUNT);
   });
 
   test("migration tracking records correct timestamps", () => {
@@ -451,7 +460,7 @@ describe("migrate integration", () => {
     ]);
 
     const totalApplied = results.reduce((sum, r) => sum + r.applied, 0);
-    expect(totalApplied).toBe(23);
+    expect(totalApplied).toBe(MIGRATION_COUNT);
 
     const db = new Database(TEST_DB);
     const count = db
@@ -459,7 +468,7 @@ describe("migrate integration", () => {
       .get() as { count: number };
     db.close();
 
-    expect(count.count).toBe(23);
+    expect(count.count).toBe(MIGRATION_COUNT);
   });
 });
 
@@ -506,7 +515,7 @@ describe("migrate bootstrap scenarios", () => {
       .all() as Array<{ name: string }>;
     db2.close();
 
-    expect(migrations).toHaveLength(23);
+    expect(migrations).toHaveLength(MIGRATION_COUNT);
   });
 
   test("bootstrap preserves existing data", () => {

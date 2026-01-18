@@ -104,8 +104,14 @@ fi
 # Install Go if not present (needed for xcaddy)
 if ! command -v go &> /dev/null; then
   timer "Installing Go..."
-  GO_VERSION="1.22.5"
-  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+  GO_VERSION="1.25.6"
+  ARCH=$(uname -m)
+  case $ARCH in
+    x86_64) GO_ARCH="amd64" ;;
+    aarch64|arm64) GO_ARCH="arm64" ;;
+    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+  esac
+  curl -4 -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tar.gz
   rm -rf /usr/local/go
   tar -C /usr/local -xzf /tmp/go.tar.gz
   rm /tmp/go.tar.gz
@@ -123,11 +129,11 @@ if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
   rm -f /usr/bin/caddy
 
   timer "Installing xcaddy..."
-  go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+  GOPROXY=direct go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
   export PATH="$HOME/go/bin:$PATH"
 
   cd /tmp
-  xcaddy build --with github.com/caddy-dns/cloudflare
+  GOPROXY=direct xcaddy build --with github.com/caddy-dns/cloudflare
   mv caddy /usr/bin/caddy
   chmod +x /usr/bin/caddy
   cd -

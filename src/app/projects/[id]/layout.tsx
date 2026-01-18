@@ -15,6 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProject } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
 import { CreateServiceModal } from "./_components/create-service-modal";
+import {
+  getHeaderBorderClasses,
+  getHeaderStyleClasses,
+  type HeaderStyle,
+  HeaderStyleToggle,
+} from "./_components/header-style-toggle";
 
 export default function ProjectLayout({
   children,
@@ -34,6 +40,7 @@ export default function ProjectLayout({
   const isServicesPage = pathname === `/projects/${projectId}`;
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [headerStyle, setHeaderStyle] = useState<HeaderStyle>("solid");
   const { data: project, isLoading } = useProject(projectId);
 
   useEffect(() => {
@@ -94,8 +101,15 @@ export default function ProjectLayout({
 
   return (
     <>
-      <BreadcrumbHeader items={[{ label: project.name }]} />
-      <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />
+      <div
+        className={cn(
+          getHeaderStyleClasses(headerStyle),
+          getHeaderBorderClasses(headerStyle),
+        )}
+      >
+        <BreadcrumbHeader items={[{ label: project.name }]} />
+        <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />
+      </div>
       <main
         className={cn(
           isServicesPage
@@ -113,6 +127,9 @@ export default function ProjectLayout({
           router.push(`/projects/${projectId}?service=${serviceId}`);
         }}
       />
+      {isServicesPage && (
+        <HeaderStyleToggle value={headerStyle} onChange={setHeaderStyle} />
+      )}
     </>
   );
 }

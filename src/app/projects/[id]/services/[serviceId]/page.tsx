@@ -18,12 +18,61 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useDeployService, useService } from "@/hooks/use-services";
-import type { Deployment, Domain, EnvVar } from "@/lib/api";
+import type { Deployment, Domain, EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
-import { buildConnectionString } from "@/lib/db-templates";
+import { buildConnectionString } from "@/lib/connection-strings";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "./_components/service-metrics-card";
+
+function parseEnvVarsToRecord(envVarsJson: string): Record<string, string> {
+  const envVars: EnvVar[] = JSON.parse(envVarsJson);
+  return envVars.reduce<Record<string, string>>((acc, v) => {
+    acc[v.key] = v.value;
+    return acc;
+  }, {});
+}
+
+function getConnectionString(
+  service: Service,
+  host: string,
+  port: number,
+): string {
+  const imageBase = service.imageUrl?.split(":")[0] ?? "";
+  const envRecord = parseEnvVarsToRecord(service.envVars);
+  return buildConnectionString(imageBase, host, port, envRecord);
+}
+
+interface ConnectionStringDisplayProps {
+  label: string;
+  connectionString: string;
+}
+
+function ConnectionStringDisplay({
+  label,
+  connectionString,
+}: ConnectionStringDisplayProps) {
+  return (
+    <div>
+      <p className="mb-1 text-xs text-neutral-500">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 rounded bg-neutral-800 px-3 py-2 font-mono text-xs text-neutral-300">
+          {connectionString}
+        </code>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard.writeText(connectionString);
+            toast.success("Copied to clipboard");
+          }}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function getGitHubRepoFromUrl(url: string | null): string | null {
   if (!url) return null;
@@ -283,50 +332,14 @@ export default function ServiceOverviewPage() {
           <CardContent className="space-y-4">
             {currentDeployment ? (
               <>
-                <div>
-                  <p className="mb-1 text-xs text-neutral-500">
-                    Internal Connection (within project)
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 rounded bg-neutral-800 px-3 py-2 font-mono text-xs text-neutral-300">
-                      {buildConnectionString(
-                        service.imageUrl?.split(":")[0] ?? "",
-                        service.name,
-                        service.containerPort ?? 5432,
-                        JSON.parse(service.envVars).reduce(
-                          (acc: Record<string, string>, v: EnvVar) => {
-                            acc[v.key] = v.value;
-                            return acc;
-                          },
-                          {},
-                        ),
-                      )}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          buildConnectionString(
-                            service.imageUrl?.split(":")[0] ?? "",
-                            service.name,
-                            service.containerPort ?? 5432,
-                            JSON.parse(service.envVars).reduce(
-                              (acc: Record<string, string>, v: EnvVar) => {
-                                acc[v.key] = v.value;
-                                return acc;
-                              },
-                              {},
-                            ),
-                          ),
-                        );
-                        toast.success("Copied to clipboard");
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                <ConnectionStringDisplay
+                  label="Internal Connection (within project)"
+                  connectionString={getConnectionString(
+                    service,
+                    service.name,
+                    service.containerPort ?? 5432,
+                  )}
+                />
 
                 <div className="border-t border-neutral-800 pt-4">
                   <div className="flex items-center justify-between">
@@ -357,48 +370,14 @@ export default function ServiceOverviewPage() {
 
                   {tcpProxy?.enabled && tcpProxy.port && serverIp && (
                     <div className="mt-3">
-                      <p className="mb-1 text-xs text-neutral-500">
-                        External Connection
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 rounded bg-neutral-800 px-3 py-2 font-mono text-xs text-neutral-300">
-                          {buildConnectionString(
-                            service.imageUrl?.split(":")[0] ?? "",
-                            serverIp,
-                            tcpProxy.port,
-                            JSON.parse(service.envVars).reduce(
-                              (acc: Record<string, string>, v: EnvVar) => {
-                                acc[v.key] = v.value;
-                                return acc;
-                              },
-                              {},
-                            ),
-                          )}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              buildConnectionString(
-                                service.imageUrl?.split(":")[0] ?? "",
-                                serverIp,
-                                tcpProxy.port!,
-                                JSON.parse(service.envVars).reduce(
-                                  (acc: Record<string, string>, v: EnvVar) => {
-                                    acc[v.key] = v.value;
-                                    return acc;
-                                  },
-                                  {},
-                                ),
-                              ),
-                            );
-                            toast.success("Copied to clipboard");
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <ConnectionStringDisplay
+                        label="External Connection"
+                        connectionString={getConnectionString(
+                          service,
+                          serverIp,
+                          tcpProxy.port,
+                        )}
+                      />
                     </div>
                   )}
                 </div>

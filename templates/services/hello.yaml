@@ -1,0 +1,9 @@
+name: Hello World
+description: Simple hello world
+category: testing
+docs: https://github.com/crccheck/docker-hello-world
+
+services:
+  hello:
+    image: crccheck/hello-world
+    port: 8000

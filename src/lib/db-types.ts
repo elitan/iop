@@ -141,6 +141,7 @@ export interface Services {
   registryId: string | null;
   hostname: string | null;
   buildContext: string | null;
+  command: string | null;
 }
 
 export interface Settings {

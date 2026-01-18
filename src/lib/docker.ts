@@ -206,6 +206,7 @@ export interface RunContainerOptions {
   envVars?: Record<string, string>;
   network?: string;
   hostname?: string;
+  networkAlias?: string;
   labels?: Record<string, string>;
   volumes?: VolumeMount[];
   fileMounts?: FileMount[];
@@ -226,6 +227,7 @@ export async function runContainer(
     envVars,
     network,
     hostname,
+    networkAlias,
     labels,
     volumes,
     fileMounts,
@@ -240,6 +242,8 @@ export async function runContainer(
       .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
       .join(" ");
     const networkFlag = network ? `--network ${network}` : "";
+    const networkAliasFlag =
+      network && networkAlias ? `--network-alias ${networkAlias}` : "";
     const hostnameFlag = hostname ? `--hostname ${hostname}` : "";
     const labelFlags = labels
       ? Object.entries(labels)
@@ -254,7 +258,9 @@ export async function runContainer(
           .map((f) => `-v ${f.hostPath}:${f.containerPath}:ro`)
           .join(" ")
       : "";
-    const commandPart = command ? command.join(" ") : "";
+    const commandPart = command
+      ? command.map((c) => JSON.stringify(c)).join(" ")
+      : "";
     const logOpts = "--log-opt max-size=10m --log-opt max-file=3";
     const memoryFlag = memoryLimit ? `--memory ${memoryLimit}` : "";
     const cpuFlag = cpuLimit ? `--cpus ${cpuLimit}` : "";
@@ -262,7 +268,7 @@ export async function runContainer(
       ? `--stop-timeout ${shutdownTimeout}`
       : "";
     const { stdout } = await execAsync(
-      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
+      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${networkAliasFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
         /\s+/g,
         " ",
       ),
@@ -339,11 +345,19 @@ export async function waitForHealthy(
   const { containerId, port, path, timeoutSeconds = 60 } = options;
   const intervalMs = 1000;
   const maxAttempts = timeoutSeconds;
+  let consecutiveExited = 0;
+  const maxConsecutiveExited = 10;
 
   for (let i = 0; i < maxAttempts; i++) {
     const status = await getContainerStatus(containerId);
+
     if (status === "exited" || status === "dead") {
-      return false;
+      consecutiveExited++;
+      if (consecutiveExited >= maxConsecutiveExited) {
+        return false;
+      }
+    } else {
+      consecutiveExited = 0;
     }
 
     if (status === "running") {

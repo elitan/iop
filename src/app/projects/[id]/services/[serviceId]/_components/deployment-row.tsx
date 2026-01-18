@@ -18,11 +18,8 @@ interface DeploymentRowProps {
   imageName?: string | null;
 }
 
-function getDisplayStatus(status: string, imageName?: string | null): string {
-  if (status === "running") return "running";
-  if (imageName) return "running";
-  if (status === "failed") return "failed";
-  return "building";
+function getDisplayStatus(status: string): string {
+  return status;
 }
 
 export function DeploymentRow({
@@ -40,7 +37,7 @@ export function DeploymentRow({
 }: DeploymentRowProps) {
   const date = new Date(createdAt);
   const timeAgo = getTimeAgo(date);
-  const displayStatus = getDisplayStatus(status, imageName);
+  const displayStatus = getDisplayStatus(status);
 
   function handleRollback(e: React.MouseEvent) {
     e.stopPropagation();

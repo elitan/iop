@@ -1,0 +1,42 @@
+name: Plausible Analytics
+description: Privacy-friendly Google Analytics alternative
+category: analytics
+docs: https://plausible.io/docs
+
+services:
+  plausible:
+    image: ghcr.io/plausible/community-edition:v3.0.1
+    port: 8000
+    main: true
+    command: /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run
+    environment:
+      BASE_URL: http://localhost:8000
+      DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/plausible
+      CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events_db
+      SECRET_KEY_BASE:
+        generated: base64_64
+      TOTP_VAULT_KEY:
+        generated: base64_32
+    health_check:
+      path: /api/health
+      timeout: 60
+
+  postgres:
+    image: postgres:16-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: plausible
+    volumes:
+      - data:/var/lib/postgresql/data
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.12-alpine
+    port: 8123
+    type: database
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
+    volumes:
+      - data:/var/lib/clickhouse

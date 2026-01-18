@@ -1,0 +1,9 @@
+name: Echo Server
+description: Logs all requests to stdout (JSON)
+category: testing
+docs: https://github.com/Ealenn/Echo-Server
+
+services:
+  echo-server:
+    image: ealen/echo-server
+    port: 80

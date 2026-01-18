@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useDeployService } from "@/hooks/use-services";
 import type { Deployment, Domain, EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
-import { buildConnectionString } from "@/lib/db-templates";
+import { buildConnectionString } from "@/lib/connection-strings";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "../services/[serviceId]/_components/service-metrics-card";

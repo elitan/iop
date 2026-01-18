@@ -374,6 +374,7 @@ export const servicesSchema = z.object({
   requestTimeout: z.number().nullable(),
   registryId: z.string().nullable(),
   hostname: z.string().nullable(),
+  command: z.string().nullable(),
 });
 
 export const newServicesSchema = z.object({
@@ -402,6 +403,7 @@ export const newServicesSchema = z.object({
   requestTimeout: z.number().nullable(),
   registryId: z.string().nullable(),
   hostname: z.string().nullable(),
+  command: z.string().nullable(),
 });
 
 export const servicesUpdateSchema = z.object({
@@ -430,6 +432,7 @@ export const servicesUpdateSchema = z.object({
   requestTimeout: z.number().nullable().optional(),
   registryId: z.string().nullable().optional(),
   hostname: z.string().nullable().optional(),
+  command: z.string().nullable().optional(),
 });
 
 export type Services = z.infer<typeof servicesSchema>;

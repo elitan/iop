@@ -28,10 +28,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateService } from "@/hooks/use-services";
-import type { CreateServiceInput } from "@/lib/api";
+import type { CreateServiceInput, Template } from "@/lib/api";
 import { api } from "@/lib/api";
-import { SERVICE_TEMPLATES } from "@/lib/templates";
 import { RepoSelector } from "../services/new/_components/repo-selector";
+
+function getTemplatePort(template: Template): number {
+  const firstService = Object.values(template.services)[0];
+  return firstService?.port ?? 8080;
+}
+
+function getTemplateImage(template: Template): string {
+  const firstService = Object.values(template.services)[0];
+  return firstService?.image ?? "";
+}
 
 type Step = "category" | "repo" | "database" | "image";
 
@@ -100,6 +109,11 @@ export function CreateServiceModal({
   const { data: dbTemplates } = useQuery({
     queryKey: ["db-templates"],
     queryFn: () => api.dbTemplates.list(),
+  });
+
+  const { data: serviceTemplates } = useQuery({
+    queryKey: ["service-templates"],
+    queryFn: () => api.serviceTemplates.list(),
   });
 
   const filteredCategories = CATEGORIES.filter((cat) =>
@@ -209,7 +223,7 @@ export function CreateServiceModal({
       name: template.id.split("-")[0],
       deployType: "database",
       templateId: template.id,
-      containerPort: template.containerPort,
+      containerPort: getTemplatePort(template),
       envVars: [],
     });
   }
@@ -230,14 +244,16 @@ export function CreateServiceModal({
   }
 
   async function handleTemplateSelect(templateId: string) {
-    const template = SERVICE_TEMPLATES.find((t) => t.id === templateId);
+    const template = (serviceTemplates ?? []).find(
+      (t: Template) => t.id === templateId,
+    );
     if (!template) return;
 
     await createService({
       name: template.id,
       deployType: "image",
-      imageUrl: template.image,
-      containerPort: template.containerPort ?? 8080,
+      imageUrl: getTemplateImage(template),
+      containerPort: getTemplatePort(template),
       envVars: [],
     });
   }
@@ -415,7 +431,7 @@ export function CreateServiceModal({
                 <SelectValue placeholder="Select a template" />
               </SelectTrigger>
               <SelectContent className="border-neutral-700 bg-neutral-800">
-                {SERVICE_TEMPLATES.map((template) => (
+                {(serviceTemplates ?? []).map((template: Template) => (
                   <SelectItem
                     key={template.id}
                     value={template.id}
