@@ -181,8 +181,8 @@ jobs:
         if: steps.release.outputs.skip != 'true'
         id: predata
         run: |
-          chmod +x ./scripts/e2e-upgrade-create.sh
-          ./scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          chmod +x ./apps/app/scripts/e2e-upgrade-create.sh
+          ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
 
       - name: Upgrade to PR branch
         if: steps.release.outputs.skip != 'true'
@@ -216,7 +216,7 @@ jobs:
         if: steps.release.outputs.skip != 'true'
         run: |
           ssh root@${{ steps.server.outputs.ip }} 'git config --global user.email "ci@frost.dev" && git config --global user.name "Frost CI" && git config --global --add safe.directory "*"
-            for dir in /opt/frost/test/fixtures/*/; do
+            for dir in /opt/frost/apps/app/test/fixtures/*/; do
               if [ ! -d "$dir/.git" ]; then
                 cd "$dir" && git init -b main && git add -A && git commit -m "init"
               fi
@@ -241,8 +241,8 @@ jobs:
       - name: Verify pre-upgrade data survived
         if: steps.release.outputs.skip != 'true'
         run: |
-          chmod +x ./scripts/e2e-upgrade-verify.sh
-          ./scripts/e2e-upgrade-verify.sh \
+          chmod +x ./apps/app/scripts/e2e-upgrade-verify.sh
+          ./apps/app/scripts/e2e-upgrade-verify.sh \
             "${{ steps.server.outputs.ip }}" \
             "${{ steps.install.outputs.api_key }}" \
             "${{ steps.predata.outputs.project_id }}" \
@@ -252,8 +252,8 @@ jobs:
       - name: Run standard E2E tests
         if: steps.release.outputs.skip != 'true'
         run: |
-          chmod +x ./scripts/e2e-test.sh
-          ./scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          chmod +x ./apps/app/scripts/e2e-test.sh
+          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
 
@@ -295,8 +295,8 @@ jobs:
       - name: Test UI-triggered update flow
         if: steps.release.outputs.skip != 'true'
         run: |
-          chmod +x ./scripts/e2e-update-ui.sh
-          ./scripts/e2e-update-ui.sh \
+          chmod +x ./apps/app/scripts/e2e-update-ui.sh
+          ./apps/app/scripts/e2e-update-ui.sh \
             "${{ steps.server.outputs.ip }}" \
             "${{ steps.install.outputs.api_key }}" \
             "${{ github.head_ref || github.ref_name }}" \
@@ -370,8 +370,8 @@ jobs:
       - name: Test rollback on build failure
         if: steps.release.outputs.skip != 'true'
         run: |
-          chmod +x ./scripts/e2e-update-rollback.sh
-          ./scripts/e2e-update-rollback.sh \
+          chmod +x ./apps/app/scripts/e2e-update-rollback.sh
+          ./apps/app/scripts/e2e-update-rollback.sh \
             "${{ steps.server.outputs.ip }}" \
             "${{ steps.install.outputs.api_key }}" \
             "${{ steps.broken.outputs.branch }}" \
