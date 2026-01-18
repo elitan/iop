@@ -254,7 +254,9 @@ export async function runContainer(
           .map((f) => `-v ${f.hostPath}:${f.containerPath}:ro`)
           .join(" ")
       : "";
-    const commandPart = command ? command.join(" ") : "";
+    const commandPart = command
+      ? command.map((c) => JSON.stringify(c)).join(" ")
+      : "";
     const logOpts = "--log-opt max-size=10m --log-opt max-file=3";
     const memoryFlag = memoryLimit ? `--memory ${memoryLimit}` : "";
     const cpuFlag = cpuLimit ? `--cpus ${cpuLimit}` : "";

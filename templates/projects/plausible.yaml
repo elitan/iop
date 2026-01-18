@@ -8,8 +8,9 @@ services:
     image: ghcr.io/plausible/community-edition:v3.0.1
     port: 8000
     main: true
-    command: /entrypoint.sh db migrate && exec /entrypoint.sh run
+    command: /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run
     environment:
+      BASE_URL: http://localhost:8000
       DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/plausible
       CLICKHOUSE_DATABASE_URL: http://clickhouse:8123/plausible_events_db
       SECRET_KEY_BASE:
@@ -35,5 +36,7 @@ services:
     image: clickhouse/clickhouse-server:24.12-alpine
     port: 8123
     type: database
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
     volumes:
       - data:/var/lib/clickhouse
