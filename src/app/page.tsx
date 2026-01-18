@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { EmptyState } from "@/components/empty-state";
+import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/hooks/use-projects";
@@ -22,9 +23,59 @@ export default function Home() {
     return projects.filter((p) => p.name.toLowerCase().includes(lower));
   }, [projects, search]);
 
+  function renderContent() {
+    if (isLoading) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      );
+    }
+
+    if (!projects || projects.length === 0) {
+      return (
+        <EmptyState
+          icon={Rocket}
+          title="No projects yet"
+          description="Create a project to get started"
+          action={{ label: "New Project", href: "/projects/new" }}
+        />
+      );
+    }
+
+    if (filteredProjects.length === 0) {
+      return (
+        <EmptyState
+          icon={Search}
+          title="No matching projects"
+          description="Try a different search term"
+        />
+      );
+    }
+
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredProjects.map((project) => (
+          <ProjectCard
+            key={project.id}
+            id={project.id}
+            name={project.name}
+            runningUrl={project.runningUrl}
+            repoUrl={project.repoUrl}
+            latestDeployment={project.latestDeployment}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <>
-      <BreadcrumbHeader items={[]} />
+      <Header>
+        <BreadcrumbHeader items={[]} />
+      </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex items-center gap-4">
           <div className="relative flex-1">
@@ -44,39 +95,7 @@ export default function Home() {
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        ) : !projects || projects.length === 0 ? (
-          <EmptyState
-            icon={Rocket}
-            title="No projects yet"
-            description="Create a project to get started"
-            action={{ label: "New Project", href: "/projects/new" }}
-          />
-        ) : filteredProjects.length === 0 ? (
-          <EmptyState
-            icon={Search}
-            title="No matching projects"
-            description="Try a different search term"
-          />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                id={project.id}
-                name={project.name}
-                runningUrl={project.runningUrl}
-                repoUrl={project.repoUrl}
-                latestDeployment={project.latestDeployment}
-              />
-            ))}
-          </div>
-        )}
+        {renderContent()}
       </main>
     </>
   );

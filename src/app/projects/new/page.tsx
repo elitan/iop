@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { EnvVarEditor } from "@/components/env-var-editor";
+import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,7 +68,9 @@ export default function NewProjectPage() {
 
   return (
     <>
-      <BreadcrumbHeader items={[{ label: "New Project" }]} />
+      <Header>
+        <BreadcrumbHeader items={[{ label: "New Project" }]} />
+      </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-lg">
           <Card className="border-neutral-800 bg-neutral-900">

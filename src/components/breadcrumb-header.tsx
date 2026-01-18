@@ -15,7 +15,7 @@ interface BreadcrumbHeaderProps {
 
 export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
   return (
-    <header className="border-b border-neutral-800">
+    <div className="border-b border-neutral-800">
       <div className="container mx-auto flex h-14 items-center gap-2 px-4">
         <Link
           href="/"
@@ -46,6 +46,6 @@ export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
           <HeaderNav />
         </div>
       </div>
-    </header>
+    </div>
   );
 }

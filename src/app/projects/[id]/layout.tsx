@@ -9,18 +9,13 @@ import {
 } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
+import { Header } from "@/components/header";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProject } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
 import { CreateServiceModal } from "./_components/create-service-modal";
-import {
-  getHeaderBorderClasses,
-  getHeaderStyleClasses,
-  type HeaderStyle,
-  HeaderStyleToggle,
-} from "./_components/header-style-toggle";
 
 export default function ProjectLayout({
   children,
@@ -40,7 +35,6 @@ export default function ProjectLayout({
   const isServicesPage = pathname === `/projects/${projectId}`;
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [headerStyle, setHeaderStyle] = useState<HeaderStyle>("solid");
   const { data: project, isLoading } = useProject(projectId);
 
   useEffect(() => {
@@ -62,14 +56,16 @@ export default function ProjectLayout({
   if (isLoading) {
     return (
       <>
-        <BreadcrumbHeader items={[{ label: "..." }]} />
-        <div className="border-b border-neutral-800">
-          <div className="container mx-auto flex gap-6 px-4">
-            <Skeleton className="h-10 w-20" />
-            <Skeleton className="h-10 w-20" />
-            <Skeleton className="h-10 w-20" />
+        <Header>
+          <BreadcrumbHeader items={[{ label: "..." }]} />
+          <div className="border-b border-neutral-800">
+            <div className="container mx-auto flex gap-6 px-4">
+              <Skeleton className="h-10 w-20" />
+              <Skeleton className="h-10 w-20" />
+              <Skeleton className="h-10 w-20" />
+            </div>
           </div>
-        </div>
+        </Header>
         <main className="container mx-auto px-4 py-8">
           <Skeleton className="h-32 w-full" />
         </main>
@@ -80,7 +76,9 @@ export default function ProjectLayout({
   if (!project) {
     return (
       <>
-        <BreadcrumbHeader items={[]} />
+        <Header>
+          <BreadcrumbHeader items={[]} />
+        </Header>
         <main className="container mx-auto px-4 py-8">
           <div className="text-neutral-400">Project not found</div>
         </main>
@@ -101,20 +99,13 @@ export default function ProjectLayout({
 
   return (
     <>
-      <div
-        className={cn(
-          getHeaderStyleClasses(headerStyle),
-          getHeaderBorderClasses(headerStyle),
-        )}
-      >
+      <Header>
         <BreadcrumbHeader items={[{ label: project.name }]} />
         <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />
-      </div>
+      </Header>
       <main
         className={cn(
-          isServicesPage
-            ? "h-[calc(100vh-120px)]"
-            : "container mx-auto px-4 py-8",
+          isServicesPage ? "fixed inset-0" : "container mx-auto px-4 py-8",
         )}
       >
         {children}
@@ -127,9 +118,6 @@ export default function ProjectLayout({
           router.push(`/projects/${projectId}?service=${serviceId}`);
         }}
       />
-      {isServicesPage && (
-        <HeaderStyleToggle value={headerStyle} onChange={setHeaderStyle} />
-      )}
     </>
   );
 }

@@ -4,6 +4,7 @@ import { Loader2, Rocket } from "lucide-react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
+import { Header } from "@/components/header";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,31 +40,31 @@ export default function ServiceLayout({
     },
   ];
 
-  async function handleDeploy() {
-    try {
-      await deployMutation.mutateAsync();
-      toast.success("Deployment started");
-    } catch {
-      toast.error("Failed to start deployment");
-    }
+  function handleDeploy() {
+    deployMutation.mutate(undefined, {
+      onSuccess: () => toast.success("Deployment started"),
+      onError: () => toast.error("Failed to start deployment"),
+    });
   }
 
   if (isLoading) {
     return (
       <>
-        <BreadcrumbHeader
-          items={[
-            { label: project?.name ?? "...", href: `/projects/${projectId}` },
-            { label: "..." },
-          ]}
-        />
-        <div className="border-b border-neutral-800">
-          <div className="container mx-auto flex gap-6 px-4">
-            <Skeleton className="h-10 w-20" />
-            <Skeleton className="h-10 w-20" />
-            <Skeleton className="h-10 w-20" />
+        <Header>
+          <BreadcrumbHeader
+            items={[
+              { label: project?.name ?? "...", href: `/projects/${projectId}` },
+              { label: "..." },
+            ]}
+          />
+          <div className="border-b border-neutral-800">
+            <div className="container mx-auto flex gap-6 px-4">
+              <Skeleton className="h-10 w-20" />
+              <Skeleton className="h-10 w-20" />
+              <Skeleton className="h-10 w-20" />
+            </div>
           </div>
-        </div>
+        </Header>
         <main className="container mx-auto px-4 py-8">
           <Skeleton className="h-32 w-full" />
         </main>
@@ -74,11 +75,13 @@ export default function ServiceLayout({
   if (!service) {
     return (
       <>
-        <BreadcrumbHeader
-          items={[
-            { label: project?.name ?? "...", href: `/projects/${projectId}` },
-          ]}
-        />
+        <Header>
+          <BreadcrumbHeader
+            items={[
+              { label: project?.name ?? "...", href: `/projects/${projectId}` },
+            ]}
+          />
+        </Header>
         <main className="container mx-auto px-4 py-8">
           <div className="text-neutral-400">Service not found</div>
         </main>
@@ -108,14 +111,16 @@ export default function ServiceLayout({
 
   return (
     <>
-      <BreadcrumbHeader
-        items={[
-          { label: project?.name ?? "...", href: `/projects/${projectId}` },
-          { label: service.name },
-        ]}
-        actions={actions}
-      />
-      <TabNav tabs={tabs} layoutId="service-tabs" />
+      <Header>
+        <BreadcrumbHeader
+          items={[
+            { label: project?.name ?? "...", href: `/projects/${projectId}` },
+            { label: service.name },
+          ]}
+          actions={actions}
+        />
+        <TabNav tabs={tabs} layoutId="service-tabs" />
+      </Header>
       <main className="container mx-auto px-4 py-8">{children}</main>
     </>
   );

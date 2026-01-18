@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
+import { Header } from "@/components/header";
 import {
   SettingsMobileTabs,
   SettingsSidebar,
@@ -17,7 +18,9 @@ export default function SettingsLayout({
 
   return (
     <>
-      <BreadcrumbHeader items={[{ label: "Settings" }]} />
+      <Header>
+        <BreadcrumbHeader items={[{ label: "Settings" }]} />
+      </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-8 md:flex-row">
           <div className="md:hidden">

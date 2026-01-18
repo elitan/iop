@@ -54,7 +54,7 @@ export function ServiceSidebar({
   return (
     <div
       className={cn(
-        "absolute bottom-0 right-0 top-8 z-20 w-[60vw] rounded-tl-xl border-l border-t border-neutral-800 bg-neutral-900 transition-transform duration-300 ease-in-out",
+        "fixed bottom-0 right-0 top-[120px] z-30 w-[60vw] rounded-tl-xl border-l border-t border-neutral-800 bg-neutral-900 transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "translate-x-full",
       )}
     >
