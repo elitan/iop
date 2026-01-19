@@ -135,18 +135,33 @@ else
 fi
 
 # Detect mode: git-based (dev/CI) or tarball (production)
+# A valid git repo has .git AND a valid HEAD commit
+GIT_MODE=false
 if [ -d "$FROST_DIR/.git" ]; then
+  git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
+  if git rev-parse HEAD >/dev/null 2>&1; then
+    GIT_MODE=true
+  else
+    # .git exists but no HEAD - transitioning from tarball to git
+    # Check if origin/main exists and do initial checkout
+    if git rev-parse origin/main >/dev/null 2>&1; then
+      log "Converting tarball install to git mode..."
+      git checkout -f origin/main 2>/dev/null || git reset --hard origin/main
+      GIT_MODE=true
+    fi
+  fi
+fi
+
+if [ "$GIT_MODE" = true ]; then
   CURRENT_VERSION=$(cat apps/app/package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 else
   CURRENT_VERSION=$(cat package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 fi
 log "Current version: $CURRENT_VERSION"
 
-if [ -d "$FROST_DIR/.git" ]; then
+if [ "$GIT_MODE" = true ]; then
   # Git mode: pull and rebuild (for dev installs and CI testing)
   log "Git mode detected"
-
-  git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
 
   log "Checking for updates..."
   git fetch origin main 2>/dev/null
