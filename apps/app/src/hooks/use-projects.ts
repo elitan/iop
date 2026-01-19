@@ -1,21 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  api,
-  type CreateProjectInput,
-  type UpdateProjectInput,
-} from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
+import type { RouterInputs } from "@/server/index";
 
 export function useProjects() {
-  return useQuery({
-    queryKey: ["projects"],
-    queryFn: api.projects.list,
-  });
+  return useQuery(orpc.projects.list.queryOptions());
 }
 
 export function useProject(id: string) {
   return useQuery({
-    queryKey: ["projects", id],
-    queryFn: () => api.projects.get(id),
+    ...orpc.projects.get.queryOptions({ input: { id } }),
     refetchInterval: 2000,
   });
 }
@@ -23,9 +16,12 @@ export function useProject(id: string) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateProjectInput) => api.projects.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    mutationFn: (data: RouterInputs["projects"]["create"]) =>
+      orpc.projects.create.call(data),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.projects.list.key(),
+      });
     },
   });
 }
@@ -33,9 +29,12 @@ export function useCreateProject() {
 export function useUpdateProject(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: UpdateProjectInput) => api.projects.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", id] });
+    mutationFn: (data: Omit<RouterInputs["projects"]["update"], "id">) =>
+      orpc.projects.update.call({ id, ...data }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.projects.get.key({ input: { id } }),
+      });
     },
   });
 }
@@ -43,9 +42,11 @@ export function useUpdateProject(id: string) {
 export function useDeleteProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.projects.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    mutationFn: (id: string) => orpc.projects.delete.call({ id }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.projects.list.key(),
+      });
     },
   });
 }
@@ -53,10 +54,14 @@ export function useDeleteProject() {
 export function useDeployProject(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.projects.deploy(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects", id] });
-      queryClient.invalidateQueries({ queryKey: ["projects", id, "services"] });
+    mutationFn: () => orpc.projects.deploy.call({ id }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.projects.get.key({ input: { id } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.services.listByProject.key({ input: { projectId: id } }),
+      });
     },
   });
 }

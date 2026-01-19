@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { StatusDot } from "@/components/status-dot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDeployments } from "@/hooks/use-services";
 import type { Deployment, Service } from "@/lib/api";
-import { api } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 import { DeploymentRow } from "../services/[serviceId]/_components/deployment-row";
 
 interface SidebarDeploymentsProps {
@@ -16,14 +17,15 @@ interface SidebarDeploymentsProps {
 }
 
 export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const { data: deployments = [] } = useDeployments(service.id);
+
   const [selectedDeployment, setSelectedDeployment] =
     useState<Deployment | null>(null);
   const selectedDeploymentRef = useRef<string | null>(null);
 
   const rollbackMutation = useMutation({
     mutationFn: (deploymentId: string) =>
-      api.deployments.rollback(deploymentId),
+      orpc.deployments.rollback.call({ id: deploymentId }),
     onSuccess: () => {
       toast.success("Rollback started");
     },
@@ -31,17 +33,6 @@ export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
       toast.error(err instanceof Error ? err.message : "Rollback failed");
     },
   });
-
-  useEffect(() => {
-    if (!service) return;
-    async function fetchDeployments() {
-      const deps = await api.deployments.listByService(service.id);
-      setDeployments(deps);
-    }
-    fetchDeployments();
-    const interval = setInterval(fetchDeployments, 2000);
-    return () => clearInterval(interval);
-  }, [service]);
 
   useEffect(() => {
     if (deployments.length === 0) {

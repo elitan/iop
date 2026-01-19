@@ -92,6 +92,20 @@ export const domains = {
       return await getDomainsForService(input.serviceId);
     }),
 
+  listByServiceIds: os
+    .input(z.object({ serviceIds: z.array(z.string()) }))
+    .output(z.array(domainsSchema))
+    .handler(async ({ input }) => {
+      if (input.serviceIds.length === 0) {
+        return [];
+      }
+      return await db
+        .selectFrom("domains")
+        .selectAll()
+        .where("serviceId", "in", input.serviceIds)
+        .execute();
+    }),
+
   create: os
     .route({ method: "POST", path: "/services/{serviceId}/domains" })
     .input(

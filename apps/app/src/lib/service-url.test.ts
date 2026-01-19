@@ -9,9 +9,9 @@ function makeDomain(overrides: Partial<Domain> & { domain: string }): Domain {
     type: "proxy",
     redirectTarget: null,
     redirectCode: null,
-    dnsVerified: 1,
+    dnsVerified: true,
     sslStatus: "active",
-    isSystem: 0,
+    isSystem: false,
     createdAt: Date.now(),
     ...overrides,
   };
@@ -24,39 +24,43 @@ describe("getPreferredDomain", () => {
 
   test("returns null when no verified domains", () => {
     const domains = [
-      makeDomain({ domain: "custom.com", isSystem: 0, dnsVerified: 0 }),
-      makeDomain({ domain: "app.frost.io", isSystem: 1, dnsVerified: 0 }),
+      makeDomain({ domain: "custom.com", isSystem: false, dnsVerified: false }),
+      makeDomain({
+        domain: "app.frost.io",
+        isSystem: true,
+        dnsVerified: false,
+      }),
     ];
     expect(getPreferredDomain(domains)).toBeNull();
   });
 
   test("prefers custom domain over wildcard", () => {
     const domains = [
-      makeDomain({ domain: "app.frost.io", isSystem: 1, dnsVerified: 1 }),
-      makeDomain({ domain: "custom.com", isSystem: 0, dnsVerified: 1 }),
+      makeDomain({ domain: "app.frost.io", isSystem: true, dnsVerified: true }),
+      makeDomain({ domain: "custom.com", isSystem: false, dnsVerified: true }),
     ];
     expect(getPreferredDomain(domains)?.domain).toBe("custom.com");
   });
 
   test("falls back to wildcard when no custom domain", () => {
     const domains = [
-      makeDomain({ domain: "app.frost.io", isSystem: 1, dnsVerified: 1 }),
+      makeDomain({ domain: "app.frost.io", isSystem: true, dnsVerified: true }),
     ];
     expect(getPreferredDomain(domains)?.domain).toBe("app.frost.io");
   });
 
   test("ignores unverified custom domain, returns verified wildcard", () => {
     const domains = [
-      makeDomain({ domain: "custom.com", isSystem: 0, dnsVerified: 0 }),
-      makeDomain({ domain: "app.frost.io", isSystem: 1, dnsVerified: 1 }),
+      makeDomain({ domain: "custom.com", isSystem: false, dnsVerified: false }),
+      makeDomain({ domain: "app.frost.io", isSystem: true, dnsVerified: true }),
     ];
     expect(getPreferredDomain(domains)?.domain).toBe("app.frost.io");
   });
 
   test("returns first verified custom domain when multiple exist", () => {
     const domains = [
-      makeDomain({ domain: "first.com", isSystem: 0, dnsVerified: 1 }),
-      makeDomain({ domain: "second.com", isSystem: 0, dnsVerified: 1 }),
+      makeDomain({ domain: "first.com", isSystem: false, dnsVerified: true }),
+      makeDomain({ domain: "second.com", isSystem: false, dnsVerified: true }),
     ];
     expect(getPreferredDomain(domains)?.domain).toBe("first.com");
   });
@@ -65,7 +69,7 @@ describe("getPreferredDomain", () => {
 describe("getServiceUrl", () => {
   test("returns domain when available", () => {
     const domains = [
-      makeDomain({ domain: "custom.com", isSystem: 0, dnsVerified: 1 }),
+      makeDomain({ domain: "custom.com", isSystem: false, dnsVerified: true }),
     ];
     expect(getServiceUrl(domains, "1.2.3.4", 3000)).toBe("custom.com");
   });

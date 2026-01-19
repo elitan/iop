@@ -1,20 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type AddDomainInput, api, type UpdateDomainInput } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
+import type { RouterInputs } from "@/server/index";
 
 export function useDomains(serviceId: string) {
-  return useQuery({
-    queryKey: ["services", serviceId, "domains"],
-    queryFn: () => api.domains.list(serviceId),
-  });
+  return useQuery(
+    orpc.domains.listByService.queryOptions({ input: { serviceId } }),
+  );
 }
 
 export function useAddDomain(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: AddDomainInput) => api.domains.add(serviceId, data),
+    mutationFn: (data: Omit<RouterInputs["domains"]["create"], "serviceId">) =>
+      orpc.domains.create.call({ serviceId, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: ["services", serviceId, "domains"],
+        queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
       });
     },
   });
@@ -23,11 +24,16 @@ export function useAddDomain(serviceId: string) {
 export function useUpdateDomain(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateDomainInput }) =>
-      api.domains.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Omit<RouterInputs["domains"]["update"], "id">;
+    }) => orpc.domains.update.call({ id, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: ["services", serviceId, "domains"],
+        queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
       });
     },
   });
@@ -36,10 +42,10 @@ export function useUpdateDomain(serviceId: string) {
 export function useDeleteDomain(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.domains.delete(id),
+    mutationFn: (id: string) => orpc.domains.delete.call({ id }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: ["services", serviceId, "domains"],
+        queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
       });
     },
   });
@@ -49,10 +55,10 @@ export function useVerifyDomainDns(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const result = await api.domains.verifyDns(id);
+      const result = await orpc.domains.verifyDns.call({ id });
       if (result.dnsVerified) {
         await queryClient.refetchQueries({
-          queryKey: ["services", serviceId, "domains"],
+          queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
         });
       }
       return result;
@@ -64,13 +70,19 @@ export function useVerifyDomainSsl(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const result = await api.domains.verifySsl(id);
+      const result = await orpc.domains.verifySsl.call({ id });
       if (result.working) {
         await queryClient.refetchQueries({
-          queryKey: ["services", serviceId, "domains"],
+          queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
         });
       }
       return result;
     },
   });
 }
+
+export type AddDomainInput = Omit<
+  RouterInputs["domains"]["create"],
+  "serviceId"
+>;
+export type UpdateDomainInput = Omit<RouterInputs["domains"]["update"], "id">;

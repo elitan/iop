@@ -12,14 +12,14 @@ import {
   Package,
   Rocket,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useDeployService } from "@/hooks/use-services";
-import type { Deployment, Domain, EnvVar, Service } from "@/lib/api";
+import { useDomains } from "@/hooks/use-domains";
+import { useDeployments, useDeployService } from "@/hooks/use-services";
+import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/connection-strings";
 import { getPreferredDomain } from "@/lib/service-url";
@@ -41,11 +41,19 @@ interface SidebarOverviewProps {
 export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
   const queryClient = useQueryClient();
   const deployMutation = useDeployService(service.id, projectId);
-  const [serverIp, setServerIp] = useState<string | null>(null);
-  const [preferredDomain, setPreferredDomain] = useState<Domain | null>(null);
-  const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(
-    null,
-  );
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.settings.get(),
+  });
+  const serverIp = settings?.serverIp ?? null;
+
+  const { data: domains = [] } = useDomains(service.id);
+  const preferredDomain = getPreferredDomain(domains);
+
+  const { data: deployments = [] } = useDeployments(service.id);
+  const currentDeployment =
+    deployments.find((d) => d.id === service.currentDeploymentId) ?? null;
 
   const { data: tcpProxy } = useQuery({
     queryKey: ["tcp-proxy", service.id],
@@ -84,33 +92,6 @@ export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
     },
     onError: () => toast.error("Failed to disable external access"),
   });
-
-  useEffect(() => {
-    api.settings.get().then((s) => setServerIp(s.serverIp));
-  }, []);
-
-  useEffect(() => {
-    if (!service.id) return;
-    api.domains.list(service.id).then((domains) => {
-      setPreferredDomain(getPreferredDomain(domains));
-    });
-  }, [service.id]);
-
-  useEffect(() => {
-    if (!service) return;
-    async function fetchCurrentDeployment() {
-      if (!service?.currentDeploymentId) {
-        setCurrentDeployment(null);
-        return;
-      }
-      const deps = await api.deployments.listByService(service.id);
-      const current = deps.find((d) => d.id === service.currentDeploymentId);
-      setCurrentDeployment(current ?? null);
-    }
-    fetchCurrentDeployment();
-    const interval = setInterval(fetchCurrentDeployment, 2000);
-    return () => clearInterval(interval);
-  }, [service]);
 
   const githubRepo = getGitHubRepoFromUrl(service.repoUrl);
 

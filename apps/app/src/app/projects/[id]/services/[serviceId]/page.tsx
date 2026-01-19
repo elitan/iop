@@ -11,14 +11,18 @@ import {
   Package,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useDeployService, useService } from "@/hooks/use-services";
-import type { Deployment, Domain, EnvVar, Service } from "@/lib/api";
+import { useDomains } from "@/hooks/use-domains";
+import {
+  useDeployments,
+  useDeployService,
+  useService,
+} from "@/hooks/use-services";
+import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/connection-strings";
 import { getPreferredDomain } from "@/lib/service-url";
@@ -133,11 +137,19 @@ export default function ServiceOverviewPage() {
   const deployMutation = useDeployService(serviceId, projectId);
   const queryClient = useQueryClient();
 
-  const [serverIp, setServerIp] = useState<string | null>(null);
-  const [preferredDomain, setPreferredDomain] = useState<Domain | null>(null);
-  const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(
-    null,
-  );
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.settings.get(),
+  });
+  const serverIp = settings?.serverIp ?? null;
+
+  const { data: domains = [] } = useDomains(serviceId);
+  const preferredDomain = getPreferredDomain(domains);
+
+  const { data: deployments = [] } = useDeployments(serviceId);
+  const currentDeployment = service?.currentDeploymentId
+    ? (deployments.find((d) => d.id === service.currentDeploymentId) ?? null)
+    : null;
 
   const { data: tcpProxy } = useQuery({
     queryKey: ["tcp-proxy", serviceId],
@@ -176,33 +188,6 @@ export default function ServiceOverviewPage() {
     },
     onError: () => toast.error("Failed to disable external access"),
   });
-
-  useEffect(() => {
-    api.settings.get().then((s) => setServerIp(s.serverIp));
-  }, []);
-
-  useEffect(() => {
-    if (!serviceId) return;
-    api.domains.list(serviceId).then((domains) => {
-      setPreferredDomain(getPreferredDomain(domains));
-    });
-  }, [serviceId]);
-
-  useEffect(() => {
-    if (!service) return;
-    async function fetchCurrentDeployment() {
-      if (!service?.currentDeploymentId) {
-        setCurrentDeployment(null);
-        return;
-      }
-      const deps = await api.deployments.listByService(serviceId);
-      const current = deps.find((d) => d.id === service.currentDeploymentId);
-      setCurrentDeployment(current ?? null);
-    }
-    fetchCurrentDeployment();
-    const interval = setInterval(fetchCurrentDeployment, 2000);
-    return () => clearInterval(interval);
-  }, [service, serviceId]);
 
   if (!service) return null;
 

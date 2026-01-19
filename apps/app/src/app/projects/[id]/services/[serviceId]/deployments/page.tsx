@@ -8,9 +8,9 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { StatusDot } from "@/components/status-dot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useService } from "@/hooks/use-services";
+import { useDeployments, useService } from "@/hooks/use-services";
 import type { Deployment } from "@/lib/api";
-import { api } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 import { DeploymentRow } from "../_components/deployment-row";
 
 export default function ServiceDeploymentsPage() {
@@ -19,15 +19,15 @@ export default function ServiceDeploymentsPage() {
   const serviceId = params.serviceId as string;
 
   const { data: service } = useService(serviceId);
+  const { data: deployments = [] } = useDeployments(serviceId);
 
-  const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [selectedDeployment, setSelectedDeployment] =
     useState<Deployment | null>(null);
   const selectedDeploymentRef = useRef<string | null>(null);
 
   const rollbackMutation = useMutation({
     mutationFn: (deploymentId: string) =>
-      api.deployments.rollback(deploymentId),
+      orpc.deployments.rollback.call({ id: deploymentId }),
     onSuccess: () => {
       toast.success("Rollback started");
     },
@@ -35,17 +35,6 @@ export default function ServiceDeploymentsPage() {
       toast.error(err instanceof Error ? err.message : "Rollback failed");
     },
   });
-
-  useEffect(() => {
-    if (!service) return;
-    async function fetchDeployments() {
-      const deps = await api.deployments.listByService(serviceId);
-      setDeployments(deps);
-    }
-    fetchDeployments();
-    const interval = setInterval(fetchDeployments, 2000);
-    return () => clearInterval(interval);
-  }, [service, serviceId]);
 
   useEffect(() => {
     if (deployments.length === 0) {

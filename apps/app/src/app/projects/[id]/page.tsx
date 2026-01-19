@@ -1,15 +1,17 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CanvasPositions } from "@/hooks/use-canvas-positions";
 import { useProject } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 import { getPreferredDomain } from "@/lib/service-url";
 import { CanvasView } from "./_components/canvas-view";
 import { ServiceCard } from "./_components/service-card";
@@ -22,9 +24,39 @@ export default function ProjectServicesPage() {
   const projectId = params.id as string;
 
   const { data: project } = useProject(projectId);
-  const [serverIp, setServerIp] = useState<string | null>(null);
-  const [domains, setDomains] = useState<Record<string, string>>({});
   const [isMobile, setIsMobile] = useState(false);
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.settings.get(),
+  });
+  const serverIp = settings?.serverIp ?? null;
+
+  const serviceIds = useMemo(
+    () => project?.services?.map((s) => s.id) || [],
+    [project?.services],
+  );
+
+  const { data: allDomains = [] } = useQuery({
+    ...orpc.domains.listByServiceIds.queryOptions({ input: { serviceIds } }),
+    enabled: serviceIds.length > 0,
+  });
+
+  const domains = useMemo(() => {
+    const domainMap: Record<string, string> = {};
+    for (const domain of allDomains) {
+      if (!domainMap[domain.serviceId]) {
+        const serviceDomains = allDomains.filter(
+          (d) => d.serviceId === domain.serviceId,
+        );
+        const preferred = getPreferredDomain(serviceDomains);
+        if (preferred) {
+          domainMap[domain.serviceId] = preferred.domain;
+        }
+      }
+    }
+    return domainMap;
+  }, [allDomains]);
 
   const selectedServiceId = searchParams.get("service");
 
@@ -36,26 +68,6 @@ export default function ProjectServicesPage() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  useEffect(() => {
-    api.settings.get().then((s) => setServerIp(s.serverIp));
-  }, []);
-
-  useEffect(() => {
-    if (!project?.services) return;
-    async function fetchDomains() {
-      const domainMap: Record<string, string> = {};
-      for (const service of project!.services || []) {
-        const serviceDomains = await api.domains.list(service.id);
-        const preferred = getPreferredDomain(serviceDomains);
-        if (preferred) {
-          domainMap[service.id] = preferred.domain;
-        }
-      }
-      setDomains(domainMap);
-    }
-    fetchDomains();
-  }, [project]);
 
   const handleSelectService = useCallback(
     (serviceId: string | null) => {

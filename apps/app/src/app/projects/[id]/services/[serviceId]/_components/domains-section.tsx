@@ -84,20 +84,20 @@ export function DomainsSection({
   >(new Map());
 
   const proxyDomains = domains?.filter((d) => d.type === "proxy") || [];
-  const systemDomains = domains?.filter((d) => d.isSystem === 1) || [];
-  const customDomains = domains?.filter((d) => d.isSystem !== 1) || [];
+  const systemDomains = domains?.filter((d) => d.isSystem === true) || [];
+  const customDomains = domains?.filter((d) => d.isSystem !== true) || [];
   const hasOtherVerifiedDomains =
-    customDomains.filter((d) => d.dnsVerified === 1).length > 0;
+    customDomains.filter((d) => d.dnsVerified === true).length > 0;
 
   const unverifiedDomainIds = useMemo(
-    () => domains?.filter((d) => d.dnsVerified !== 1).map((d) => d.id) || [],
+    () => domains?.filter((d) => d.dnsVerified !== true).map((d) => d.id) || [],
     [domains],
   );
 
   const pendingSslDomainIds = useMemo(
     () =>
       domains
-        ?.filter((d) => d.dnsVerified === 1 && d.sslStatus !== "active")
+        ?.filter((d) => d.dnsVerified === true && d.sslStatus !== "active")
         .map((d) => d.id) || [],
     [domains],
   );
@@ -584,9 +584,9 @@ function DomainRow({
   verificationState,
 }: DomainRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isVerified = domain.dnsVerified === 1;
+  const isVerified = domain.dnsVerified === true;
   const isActive = domain.sslStatus === "active";
-  const isSystem = domain.isSystem === 1;
+  const isSystem = domain.isSystem === true;
   const subdomain = extractSubdomain(domain.domain);
 
   return (

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { QueryProvider } from "@/components/query-provider";
+import { ORPCProvider } from "@/components/orpc-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -19,10 +19,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <QueryProvider>
+        <ORPCProvider>
           <div className="min-h-screen bg-background">{children}</div>
           <Toaster />
-        </QueryProvider>
+        </ORPCProvider>
       </body>
     </html>
   );

@@ -1,3 +1,4 @@
+import type { InferRouterInputs, InferRouterOutputs } from "@orpc/server";
 import { apiKeys } from "./api-keys";
 import { deployments } from "./deployments";
 import { domains } from "./domains";
@@ -18,3 +19,7 @@ export const router = {
   services,
   templates,
 };
+
+export type Router = typeof router;
+export type RouterInputs = InferRouterInputs<Router>;
+export type RouterOutputs = InferRouterOutputs<Router>;

@@ -1,151 +1,24 @@
-export interface ProjectLatestDeployment {
-  status: string;
-  commitMessage: string | null;
-  createdAt: number;
-  branch: string | null;
-}
+import type { RouterInputs, RouterOutputs } from "@/server/index";
 
-export interface Project {
-  id: string;
-  name: string;
-  hostname: string | null;
-  envVars: string;
-  createdAt: number;
-  canvasPositions?: string | null;
-  services?: Service[];
-  servicesCount?: number;
-  latestDeployment?: ProjectLatestDeployment | null;
-  repoUrl?: string | null;
-  runningUrl?: string | null;
-}
+export type Project = RouterOutputs["projects"]["get"];
+export type ProjectListItem = RouterOutputs["projects"]["list"][number];
+export type Service = RouterOutputs["services"]["get"];
+export type Deployment = RouterOutputs["deployments"]["get"];
+export type Domain = RouterOutputs["domains"]["get"];
 
-export interface Service {
-  id: string;
-  projectId: string;
-  name: string;
-  hostname: string | null;
-  deployType: "repo" | "image";
-  repoUrl: string | null;
-  branch: string | null;
-  dockerfilePath: string | null;
-  buildContext: string | null;
-  imageUrl: string | null;
-  envVars: string;
-  containerPort: number | null;
-  healthCheckPath: string | null;
-  healthCheckTimeout: number | null;
-  createdAt: number;
-  serviceType: "app" | "database";
-  volumes: string | null;
-  tcpProxyPort: number | null;
-  currentDeploymentId: string | null;
-  memoryLimit: string | null;
-  cpuLimit: number | null;
-  shutdownTimeout: number | null;
-  requestTimeout: number | null;
-  registryId: string | null;
-  command: string | null;
-  latestDeployment?: Deployment;
-}
+export type ProjectLatestDeployment = NonNullable<
+  ProjectListItem["latestDeployment"]
+>;
 
-export interface Deployment {
-  id: string;
-  projectId: string;
-  serviceId: string;
-  commitSha: string;
-  commitMessage: string | null;
-  status: string;
-  hostPort: number | null;
-  createdAt: number;
-  finishedAt: number | null;
-  buildLog: string | null;
-  errorMessage: string | null;
-  imageName: string | null;
-  envVarsSnapshot: string | null;
-  containerPort: number | null;
-  healthCheckPath: string | null;
-  healthCheckTimeout: number | null;
-  volumes: string | null;
-  rollbackEligible: number | null;
-  rollbackSourceId: string | null;
-}
+export type CreateProjectInput = RouterInputs["projects"]["create"];
+export type CreateServiceInput = Omit<
+  RouterInputs["services"]["create"],
+  "projectId"
+>;
 
 export interface EnvVar {
   key: string;
   value: string;
-}
-
-export interface Domain {
-  id: string;
-  serviceId: string;
-  domain: string;
-  type: "proxy" | "redirect";
-  redirectTarget: string | null;
-  redirectCode: number | null;
-  dnsVerified: number;
-  sslStatus: "pending" | "active" | "failed";
-  isSystem: number;
-  createdAt: number;
-}
-
-export interface AddDomainInput {
-  domain: string;
-  type?: "proxy" | "redirect";
-  redirectTarget?: string;
-  redirectCode?: 301 | 307;
-}
-
-export interface UpdateDomainInput {
-  type?: "proxy" | "redirect";
-  redirectTarget?: string;
-  redirectCode?: 301 | 307;
-}
-
-export interface DnsStatus {
-  valid: boolean;
-  serverIp: string;
-  domainIp: string | null;
-  dnsVerified: boolean;
-  errorType?: "no_record" | "wrong_ip";
-}
-
-export interface SslStatus {
-  working: boolean;
-  status: "pending" | "active" | "failed";
-  error?: string;
-}
-
-export interface Settings {
-  domain: string | null;
-  email: string | null;
-  sslEnabled: string | null;
-  serverIp: string | null;
-}
-
-export interface CreateProjectInput {
-  name: string;
-  envVars?: EnvVar[];
-  templateId?: string;
-}
-
-export interface UpdateProjectInput {
-  name?: string;
-  envVars?: EnvVar[];
-  canvasPositions?: string;
-}
-
-export interface CreateServiceInput {
-  name: string;
-  deployType: "repo" | "image" | "database";
-  repoUrl?: string;
-  branch?: string;
-  dockerfilePath?: string;
-  buildContext?: string;
-  imageUrl?: string;
-  envVars?: EnvVar[];
-  containerPort?: number;
-  templateId?: string;
-  registryId?: string;
 }
 
 export interface ServiceDefinition {
@@ -236,30 +109,16 @@ export interface VolumeInfo {
   sizeBytes: number | null;
 }
 
-export interface UpdateServiceInput {
-  name?: string;
-  envVars?: EnvVar[];
-  branch?: string;
-  dockerfilePath?: string;
-  buildContext?: string | null;
-  repoUrl?: string;
-  imageUrl?: string;
-  containerPort?: number;
-  healthCheckPath?: string | null;
-  healthCheckTimeout?: number;
-  autoDeployEnabled?: boolean;
-  memoryLimit?: string | null;
-  cpuLimit?: number | null;
-  shutdownTimeout?: number | null;
-  requestTimeout?: number | null;
-  volumes?: VolumeConfig[];
-  registryId?: string | null;
-  command?: string | null;
-}
-
 export interface HostResources {
   cpus: number;
   totalMemoryGB: number;
+}
+
+export interface Settings {
+  domain: string | null;
+  email: string | null;
+  sslEnabled: string | null;
+  serverIp: string | null;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -271,133 +130,6 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  projects: {
-    list: (): Promise<Project[]> =>
-      fetch("/api/projects").then((r) => handleResponse<Project[]>(r)),
-
-    get: (id: string): Promise<Project> =>
-      fetch(`/api/projects/${id}`).then((r) => handleResponse<Project>(r)),
-
-    create: (data: CreateProjectInput): Promise<Project> =>
-      fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Project>(r)),
-
-    update: (id: string, data: UpdateProjectInput): Promise<Project> =>
-      fetch(`/api/projects/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Project>(r)),
-
-    delete: (id: string): Promise<{ success: boolean }> =>
-      fetch(`/api/projects/${id}`, { method: "DELETE" }).then((r) =>
-        handleResponse<{ success: boolean }>(r),
-      ),
-
-    deploy: (id: string): Promise<{ deploymentIds: string[] }> =>
-      fetch(`/api/projects/${id}/deploy`, { method: "POST" }).then((r) =>
-        handleResponse<{ deploymentIds: string[] }>(r),
-      ),
-  },
-
-  services: {
-    list: (projectId: string): Promise<Service[]> =>
-      fetch(`/api/projects/${projectId}/services`).then((r) =>
-        handleResponse<Service[]>(r),
-      ),
-
-    get: (id: string): Promise<Service> =>
-      fetch(`/api/services/${id}`).then((r) => handleResponse<Service>(r)),
-
-    create: (projectId: string, data: CreateServiceInput): Promise<Service> =>
-      fetch(`/api/projects/${projectId}/services`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Service>(r)),
-
-    update: (id: string, data: UpdateServiceInput): Promise<Service> =>
-      fetch(`/api/services/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Service>(r)),
-
-    delete: (id: string): Promise<{ success: boolean }> =>
-      fetch(`/api/services/${id}`, { method: "DELETE" }).then((r) =>
-        handleResponse<{ success: boolean }>(r),
-      ),
-
-    deploy: (id: string): Promise<{ deploymentId: string }> =>
-      fetch(`/api/services/${id}/deploy`, { method: "POST" }).then((r) =>
-        handleResponse<{ deploymentId: string }>(r),
-      ),
-
-    getVolumes: (id: string): Promise<VolumeInfo[]> =>
-      fetch(`/api/services/${id}/volumes`).then((r) =>
-        handleResponse<VolumeInfo[]>(r),
-      ),
-  },
-
-  deployments: {
-    get: (id: string): Promise<Deployment> =>
-      fetch(`/api/deployments/${id}`).then((r) =>
-        handleResponse<Deployment>(r),
-      ),
-
-    listByService: (serviceId: string): Promise<Deployment[]> =>
-      fetch(`/api/services/${serviceId}/deployments`).then((r) =>
-        handleResponse<Deployment[]>(r),
-      ),
-
-    rollback: (id: string): Promise<{ deploymentId: string }> =>
-      fetch(`/api/deployments/${id}/rollback`, { method: "POST" }).then((r) =>
-        handleResponse<{ deploymentId: string }>(r),
-      ),
-  },
-
-  domains: {
-    list: (serviceId: string): Promise<Domain[]> =>
-      fetch(`/api/services/${serviceId}/domains`).then((r) =>
-        handleResponse<Domain[]>(r),
-      ),
-
-    get: (id: string): Promise<Domain> =>
-      fetch(`/api/domains/${id}`).then((r) => handleResponse<Domain>(r)),
-
-    add: (serviceId: string, data: AddDomainInput): Promise<Domain> =>
-      fetch(`/api/services/${serviceId}/domains`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Domain>(r)),
-
-    update: (id: string, data: UpdateDomainInput): Promise<Domain> =>
-      fetch(`/api/domains/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).then((r) => handleResponse<Domain>(r)),
-
-    delete: (id: string): Promise<{ success: boolean }> =>
-      fetch(`/api/domains/${id}`, { method: "DELETE" }).then((r) =>
-        handleResponse<{ success: boolean }>(r),
-      ),
-
-    verifyDns: (id: string): Promise<DnsStatus> =>
-      fetch(`/api/domains/${id}/verify-dns`, { method: "POST" }).then((r) =>
-        handleResponse<DnsStatus>(r),
-      ),
-
-    verifySsl: (id: string): Promise<SslStatus> =>
-      fetch(`/api/domains/${id}/verify-ssl`, { method: "POST" }).then((r) =>
-        handleResponse<SslStatus>(r),
-      ),
-  },
-
   settings: {
     get: (): Promise<Settings> =>
       fetch("/api/settings").then((r) => handleResponse<Settings>(r)),

@@ -1,11 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useService } from "@/hooks/use-services";
-import type { Deployment } from "@/lib/api";
-import { api } from "@/lib/api";
+import { useDeployments, useService } from "@/hooks/use-services";
 import { RuntimeLogs } from "../_components/runtime-logs";
 
 export default function ServiceLogsPage() {
@@ -13,22 +10,10 @@ export default function ServiceLogsPage() {
   const serviceId = params.serviceId as string;
 
   const { data: service } = useService(serviceId);
-  const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(
-    null,
-  );
-
-  useEffect(() => {
-    if (!service?.currentDeploymentId) {
-      setCurrentDeployment(null);
-      return;
-    }
-    async function fetchCurrentDeployment() {
-      const deps = await api.deployments.listByService(serviceId);
-      const current = deps.find((d) => d.id === service?.currentDeploymentId);
-      setCurrentDeployment(current ?? null);
-    }
-    fetchCurrentDeployment();
-  }, [service, serviceId]);
+  const { data: deployments = [] } = useDeployments(serviceId);
+  const currentDeployment = service?.currentDeploymentId
+    ? (deployments.find((d) => d.id === service.currentDeploymentId) ?? null)
+    : null;
 
   if (!service) return null;
 
