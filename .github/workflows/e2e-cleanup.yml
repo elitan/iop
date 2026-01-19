@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_run:
-    workflows: ["E2E VPS Tests", "E2E Upgrade Tests"]
+    workflows: ["CI"]
     types: [completed]
   workflow_dispatch:
 
