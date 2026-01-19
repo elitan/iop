@@ -181,15 +181,6 @@ cat > /etc/caddy/Caddyfile << 'EOF'
 EOF
 systemctl restart caddy
 
-# Install Node.js if not present
-if ! command -v node &> /dev/null; then
-  timer "Installing Node.js..."
-  curl -fsSL https://deb.nodesource.com/setup_22.x 2>/dev/null | bash - > /dev/null 2>&1
-  apt-get install -y -qq nodejs > /dev/null
-else
-  timer "Node.js already installed"
-fi
-
 # Install Bun if not present (needed for setup script)
 if ! command -v bun &> /dev/null; then
   timer "Installing Bun..."
