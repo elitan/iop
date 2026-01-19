@@ -65,16 +65,6 @@ if [ "$(uname)" != "Linux" ]; then
   exit 1
 fi
 
-# Prompt for admin password
-echo -e "${YELLOW}Configuration${NC}"
-read -s -p "Admin password (min 8 chars): " FROST_PASSWORD
-echo ""
-
-if [ ${#FROST_PASSWORD} -lt 8 ]; then
-  echo -e "${RED}Password must be at least 8 characters${NC}"
-  exit 1
-fi
-
 # Generate JWT secret
 FROST_JWT_SECRET=$(openssl rand -base64 32)
 
@@ -262,13 +252,6 @@ fi
 timer "Running migrations..."
 bun run migrate
 
-# Run setup to set admin password (uses bun:sqlite)
-timer "Setting admin password..."
-bun run setup "$FROST_PASSWORD" || {
-  echo -e "${RED}Failed to set admin password. Check bun installation.${NC}"
-  exit 1
-}
-
 # Create systemd service
 echo ""
 timer "Creating systemd service..."
@@ -363,8 +346,9 @@ fi
 
 echo ""
 echo "Next steps:"
-echo "  1. Point your domain to $SERVER_IP"
-echo "  2. Go to Settings in Frost to configure domain and SSL"
+echo "  1. Open http://$SERVER_IP to complete setup"
+echo "  2. Point your domain to $SERVER_IP"
+echo "  3. Go to Settings in Frost to configure SSL"
 echo ""
 echo "Useful commands:"
 echo "  systemctl status frost    - check status"

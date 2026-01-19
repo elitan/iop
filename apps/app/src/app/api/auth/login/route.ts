@@ -3,6 +3,7 @@ import {
   createSessionToken,
   getAdminPasswordHash,
   isDevMode,
+  isSetupComplete,
   verifyDevPassword,
   verifyPassword,
 } from "@/lib/auth";
@@ -18,22 +19,16 @@ export async function POST(request: Request) {
     );
   }
 
-  let valid = false;
-
-  if (isDevMode()) {
-    valid = await verifyDevPassword(password);
-  } else {
-    const hash = await getAdminPasswordHash();
-    if (!hash) {
-      return NextResponse.json(
-        { error: "setup not complete" },
-        { status: 503 },
-      );
-    }
-    valid = await verifyPassword(password, hash);
+  const setupComplete = await isSetupComplete();
+  if (!setupComplete) {
+    return NextResponse.json({ error: "setup not complete" }, { status: 503 });
   }
 
-  if (!valid) {
+  const hash = await getAdminPasswordHash();
+  const validHash = hash && (await verifyPassword(password, hash));
+  const validDev = isDevMode() && (await verifyDevPassword(password));
+
+  if (!validHash && !validDev) {
     return NextResponse.json({ error: "invalid password" }, { status: 401 });
   }
 

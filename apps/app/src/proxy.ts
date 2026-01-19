@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { verifyApiToken } from "./lib/auth";
+import { isSetupComplete, verifyApiToken } from "./lib/auth";
 
 const DEFAULT_SECRET = "frost-default-secret-change-me";
 const JWT_SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
@@ -24,17 +24,29 @@ function verifySessionToken(token: string): boolean {
   }
 }
 
+const PUBLIC_PATHS = [
+  "/login",
+  "/setup",
+  "/api/auth/",
+  "/api/setup",
+  "/api/dev/reset-setup",
+  "/api/health",
+  "/api/github/webhook",
+  "/api/openapi.json",
+  "/api/docs",
+];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some(
+    (p) => pathname === p || (p.endsWith("/") && pathname.startsWith(p)),
+  );
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isApi = pathname.startsWith("/api/");
 
-  if (
-    pathname === "/login" ||
-    pathname.startsWith("/api/auth/") ||
-    pathname === "/api/health" ||
-    pathname === "/api/github/webhook" ||
-    pathname === "/api/openapi.json" ||
-    pathname === "/api/docs"
-  ) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -43,18 +55,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionToken = request.cookies.get("frost_session")?.value;
+  if (!(await isSetupComplete())) {
+    if (isApi) {
+      return NextResponse.json(
+        { error: "setup not complete" },
+        { status: 503 },
+      );
+    }
+    return NextResponse.redirect(new URL("/setup", request.url));
+  }
 
+  const sessionToken = request.cookies.get("frost_session")?.value;
   if (sessionToken && verifySessionToken(sessionToken)) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith("/api/")) {
+  if (isApi) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-
-  const loginUrl = new URL("/login", request.url);
-  return NextResponse.redirect(loginUrl);
+  return NextResponse.redirect(new URL("/login", request.url));
 }
 
 export const config = {

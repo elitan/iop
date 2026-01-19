@@ -69,20 +69,20 @@ For the chosen provider:
 
 ## INSTALLATION
 
-Generate a random password for Frost admin (16+ chars, alphanumeric).
-
 SSH into server and run:
 
 ```bash
 ssh -o StrictHostKeyChecking=no root@{server_ip} \
-  "curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '{password}' | /tmp/install.sh"
+  "curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | sudo bash"
 ```
+
+Wait for install to complete, then open `http://{server_ip}` in browser to complete setup (set admin password).
 
 Verify Frost is running:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://{server_ip}:3000
-# Should return 200
+# Should return 302 (redirect to /setup) or 200 (after setup complete)
 ```
 
 ---
@@ -100,8 +100,8 @@ SSH User: root
 SSH Private Key:
 {private_key_or_"your existing key"}
 
-Frost URL: http://{server_ip}:3000
-Frost Password: {password}
+Frost URL: http://{server_ip}
+Frost Password: (set during browser setup)
 
 API Token (for server management): {token}
 ================================
