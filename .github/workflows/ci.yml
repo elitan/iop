@@ -60,7 +60,6 @@ jobs:
       - run: bun run build
 
   e2e-vps:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -241,7 +240,6 @@ jobs:
           echo "Server deleted"
 
   e2e-upgrade:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 60
