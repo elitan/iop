@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: e2e-upgrade-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 

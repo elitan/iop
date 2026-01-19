@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: e2e-vps-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
+
 env:
   SSH_KEY_NAME: frost-e2e-ci
 
