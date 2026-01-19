@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { Bot, Check, Copy, Terminal } from "lucide-react";
 import { useState } from "react";
 
-const installCommand = "curl -fsSL https://frost.build/install.sh | bash";
+const installCommand = "curl -fsSL https://frost.build/install.sh | sudo bash";
 const agentUrl = "https://frost.build/install.md";
 
 const fadeInUp = {

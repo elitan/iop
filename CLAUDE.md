@@ -29,13 +29,13 @@ Services communicate via Docker network using service name as hostname.
 - Domain: frost.j4labs.se
 - Test service domain: testapp.frost.j4labs.se (A record points to VPS)
 - SSH: `ssh root@65.21.180.49`
-- Install password: `hejsan123`
 - **Always enable "Use staging certificates" when setting up SSL** to avoid Let's Encrypt rate limits
 
 Fresh install (after VPS rebuild):
 ```bash
-ssh root@65.21.180.49 "curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh -o /tmp/install.sh && chmod +x /tmp/install.sh && echo 'hejsan123' | /tmp/install.sh"
+ssh root@65.21.180.49 "curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/install.sh | sudo bash"
 ```
+Then open http://65.21.180.49 in browser to complete setup.
 
 Update existing install:
 ```bash
