@@ -84,20 +84,20 @@ export function DomainsSection({
   >(new Map());
 
   const proxyDomains = domains?.filter((d) => d.type === "proxy") || [];
-  const systemDomains = domains?.filter((d) => d.isSystem === 1) || [];
-  const customDomains = domains?.filter((d) => d.isSystem !== 1) || [];
+  const systemDomains = domains?.filter((d) => d.isSystem) || [];
+  const customDomains = domains?.filter((d) => !d.isSystem) || [];
   const hasOtherVerifiedDomains =
-    customDomains.filter((d) => d.dnsVerified === 1).length > 0;
+    customDomains.filter((d) => d.dnsVerified).length > 0;
 
   const unverifiedDomainIds = useMemo(
-    () => domains?.filter((d) => d.dnsVerified !== 1).map((d) => d.id) || [],
+    () => domains?.filter((d) => !d.dnsVerified).map((d) => d.id) || [],
     [domains],
   );
 
   const pendingSslDomainIds = useMemo(
     () =>
       domains
-        ?.filter((d) => d.dnsVerified === 1 && d.sslStatus !== "active")
+        ?.filter((d) => d.dnsVerified && d.sslStatus !== "active")
         .map((d) => d.id) || [],
     [domains],
   );
@@ -213,6 +213,20 @@ export function DomainsSection({
       toast.success("Domain removed");
     } catch {
       toast.error("Failed to remove domain");
+    }
+  }
+
+  async function handleRetrySsl(id: string) {
+    try {
+      const result = await verifySslMutation.mutateAsync(id);
+      if (result.working) {
+        const domain = domains?.find((d) => d.id === id);
+        toast.success(`SSL active for ${domain?.domain}`);
+      } else {
+        toast.error("Certificate not ready yet. Please try again later.");
+      }
+    } catch {
+      toast.error("Failed to verify SSL");
     }
   }
 
@@ -392,6 +406,7 @@ export function DomainsSection({
                 serverIp={serverIp}
                 onVerify={() => handleVerifyDns(domain.id)}
                 onDelete={() => handleDelete(domain.id)}
+                onRetrySsl={() => handleRetrySsl(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={hasOtherVerifiedDomains}
                 verificationState={verificationState.get(domain.id)}
@@ -418,6 +433,7 @@ export function DomainsSection({
                 serverIp={serverIp}
                 onVerify={() => handleVerifyDns(domain.id)}
                 onDelete={() => handleDelete(domain.id)}
+                onRetrySsl={() => handleRetrySsl(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={true}
                 verificationState={verificationState.get(domain.id)}
@@ -454,6 +470,7 @@ interface DomainRowProps {
   serverIp: string | null;
   onVerify: () => void;
   onDelete: () => void;
+  onRetrySsl: () => void;
   isVerifying: boolean;
   canDelete: boolean;
   verificationState?: VerificationState;
@@ -481,23 +498,49 @@ function CopyButton({ text }: { text: string }) {
 function DomainStatusDisplay({
   isVerified,
   isActive,
+  isFailed,
   isSystem,
   serverIp,
   verificationState,
   isExpanded,
   setIsExpanded,
+  onRetrySsl,
 }: {
   isVerified: boolean;
   isActive: boolean;
+  isFailed: boolean;
   isSystem: boolean;
   serverIp: string | null;
   verificationState: VerificationState | undefined;
   isExpanded: boolean;
   setIsExpanded: (v: boolean) => void;
+  onRetrySsl: () => void;
 }): React.ReactNode {
   if (isVerified && isActive) {
     return (
       <span className="text-xs text-neutral-400">Valid Configuration</span>
+    );
+  }
+
+  if (isVerified && isFailed) {
+    return (
+      <span className="flex items-center gap-2">
+        <Badge
+          variant="outline"
+          className="border-red-800 bg-red-900/30 text-red-400 text-xs"
+        >
+          Certificate Failed
+        </Badge>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRetrySsl}
+          className="h-auto px-2 py-1 text-xs text-neutral-400 hover:text-neutral-200"
+        >
+          <RefreshCw className="mr-1 h-3 w-3" />
+          Retry
+        </Button>
+      </span>
     );
   }
 
@@ -579,14 +622,16 @@ function DomainRow({
   serverIp,
   onVerify,
   onDelete,
+  onRetrySsl,
   isVerifying,
   canDelete,
   verificationState,
 }: DomainRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isVerified = domain.dnsVerified === 1;
+  const isVerified = domain.dnsVerified === true;
   const isActive = domain.sslStatus === "active";
-  const isSystem = domain.isSystem === 1;
+  const isFailed = domain.sslStatus === "failed";
+  const isSystem = domain.isSystem === true;
   const subdomain = extractSubdomain(domain.domain);
 
   return (
@@ -621,8 +666,6 @@ function DomainRow({
               ) : (
                 <span className="text-sm text-white">{domain.domain}</span>
               )}
-            </div>
-            <div className="mt-1 flex items-center gap-2">
               {isSystem && (
                 <Badge
                   variant="outline"
@@ -631,14 +674,18 @@ function DomainRow({
                   Auto-generated
                 </Badge>
               )}
+            </div>
+            <div className="mt-1 flex items-center gap-2">
               <DomainStatusDisplay
                 isVerified={isVerified}
                 isActive={isActive}
+                isFailed={isFailed}
                 isSystem={isSystem}
                 serverIp={serverIp}
                 verificationState={verificationState}
                 isExpanded={isExpanded}
                 setIsExpanded={setIsExpanded}
+                onRetrySsl={onRetrySsl}
               />
               {domain.type === "redirect" && (
                 <Badge
@@ -652,7 +699,7 @@ function DomainRow({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isSystem && (
+          {!isSystem && !isVerified && (
             <Button
               variant="outline"
               size="sm"

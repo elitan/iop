@@ -82,9 +82,9 @@ export interface Domain {
   type: "proxy" | "redirect";
   redirectTarget: string | null;
   redirectCode: number | null;
-  dnsVerified: number;
+  dnsVerified: boolean;
   sslStatus: "pending" | "active" | "failed";
-  isSystem: number;
+  isSystem: boolean;
   createdAt: number;
 }
 
