@@ -25,7 +25,11 @@ describe("getPreferredDomain", () => {
   test("returns null when no verified domains", () => {
     const domains = [
       makeDomain({ domain: "custom.com", isSystem: false, dnsVerified: false }),
-      makeDomain({ domain: "app.frost.io", isSystem: true, dnsVerified: false }),
+      makeDomain({
+        domain: "app.frost.io",
+        isSystem: true,
+        dnsVerified: false,
+      }),
     ];
     expect(getPreferredDomain(domains)).toBeNull();
   });
