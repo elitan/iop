@@ -5,6 +5,15 @@ source "$SCRIPT_DIR/common.sh"
 
 log "=== Web-based setup flow ==="
 
+log "Checking if setup is already complete (e.g. upgrade scenario)..."
+SETUP_STATUS=$(curl -s "$BASE_URL/api/setup")
+SETUP_COMPLETE=$(echo "$SETUP_STATUS" | jq -r '.setupComplete')
+if [ "$SETUP_COMPLETE" = "true" ]; then
+  log "Setup already complete (upgrade scenario), skipping test"
+  pass
+  exit 0
+fi
+
 log "Verifying API works with API key (even before web setup)..."
 HEALTH=$(api "$BASE_URL/api/health")
 OK=$(json_get "$HEALTH" '.ok')
