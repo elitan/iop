@@ -27,10 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateService } from "@/hooks/use-services";
+import { useCreateService, useServices } from "@/hooks/use-services";
 import type { CreateServiceInput, Template } from "@/lib/api";
 import { api } from "@/lib/api";
+
 import { RepoSelector } from "../services/new/_components/repo-selector";
+
+function generateUniqueName(baseName: string, existingNames: string[]): string {
+  if (!existingNames.includes(baseName)) return baseName;
+
+  let counter = 2;
+  while (existingNames.includes(`${baseName}-${counter}`)) counter++;
+  return `${baseName}-${counter}`;
+}
 
 function getTemplatePort(template: Template): number {
   const firstService = Object.values(template.services)[0];
@@ -116,6 +125,10 @@ export function CreateServiceModal({
     queryFn: () => api.serviceTemplates.list(),
   });
 
+  const { data: existingServices } = useServices(projectId);
+
+  const existingServiceNames = (existingServices ?? []).map((s) => s.name);
+
   const filteredCategories = CATEGORIES.filter((cat) =>
     matchesSearch(search, cat.label, ...cat.keywords),
   );
@@ -194,8 +207,10 @@ export function CreateServiceModal({
       if (onServiceCreated && result.id) {
         onServiceCreated(result.id);
       }
-    } catch {
-      toast.error("Failed to create service");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create service";
+      toast.error(message);
     }
   }
 
@@ -219,8 +234,11 @@ export function CreateServiceModal({
     const template = (dbTemplates ?? []).find((t) => t.id.startsWith(dbId));
     if (!template) return;
 
+    const baseName = template.id.split("-")[0];
+    const name = generateUniqueName(baseName, existingServiceNames);
+
     await createService({
-      name: template.id.split("-")[0],
+      name,
       deployType: "database",
       templateId: template.id,
       containerPort: getTemplatePort(template),
@@ -233,7 +251,8 @@ export function CreateServiceModal({
     const imageName = imageNameRef.current?.value.trim();
     if (!imageName) return;
 
-    const name = imageName.split("/").pop()?.split(":")[0] || "service";
+    const baseName = imageName.split("/").pop()?.split(":")[0] || "service";
+    const name = generateUniqueName(baseName, existingServiceNames);
     await createService({
       name,
       deployType: "image",
@@ -249,8 +268,9 @@ export function CreateServiceModal({
     );
     if (!template) return;
 
+    const name = generateUniqueName(template.id, existingServiceNames);
     await createService({
-      name: template.id,
+      name,
       deployType: "image",
       imageUrl: getTemplateImage(template),
       containerPort: getTemplatePort(template),

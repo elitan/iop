@@ -39,10 +39,11 @@ yarn-error.log*
 *.tsbuildinfo
 
 # frost data
-/data/
+**/data/
 /repos/
 
-# test fixture git repos (init'd by CI workflow)
+# test fixtures
+/test/
 **/test/fixtures/*/.git/
 
 # bun

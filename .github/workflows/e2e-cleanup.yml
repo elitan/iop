@@ -3,6 +3,9 @@ name: E2E Cleanup
 on:
   schedule:
     - cron: '*/30 * * * *'
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:

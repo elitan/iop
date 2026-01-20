@@ -139,8 +139,10 @@ export default function NewServicePage() {
       await createMutation.mutateAsync(data);
       toast.success("Service created");
       router.push(`/projects/${projectId}`);
-    } catch {
-      toast.error("Failed to create service");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create service";
+      toast.error(message);
     }
   }
 

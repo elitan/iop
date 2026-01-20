@@ -123,8 +123,8 @@ export interface Settings {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || "Request failed");
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || error.error || "Request failed");
   }
   return res.json();
 }

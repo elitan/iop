@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { deployService } from "./deployer";
-import { stopContainer } from "./docker";
+import { removeNetwork, stopContainer } from "./docker";
 
 const TEST_PROJECT_ID = `test-${nanoid(8)}`;
 const TEST_SERVICE_ID = `test-${nanoid(8)}`;
@@ -80,6 +80,8 @@ describe("deployment race conditions", () => {
       );
       await stopContainer(containerName);
     }
+
+    await removeNetwork(sanitizeDockerName(`frost-net-${TEST_PROJECT_ID}`));
 
     await db
       .updateTable("services")

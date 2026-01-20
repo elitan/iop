@@ -1,10 +1,10 @@
 import type { Domain } from "@/lib/api";
 
 export function getPreferredDomain(domains: Domain[]): Domain | null {
-  const verified = domains.filter((d) => d.dnsVerified === true);
+  const verified = domains.filter((d) => d.dnsVerified);
   return (
-    verified.find((d) => d.isSystem === false) ??
-    verified.find((d) => d.isSystem === true) ??
+    verified.find((d) => !d.isSystem) ??
+    verified.find((d) => d.isSystem) ??
     null
   );
 }
