@@ -39,7 +39,7 @@ export default function ServiceSettingsLayout({
         </div>
       </aside>
 
-      <div className="max-w-2xl flex-1">{children}</div>
+      <div className="flex-1">{children}</div>
     </div>
   );
 }
