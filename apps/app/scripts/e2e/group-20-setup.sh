@@ -14,12 +14,12 @@ fi
 log "API key auth works before setup"
 
 log "Verifying session access redirects to /setup..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L --max-redirs 0 "$BASE_URL/")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/")
 if [ "$HTTP_CODE" != "302" ] && [ "$HTTP_CODE" != "307" ]; then
   fail "Expected redirect (302/307), got $HTTP_CODE"
 fi
 
-LOCATION=$(curl -s -o /dev/null -w "%{redirect_url}" "$BASE_URL/")
+LOCATION=$(curl -s -D - -o /dev/null "$BASE_URL/" | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2)
 if [[ "$LOCATION" != *"/setup"* ]]; then
   fail "Expected redirect to /setup, got $LOCATION"
 fi
@@ -73,7 +73,7 @@ fi
 log "Session login works with new password"
 
 log "Verifying session-based access no longer redirects..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L --max-redirs 0 -b /tmp/frost-cookies.txt "$BASE_URL/")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/frost-cookies.txt "$BASE_URL/")
 if [ "$HTTP_CODE" != "200" ]; then
   fail "Expected 200 with valid session, got $HTTP_CODE"
 fi
