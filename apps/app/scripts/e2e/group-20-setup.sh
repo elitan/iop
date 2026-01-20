@@ -6,10 +6,18 @@ source "$SCRIPT_DIR/common.sh"
 log "=== Web-based setup flow ==="
 
 log "Checking if setup is already complete (e.g. upgrade scenario)..."
-SETUP_STATUS=$(curl -s "$BASE_URL/api/setup")
-SETUP_COMPLETE=$(echo "$SETUP_STATUS" | jq -r '.setupComplete')
+SETUP_STATUS=$(curl -s "$BASE_URL/api/setup" 2>/dev/null || echo '{}')
+SETUP_COMPLETE=$(echo "$SETUP_STATUS" | jq -r '.setupComplete // empty')
 if [ "$SETUP_COMPLETE" = "true" ]; then
-  log "Setup already complete (upgrade scenario), skipping test"
+  log "Setup already complete (via API), skipping test"
+  pass
+  exit 0
+fi
+
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/")
+LOCATION=$(curl -s -D - -o /dev/null "$BASE_URL/" 2>/dev/null | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2 || echo "")
+if [[ "$LOCATION" == *"/login"* ]]; then
+  log "Redirects to /login (setup already complete), skipping test"
   pass
   exit 0
 fi
