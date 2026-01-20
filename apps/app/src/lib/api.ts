@@ -1,18 +1,18 @@
-import type { RouterInputs, RouterOutputs } from "@/server/index";
+import type { ContractInputs, ContractOutputs } from "@/contracts";
 
-export type Project = RouterOutputs["projects"]["get"];
-export type ProjectListItem = RouterOutputs["projects"]["list"][number];
-export type Service = RouterOutputs["services"]["get"];
-export type Deployment = RouterOutputs["deployments"]["get"];
-export type Domain = RouterOutputs["domains"]["get"];
+export type Project = ContractOutputs["projects"]["get"];
+export type ProjectListItem = ContractOutputs["projects"]["list"][number];
+export type Service = ContractOutputs["services"]["get"];
+export type Deployment = ContractOutputs["deployments"]["get"];
+export type Domain = ContractOutputs["domains"]["get"];
 
 export type ProjectLatestDeployment = NonNullable<
   ProjectListItem["latestDeployment"]
 >;
 
-export type CreateProjectInput = RouterInputs["projects"]["create"];
+export type CreateProjectInput = ContractInputs["projects"]["create"];
 export type CreateServiceInput = Omit<
-  RouterInputs["services"]["create"],
+  ContractInputs["services"]["create"],
   "projectId"
 >;
 

@@ -1,7 +1,8 @@
-import { os as baseOs, onError } from "@orpc/server";
+import { implement, onError } from "@orpc/server";
+import { contract } from "@/contracts";
 import type { Context } from "@/server/context";
 
-export const os = baseOs
+export const os = implement(contract)
   .$context<Context>()
   .use(async ({ context, next }) => {
     const start = Date.now();

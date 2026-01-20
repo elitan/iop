@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ContractInputs } from "@/contracts";
 import { orpc } from "@/lib/orpc-client";
-import type { RouterInputs } from "@/server/index";
 
 export function useServices(projectId: string) {
   return useQuery(
@@ -18,8 +18,9 @@ export function useService(id: string) {
 export function useCreateService(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<RouterInputs["services"]["create"], "projectId">) =>
-      orpc.services.create.call({ projectId, ...data }),
+    mutationFn: (
+      data: Omit<ContractInputs["services"]["create"], "projectId">,
+    ) => orpc.services.create.call({ projectId, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.services.listByProject.key({ input: { projectId } }),
@@ -34,7 +35,7 @@ export function useCreateService(projectId: string) {
 export function useUpdateService(id: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<RouterInputs["services"]["update"], "id">) =>
+    mutationFn: (data: Omit<ContractInputs["services"]["update"], "id">) =>
       orpc.services.update.call({ id, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({

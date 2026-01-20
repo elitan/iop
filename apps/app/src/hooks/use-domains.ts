@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ContractInputs } from "@/contracts";
 import { orpc } from "@/lib/orpc-client";
-import type { RouterInputs } from "@/server/index";
 
 export function useDomains(serviceId: string) {
   return useQuery(
@@ -11,8 +11,9 @@ export function useDomains(serviceId: string) {
 export function useAddDomain(serviceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<RouterInputs["domains"]["create"], "serviceId">) =>
-      orpc.domains.create.call({ serviceId, ...data }),
+    mutationFn: (
+      data: Omit<ContractInputs["domains"]["create"], "serviceId">,
+    ) => orpc.domains.create.call({ serviceId, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.domains.listByService.key({ input: { serviceId } }),
@@ -29,7 +30,7 @@ export function useUpdateDomain(serviceId: string) {
       data,
     }: {
       id: string;
-      data: Omit<RouterInputs["domains"]["update"], "id">;
+      data: Omit<ContractInputs["domains"]["update"], "id">;
     }) => orpc.domains.update.call({ id, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
@@ -82,7 +83,7 @@ export function useVerifyDomainSsl(serviceId: string) {
 }
 
 export type AddDomainInput = Omit<
-  RouterInputs["domains"]["create"],
+  ContractInputs["domains"]["create"],
   "serviceId"
 >;
-export type UpdateDomainInput = Omit<RouterInputs["domains"]["update"], "id">;
+export type UpdateDomainInput = Omit<ContractInputs["domains"]["update"], "id">;
