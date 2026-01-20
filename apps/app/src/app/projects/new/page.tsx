@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useCreateProject } from "@/hooks/use-projects";
-import type { CreateProjectInput, EnvVar, Template } from "@/lib/api";
+import type { CreateProjectInput, EnvVar } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -30,13 +31,9 @@ export default function NewProjectPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: projectTemplates } = useQuery({
-    queryKey: ["project-templates"],
-    queryFn: async () => {
-      const res = await fetch("/api/templates/projects");
-      return res.json() as Promise<Template[]>;
-    },
-  });
+  const { data: projectTemplates } = useQuery(
+    orpc.templates.projects.queryOptions(),
+  );
 
   function handleTemplateChange(templateId: string) {
     setSelectedTemplate(templateId);

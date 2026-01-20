@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc-client";
 
 export interface CleanupResult {
   success: boolean;
@@ -23,90 +24,82 @@ export interface CleanupSettings {
   lastResult: CleanupResult | null;
 }
 
+function parseSettings(data: {
+  enabled: boolean;
+  retentionDays: number;
+  running: boolean;
+  lastRun: string | null;
+  lastResult: string | null;
+}): CleanupSettings {
+  return {
+    enabled: data.enabled,
+    keepImages: data.retentionDays,
+    pruneDangling: true,
+    pruneNetworks: true,
+    running: data.running,
+    lastRun: data.lastRun,
+    lastResult: data.lastResult ? JSON.parse(data.lastResult) : null,
+  };
+}
+
 export function useCleanupSettings() {
-  const [settings, setSettings] = useState<CleanupSettings | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetch("/api/cleanup")
-      .then((res) => res.json())
-      .then(setSettings)
-      .catch(() => setError("Failed to load cleanup settings"));
-  }, []);
+  const { data, isError } = useQuery(orpc.cleanup.get.queryOptions());
+  const settings = data ? parseSettings(data) : null;
 
-  useEffect(() => {
-    if (!settings?.running) {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      return;
-    }
+  const { data: runStatusData } = useQuery({
+    ...orpc.cleanup.runStatus.queryOptions(),
+    refetchInterval: settings?.running ? 2000 : false,
+  });
 
-    pollingRef.current = setInterval(async () => {
-      try {
-        const res = await fetch("/api/cleanup/run");
-        const data = await res.json();
-        if (!data.running) {
-          setSettings((s) =>
-            s
-              ? {
-                  ...s,
-                  running: false,
-                  lastRun: data.lastRun,
-                  lastResult: data.result,
-                }
-              : s,
-          );
+  const mergedSettings: CleanupSettings | null =
+    settings && runStatusData
+      ? {
+          ...settings,
+          running: runStatusData.running,
+          lastRun: runStatusData.lastRun,
+          lastResult: runStatusData.result
+            ? JSON.parse(runStatusData.result)
+            : settings.lastResult,
         }
-      } catch {
-        // ignore
-      }
-    }, 2000);
+      : settings;
 
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [settings?.running]);
+  const updateMutation = useMutation(
+    orpc.cleanup.update.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({ queryKey: orpc.cleanup.get.key() });
+      },
+    }),
+  );
 
-  async function updateSetting(updates: Partial<CleanupSettings>) {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/cleanup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      const data = await res.json();
-      setSettings(data);
-    } catch {
-      setError("Failed to save settings");
-    } finally {
-      setSaving(false);
-    }
+  const runMutation = useMutation(
+    orpc.cleanup.runStart.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({ queryKey: orpc.cleanup.get.key() });
+      },
+    }),
+  );
+
+  function updateSetting(updates: Partial<CleanupSettings>): void {
+    updateMutation.mutate({
+      enabled: updates.enabled,
+      retentionDays: updates.keepImages,
+    });
   }
 
-  async function runCleanup() {
-    setError("");
+  async function runCleanup(): Promise<void> {
     try {
-      const res = await fetch("/api/cleanup/run", { method: "POST" });
-      if (res.status === 409) {
-        setError("Cleanup already running");
-        return;
-      }
-      setSettings((s) => (s ? { ...s, running: true } : s));
+      await runMutation.mutateAsync({});
     } catch {
-      setError("Failed to start cleanup");
+      throw new Error("Cleanup already running");
     }
   }
 
   return {
-    settings,
-    saving,
-    error,
+    settings: mergedSettings,
+    saving: updateMutation.isPending,
+    error: isError ? "Failed to load cleanup settings" : "",
     updateSetting,
     runCleanup,
   };

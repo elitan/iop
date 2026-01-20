@@ -24,6 +24,7 @@ import { useProject } from "@/hooks/use-projects";
 import { useCreateService } from "@/hooks/use-services";
 import type { CreateServiceInput, EnvVar } from "@/lib/api";
 import { api } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 import { RepoSelector } from "./_components/repo-selector";
 
 type DeployType = "repo" | "image" | "database";
@@ -54,21 +55,11 @@ export default function NewServicePage() {
     queryFn: () => api.dbTemplates.list(),
   });
 
-  const { data: serviceTemplates } = useQuery({
-    queryKey: ["service-templates"],
-    queryFn: async () => {
-      const res = await fetch("/api/templates/services");
-      return res.json();
-    },
-  });
+  const { data: serviceTemplates } = useQuery(
+    orpc.templates.services.queryOptions(),
+  );
 
-  const { data: registries } = useQuery({
-    queryKey: ["registries"],
-    queryFn: async () => {
-      const res = await fetch("/api/registries");
-      return res.json();
-    },
-  });
+  const { data: registries } = useQuery(orpc.registries.list.queryOptions());
 
   const [selectedRegistryId, setSelectedRegistryId] = useState<string>("");
 

@@ -1,11 +1,13 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { orpc } from "@/lib/orpc-client";
 
 interface DnsStatus {
   valid: boolean;
@@ -14,6 +16,7 @@ interface DnsStatus {
 }
 
 export function SslSection() {
+  const queryClient = useQueryClient();
   const [domain, setDomain] = useState("");
   const [email, setEmail] = useState("");
   const [currentDomain, setCurrentDomain] = useState<string | null>(null);
@@ -21,31 +24,33 @@ export function SslSection() {
     "false",
   );
   const [dnsStatus, setDnsStatus] = useState<DnsStatus | null>(null);
-  const [verifying, setVerifying] = useState(false);
-  const [enabling, setEnabling] = useState(false);
   const [staging, setStaging] = useState(false);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.domain) {
-          setCurrentDomain(data.domain);
-          setDomain(data.domain);
-        }
-        if (data.email) {
-          setEmail(data.email);
-        }
-        if (data.sslEnabled === "true" || data.sslEnabled === "pending") {
-          setSslStatus(data.sslEnabled);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const { data: settings } = useQuery(orpc.settings.get.queryOptions());
 
+  useEffect(() => {
+    if (settings) {
+      if (settings.domain) {
+        setCurrentDomain(settings.domain);
+        setDomain(settings.domain);
+      }
+      if (settings.email) {
+        setEmail(settings.email);
+      }
+      if (settings.sslEnabled === "true" || settings.sslEnabled === "pending") {
+        setSslStatus(settings.sslEnabled);
+      }
+    }
+  }, [settings]);
+
+  const verifySslMutation = useMutation(
+    orpc.settings.verifySsl.mutationOptions(),
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional polling pattern
   useEffect(() => {
     if (sslStatus !== "pending" || !currentDomain) return;
 
@@ -56,22 +61,20 @@ export function SslSection() {
       if (Date.now() - startTime > maxDuration) {
         clearInterval(interval);
         setPollingTimedOut(true);
-        setEnabling(false);
         return;
       }
 
       try {
-        const res = await fetch("/api/settings/verify-ssl", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain: currentDomain }),
+        const result = await verifySslMutation.mutateAsync({
+          domain: currentDomain,
         });
-        const data = await res.json();
-        if (data.working) {
+        if (result.working) {
           clearInterval(interval);
           setSslStatus("true");
           setSuccess(true);
-          setEnabling(false);
+          await queryClient.refetchQueries({
+            queryKey: orpc.settings.get.key(),
+          });
         }
       } catch {}
     }, 3000);
@@ -79,64 +82,47 @@ export function SslSection() {
     return () => clearInterval(interval);
   }, [sslStatus, currentDomain]);
 
+  const verifyDnsMutation = useMutation(
+    orpc.settings.verifyDns.mutationOptions({
+      onSuccess: (data) => {
+        setDnsStatus(data);
+      },
+      onError: (err) => {
+        setError(
+          err instanceof Error ? err.message : "DNS verification failed",
+        );
+      },
+    }),
+  );
+
+  const enableSslMutation = useMutation(
+    orpc.settings.enableSsl.mutationOptions({
+      onSuccess: () => {
+        setCurrentDomain(domain);
+        setSslStatus("pending");
+      },
+      onError: (err) => {
+        setError(err instanceof Error ? err.message : "Failed to enable SSL");
+      },
+    }),
+  );
+
   async function handleVerifyDns() {
     if (!domain) return;
-
-    setVerifying(true);
     setError("");
     setDnsStatus(null);
-
-    try {
-      const res = await fetch("/api/settings/verify-dns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "DNS verification failed");
-        return;
-      }
-
-      setDnsStatus(data);
-    } catch {
-      setError("Failed to verify DNS");
-    } finally {
-      setVerifying(false);
-    }
+    verifyDnsMutation.mutate({ domain });
   }
 
   async function handleEnableSsl() {
     if (!domain || !email || !dnsStatus?.valid) return;
-
-    setEnabling(true);
     setError("");
     setPollingTimedOut(false);
-
-    try {
-      const res = await fetch("/api/settings/enable-ssl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, email, staging }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Failed to enable SSL");
-        setEnabling(false);
-        return;
-      }
-
-      setCurrentDomain(domain);
-      setSslStatus("pending");
-    } catch {
-      setError("Failed to enable SSL");
-      setEnabling(false);
-    }
+    enableSslMutation.mutate({ domain, email, staging });
   }
+
+  const enabling = enableSslMutation.isPending;
+  const verifying = verifyDnsMutation.isPending;
 
   return (
     <SettingCard

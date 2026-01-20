@@ -1,74 +1,52 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Loader2, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface ApiKey {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
+import { orpc } from "@/lib/orpc-client";
 
 export function ApiKeysSection() {
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
   const [newKeyName, setNewKeyName] = useState("");
   const [newKey, setNewKey] = useState<{ id: string; key: string } | null>(
     null,
   );
   const [copied, setCopied] = useState(false);
 
-  const fetchKeys = useCallback(async () => {
-    try {
-      const res = await fetch("/api/settings/api-keys");
-      const data = await res.json();
-      setKeys(data);
-    } catch (err) {
-      console.error("Failed to fetch API keys:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: keys = [], isLoading: loading } = useQuery(
+    orpc.apiKeys.list.queryOptions(),
+  );
 
-  useEffect(() => {
-    fetchKeys();
-  }, [fetchKeys]);
+  const createMutation = useMutation(
+    orpc.apiKeys.create.mutationOptions({
+      onSuccess: async (data) => {
+        setNewKey({ id: data.id, key: data.key });
+        setNewKeyName("");
+        await queryClient.refetchQueries({ queryKey: orpc.apiKeys.list.key() });
+      },
+    }),
+  );
+
+  const deleteMutation = useMutation(
+    orpc.apiKeys.delete.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({ queryKey: orpc.apiKeys.list.key() });
+      },
+    }),
+  );
 
   async function handleCreate() {
     if (!newKeyName.trim()) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/settings/api-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newKeyName }),
-      });
-      const data = await res.json();
-      setNewKey({ id: data.id, key: data.key });
-      setNewKeyName("");
-      fetchKeys();
-    } catch (err) {
-      console.error("Failed to create API key:", err);
-    } finally {
-      setCreating(false);
-    }
+    createMutation.mutate({ name: newKeyName });
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this API key? This cannot be undone.")) return;
-    try {
-      await fetch(`/api/settings/api-keys/${id}`, { method: "DELETE" });
-      fetchKeys();
-      if (newKey?.id === id) setNewKey(null);
-    } catch (err) {
-      console.error("Failed to delete API key:", err);
-    }
+    deleteMutation.mutate({ id });
+    if (newKey?.id === id) setNewKey(null);
   }
 
   async function handleCopy(text: string) {
@@ -198,8 +176,11 @@ export function ApiKeysSection() {
               className="max-w-xs"
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
-            <Button onClick={handleCreate} disabled={creating || !newKeyName}>
-              {creating ? (
+            <Button
+              onClick={handleCreate}
+              disabled={createMutation.isPending || !newKeyName}
+            >
+              {createMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="mr-2 h-4 w-4" />

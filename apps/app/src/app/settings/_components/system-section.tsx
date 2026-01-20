@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,123 +10,104 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-
-interface UpdateInfo {
-  currentVersion: string;
-  availableVersion: string | null;
-  releaseNotes: string | null;
-  publishedAt: string | null;
-  hasMigrations: boolean;
-  htmlUrl: string | null;
-  lastCheck: number | null;
-}
-
-interface UpdateResult {
-  completed: boolean;
-  success: boolean;
-  newVersion: string | null;
-  log: string | null;
-}
+import { orpc } from "@/lib/orpc-client";
 
 type UpdateState = "idle" | "preparing" | "restarting" | "success" | "failed";
 
 export function SystemSection() {
-  const [status, setStatus] = useState<UpdateInfo | null>(null);
-  const [checking, setChecking] = useState(false);
+  const queryClient = useQueryClient();
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const [previousVersion, setPreviousVersion] = useState<string | null>(null);
-  const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [error, setError] = useState("");
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    async function loadInitialState() {
-      try {
-        const [statusRes, resultRes] = await Promise.all([
-          fetch("/api/updates"),
-          fetch("/api/updates/result"),
-        ]);
-        const statusData = await statusRes.json();
-        const resultData: UpdateResult = await resultRes.json();
-        setStatus(statusData);
+  const { data: status } = useQuery(orpc.updates.get.queryOptions());
 
-        if (resultData.completed) {
-          setUpdateResult(resultData);
-          setUpdateState(resultData.success ? "success" : "failed");
-          if (!resultData.success) {
-            setShowLog(true);
-          }
-        }
-      } catch {
-        setError("Failed to load update status");
-      }
-    }
-    loadInitialState();
-  }, []);
+  const { data: updateResult, refetch: refetchResult } = useQuery({
+    ...orpc.updates.getResult.queryOptions(),
+    refetchInterval: updateState === "restarting" ? 2000 : false,
+    retry: updateState === "restarting",
+  });
 
-  useEffect(() => {
-    if (updateState !== "restarting") return;
+  const { refetch: refetchHealth } = useQuery({
+    ...orpc.health.check.queryOptions(),
+    enabled: updateState === "restarting",
+    refetchInterval: updateState === "restarting" ? 2000 : false,
+    retry: false,
+  });
 
+  const checkMutation = useMutation(
+    orpc.updates.check.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({ queryKey: orpc.updates.get.key() });
+      },
+      onError: () => {
+        setError("Failed to check for updates");
+      },
+    }),
+  );
+
+  const applyMutation = useMutation(
+    orpc.updates.apply.mutationOptions({
+      onSuccess: () => {
+        setUpdateState("restarting");
+        pollForRestart();
+      },
+      onError: (err) => {
+        setError(err instanceof Error ? err.message : "Failed to apply update");
+        setUpdateState("idle");
+      },
+    }),
+  );
+
+  const clearResultMutation = useMutation(
+    orpc.updates.clearResult.mutationOptions(),
+  );
+
+  async function pollForRestart() {
     const startTime = Date.now();
     const maxDuration = 120000;
 
-    pollingRef.current = setInterval(async () => {
+    const poll = async () => {
       if (Date.now() - startTime > maxDuration) {
-        if (pollingRef.current) clearInterval(pollingRef.current);
         setUpdateState("failed");
         setError("Server did not respond after 2 minutes");
         return;
       }
 
       try {
-        const res = await fetch("/api/health");
-        if (res.ok) {
-          if (pollingRef.current) clearInterval(pollingRef.current);
-          const resultRes = await fetch("/api/updates/result");
-          const result: UpdateResult = await resultRes.json();
-          setUpdateResult(result);
+        await refetchHealth();
+        const resultRes = await refetchResult();
+        const result = resultRes.data;
 
-          if (result.completed && result.success) {
-            setUpdateState("success");
-            const statusRes = await fetch("/api/updates");
-            const newStatus = await statusRes.json();
-            setStatus(newStatus);
-          } else if (result.completed && !result.success) {
-            setUpdateState("failed");
-            setShowLog(true);
-          } else {
-            setUpdateState("success");
-            const statusRes = await fetch("/api/updates");
-            const newStatus = await statusRes.json();
-            setStatus(newStatus);
-          }
+        if (result?.completed && result.success) {
+          setUpdateState("success");
+          await queryClient.refetchQueries({
+            queryKey: orpc.updates.get.key(),
+          });
+        } else if (result?.completed && !result.success) {
+          setUpdateState("failed");
+          setShowLog(true);
+        } else {
+          setUpdateState("success");
+          await queryClient.refetchQueries({
+            queryKey: orpc.updates.get.key(),
+          });
         }
       } catch {
-        // Server still down, continue polling
+        setTimeout(poll, 2000);
       }
-    }, 2000);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [updateState]);
+
+    setTimeout(poll, 2000);
+  }
 
   async function handleCheck() {
-    setChecking(true);
     setError("");
-    try {
-      const res = await fetch("/api/updates", { method: "POST" });
-      const data = await res.json();
-      setStatus(data);
-    } catch {
-      setError("Failed to check for updates");
-    } finally {
-      setChecking(false);
-    }
+    checkMutation.mutate({});
   }
 
   async function handleApply() {
@@ -136,48 +118,27 @@ export function SystemSection() {
     setPreviousVersion(status?.currentVersion || null);
     setUpdateState("preparing");
     setError("");
-    setUpdateResult(null);
     setShowLog(false);
 
-    try {
-      const res = await fetch("/api/updates/apply", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to apply update");
-      }
-      setUpdateState("restarting");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to apply update");
-      setUpdateState("idle");
-    }
+    applyMutation.mutate({});
   }
 
   async function handleDismiss() {
-    await fetch("/api/updates/result", { method: "DELETE" });
+    await clearResultMutation.mutateAsync({});
     setUpdateState("idle");
-    setUpdateResult(null);
     setShowLog(false);
     setPreviousVersion(null);
   }
 
-  function formatLastCheck(timestamp: number | null): string {
+  function formatLastCheck(timestamp: string | null): string {
     if (!timestamp) return "Never";
-    const diff = Date.now() - timestamp;
+    const diff = Date.now() - new Date(timestamp).getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes < 1) return "Just now";
     if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
     return new Date(timestamp).toLocaleDateString();
-  }
-
-  function formatPublishedAt(dateStr: string | null): string {
-    if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
   }
 
   const isUpdating =
@@ -187,14 +148,12 @@ export function SystemSection() {
     <SettingCard
       title="System"
       description="Check for updates and manage your Frost installation."
-      learnMoreUrl={status?.htmlUrl || undefined}
-      learnMoreText="View release notes"
       footer={
         updateState === "success" || updateState === "failed" ? (
           <Button variant="secondary" onClick={handleDismiss}>
             Dismiss
           </Button>
-        ) : status?.availableVersion ? (
+        ) : status?.updateAvailable ? (
           <Button onClick={handleApply} disabled={isUpdating}>
             {isUpdating ? (
               <>
@@ -206,8 +165,12 @@ export function SystemSection() {
             )}
           </Button>
         ) : (
-          <Button variant="secondary" onClick={handleCheck} disabled={checking}>
-            {checking ? (
+          <Button
+            variant="secondary"
+            onClick={handleCheck}
+            disabled={checkMutation.isPending}
+          >
+            {checkMutation.isPending ? (
               <>
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 Checking...
@@ -314,11 +277,11 @@ export function SystemSection() {
                 <button
                   type="button"
                   onClick={handleCheck}
-                  disabled={checking}
+                  disabled={checkMutation.isPending}
                   className="text-neutral-500 hover:text-neutral-300 disabled:opacity-50"
                   title="Check for updates"
                 >
-                  {checking ? (
+                  {checkMutation.isPending ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <RefreshCw className="h-3 w-3" />
@@ -327,33 +290,27 @@ export function SystemSection() {
               </div>
             </div>
 
-            {status?.availableVersion &&
-              status.availableVersion !== status.currentVersion && (
-                <div className="rounded-lg border border-blue-800 bg-blue-900/20 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-blue-400">
-                      Update Available: v{status.availableVersion}
-                    </p>
-                    {status.publishedAt && (
-                      <p className="text-xs text-neutral-400">
-                        Released {formatPublishedAt(status.publishedAt)}
-                      </p>
-                    )}
-                  </div>
-
-                  {status.hasMigrations && (
-                    <div className="mt-3 flex items-start gap-2 rounded bg-yellow-900/30 p-2 text-yellow-400">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <p className="text-xs">
-                        This update includes database migrations. Back up your
-                        data before updating.
-                      </p>
-                    </div>
-                  )}
+            {status?.updateAvailable && status.latestVersion && (
+              <div className="rounded-lg border border-blue-800 bg-blue-900/20 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-blue-400">
+                    Update Available: v{status.latestVersion}
+                  </p>
                 </div>
-              )}
 
-            {status && !status.availableVersion && (
+                {status.changelog?.includes("MIGRATIONS") && (
+                  <div className="mt-3 flex items-start gap-2 rounded bg-yellow-900/30 p-2 text-yellow-400">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="text-xs">
+                      This update includes database migrations. Back up your
+                      data before updating.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {status && !status.updateAvailable && (
               <div className="flex items-center gap-2 text-green-400">
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="text-sm">

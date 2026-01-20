@@ -1,29 +1,12 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Github, Loader2, Lock, Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface Owner {
-  login: string;
-  avatar_url: string;
-  type: "User" | "Organization";
-}
-
-interface Repo {
-  id: number;
-  name: string;
-  full_name: string;
-  private: boolean;
-  default_branch: string;
-  pushed_at: string;
-  owner: {
-    login: string;
-    avatar_url: string;
-  };
-}
+import { orpc } from "@/lib/orpc-client";
 
 interface RepoSelectorProps {
   onSelect: (repo: {
@@ -50,48 +33,35 @@ function formatTimeAgo(dateString: string): string {
 }
 
 export function RepoSelector({ onSelect }: RepoSelectorProps) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [owners, setOwners] = useState<Owner[]>([]);
-  const [repos, setRepos] = useState<Repo[]>([]);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
-  const [connected, setConnected] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    async function fetchRepos() {
-      try {
-        const res = await fetch("/api/github/repos");
-        if (!res.ok) {
-          const data = await res.json();
-          if (res.status === 400 && data.error === "GitHub App not connected") {
-            setConnected(false);
-            return;
-          }
-          throw new Error(data.error || "Failed to fetch repos");
-        }
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    ...orpc.github.repos.queryOptions({}),
+    retry: false,
+  });
 
-        setConnected(true);
-        const data = await res.json();
-        setOwners(data.owners);
-        setRepos(data.repos);
-        if (data.owners.length > 0) {
-          setSelectedOwner(data.owners[0].login);
-        }
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchRepos();
-  }, []);
+  const owners = data?.owners ?? [];
+  const repos = data?.repos ?? [];
+  const connected = !queryError && data !== undefined;
+  const error = queryError instanceof Error ? queryError.message : "";
+
+  const effectiveSelectedOwner =
+    selectedOwner ?? (owners.length > 0 ? owners[0].login : null);
 
   const filteredRepos = useMemo(() => {
     return repos
       .filter((repo) => {
-        if (selectedOwner && repo.owner.login !== selectedOwner) return false;
+        if (
+          effectiveSelectedOwner &&
+          repo.owner.login !== effectiveSelectedOwner
+        )
+          return false;
         if (search && !repo.name.toLowerCase().includes(search.toLowerCase())) {
           return false;
         }
@@ -101,9 +71,11 @@ export function RepoSelector({ onSelect }: RepoSelectorProps) {
         (a, b) =>
           new Date(b.pushed_at).getTime() - new Date(a.pushed_at).getTime(),
       );
-  }, [repos, selectedOwner, search]);
+  }, [repos, effectiveSelectedOwner, search]);
 
-  const selectedOwnerData = owners.find((o) => o.login === selectedOwner);
+  const selectedOwnerData = owners.find(
+    (o) => o.login === effectiveSelectedOwner,
+  );
 
   if (loading) {
     return (
@@ -114,7 +86,7 @@ export function RepoSelector({ onSelect }: RepoSelectorProps) {
     );
   }
 
-  if (connected === false) {
+  if (!connected && !loading) {
     return (
       <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-6 text-center">
         <Github className="mx-auto h-8 w-8 text-neutral-500" />
@@ -178,7 +150,7 @@ export function RepoSelector({ onSelect }: RepoSelectorProps) {
                     setShowOwnerDropdown(false);
                   }}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-700 ${
-                    selectedOwner === owner.login
+                    effectiveSelectedOwner === owner.login
                       ? "bg-neutral-700 text-white"
                       : "text-neutral-300"
                   }`}

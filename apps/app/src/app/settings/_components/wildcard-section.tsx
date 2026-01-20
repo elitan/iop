@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   ChevronDown,
@@ -14,148 +15,106 @@ import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-interface WildcardConfig {
-  wildcardDomain: string | null;
-  dnsProvider: string | null;
-  configured: boolean;
-  hasToken: boolean;
-}
+import { orpc } from "@/lib/orpc-client";
 
 export function WildcardSection() {
+  const queryClient = useQueryClient();
   const [domain, setDomain] = useState("");
   const [apiToken, setApiToken] = useState("");
-  const [config, setConfig] = useState<WildcardConfig | null>(null);
-  const [testing, setTesting] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [tokenValid, setTokenValid] = useState<boolean | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [serverIp, setServerIp] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/settings/wildcard")
-      .then((res) => res.json())
-      .then((data: WildcardConfig) => {
-        setConfig(data);
-        if (data.wildcardDomain) {
-          setDomain(data.wildcardDomain);
-        }
-      })
-      .catch(() => {});
+  const { data: config } = useQuery(orpc.settings.wildcard.get.queryOptions());
+  const { data: settings } = useQuery(orpc.settings.get.queryOptions());
 
-    fetch("/api/settings/server-ip")
-      .then((res) => res.json())
-      .then((data: { ip: string }) => setServerIp(data.ip))
-      .catch(() => {});
-  }, []);
+  useEffect(() => {
+    if (config?.wildcardDomain) {
+      setDomain(config.wildcardDomain);
+    }
+  }, [config]);
+
+  const testMutation = useMutation(
+    orpc.settings.wildcard.test.mutationOptions({
+      onSuccess: (data) => {
+        setTokenValid(data.valid);
+        if (!data.valid && data.error) {
+          setError(data.error);
+        }
+      },
+      onError: () => {
+        setError("Failed to verify token");
+      },
+    }),
+  );
+
+  const saveMutation = useMutation(
+    orpc.settings.wildcard.set.mutationOptions({
+      onSuccess: async (data) => {
+        if (data.dnsWarning) {
+          toast.warning("DNS record not created", {
+            description: data.dnsWarning,
+            duration: 10000,
+          });
+        }
+        setSuccess(true);
+        setApiToken("");
+        await queryClient.refetchQueries({
+          queryKey: orpc.settings.wildcard.get.key(),
+        });
+      },
+      onError: (err) => {
+        setError(
+          err instanceof Error ? err.message : "Failed to save settings",
+        );
+      },
+    }),
+  );
+
+  const removeMutation = useMutation(
+    orpc.settings.wildcard.delete.mutationOptions({
+      onSuccess: async () => {
+        setDomain("");
+        setApiToken("");
+        setTokenValid(null);
+        await queryClient.refetchQueries({
+          queryKey: orpc.settings.wildcard.get.key(),
+        });
+      },
+      onError: (err) => {
+        setError(
+          err instanceof Error ? err.message : "Failed to remove settings",
+        );
+      },
+    }),
+  );
 
   async function handleTestToken() {
     if (!apiToken) return;
-
-    setTesting(true);
     setError("");
     setTokenValid(null);
-
-    try {
-      const res = await fetch("/api/settings/wildcard/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dnsProvider: "cloudflare",
-          dnsApiToken: apiToken,
-        }),
-      });
-
-      const data = await res.json();
-      setTokenValid(data.valid);
-
-      if (!data.valid && data.error) {
-        setError(data.error);
-      }
-    } catch {
-      setError("Failed to verify token");
-    } finally {
-      setTesting(false);
-    }
+    testMutation.mutate({ dnsProvider: "cloudflare", dnsApiToken: apiToken });
   }
 
   async function handleSave() {
     if (!domain || !apiToken) return;
-
-    setSaving(true);
     setError("");
     setSuccess(false);
-
-    try {
-      const res = await fetch("/api/settings/wildcard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          wildcardDomain: domain,
-          dnsProvider: "cloudflare",
-          dnsApiToken: apiToken,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Failed to save settings");
-        return;
-      }
-
-      if (data.dnsWarning) {
-        toast.warning("DNS record not created", {
-          description: data.dnsWarning,
-          duration: 10000,
-        });
-      }
-
-      setSuccess(true);
-      setConfig({
-        wildcardDomain: domain,
-        dnsProvider: "cloudflare",
-        configured: true,
-        hasToken: true,
-      });
-      setApiToken("");
-    } catch {
-      setError("Failed to save settings");
-    } finally {
-      setSaving(false);
-    }
+    saveMutation.mutate({
+      wildcardDomain: domain,
+      dnsProvider: "cloudflare",
+      dnsApiToken: apiToken,
+    });
   }
 
   async function handleRemove() {
-    setSaving(true);
     setError("");
-
-    try {
-      const res = await fetch("/api/settings/wildcard", { method: "DELETE" });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to remove settings");
-        return;
-      }
-
-      setConfig({
-        wildcardDomain: null,
-        dnsProvider: null,
-        configured: false,
-        hasToken: false,
-      });
-      setDomain("");
-      setApiToken("");
-      setTokenValid(null);
-    } catch {
-      setError("Failed to remove settings");
-    } finally {
-      setSaving(false);
-    }
+    removeMutation.mutate({});
   }
+
+  const testing = testMutation.isPending;
+  const saving = saveMutation.isPending || removeMutation.isPending;
 
   return (
     <SettingCard
@@ -206,18 +165,18 @@ export function WildcardSection() {
           </div>
         )}
 
-        {serverIp && (
+        {settings?.serverIp && (
           <div className="flex items-center gap-2 rounded-md bg-neutral-800/50 p-3">
             <span className="text-sm text-neutral-400">Your server IP:</span>
             <code className="text-sm font-mono text-neutral-200">
-              {serverIp}
+              {settings.serverIp}
             </code>
             <Button
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
               onClick={() => {
-                navigator.clipboard.writeText(serverIp);
+                navigator.clipboard.writeText(settings.serverIp);
                 toast.success("Copied to clipboard");
               }}
             >

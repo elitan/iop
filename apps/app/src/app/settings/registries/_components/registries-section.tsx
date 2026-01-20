@@ -1,7 +1,8 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,15 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface Registry {
-  id: string;
-  name: string;
-  type: "ghcr" | "dockerhub" | "custom";
-  url: string | null;
-  username: string;
-  createdAt: number;
-}
+import { orpc } from "@/lib/orpc-client";
 
 const REGISTRY_TYPES = [
   { value: "ghcr", label: "GitHub Container Registry", url: "ghcr.io" },
@@ -29,9 +22,7 @@ const REGISTRY_TYPES = [
 ] as const;
 
 export function RegistriesSection() {
-  const [registries, setRegistries] = useState<Registry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,21 +34,45 @@ export function RegistriesSection() {
     password: "",
   });
 
-  const fetchRegistries = useCallback(async () => {
-    try {
-      const res = await fetch("/api/registries");
-      const data = await res.json();
-      setRegistries(data);
-    } catch (err) {
-      console.error("Failed to fetch registries:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: registries = [], isLoading: loading } = useQuery(
+    orpc.registries.list.queryOptions(),
+  );
 
-  useEffect(() => {
-    fetchRegistries();
-  }, [fetchRegistries]);
+  const createMutation = useMutation(
+    orpc.registries.create.mutationOptions({
+      onSuccess: async () => {
+        setFormData({
+          name: "",
+          type: "ghcr",
+          url: "",
+          username: "",
+          password: "",
+        });
+        setShowForm(false);
+        await queryClient.refetchQueries({
+          queryKey: orpc.registries.list.key(),
+        });
+      },
+      onError: (err) => {
+        setError(
+          err instanceof Error ? err.message : "Failed to create registry",
+        );
+      },
+    }),
+  );
+
+  const deleteMutation = useMutation(
+    orpc.registries.delete.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({
+          queryKey: orpc.registries.list.key(),
+        });
+      },
+      onError: (err) => {
+        alert(err instanceof Error ? err.message : "Failed to delete registry");
+      },
+    }),
+  );
 
   async function handleCreate() {
     if (
@@ -73,62 +88,25 @@ export function RegistriesSection() {
       return;
     }
 
-    setCreating(true);
     setError(null);
-
-    try {
-      const res = await fetch("/api/registries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          type: formData.type,
-          url: formData.type === "custom" ? formData.url : undefined,
-          username: formData.username,
-          password: formData.password,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to create registry");
-      }
-
-      setFormData({
-        name: "",
-        type: "ghcr",
-        url: "",
-        username: "",
-        password: "",
-      });
-      setShowForm(false);
-      fetchRegistries();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create registry";
-      setError(message);
-    } finally {
-      setCreating(false);
-    }
+    createMutation.mutate({
+      name: formData.name,
+      type: formData.type,
+      url: formData.type === "custom" ? formData.url : undefined,
+      username: formData.username,
+      password: formData.password,
+    });
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this registry?")) return;
-    try {
-      const res = await fetch(`/api/registries/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to delete registry");
-      }
-      fetchRegistries();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to delete registry";
-      alert(message);
-    }
+    deleteMutation.mutate({ id });
   }
 
-  function getRegistryUrl(registry: Registry): string {
+  function getRegistryUrl(registry: {
+    type: string;
+    url: string | null;
+  }): string {
     if (registry.type === "custom" && registry.url) return registry.url;
     const type = REGISTRY_TYPES.find((t) => t.value === registry.type);
     return type?.url || registry.type;
@@ -310,8 +288,11 @@ export function RegistriesSection() {
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               <div className="flex gap-2">
-                <Button onClick={handleCreate} disabled={creating}>
-                  {creating ? (
+                <Button
+                  onClick={handleCreate}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Plus className="mr-2 h-4 w-4" />

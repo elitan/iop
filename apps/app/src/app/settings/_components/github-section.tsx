@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
   CheckCircle2,
@@ -14,57 +15,45 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-
-interface GitHubInstallation {
-  id: string;
-  accountLogin: string;
-  accountType: string;
-}
-
-interface GitHubStatus {
-  hasDomain: boolean;
-  domain: string | null;
-  connected: boolean;
-  installed: boolean;
-  appName: string | null;
-  appSlug: string | null;
-  installations: GitHubInstallation[];
-}
+import { orpc } from "@/lib/orpc-client";
 
 export function GitHubSection() {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const formRef = useRef<HTMLFormElement>(null);
-  const [status, setStatus] = useState<GitHubStatus | null>(null);
   const [manifest, setManifest] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState("");
 
   const successParam = searchParams.get("success");
   const errorParam = searchParams.get("error");
 
-  useEffect(() => {
-    async function fetchStatus() {
-      try {
-        const res = await fetch("/api/settings/github");
-        const data = await res.json();
-        setStatus(data);
+  const { data: status, isLoading: loading } = useQuery(
+    orpc.settings.github.get.queryOptions(),
+  );
 
-        if (data.hasDomain && !data.connected) {
-          const manifestRes = await fetch("/api/settings/github/manifest");
-          const manifestData = await manifestRes.json();
-          if (manifestData.manifest) {
-            setManifest(JSON.stringify(manifestData.manifest));
-          }
-        }
-      } catch {
-        setError("Failed to load GitHub status");
-      } finally {
-        setLoading(false);
-      }
+  const { data: manifestData } = useQuery({
+    ...orpc.settings.github.manifest.queryOptions(),
+    enabled: Boolean(status?.hasDomain && !status?.connected),
+  });
+
+  useEffect(() => {
+    if (manifestData?.manifest) {
+      setManifest(JSON.stringify(manifestData.manifest));
     }
-    fetchStatus();
-  }, []);
+  }, [manifestData]);
+
+  const disconnectMutation = useMutation(
+    orpc.settings.github.disconnect.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.refetchQueries({
+          queryKey: orpc.settings.github.get.key(),
+        });
+      },
+      onError: (err) => {
+        setError(err instanceof Error ? err.message : "Failed to disconnect");
+      },
+    }),
+  );
 
   async function handleDisconnect() {
     if (
@@ -74,32 +63,7 @@ export function GitHubSection() {
     ) {
       return;
     }
-
-    setDisconnecting(true);
-    try {
-      const res = await fetch("/api/settings/github/disconnect", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to disconnect");
-      }
-      setStatus((prev) =>
-        prev
-          ? {
-              ...prev,
-              connected: false,
-              installed: false,
-              appName: null,
-              appSlug: null,
-            }
-          : null,
-      );
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDisconnecting(false);
-    }
+    disconnectMutation.mutate({});
   }
 
   function handleConnect() {
@@ -131,9 +95,9 @@ export function GitHubSection() {
           <Button
             variant="destructive"
             onClick={handleDisconnect}
-            disabled={disconnecting}
+            disabled={disconnectMutation.isPending}
           >
-            {disconnecting ? (
+            {disconnectMutation.isPending ? (
               <>
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 Disconnecting...

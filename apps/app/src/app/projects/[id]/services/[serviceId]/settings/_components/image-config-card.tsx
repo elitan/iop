@@ -19,12 +19,7 @@ import {
   useService,
   useUpdateService,
 } from "@/hooks/use-services";
-
-interface Registry {
-  id: string;
-  name: string;
-  type: string;
-}
+import { orpc } from "@/lib/orpc-client";
 
 interface ImageConfigCardProps {
   serviceId: string;
@@ -43,13 +38,7 @@ export function ImageConfigCard({
   const [registryId, setRegistryId] = useState("");
   const initialValues = useRef({ imageUrl: "", registryId: "" });
 
-  const { data: registries } = useQuery({
-    queryKey: ["registries"],
-    queryFn: async () => {
-      const res = await fetch("/api/registries");
-      return res.json() as Promise<Registry[]>;
-    },
-  });
+  const { data: registries } = useQuery(orpc.registries.list.queryOptions());
 
   useEffect(() => {
     if (service) {
