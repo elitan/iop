@@ -1,1 +1,0 @@
-ALTER TABLE projects ADD COLUMN env_vars TEXT NOT NULL DEFAULT '[]';

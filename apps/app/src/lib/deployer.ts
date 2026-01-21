@@ -6,7 +6,7 @@ import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
 import { decrypt } from "./crypto";
 import { db } from "./db";
-import type { Projects, Registries, Services } from "./db-types";
+import type { Environments, Projects, Registries, Services } from "./db-types";
 import {
   buildImage,
   createNetwork,
@@ -103,11 +103,7 @@ function sanitizeDockerName(name: string): string {
 
 function parseEnvVars(envVarsJson: string): Record<string, string> {
   const envVarsList: EnvVar[] = envVarsJson ? JSON.parse(envVarsJson) : [];
-  const envVars: Record<string, string> = {};
-  for (const e of envVarsList) {
-    envVars[e.key] = e.value;
-  }
-  return envVars;
+  return Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
 }
 
 const MAX_PORT_ATTEMPTS = 10;
@@ -237,22 +233,35 @@ export interface DeployOptions {
   commitMessage?: string;
 }
 
-export async function deployProject(projectId: string): Promise<string[]> {
+export async function deployEnvironment(
+  environmentId: string,
+): Promise<string[]> {
   const services = await db
     .selectFrom("services")
-    .selectAll()
-    .where("projectId", "=", projectId)
+    .select("id")
+    .where("environmentId", "=", environmentId)
     .execute();
 
   if (services.length === 0) {
     throw new Error("No services to deploy");
   }
 
-  const deploymentIds = await Promise.all(
-    services.map((service) => deployService(service.id)),
-  );
+  return Promise.all(services.map((s) => deployService(s.id)));
+}
 
-  return deploymentIds;
+export async function deployProject(projectId: string): Promise<string[]> {
+  const productionEnv = await db
+    .selectFrom("environments")
+    .select("id")
+    .where("projectId", "=", projectId)
+    .where("type", "=", "production")
+    .executeTakeFirst();
+
+  if (!productionEnv) {
+    throw new Error("Production environment not found");
+  }
+
+  return deployEnvironment(productionEnv.id);
 }
 
 export async function deployService(
@@ -269,10 +278,20 @@ export async function deployService(
     throw new Error("Service not found");
   }
 
+  const environment = await db
+    .selectFrom("environments")
+    .selectAll()
+    .where("id", "=", service.environmentId)
+    .executeTakeFirst();
+
+  if (!environment) {
+    throw new Error("Environment not found");
+  }
+
   const project = await db
     .selectFrom("projects")
     .selectAll()
-    .where("id", "=", service.projectId)
+    .where("id", "=", environment.projectId)
     .executeTakeFirst();
 
   if (!project) {
@@ -285,12 +304,12 @@ export async function deployService(
     "pulling",
     "building",
     "deploying",
-  ];
+  ] as const;
   const activeDeployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
     .where("serviceId", "=", serviceId)
-    .where("status", "in", inProgressStatuses)
+    .where("status", "in", [...inProgressStatuses])
     .execute();
 
   for (const dep of activeDeployments) {
@@ -311,7 +330,7 @@ export async function deployService(
     .insertInto("deployments")
     .values({
       id: deploymentId,
-      projectId: project.id,
+      environmentId: environment.id,
       serviceId: serviceId,
       commitSha: options?.commitSha?.substring(0, 7) || "HEAD",
       commitMessage: options?.commitMessage || null,
@@ -320,7 +339,13 @@ export async function deployService(
     })
     .execute();
 
-  runServiceDeployment(deploymentId, service, project, options).catch((err) => {
+  runServiceDeployment(
+    deploymentId,
+    service,
+    environment,
+    project,
+    options,
+  ).catch((err) => {
     console.error("Deployment failed:", err);
   });
 
@@ -330,6 +355,7 @@ export async function deployService(
 async function runServiceDeployment(
   deploymentId: string,
   service: Selectable<Services>,
+  environment: Selectable<Environments>,
   project: Selectable<Projects>,
   options?: DeployOptions,
 ) {
@@ -337,7 +363,9 @@ async function runServiceDeployment(
   const containerName = sanitizeDockerName(
     `frost-${service.id}-${deploymentId}`,
   );
-  const networkName = sanitizeDockerName(`frost-net-${project.id}`);
+  const networkName = sanitizeDockerName(
+    `frost-net-${project.id}-${environment.id}`,
+  );
 
   const baseLabels = {
     "frost.managed": "true",
@@ -779,7 +807,7 @@ async function updateRollbackEligible(serviceId: string): Promise<void> {
   if (eligibleIds.length > 0) {
     await db
       .updateTable("deployments")
-      .set({ rollbackEligible: 1 })
+      .set({ rollbackEligible: true })
       .where("id", "in", eligibleIds)
       .execute();
   }
@@ -787,7 +815,7 @@ async function updateRollbackEligible(serviceId: string): Promise<void> {
   if (ineligibleIds.length > 0) {
     await db
       .updateTable("deployments")
-      .set({ rollbackEligible: 0 })
+      .set({ rollbackEligible: false })
       .where("id", "in", ineligibleIds)
       .execute();
   }
@@ -824,10 +852,20 @@ export async function rollbackDeployment(
     throw new Error("Cannot rollback services with volumes");
   }
 
+  const environment = await db
+    .selectFrom("environments")
+    .selectAll()
+    .where("id", "=", targetDeployment.environmentId)
+    .executeTakeFirst();
+
+  if (!environment) {
+    throw new Error("Environment not found");
+  }
+
   const project = await db
     .selectFrom("projects")
     .selectAll()
-    .where("id", "=", targetDeployment.projectId)
+    .where("id", "=", environment.projectId)
     .executeTakeFirst();
 
   if (!project) {
@@ -845,13 +883,13 @@ export async function rollbackDeployment(
     "pulling",
     "building",
     "deploying",
-  ];
+  ] as const;
   const activeDeployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
     .where("serviceId", "=", service.id)
     .where("id", "!=", deploymentId)
-    .where("status", "in", inProgressStatuses)
+    .where("status", "in", [...inProgressStatuses])
     .execute();
 
   for (const dep of activeDeployments) {
@@ -867,11 +905,15 @@ export async function rollbackDeployment(
 
   await updateDeployment(deploymentId, { status: "deploying" });
 
-  runRollbackDeployment(deploymentId, targetDeployment, service, project).catch(
-    (err) => {
-      console.error("Rollback deployment failed:", err);
-    },
-  );
+  runRollbackDeployment(
+    deploymentId,
+    targetDeployment,
+    service,
+    environment,
+    project,
+  ).catch((err) => {
+    console.error("Rollback deployment failed:", err);
+  });
 
   return deploymentId;
 }
@@ -888,12 +930,15 @@ async function runRollbackDeployment(
     gitBranch: string | null;
   },
   service: Selectable<Services>,
+  environment: Selectable<Environments>,
   project: Selectable<Projects>,
 ) {
   const containerName = sanitizeDockerName(
     `frost-${service.id}-${deploymentId}`,
   );
-  const networkName = sanitizeDockerName(`frost-net-${project.id}`);
+  const networkName = sanitizeDockerName(
+    `frost-net-${project.id}-${environment.id}`,
+  );
 
   const baseLabels = {
     "frost.managed": "true",
@@ -905,10 +950,7 @@ async function runRollbackDeployment(
   const envVarsList: EnvVar[] = sourceDeployment.envVarsSnapshot
     ? JSON.parse(sourceDeployment.envVarsSnapshot)
     : [];
-  const envVars: Record<string, string> = {};
-  for (const e of envVarsList) {
-    envVars[e.key] = e.value;
-  }
+  const envVars = Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
 
   try {
     await updateDeployment(deploymentId, { status: "deploying" });

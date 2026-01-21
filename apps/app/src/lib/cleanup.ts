@@ -18,9 +18,9 @@ async function isImageRollbackEligible(imageName: string): Promise<boolean> {
     .selectFrom("deployments")
     .select("id")
     .where("imageName", "=", imageName)
-    .where("rollbackEligible", "=", 1)
+    .where("rollbackEligible", "=", true)
     .executeTakeFirst();
-  return !!deployment;
+  return deployment !== undefined;
 }
 
 export interface CleanupOptions {

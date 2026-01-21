@@ -34,10 +34,21 @@ export const services = {
   }),
 
   listByProject: os.services.listByProject.handler(async ({ input }) => {
+    const productionEnv = await db
+      .selectFrom("environments")
+      .select("id")
+      .where("projectId", "=", input.projectId)
+      .where("type", "=", "production")
+      .executeTakeFirst();
+
+    if (!productionEnv) {
+      return [];
+    }
+
     const services = await db
       .selectFrom("services")
       .selectAll()
-      .where("projectId", "=", input.projectId)
+      .where("environmentId", "=", productionEnv.id)
       .execute();
 
     return Promise.all(
@@ -90,10 +101,23 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
+    const productionEnv = await db
+      .selectFrom("environments")
+      .select("id")
+      .where("projectId", "=", input.projectId)
+      .where("type", "=", "production")
+      .executeTakeFirst();
+
+    if (!productionEnv) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Production environment not found",
+      });
+    }
+
     const existing = await db
       .selectFrom("services")
       .select("id")
-      .where("projectId", "=", input.projectId)
+      .where("environmentId", "=", productionEnv.id)
       .where("name", "=", input.name)
       .executeTakeFirst();
 
@@ -116,7 +140,7 @@ export const services = {
         .insertInto("services")
         .values({
           id,
-          projectId: input.projectId,
+          environmentId: productionEnv.id,
           name: input.name,
           hostname,
           deployType: "image",
@@ -128,7 +152,7 @@ export const services = {
           containerPort: serviceConfig.port,
           healthCheckPath: serviceConfig.healthCheckPath ?? null,
           healthCheckTimeout: serviceConfig.healthCheckTimeout,
-          autoDeploy: 0,
+          autoDeploy: false,
           serviceType: "database",
           volumes: JSON.stringify(serviceConfig.volumes),
           command: serviceConfig.command ?? null,
@@ -144,7 +168,7 @@ export const services = {
         .insertInto("services")
         .values({
           id,
-          projectId: input.projectId,
+          environmentId: productionEnv.id,
           name: input.name,
           hostname,
           deployType: input.deployType,
@@ -159,7 +183,7 @@ export const services = {
           containerPort: input.containerPort ?? null,
           healthCheckPath: input.healthCheckPath ?? null,
           healthCheckTimeout: input.healthCheckTimeout ?? null,
-          autoDeploy: input.deployType === "repo" ? 1 : 0,
+          autoDeploy: input.deployType === "repo",
           memoryLimit: input.memoryLimit ?? null,
           cpuLimit: input.cpuLimit ?? null,
           shutdownTimeout: input.shutdownTimeout ?? null,
@@ -185,6 +209,7 @@ export const services = {
     if (input.deployType !== "database") {
       await createWildcardDomain(
         id,
+        productionEnv.id,
         hostname,
         project.hostname ?? slugify(project.name),
       );
@@ -230,7 +255,7 @@ export const services = {
     if (input.healthCheckTimeout !== undefined)
       updates.healthCheckTimeout = input.healthCheckTimeout;
     if (input.autoDeployEnabled !== undefined)
-      updates.autoDeploy = input.autoDeployEnabled ? 1 : 0;
+      updates.autoDeploy = input.autoDeployEnabled;
     if (input.memoryLimit !== undefined)
       updates.memoryLimit = input.memoryLimit;
     if (input.cpuLimit !== undefined) updates.cpuLimit = input.cpuLimit;
@@ -350,14 +375,12 @@ export const services = {
       path: string;
     }[];
 
-    const result = await Promise.all(
+    return Promise.all(
       volumeConfig.map(async (v) => {
         const dockerVolumeName = buildVolumeName(input.id, v.name);
         const sizeBytes = await getVolumeSize(dockerVolumeName);
         return { name: v.name, path: v.path, sizeBytes };
       }),
     );
-
-    return result;
   }),
 };

@@ -20,7 +20,11 @@ export interface DnsStatus {
   errorType?: "no_record" | "wrong_ip";
 }
 
-export async function addDomain(serviceId: string, input: DomainInput) {
+export async function addDomain(
+  serviceId: string,
+  environmentId: string,
+  input: DomainInput,
+) {
   const { domain, type = "proxy", redirectTarget, redirectCode = 301 } = input;
 
   const id = nanoid();
@@ -31,6 +35,7 @@ export async function addDomain(serviceId: string, input: DomainInput) {
     .values({
       id,
       serviceId: serviceId,
+      environmentId: environmentId,
       domain: domain.toLowerCase(),
       type,
       redirectTarget: type === "redirect" ? redirectTarget : null,
@@ -114,13 +119,14 @@ export async function removeDomain(id: string) {
 }
 
 export async function getSystemDomainForService(serviceId: string) {
-  const domain = await db
-    .selectFrom("domains")
-    .selectAll()
-    .where("serviceId", "=", serviceId)
-    .where("isSystem", "=", true)
-    .executeTakeFirst();
-  return domain ?? null;
+  return (
+    (await db
+      .selectFrom("domains")
+      .selectAll()
+      .where("serviceId", "=", serviceId)
+      .where("isSystem", "=", true)
+      .executeTakeFirst()) ?? null
+  );
 }
 
 export async function backfillWildcardDomains(): Promise<number> {
@@ -131,13 +137,15 @@ export async function backfillWildcardDomains(): Promise<number> {
 
   const services = await db
     .selectFrom("services")
-    .innerJoin("projects", "projects.id", "services.projectId")
+    .innerJoin("environments", "environments.id", "services.environmentId")
+    .innerJoin("projects", "projects.id", "environments.projectId")
     .select([
       "services.id",
+      "services.environmentId",
       "services.hostname",
       "projects.hostname as projectHostname",
     ])
-    .where("services.deployType", "!=", "database")
+    .where("services.serviceType", "!=", "database")
     .where("services.hostname", "is not", null)
     .where("projects.hostname", "is not", null)
     .where(({ not, exists, selectFrom }) =>
@@ -153,9 +161,9 @@ export async function backfillWildcardDomains(): Promise<number> {
     .execute();
 
   let count = 0;
-  for (const { id, hostname, projectHostname } of services) {
+  for (const { id, environmentId, hostname, projectHostname } of services) {
     if (!hostname || !projectHostname) continue;
-    await createWildcardDomain(id, hostname, projectHostname);
+    await createWildcardDomain(id, environmentId, hostname, projectHostname);
     count++;
   }
 
@@ -164,6 +172,7 @@ export async function backfillWildcardDomains(): Promise<number> {
 
 export async function createWildcardDomain(
   serviceId: string,
+  environmentId: string,
   serviceHostname: string,
   projectHostname: string,
 ): Promise<void> {
@@ -200,6 +209,7 @@ export async function createWildcardDomain(
     .values({
       id,
       serviceId,
+      environmentId,
       domain,
       type: "proxy",
       redirectTarget: null,
@@ -245,17 +255,13 @@ export async function verifyDomainDns(domain: string): Promise<DnsStatus> {
   ]);
 
   const valid = domainIps.includes(serverIp);
-  let errorType: "no_record" | "wrong_ip" | undefined;
-  if (!valid) {
-    errorType = domainIps.length === 0 ? "no_record" : "wrong_ip";
-  }
+  const errorType = valid
+    ? undefined
+    : domainIps.length === 0
+      ? "no_record"
+      : "wrong_ip";
 
-  return {
-    valid,
-    serverIp,
-    domainIp: domainIps[0] || null,
-    errorType,
-  };
+  return { valid, serverIp, domainIp: domainIps[0] ?? null, errorType };
 }
 
 interface DomainRoute {
@@ -446,21 +452,13 @@ export async function syncCaddyConfig(): Promise<boolean> {
     return false;
   }
 
-  let wildcardConfig: WildcardConfig | undefined;
-  if (
-    wildcardDomain &&
-    dnsProvider &&
-    dnsApiToken &&
-    dnsProvider === "cloudflare"
-  ) {
-    wildcardConfig = {
-      domain: wildcardDomain,
-      dnsConfig: {
-        provider: dnsProvider,
-        apiToken: dnsApiToken,
-      },
-    };
-  }
+  const wildcardConfig: WildcardConfig | undefined =
+    wildcardDomain && dnsProvider === "cloudflare" && dnsApiToken
+      ? {
+          domain: wildcardDomain,
+          dnsConfig: { provider: dnsProvider, apiToken: dnsApiToken },
+        }
+      : undefined;
 
   const config = buildCaddyConfig(routes, email, staging, wildcardConfig);
 

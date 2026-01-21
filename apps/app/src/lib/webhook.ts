@@ -27,7 +27,7 @@ export async function findMatchingServices(webhookRepoUrl: string) {
     .selectFrom("services")
     .selectAll()
     .where("deployType", "=", "repo")
-    .where("autoDeploy", "=", 1)
+    .where("autoDeploy", "=", true)
     .execute();
 
   return services.filter((service) => {
@@ -40,21 +40,20 @@ export async function hasExistingDeployment(
   serviceId: string,
   commitSha: string,
 ): Promise<boolean> {
+  const activeStatuses = [
+    "pending",
+    "cloning",
+    "building",
+    "deploying",
+    "running",
+  ] as const;
   const existing = await db
     .selectFrom("deployments")
     .select("id")
     .where("serviceId", "=", serviceId)
     .where("commitSha", "=", commitSha.substring(0, 7))
-    .where((eb) =>
-      eb.or([
-        eb("status", "=", "pending"),
-        eb("status", "=", "cloning"),
-        eb("status", "=", "building"),
-        eb("status", "=", "deploying"),
-        eb("status", "=", "running"),
-      ]),
-    )
+    .where("status", "in", [...activeStatuses])
     .executeTakeFirst();
 
-  return !!existing;
+  return existing !== undefined;
 }

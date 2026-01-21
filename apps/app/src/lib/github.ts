@@ -78,29 +78,29 @@ export async function hasGitHubApp(): Promise<boolean> {
 }
 
 export async function getInstallations(): Promise<GitHubInstallation[]> {
-  const rows = await db
+  return db
     .selectFrom("githubInstallations")
     .selectAll()
     .orderBy("createdAt", "desc")
     .execute();
-  return rows;
 }
 
 export async function getInstallationByAccount(
   accountLogin: string,
 ): Promise<GitHubInstallation | null> {
-  const row = await db
-    .selectFrom("githubInstallations")
-    .selectAll()
-    .where("accountLogin", "=", accountLogin)
-    .executeTakeFirst();
-  return row ?? null;
+  return (
+    (await db
+      .selectFrom("githubInstallations")
+      .selectAll()
+      .where("accountLogin", "=", accountLogin)
+      .executeTakeFirst()) ?? null
+  );
 }
 
 export async function saveInstallation(installation: {
   installationId: string;
   accountLogin: string;
-  accountType: string;
+  accountType: "User" | "Organization";
 }): Promise<void> {
   const existing = await db
     .selectFrom("githubInstallations")
@@ -183,7 +183,7 @@ export async function clearGitHubAppCredentials(): Promise<void> {
 
 export async function fetchInstallationInfo(installationId: string): Promise<{
   accountLogin: string;
-  accountType: string;
+  accountType: "User" | "Organization";
 }> {
   const creds = await getGitHubAppCredentials();
   if (!creds) {
@@ -233,9 +233,7 @@ function createJWT(appId: string, privateKeyPem: string): string {
 }
 
 export function extractAccountFromRepoUrl(repoUrl: string): string | null {
-  const match =
-    repoUrl.match(/github\.com\/([^/]+)\//) ||
-    repoUrl.match(/git@github\.com:([^/]+)\//);
+  const match = repoUrl.match(/(?:github\.com\/|git@github\.com:)([^/]+)\//);
   return match?.[1] ?? null;
 }
 

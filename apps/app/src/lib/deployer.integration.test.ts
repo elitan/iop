@@ -5,6 +5,7 @@ import { deployService } from "./deployer";
 import { removeNetwork, stopContainer } from "./docker";
 
 const TEST_PROJECT_ID = `test-${nanoid(8)}`;
+const TEST_ENV_ID = `test-${nanoid(8)}`;
 const TEST_SERVICE_ID = `test-${nanoid(8)}`;
 
 function sleep(ms: number) {
@@ -42,13 +43,26 @@ async function waitForDeploymentStatus(
 
 describe("deployment race conditions", () => {
   beforeAll(async () => {
+    const now = Date.now();
     await db
       .insertInto("projects")
       .values({
         id: TEST_PROJECT_ID,
         name: "race-test",
         envVars: "[]",
-        createdAt: Date.now(),
+        createdAt: now,
+      })
+      .execute();
+
+    await db
+      .insertInto("environments")
+      .values({
+        id: TEST_ENV_ID,
+        projectId: TEST_PROJECT_ID,
+        name: "production",
+        type: "production",
+        isEphemeral: false,
+        createdAt: now,
       })
       .execute();
 
@@ -56,13 +70,13 @@ describe("deployment race conditions", () => {
       .insertInto("services")
       .values({
         id: TEST_SERVICE_ID,
-        projectId: TEST_PROJECT_ID,
+        environmentId: TEST_ENV_ID,
         name: "race-test-svc",
         deployType: "image",
         imageUrl: "nginx:alpine",
         containerPort: 80,
         envVars: "[]",
-        createdAt: Date.now(),
+        createdAt: now,
       })
       .execute();
   }, 60000);

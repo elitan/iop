@@ -37,47 +37,59 @@ export interface ApiKeys {
 
 export interface Deployments {
   id: string;
-  projectId: string;
   serviceId: string;
+  environmentId: string;
   commitSha: string;
   commitMessage: string | null;
-  status: Generated<string>;
+  status: Generated<'pending' | 'cloning' | 'pulling' | 'building' | 'deploying' | 'running' | 'failed' | 'stopped' | 'cancelled'>;
   containerId: string | null;
   hostPort: number | null;
   buildLog: string | null;
   errorMessage: string | null;
-  createdAt: number;
-  finishedAt: number | null;
   imageName: string | null;
   envVarsSnapshot: string | null;
   containerPort: number | null;
   healthCheckPath: string | null;
   healthCheckTimeout: number | null;
   volumes: string | null;
-  rollbackEligible: Generated<number | null>;
+  rollbackEligible: Generated<boolean | null>;
   rollbackSourceId: string | null;
   gitCommitSha: string | null;
   gitBranch: string | null;
+  createdAt: number;
+  finishedAt: number | null;
 }
 
 export interface Domains {
   id: string;
   serviceId: string;
+  environmentId: string;
   domain: string;
   'type': Generated<'proxy' | 'redirect'>;
   redirectTarget: string | null;
   redirectCode: Generated<301 | 307 | null>;
   dnsVerified: Generated<boolean | null>;
   sslStatus: Generated<'pending' | 'active' | 'failed' | null>;
-  createdAt: number;
   isSystem: Generated<boolean | null>;
+  createdAt: number;
+}
+
+export interface Environments {
+  id: string;
+  projectId: string;
+  name: string;
+  'type': Generated<'production' | 'preview' | 'manual'>;
+  prNumber: number | null;
+  prBranch: string | null;
+  isEphemeral: Generated<boolean | null>;
+  createdAt: number;
 }
 
 export interface GithubInstallations {
   id: string;
   installationId: string;
   accountLogin: string;
-  accountType: Generated<string>;
+  accountType: Generated<'User' | 'Organization'>;
   createdAt: number;
 }
 
@@ -99,10 +111,10 @@ export interface Metrics {
 export interface Projects {
   id: string;
   name: string;
-  envVars: Generated<string>;
-  createdAt: number;
   hostname: string | null;
+  envVars: Generated<string>;
   canvasPositions: Generated<string | null>;
+  createdAt: number;
 }
 
 export interface Registries {
@@ -117,31 +129,31 @@ export interface Registries {
 
 export interface Services {
   id: string;
-  projectId: string;
+  environmentId: string;
   name: string;
-  deployType: Generated<string>;
+  hostname: string | null;
+  deployType: Generated<'repo' | 'image'>;
+  serviceType: Generated<'app' | 'database'>;
   repoUrl: string | null;
   branch: Generated<string | null>;
   dockerfilePath: Generated<string | null>;
+  buildContext: string | null;
   imageUrl: string | null;
+  registryId: string | null;
   envVars: Generated<string>;
-  createdAt: number;
   containerPort: Generated<number | null>;
-  healthCheckPath: Generated<string | null>;
+  healthCheckPath: string | null;
   healthCheckTimeout: Generated<number | null>;
-  autoDeploy: Generated<number | null>;
-  serviceType: Generated<string>;
+  autoDeploy: Generated<boolean | null>;
   volumes: Generated<string | null>;
-  tcpProxyPort: Generated<number | null>;
-  currentDeploymentId: string | null;
+  tcpProxyPort: number | null;
   memoryLimit: string | null;
   cpuLimit: number | null;
   shutdownTimeout: number | null;
   requestTimeout: number | null;
-  registryId: string | null;
-  hostname: string | null;
-  buildContext: string | null;
   command: string | null;
+  currentDeploymentId: string | null;
+  createdAt: number;
 }
 
 export interface Settings {
@@ -154,6 +166,7 @@ export interface DB {
   apiKeys: ApiKeys;
   deployments: Deployments;
   domains: Domains;
+  environments: Environments;
   githubInstallations: GithubInstallations;
   metrics: Metrics;
   projects: Projects;

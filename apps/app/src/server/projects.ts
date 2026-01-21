@@ -18,32 +18,45 @@ export const projects = {
 
     return Promise.all(
       projectRows.map(async (project) => {
-        const services = await db
-          .selectFrom("services")
-          .selectAll()
+        const productionEnv = await db
+          .selectFrom("environments")
+          .select("id")
           .where("projectId", "=", project.id)
-          .execute();
-
-        const latestDeployment = await db
-          .selectFrom("deployments")
-          .innerJoin("services", "services.id", "deployments.serviceId")
-          .select([
-            "deployments.status",
-            "deployments.commitMessage",
-            "deployments.createdAt",
-            "services.branch",
-          ])
-          .where("deployments.projectId", "=", project.id)
-          .orderBy("deployments.createdAt", "desc")
+          .where("type", "=", "production")
           .executeTakeFirst();
 
-        const runningDeployment = await db
-          .selectFrom("deployments")
-          .select(["hostPort"])
-          .where("projectId", "=", project.id)
-          .where("status", "=", "running")
-          .where("hostPort", "is not", null)
-          .executeTakeFirst();
+        const services = productionEnv
+          ? await db
+              .selectFrom("services")
+              .selectAll()
+              .where("environmentId", "=", productionEnv.id)
+              .execute()
+          : [];
+
+        const latestDeployment = productionEnv
+          ? await db
+              .selectFrom("deployments")
+              .innerJoin("services", "services.id", "deployments.serviceId")
+              .select([
+                "deployments.status",
+                "deployments.commitMessage",
+                "deployments.createdAt",
+                "services.branch",
+              ])
+              .where("deployments.environmentId", "=", productionEnv.id)
+              .orderBy("deployments.createdAt", "desc")
+              .executeTakeFirst()
+          : null;
+
+        const runningDeployment = productionEnv
+          ? await db
+              .selectFrom("deployments")
+              .select(["hostPort"])
+              .where("environmentId", "=", productionEnv.id)
+              .where("status", "=", "running")
+              .where("hostPort", "is not", null)
+              .executeTakeFirst()
+          : null;
 
         const repoUrl = services[0]?.repoUrl ?? null;
 
@@ -83,11 +96,20 @@ export const projects = {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
-    const services = await db
-      .selectFrom("services")
-      .selectAll()
+    const productionEnv = await db
+      .selectFrom("environments")
+      .select("id")
       .where("projectId", "=", input.id)
-      .execute();
+      .where("type", "=", "production")
+      .executeTakeFirst();
+
+    const services = productionEnv
+      ? await db
+          .selectFrom("services")
+          .selectAll()
+          .where("environmentId", "=", productionEnv.id)
+          .execute()
+      : [];
 
     const servicesWithDeployments = await Promise.all(
       services.map(async (service) => {
@@ -136,6 +158,19 @@ export const projects = {
       })
       .execute();
 
+    const envId = nanoid();
+    await db
+      .insertInto("environments")
+      .values({
+        id: envId,
+        projectId: id,
+        name: "production",
+        type: "production",
+        isEphemeral: false,
+        createdAt: now,
+      })
+      .execute();
+
     const project = await db
       .selectFrom("projects")
       .selectAll()
@@ -160,7 +195,7 @@ export const projects = {
           .insertInto("services")
           .values({
             id: serviceId,
-            projectId: id,
+            environmentId: envId,
             name: svc.name,
             hostname: serviceHostname,
             deployType: "image",
@@ -172,7 +207,7 @@ export const projects = {
             containerPort: svc.port,
             healthCheckPath: svc.healthCheckPath ?? null,
             healthCheckTimeout: svc.healthCheckTimeout,
-            autoDeploy: 0,
+            autoDeploy: false,
             serviceType: svc.isDatabase ? "database" : "app",
             volumes: JSON.stringify(svc.volumes),
             command: svc.command ?? null,
@@ -237,19 +272,28 @@ export const projects = {
   }),
 
   delete: os.projects.delete.handler(async ({ input }) => {
-    const deployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
+    const environments = await db
+      .selectFrom("environments")
+      .select("id")
       .where("projectId", "=", input.id)
       .execute();
 
-    for (const deployment of deployments) {
-      if (deployment.containerId) {
-        await stopContainer(deployment.containerId);
+    for (const env of environments) {
+      const deployments = await db
+        .selectFrom("deployments")
+        .select(["id", "containerId"])
+        .where("environmentId", "=", env.id)
+        .execute();
+
+      for (const deployment of deployments) {
+        if (deployment.containerId) {
+          await stopContainer(deployment.containerId);
+        }
       }
+
+      await removeNetwork(`frost-net-${input.id}-${env.id}`.toLowerCase());
     }
 
-    await removeNetwork(`frost-net-${input.id}`.toLowerCase());
     await db.deleteFrom("projects").where("id", "=", input.id).execute();
 
     return { success: true };

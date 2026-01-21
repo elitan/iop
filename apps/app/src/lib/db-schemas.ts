@@ -57,13 +57,68 @@ export type NewApiKeys = z.infer<typeof newApiKeysSchema>;
 
 export type ApiKeysUpdate = z.infer<typeof apiKeysUpdateSchema>;
 
-export const deploymentsSchema = z.object({
+export const environmentTypeSchema = z.enum([
+  "production",
+  "preview",
+  "manual",
+]);
+
+export const environmentsSchema = z.object({
   id: z.string(),
   projectId: z.string(),
+  name: z.string(),
+  type: environmentTypeSchema,
+  prNumber: z.number().nullable(),
+  prBranch: z.string().nullable(),
+  isEphemeral: z.coerce.boolean().nullable(),
+  createdAt: z.number(),
+});
+
+export const newEnvironmentsSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string(),
+  type: environmentTypeSchema.optional(),
+  prNumber: z.number().nullable(),
+  prBranch: z.string().nullable(),
+  isEphemeral: z.coerce.boolean().nullable().optional(),
+  createdAt: z.number(),
+});
+
+export const environmentsUpdateSchema = z.object({
+  id: z.string().optional(),
+  projectId: z.string().optional(),
+  name: z.string().optional(),
+  type: environmentTypeSchema.optional(),
+  prNumber: z.number().nullable().optional(),
+  prBranch: z.string().nullable().optional(),
+  isEphemeral: z.coerce.boolean().nullable().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type Environments = z.infer<typeof environmentsSchema>;
+export type NewEnvironments = z.infer<typeof newEnvironmentsSchema>;
+export type EnvironmentsUpdate = z.infer<typeof environmentsUpdateSchema>;
+
+export const deploymentStatusSchema = z.enum([
+  "pending",
+  "cloning",
+  "pulling",
+  "building",
+  "deploying",
+  "running",
+  "failed",
+  "stopped",
+  "cancelled",
+]);
+
+export const deploymentsSchema = z.object({
+  id: z.string(),
   serviceId: z.string(),
+  environmentId: z.string(),
   commitSha: z.string(),
   commitMessage: z.string().nullable(),
-  status: z.string(),
+  status: deploymentStatusSchema,
   containerId: z.string().nullable(),
   hostPort: z.number().nullable(),
   buildLog: z.string().nullable(),
@@ -76,7 +131,7 @@ export const deploymentsSchema = z.object({
   healthCheckPath: z.string().nullable(),
   healthCheckTimeout: z.number().nullable(),
   volumes: z.string().nullable(),
-  rollbackEligible: z.number().nullable(),
+  rollbackEligible: z.coerce.boolean().nullable(),
   rollbackSourceId: z.string().nullable(),
   gitCommitSha: z.string().nullable(),
   gitBranch: z.string().nullable(),
@@ -84,11 +139,11 @@ export const deploymentsSchema = z.object({
 
 export const newDeploymentsSchema = z.object({
   id: z.string(),
-  projectId: z.string(),
   serviceId: z.string(),
+  environmentId: z.string(),
   commitSha: z.string(),
   commitMessage: z.string().nullable(),
-  status: z.string().optional(),
+  status: deploymentStatusSchema.optional(),
   containerId: z.string().nullable(),
   hostPort: z.number().nullable(),
   buildLog: z.string().nullable(),
@@ -101,7 +156,7 @@ export const newDeploymentsSchema = z.object({
   healthCheckPath: z.string().nullable(),
   healthCheckTimeout: z.number().nullable(),
   volumes: z.string().nullable(),
-  rollbackEligible: z.number().nullable().optional(),
+  rollbackEligible: z.coerce.boolean().nullable().optional(),
   rollbackSourceId: z.string().nullable(),
   gitCommitSha: z.string().nullable(),
   gitBranch: z.string().nullable(),
@@ -109,11 +164,11 @@ export const newDeploymentsSchema = z.object({
 
 export const deploymentsUpdateSchema = z.object({
   id: z.string().optional(),
-  projectId: z.string().optional(),
   serviceId: z.string().optional(),
+  environmentId: z.string().optional(),
   commitSha: z.string().optional(),
   commitMessage: z.string().nullable().optional(),
-  status: z.string().optional(),
+  status: deploymentStatusSchema.optional(),
   containerId: z.string().nullable().optional(),
   hostPort: z.number().nullable().optional(),
   buildLog: z.string().nullable().optional(),
@@ -126,7 +181,7 @@ export const deploymentsUpdateSchema = z.object({
   healthCheckPath: z.string().nullable().optional(),
   healthCheckTimeout: z.number().nullable().optional(),
   volumes: z.string().nullable().optional(),
-  rollbackEligible: z.number().nullable().optional(),
+  rollbackEligible: z.coerce.boolean().nullable().optional(),
   rollbackSourceId: z.string().nullable().optional(),
   gitCommitSha: z.string().nullable().optional(),
   gitBranch: z.string().nullable().optional(),
@@ -141,6 +196,7 @@ export type DeploymentsUpdate = z.infer<typeof deploymentsUpdateSchema>;
 export const domainsSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
+  environmentId: z.string(),
   domain: z.string(),
   type: z.enum(["proxy", "redirect"]),
   redirectTarget: z.string().nullable(),
@@ -154,6 +210,7 @@ export const domainsSchema = z.object({
 export const newDomainsSchema = z.object({
   id: z.string(),
   serviceId: z.string(),
+  environmentId: z.string(),
   domain: z.string(),
   type: z.enum(["proxy", "redirect"]).optional(),
   redirectTarget: z.string().nullable(),
@@ -170,6 +227,7 @@ export const newDomainsSchema = z.object({
 export const domainsUpdateSchema = z.object({
   id: z.string().optional(),
   serviceId: z.string().optional(),
+  environmentId: z.string().optional(),
   domain: z.string().optional(),
   type: z.enum(["proxy", "redirect"]).optional(),
   redirectTarget: z.string().nullable().optional(),
@@ -350,89 +408,89 @@ export type RegistryOutput = z.infer<typeof registryOutputSchema>;
 
 export const servicesSchema = z.object({
   id: z.string(),
-  projectId: z.string(),
+  environmentId: z.string(),
   name: z.string(),
   deployType: z.string(),
+  serviceType: z.string(),
   repoUrl: z.string().nullable(),
   branch: z.string().nullable(),
   dockerfilePath: z.string().nullable(),
   buildContext: z.string().nullable(),
   imageUrl: z.string().nullable(),
+  registryId: z.string().nullable(),
   envVars: z.string(),
-  createdAt: z.number(),
   containerPort: z.number().nullable(),
   healthCheckPath: z.string().nullable(),
   healthCheckTimeout: z.number().nullable(),
-  autoDeploy: z.number().nullable(),
-  serviceType: z.string(),
+  autoDeploy: z.coerce.boolean().nullable(),
   volumes: z.string().nullable(),
   tcpProxyPort: z.number().nullable(),
-  currentDeploymentId: z.string().nullable(),
   memoryLimit: z.string().nullable(),
   cpuLimit: z.number().nullable(),
   shutdownTimeout: z.number().nullable(),
   requestTimeout: z.number().nullable(),
-  registryId: z.string().nullable(),
-  hostname: z.string().nullable(),
   command: z.string().nullable(),
+  hostname: z.string().nullable(),
+  currentDeploymentId: z.string().nullable(),
+  createdAt: z.number(),
 });
 
 export const newServicesSchema = z.object({
   id: z.string(),
-  projectId: z.string(),
+  environmentId: z.string(),
   name: z.string(),
   deployType: z.string().optional(),
+  serviceType: z.string().optional(),
   repoUrl: z.string().nullable(),
   branch: z.string().nullable().optional(),
   dockerfilePath: z.string().nullable().optional(),
   buildContext: z.string().nullable(),
   imageUrl: z.string().nullable(),
+  registryId: z.string().nullable(),
   envVars: z.string().optional(),
-  createdAt: z.number(),
   containerPort: z.number().nullable().optional(),
   healthCheckPath: z.string().nullable().optional(),
   healthCheckTimeout: z.number().nullable().optional(),
-  autoDeploy: z.number().nullable().optional(),
-  serviceType: z.string().optional(),
+  autoDeploy: z.coerce.boolean().nullable().optional(),
   volumes: z.string().nullable().optional(),
   tcpProxyPort: z.number().nullable().optional(),
-  currentDeploymentId: z.string().nullable(),
   memoryLimit: z.string().nullable(),
   cpuLimit: z.number().nullable(),
   shutdownTimeout: z.number().nullable(),
   requestTimeout: z.number().nullable(),
-  registryId: z.string().nullable(),
-  hostname: z.string().nullable(),
   command: z.string().nullable(),
+  hostname: z.string().nullable(),
+  currentDeploymentId: z.string().nullable(),
+  createdAt: z.number(),
 });
 
 export const servicesUpdateSchema = z.object({
   id: z.string().optional(),
-  projectId: z.string().optional(),
+  environmentId: z.string().optional(),
   name: z.string().optional(),
   deployType: z.string().optional(),
+  serviceType: z.string().optional(),
   repoUrl: z.string().nullable().optional(),
   branch: z.string().nullable().optional(),
   dockerfilePath: z.string().nullable().optional(),
   buildContext: z.string().nullable().optional(),
   imageUrl: z.string().nullable().optional(),
+  registryId: z.string().nullable().optional(),
   envVars: z.string().optional(),
-  createdAt: z.number().optional(),
   containerPort: z.number().nullable().optional(),
   healthCheckPath: z.string().nullable().optional(),
   healthCheckTimeout: z.number().nullable().optional(),
-  autoDeploy: z.number().nullable().optional(),
-  serviceType: z.string().optional(),
+  autoDeploy: z.coerce.boolean().nullable().optional(),
   volumes: z.string().nullable().optional(),
   tcpProxyPort: z.number().nullable().optional(),
-  currentDeploymentId: z.string().nullable().optional(),
   memoryLimit: z.string().nullable().optional(),
   cpuLimit: z.number().nullable().optional(),
   shutdownTimeout: z.number().nullable().optional(),
   requestTimeout: z.number().nullable().optional(),
-  registryId: z.string().nullable().optional(),
-  hostname: z.string().nullable().optional(),
   command: z.string().nullable().optional(),
+  hostname: z.string().nullable().optional(),
+  currentDeploymentId: z.string().nullable().optional(),
+  createdAt: z.number().optional(),
 });
 
 export type Services = z.infer<typeof servicesSchema>;

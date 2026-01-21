@@ -6,6 +6,7 @@ function makeDomain(overrides: Partial<Domain> & { domain: string }): Domain {
   return {
     id: "d1",
     serviceId: "s1",
+    environmentId: "e1",
     type: "proxy",
     redirectTarget: null,
     redirectCode: null,

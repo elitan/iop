@@ -76,7 +76,7 @@ export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
               {deployments.map((d) => {
                 const hasVolumes = service?.volumes && service.volumes !== "[]";
                 const canRollback =
-                  !hasVolumes && !!d.imageName && d.rollbackEligible === 1;
+                  !hasVolumes && !!d.imageName && d.rollbackEligible === true;
                 const isCurrent = d.id === service.currentDeploymentId;
                 return (
                   <DeploymentRow
