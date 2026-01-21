@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { deployService } from "@/lib/deployer";
 import { getGitHubAppCredentials } from "@/lib/github";
+import { slugify } from "@/lib/slugify";
 import {
+  cloneServiceToEnvironment,
+  createPreviewEnvironment,
+  deletePreviewEnvironment,
   findMatchingServices,
+  findProductionServicesForRepo,
   hasExistingDeployment,
   shouldTriggerDeploy,
   verifyWebhookSignature,
@@ -19,6 +24,20 @@ interface PushPayload {
   head_commit: {
     message: string;
   } | null;
+}
+
+interface PullRequestPayload {
+  action: string;
+  number: number;
+  pull_request: {
+    head: {
+      ref: string;
+      sha: string;
+    };
+  };
+  repository: {
+    clone_url: string;
+  };
 }
 
 export async function POST(request: Request) {
@@ -48,6 +67,10 @@ export async function POST(request: Request) {
 
   if (event === "ping") {
     return NextResponse.json({ message: "pong" });
+  }
+
+  if (event === "pull_request") {
+    return handlePullRequest(rawBody);
   }
 
   if (event !== "push") {
@@ -96,5 +119,87 @@ export async function POST(request: Request) {
   return NextResponse.json({
     message: `Triggered ${deploymentIds.length} deployment(s)`,
     deployments: deploymentIds,
+  });
+}
+
+async function handlePullRequest(rawBody: string) {
+  const payload: PullRequestPayload = JSON.parse(rawBody);
+  const { action, number: prNumber, pull_request, repository } = payload;
+  const branch = pull_request.head.ref;
+  const commitSha = pull_request.head.sha;
+
+  if (action === "opened" || action === "reopened" || action === "synchronize") {
+    const productionServices = await findProductionServicesForRepo(
+      repository.clone_url,
+    );
+
+    if (productionServices.length === 0) {
+      return NextResponse.json({
+        message: "No matching production services found",
+      });
+    }
+
+    const projectId = productionServices[0].projectId;
+    const projectHostname =
+      productionServices[0].projectHostname ?? slugify(projectId);
+    const envName = `pr-${prNumber}`;
+
+    const environmentId = await createPreviewEnvironment(
+      projectId,
+      prNumber,
+      branch,
+    );
+
+    const deploymentIds: string[] = [];
+
+    for (const service of productionServices) {
+      const clonedServiceId = await cloneServiceToEnvironment(service, {
+        environmentId,
+        projectHostname,
+        envName,
+        targetBranch: branch,
+      });
+
+      try {
+        const deploymentId = await deployService(clonedServiceId, {
+          commitSha,
+          commitMessage: `PR #${prNumber}: ${branch}`,
+        });
+        deploymentIds.push(deploymentId);
+      } catch (err) {
+        console.error(`Failed to deploy service ${clonedServiceId}:`, err);
+      }
+    }
+
+    return NextResponse.json({
+      message: `Created preview environment for PR #${prNumber}`,
+      environmentId,
+      deployments: deploymentIds,
+    });
+  }
+
+  if (action === "closed") {
+    const productionServices = await findProductionServicesForRepo(
+      repository.clone_url,
+    );
+
+    if (productionServices.length === 0) {
+      return NextResponse.json({
+        message: "No matching production services found",
+      });
+    }
+
+    const projectId = productionServices[0].projectId;
+    const deleted = await deletePreviewEnvironment(projectId, prNumber);
+
+    return NextResponse.json({
+      message: deleted
+        ? `Deleted preview environment for PR #${prNumber}`
+        : `No preview environment found for PR #${prNumber}`,
+    });
+  }
+
+  return NextResponse.json({
+    message: `Ignored pull_request action: ${action}`,
   });
 }
