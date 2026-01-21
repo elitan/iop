@@ -125,77 +125,31 @@ export async function POST(request: Request) {
 async function handlePullRequest(rawBody: string) {
   const payload: PullRequestPayload = JSON.parse(rawBody);
   const { action, number: prNumber, pull_request, repository } = payload;
-  const branch = pull_request.head.ref;
-  const commitSha = pull_request.head.sha;
 
-  if (
-    action === "opened" ||
-    action === "reopened" ||
-    action === "synchronize"
-  ) {
-    const productionServices = await findProductionServicesForRepo(
-      repository.clone_url,
-    );
+  const shouldDeploy =
+    action === "opened" || action === "reopened" || action === "synchronize";
+  const shouldDelete = action === "closed";
 
-    if (productionServices.length === 0) {
-      return NextResponse.json({
-        message: "No matching production services found",
-      });
-    }
-
-    const projectId = productionServices[0].projectId;
-    const projectHostname =
-      productionServices[0].projectHostname ?? slugify(projectId);
-    const envName = `pr-${prNumber}`;
-
-    const environmentId = await createPreviewEnvironment(
-      projectId,
-      prNumber,
-      branch,
-    );
-
-    const deploymentIds: string[] = [];
-
-    for (const service of productionServices) {
-      const clonedServiceId = await cloneServiceToEnvironment(service, {
-        environmentId,
-        projectHostname,
-        envName,
-        targetBranch: branch,
-      });
-
-      try {
-        const deploymentId = await deployService(clonedServiceId, {
-          commitSha,
-          commitMessage: `PR #${prNumber}: ${branch}`,
-        });
-        deploymentIds.push(deploymentId);
-      } catch (err) {
-        console.error(`Failed to deploy service ${clonedServiceId}:`, err);
-      }
-    }
-
+  if (!shouldDeploy && !shouldDelete) {
     return NextResponse.json({
-      message: `Created preview environment for PR #${prNumber}`,
-      environmentId,
-      deployments: deploymentIds,
+      message: `Ignored pull_request action: ${action}`,
     });
   }
 
-  if (action === "closed") {
-    const productionServices = await findProductionServicesForRepo(
-      repository.clone_url,
-    );
+  const productionServices = await findProductionServicesForRepo(
+    repository.clone_url,
+  );
 
-    if (productionServices.length === 0) {
-      return NextResponse.json({
-        message: "No matching production services found",
-      });
-    }
+  if (productionServices.length === 0) {
+    return NextResponse.json({
+      message: "No matching production services found",
+    });
+  }
 
-    const projectId = productionServices[0].projectId;
+  const projectId = productionServices[0].projectId;
+
+  if (shouldDelete) {
     const deleted = await deletePreviewEnvironment(projectId, prNumber);
-
     return NextResponse.json({
       message: deleted
         ? `Deleted preview environment for PR #${prNumber}`
@@ -203,7 +157,42 @@ async function handlePullRequest(rawBody: string) {
     });
   }
 
+  const branch = pull_request.head.ref;
+  const commitSha = pull_request.head.sha;
+  const projectHostname =
+    productionServices[0].projectHostname ?? slugify(projectId);
+  const envName = `pr-${prNumber}`;
+
+  const environmentId = await createPreviewEnvironment(
+    projectId,
+    prNumber,
+    branch,
+  );
+
+  const deploymentIds: string[] = [];
+
+  for (const service of productionServices) {
+    const clonedServiceId = await cloneServiceToEnvironment(service, {
+      environmentId,
+      projectHostname,
+      envName,
+      targetBranch: branch,
+    });
+
+    try {
+      const deploymentId = await deployService(clonedServiceId, {
+        commitSha,
+        commitMessage: `PR #${prNumber}: ${branch}`,
+      });
+      deploymentIds.push(deploymentId);
+    } catch (err) {
+      console.error(`Failed to deploy service ${clonedServiceId}:`, err);
+    }
+  }
+
   return NextResponse.json({
-    message: `Ignored pull_request action: ${action}`,
+    message: `Created preview environment for PR #${prNumber}`,
+    environmentId,
+    deployments: deploymentIds,
   });
 }

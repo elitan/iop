@@ -204,21 +204,10 @@ export async function cloneServiceToEnvironment(
   return id;
 }
 
-export async function deletePreviewEnvironment(
-  projectId: string,
-  prNumber: number,
-): Promise<boolean> {
-  const environment = await db
-    .selectFrom("environments")
-    .selectAll()
-    .where("projectId", "=", projectId)
-    .where("prNumber", "=", prNumber)
-    .executeTakeFirst();
-
-  if (!environment) {
-    return false;
-  }
-
+export async function cleanupEnvironment(environment: {
+  id: string;
+  projectId: string;
+}): Promise<void> {
   const deployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
@@ -231,11 +220,30 @@ export async function deletePreviewEnvironment(
     }
   }
 
-  await removeNetwork(`frost-net-${projectId}-${environment.id}`.toLowerCase());
+  await removeNetwork(
+    `frost-net-${environment.projectId}-${environment.id}`.toLowerCase(),
+  );
   await db
     .deleteFrom("environments")
     .where("id", "=", environment.id)
     .execute();
+}
 
+export async function deletePreviewEnvironment(
+  projectId: string,
+  prNumber: number,
+): Promise<boolean> {
+  const environment = await db
+    .selectFrom("environments")
+    .select(["id", "projectId"])
+    .where("projectId", "=", projectId)
+    .where("prNumber", "=", prNumber)
+    .executeTakeFirst();
+
+  if (!environment) {
+    return false;
+  }
+
+  await cleanupEnvironment(environment);
   return true;
 }

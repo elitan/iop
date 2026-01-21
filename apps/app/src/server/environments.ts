@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
-import { removeNetwork, stopContainer } from "@/lib/docker";
+import { cleanupEnvironment } from "@/lib/webhook";
 import { os } from "./orpc";
 
 export const environments = {
@@ -106,7 +106,7 @@ export const environments = {
   delete: os.environments.delete.handler(async ({ input }) => {
     const environment = await db
       .selectFrom("environments")
-      .selectAll()
+      .select(["id", "projectId", "type"])
       .where("id", "=", input.id)
       .executeTakeFirst();
 
@@ -120,23 +120,7 @@ export const environments = {
       });
     }
 
-    const deployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
-      .where("environmentId", "=", input.id)
-      .execute();
-
-    for (const deployment of deployments) {
-      if (deployment.containerId) {
-        await stopContainer(deployment.containerId);
-      }
-    }
-
-    await removeNetwork(
-      `frost-net-${environment.projectId}-${environment.id}`.toLowerCase(),
-    );
-    await db.deleteFrom("environments").where("id", "=", input.id).execute();
-
+    await cleanupEnvironment(environment);
     return { success: true };
   }),
 
