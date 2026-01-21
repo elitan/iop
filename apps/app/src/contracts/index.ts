@@ -6,6 +6,7 @@ import { apiKeysContract } from "./api-keys";
 import { cleanupContract } from "./cleanup";
 import { deploymentsContract } from "./deployments";
 import { domainsContract } from "./domains";
+import { environmentsContract } from "./environments";
 import { githubContract } from "./github";
 import { healthContract } from "./health";
 import { projectsContract } from "./projects";
@@ -21,6 +22,7 @@ export const contract = {
   dbTemplates: dbTemplatesContract,
   deployments: deploymentsContract,
   domains: domainsContract,
+  environments: environmentsContract,
   github: githubContract,
   health: healthContract,
   projects: projectsContract,

@@ -79,6 +79,14 @@ export const domains = {
       .execute();
   }),
 
+  listByEnvironment: os.domains.listByEnvironment.handler(async ({ input }) => {
+    return db
+      .selectFrom("domains")
+      .selectAll()
+      .where("environmentId", "=", input.environmentId)
+      .execute();
+  }),
+
   create: os.domains.create.handler(async ({ input }) => {
     const service = await db
       .selectFrom("services")

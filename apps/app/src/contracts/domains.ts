@@ -27,6 +27,11 @@ export const domainsContract = {
     .input(z.object({ serviceId: z.string() }))
     .output(z.array(domainsSchema)),
 
+  listByEnvironment: oc
+    .route({ method: "GET", path: "/environments/{environmentId}/domains" })
+    .input(z.object({ environmentId: z.string() }))
+    .output(z.array(domainsSchema)),
+
   listByServiceIds: oc
     .input(z.object({ serviceIds: z.array(z.string()) }))
     .output(z.array(domainsSchema)),

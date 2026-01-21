@@ -19,6 +19,18 @@ export const deployments = {
     return deployment;
   }),
 
+  listByEnvironment: os.deployments.listByEnvironment.handler(
+    async ({ input }) => {
+      return db
+        .selectFrom("deployments")
+        .selectAll()
+        .where("environmentId", "=", input.environmentId)
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .execute();
+    },
+  ),
+
   rollback: os.deployments.rollback.handler(async ({ input }) => {
     const deployment = await db
       .selectFrom("deployments")

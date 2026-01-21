@@ -2,6 +2,7 @@ import { apiKeys } from "./api-keys";
 import { cleanup } from "./cleanup";
 import { deployments } from "./deployments";
 import { domains } from "./domains";
+import { environments } from "./environments";
 import { github } from "./github";
 import { health } from "./health";
 import { os } from "./orpc";
@@ -18,6 +19,7 @@ export const router = os.router({
   dbTemplates,
   deployments,
   domains,
+  environments,
   github,
   health,
   projects,

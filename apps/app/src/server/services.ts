@@ -66,6 +66,28 @@ export const services = {
     );
   }),
 
+  listByEnvironment: os.services.listByEnvironment.handler(async ({ input }) => {
+    const services = await db
+      .selectFrom("services")
+      .selectAll()
+      .where("environmentId", "=", input.environmentId)
+      .execute();
+
+    return Promise.all(
+      services.map(async (service) => {
+        const latestDeployment = await db
+          .selectFrom("deployments")
+          .selectAll()
+          .where("serviceId", "=", service.id)
+          .orderBy("createdAt", "desc")
+          .limit(1)
+          .executeTakeFirst();
+
+        return { ...service, latestDeployment: latestDeployment ?? null };
+      }),
+    );
+  }),
+
   create: os.services.create.handler(async ({ input }) => {
     if (input.deployType === "repo" && !input.repoUrl) {
       throw new ORPCError("BAD_REQUEST", {
@@ -221,6 +243,112 @@ export const services = {
 
     return service;
   }),
+
+  createInEnvironment: os.services.createInEnvironment.handler(
+    async ({ input }) => {
+      if (input.deployType === "repo" && !input.repoUrl) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "repoUrl is required for repo deployments",
+        });
+      }
+      if (input.deployType === "image" && !input.imageUrl) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "imageUrl is required for image deployments",
+        });
+      }
+
+      const environment = await db
+        .selectFrom("environments")
+        .selectAll()
+        .where("id", "=", input.environmentId)
+        .executeTakeFirst();
+
+      if (!environment) {
+        throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+      }
+
+      const project = await db
+        .selectFrom("projects")
+        .select(["id", "name", "hostname"])
+        .where("id", "=", environment.projectId)
+        .executeTakeFirst();
+
+      if (!project) {
+        throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+      }
+
+      const existing = await db
+        .selectFrom("services")
+        .select("id")
+        .where("environmentId", "=", input.environmentId)
+        .where("name", "=", input.name)
+        .executeTakeFirst();
+
+      if (existing) {
+        throw new ORPCError("CONFLICT", {
+          message: "Service with this name already exists in environment",
+        });
+      }
+
+      const id = nanoid();
+      const now = Date.now();
+      const hostname = slugify(input.name);
+
+      await db
+        .insertInto("services")
+        .values({
+          id,
+          environmentId: input.environmentId,
+          name: input.name,
+          hostname,
+          deployType: input.deployType,
+          repoUrl: input.deployType === "repo" ? input.repoUrl! : null,
+          branch: input.deployType === "repo" ? input.branch : null,
+          dockerfilePath:
+            input.deployType === "repo" ? input.dockerfilePath : null,
+          buildContext:
+            input.deployType === "repo" ? (input.buildContext ?? null) : null,
+          imageUrl: input.deployType === "image" ? input.imageUrl! : null,
+          envVars: JSON.stringify(input.envVars),
+          containerPort: input.containerPort ?? null,
+          healthCheckPath: input.healthCheckPath ?? null,
+          healthCheckTimeout: input.healthCheckTimeout ?? null,
+          autoDeploy: input.deployType === "repo",
+          memoryLimit: input.memoryLimit ?? null,
+          cpuLimit: input.cpuLimit ?? null,
+          shutdownTimeout: input.shutdownTimeout ?? null,
+          registryId:
+            input.deployType === "image" ? (input.registryId ?? null) : null,
+          createdAt: now,
+        })
+        .execute();
+
+      const service = await db
+        .selectFrom("services")
+        .selectAll()
+        .where("id", "=", id)
+        .executeTakeFirst();
+
+      if (!service) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: "Failed to create service",
+        });
+      }
+
+      await createWildcardDomain(
+        id,
+        input.environmentId,
+        hostname,
+        project.hostname ?? slugify(project.name),
+      );
+
+      deployService(id).catch((err) => {
+        console.error(`Auto-deploy failed for service ${id}:`, err);
+      });
+
+      return service;
+    },
+  ),
 
   update: os.services.update.handler(async ({ input }) => {
     const service = await db
