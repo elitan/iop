@@ -70,7 +70,10 @@ export async function findProductionServicesForRepo(webhookRepoUrl: string) {
     .innerJoin("environments", "environments.id", "services.environmentId")
     .innerJoin("projects", "projects.id", "environments.projectId")
     .selectAll("services")
-    .select(["projects.id as projectId", "projects.hostname as projectHostname"])
+    .select([
+      "projects.id as projectId",
+      "projects.hostname as projectHostname",
+    ])
     .where("services.deployType", "=", "repo")
     .where("environments.type", "=", "production")
     .execute();
@@ -228,10 +231,11 @@ export async function deletePreviewEnvironment(
     }
   }
 
-  await removeNetwork(
-    `frost-net-${projectId}-${environment.id}`.toLowerCase(),
-  );
-  await db.deleteFrom("environments").where("id", "=", environment.id).execute();
+  await removeNetwork(`frost-net-${projectId}-${environment.id}`.toLowerCase());
+  await db
+    .deleteFrom("environments")
+    .where("id", "=", environment.id)
+    .execute();
 
   return true;
 }

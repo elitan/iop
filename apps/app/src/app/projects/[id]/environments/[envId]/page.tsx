@@ -1,14 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  GitBranch,
-  Github,
-  Package,
-  Play,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { GitBranch, Github, Package, Play, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -54,7 +47,9 @@ export default function EnvironmentDetailPage() {
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">{environment.name}</h2>
           <Badge
-            variant={environment.type === "production" ? "default" : "secondary"}
+            variant={
+              environment.type === "production" ? "default" : "secondary"
+            }
           >
             {environment.type}
           </Badge>

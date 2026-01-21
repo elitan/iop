@@ -66,27 +66,29 @@ export const services = {
     );
   }),
 
-  listByEnvironment: os.services.listByEnvironment.handler(async ({ input }) => {
-    const services = await db
-      .selectFrom("services")
-      .selectAll()
-      .where("environmentId", "=", input.environmentId)
-      .execute();
+  listByEnvironment: os.services.listByEnvironment.handler(
+    async ({ input }) => {
+      const services = await db
+        .selectFrom("services")
+        .selectAll()
+        .where("environmentId", "=", input.environmentId)
+        .execute();
 
-    return Promise.all(
-      services.map(async (service) => {
-        const latestDeployment = await db
-          .selectFrom("deployments")
-          .selectAll()
-          .where("serviceId", "=", service.id)
-          .orderBy("createdAt", "desc")
-          .limit(1)
-          .executeTakeFirst();
+      return Promise.all(
+        services.map(async (service) => {
+          const latestDeployment = await db
+            .selectFrom("deployments")
+            .selectAll()
+            .where("serviceId", "=", service.id)
+            .orderBy("createdAt", "desc")
+            .limit(1)
+            .executeTakeFirst();
 
-        return { ...service, latestDeployment: latestDeployment ?? null };
-      }),
-    );
-  }),
+          return { ...service, latestDeployment: latestDeployment ?? null };
+        }),
+      );
+    },
+  ),
 
   create: os.services.create.handler(async ({ input }) => {
     if (input.deployType === "repo" && !input.repoUrl) {
@@ -336,7 +338,9 @@ export const services = {
       }
 
       const envName =
-        environment.type !== "production" ? slugify(environment.name) : undefined;
+        environment.type !== "production"
+          ? slugify(environment.name)
+          : undefined;
       await createWildcardDomain(
         id,
         input.environmentId,

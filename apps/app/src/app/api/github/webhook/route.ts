@@ -128,7 +128,11 @@ async function handlePullRequest(rawBody: string) {
   const branch = pull_request.head.ref;
   const commitSha = pull_request.head.sha;
 
-  if (action === "opened" || action === "reopened" || action === "synchronize") {
+  if (
+    action === "opened" ||
+    action === "reopened" ||
+    action === "synchronize"
+  ) {
     const productionServices = await findProductionServicesForRepo(
       repository.clone_url,
     );
