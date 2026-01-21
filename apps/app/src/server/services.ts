@@ -335,11 +335,14 @@ export const services = {
         });
       }
 
+      const envName =
+        environment.type !== "production" ? slugify(environment.name) : undefined;
       await createWildcardDomain(
         id,
         input.environmentId,
         hostname,
         project.hostname ?? slugify(project.name),
+        envName,
       );
 
       deployService(id).catch((err) => {

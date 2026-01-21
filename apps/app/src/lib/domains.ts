@@ -144,6 +144,8 @@ export async function backfillWildcardDomains(): Promise<number> {
       "services.environmentId",
       "services.hostname",
       "projects.hostname as projectHostname",
+      "environments.name as environmentName",
+      "environments.type as environmentType",
     ])
     .where("services.serviceType", "!=", "database")
     .where("services.hostname", "is not", null)
@@ -161,9 +163,17 @@ export async function backfillWildcardDomains(): Promise<number> {
     .execute();
 
   let count = 0;
-  for (const { id, environmentId, hostname, projectHostname } of services) {
-    if (!hostname || !projectHostname) continue;
-    await createWildcardDomain(id, environmentId, hostname, projectHostname);
+  for (const row of services) {
+    if (!row.hostname || !row.projectHostname) continue;
+    const envName =
+      row.environmentType !== "production" ? row.environmentName : undefined;
+    await createWildcardDomain(
+      row.id,
+      row.environmentId,
+      row.hostname,
+      row.projectHostname,
+      envName,
+    );
     count++;
   }
 
@@ -175,13 +185,16 @@ export async function createWildcardDomain(
   environmentId: string,
   serviceHostname: string,
   projectHostname: string,
+  environmentName?: string,
 ): Promise<void> {
   if (process.env.NODE_ENV === "development") return;
 
   const wildcardBase = await getSetting("wildcard_domain");
   if (!wildcardBase) return;
 
-  const slug = `${serviceHostname}-${projectHostname}`;
+  const slug = environmentName
+    ? `${serviceHostname}-${environmentName}-${projectHostname}`
+    : `${serviceHostname}-${projectHostname}`;
   let domain: string | null = null;
 
   for (let i = 0; i < 10; i++) {
