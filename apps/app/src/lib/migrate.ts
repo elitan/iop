@@ -150,6 +150,7 @@ function runSchemaUpgrades(sqlite: Database): string[] {
 
   if (!hasEnvironmentsTable) {
     console.log("[migrate] Running schema upgrade: add environments support");
+    sqlite.exec("PRAGMA foreign_keys = OFF");
     sqlite.exec("BEGIN EXCLUSIVE");
     try {
       sqlite.exec(`
@@ -464,10 +465,12 @@ function runSchemaUpgrades(sqlite: Database): string[] {
       }
 
       sqlite.exec("COMMIT");
+      sqlite.exec("PRAGMA foreign_keys = ON");
       upgrades.push("environments");
       console.log("[migrate] Schema upgrade complete: environments support");
     } catch (err) {
       sqlite.exec("ROLLBACK");
+      sqlite.exec("PRAGMA foreign_keys = ON");
       console.error("[migrate] Schema upgrade failed:", err);
       throw err;
     }
