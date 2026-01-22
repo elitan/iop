@@ -197,6 +197,11 @@ if [ "$GIT_MODE" = true ]; then
   log "Pulling updates..."
   git reset --hard origin/main 2>/dev/null || git reset --hard @{u}
 
+  if [ "$CONVERTED_FROM_TARBALL" = true ]; then
+    log "Cleaning old node_modules..."
+    rm -rf node_modules apps/*/node_modules
+  fi
+
   log "Installing dependencies..."
   bun install 2>&1
 

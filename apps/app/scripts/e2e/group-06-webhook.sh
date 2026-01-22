@@ -24,7 +24,7 @@ SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"webhook-test","repoUrl":"https://github.com/test/repo.git"}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 AUTO_DEPLOY=$(json_get "$SERVICE" '.autoDeploy')
-[ "$AUTO_DEPLOY" != "1" ] && fail "autoDeploy should be 1, got: $AUTO_DEPLOY"
+[ "$AUTO_DEPLOY" != "1" ] && [ "$AUTO_DEPLOY" != "true" ] && fail "autoDeploy should be 1/true, got: $AUTO_DEPLOY"
 log "autoDeploy enabled by default"
 
 log "Testing autoDeploy toggle..."
