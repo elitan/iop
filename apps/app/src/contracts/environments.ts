@@ -25,7 +25,17 @@ export const environmentsContract = {
         projectId: z.string(),
         name: z.string().min(1),
         type: z.enum(["manual"]).default("manual"),
-        cloneFromProduction: z.boolean().default(true),
+        cloneFromEnvironmentId: z.string().optional(),
+      }),
+    )
+    .output(environmentsSchema),
+
+  update: oc
+    .route({ method: "PATCH", path: "/environments/{id}" })
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
       }),
     )
     .output(environmentsSchema),

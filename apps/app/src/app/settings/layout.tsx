@@ -19,7 +19,7 @@ export default function SettingsLayout({
   return (
     <>
       <Header>
-        <BreadcrumbHeader items={[{ label: "Settings" }]} />
+        <BreadcrumbHeader pageName="Settings" />
       </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col gap-8 md:flex-row">

@@ -52,10 +52,9 @@ export default function ServiceLayout({
       <>
         <Header>
           <BreadcrumbHeader
-            items={[
-              { label: project?.name ?? "...", href: `/projects/${projectId}` },
-              { label: "..." },
-            ]}
+            projectName={project?.name ?? "..."}
+            projectHref={`/projects/${projectId}`}
+            serviceName="..."
           />
           <div className="border-b border-neutral-800">
             <div className="container mx-auto flex gap-6 px-4">
@@ -77,9 +76,8 @@ export default function ServiceLayout({
       <>
         <Header>
           <BreadcrumbHeader
-            items={[
-              { label: project?.name ?? "...", href: `/projects/${projectId}` },
-            ]}
+            projectName={project?.name ?? "..."}
+            projectHref={`/projects/${projectId}`}
           />
         </Header>
         <main className="container mx-auto px-4 py-8">
@@ -113,10 +111,9 @@ export default function ServiceLayout({
     <>
       <Header>
         <BreadcrumbHeader
-          items={[
-            { label: project?.name ?? "...", href: `/projects/${projectId}` },
-            { label: service.name },
-          ]}
+          projectName={project?.name ?? "..."}
+          projectHref={`/projects/${projectId}`}
+          serviceName={service.name}
           actions={actions}
         />
         <TabNav tabs={tabs} layoutId="service-tabs" />

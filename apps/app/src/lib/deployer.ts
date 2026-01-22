@@ -250,18 +250,20 @@ export async function deployEnvironment(
 }
 
 export async function deployProject(projectId: string): Promise<string[]> {
-  const productionEnv = await db
+  const environments = await db
     .selectFrom("environments")
     .select("id")
     .where("projectId", "=", projectId)
-    .where("type", "=", "production")
-    .executeTakeFirst();
+    .execute();
 
-  if (!productionEnv) {
-    throw new Error("Production environment not found");
+  if (environments.length === 0) {
+    throw new Error("No environments found");
   }
 
-  return deployEnvironment(productionEnv.id);
+  const results = await Promise.all(
+    environments.map((env) => deployEnvironment(env.id)),
+  );
+  return results.flat();
 }
 
 export async function deployService(

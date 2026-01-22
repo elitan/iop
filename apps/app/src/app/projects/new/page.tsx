@@ -66,7 +66,7 @@ export default function NewProjectPage() {
   return (
     <>
       <Header>
-        <BreadcrumbHeader items={[{ label: "New Project" }]} />
+        <BreadcrumbHeader pageName="New Project" />
       </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-lg">

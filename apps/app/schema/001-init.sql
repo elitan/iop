@@ -16,12 +16,14 @@ CREATE TABLE environments (
   type TEXT NOT NULL DEFAULT 'manual' CHECK (type IN ('production', 'preview', 'manual')),
   pr_number INTEGER,
   pr_branch TEXT,
+  pr_comment_id INTEGER,
   is_ephemeral INTEGER DEFAULT 0 CHECK (is_ephemeral IN (0, 1)),
   created_at INTEGER NOT NULL,
   UNIQUE(project_id, name)
 );
 
 CREATE INDEX idx_environments_project_id ON environments(project_id);
+CREATE INDEX idx_environments_branch ON environments(project_id, pr_branch);
 
 -- Services (scoped to environment)
 CREATE TABLE services (

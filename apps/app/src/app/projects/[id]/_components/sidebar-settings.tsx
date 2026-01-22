@@ -233,7 +233,11 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
         )}
 
         {activeTab === "danger" && (
-          <DangerZoneCard serviceId={service.id} projectId={projectId} />
+          <DangerZoneCard
+            serviceId={service.id}
+            projectId={projectId}
+            environmentId={service.environmentId}
+          />
         )}
       </div>
     </div>

@@ -145,9 +145,7 @@ export function getTemplate(id: string): Template | undefined {
 }
 
 export function getServiceTemplates(): Template[] {
-  return loadAllTemplates().filter(
-    (t) => t.type === "database" || t.type === "service",
-  );
+  return loadAllTemplates().filter((t) => t.type === "service");
 }
 
 export function getProjectTemplates(): Template[] {

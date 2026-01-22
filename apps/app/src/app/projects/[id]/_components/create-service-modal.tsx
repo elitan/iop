@@ -55,6 +55,7 @@ type Step = "category" | "repo" | "database" | "image";
 
 interface CreateServiceModalProps {
   projectId: string;
+  environmentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onServiceCreated?: (serviceId: string) => void;
@@ -103,11 +104,12 @@ function matchesSearch(search: string, ...terms: string[]): boolean {
 
 export function CreateServiceModal({
   projectId,
+  environmentId,
   open,
   onOpenChange,
   onServiceCreated,
 }: CreateServiceModalProps): React.ReactElement {
-  const createMutation = useCreateService(projectId);
+  const createMutation = useCreateService(environmentId);
   const [step, setStep] = useState<Step>("category");
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -125,7 +127,7 @@ export function CreateServiceModal({
     queryFn: () => api.serviceTemplates.list(),
   });
 
-  const { data: existingServices } = useServices(projectId);
+  const { data: existingServices } = useServices(environmentId);
 
   const existingServiceNames = (existingServices ?? []).map((s) => s.name);
 

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 interface NavItem {
   id: string;
@@ -9,11 +10,17 @@ interface NavItem {
   href: string;
 }
 
-function getNavItems(projectId: string): NavItem[] {
+function getNavItems(projectId: string, envParam: string): NavItem[] {
   const base = `/projects/${projectId}/settings`;
+  const suffix = envParam ? `?env=${envParam}` : "";
   return [
-    { id: "general", label: "General", href: base },
-    { id: "variables", label: "Variables", href: `${base}/variables` },
+    { id: "general", label: "General", href: `${base}${suffix}` },
+    { id: "variables", label: "Variables", href: `${base}/variables${suffix}` },
+    {
+      id: "environments",
+      label: "Environments",
+      href: `${base}/environments${suffix}`,
+    },
   ];
 }
 
@@ -26,7 +33,9 @@ export function SettingsSidebar({
   projectId,
   activeSection,
 }: SettingsSidebarProps) {
-  const navItems = getNavItems(projectId);
+  const searchParams = useSearchParams();
+  const envParam = searchParams.get("env") ?? "";
+  const navItems = getNavItems(projectId, envParam);
 
   return (
     <nav className="space-y-0.5">
@@ -63,7 +72,9 @@ export function SettingsMobileTabs({
   projectId,
   activeSection,
 }: SettingsSidebarProps) {
-  const navItems = getNavItems(projectId);
+  const searchParams = useSearchParams();
+  const envParam = searchParams.get("env") ?? "";
+  const navItems = getNavItems(projectId, envParam);
 
   return (
     <nav className="flex gap-1 overflow-x-auto pb-4">

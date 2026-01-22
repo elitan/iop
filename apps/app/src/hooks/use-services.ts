@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ContractInputs } from "@/contracts";
 import { orpc } from "@/lib/orpc-client";
 
-export function useServices(projectId: string) {
-  return useQuery(
-    orpc.services.listByProject.queryOptions({ input: { projectId } }),
-  );
+export function useServices(environmentId: string) {
+  return useQuery({
+    ...orpc.services.list.queryOptions({ input: { environmentId } }),
+    enabled: !!environmentId,
+  });
 }
 
 export function useService(id: string) {
@@ -15,24 +16,24 @@ export function useService(id: string) {
   });
 }
 
-export function useCreateService(projectId: string) {
+export function useCreateService(environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (
-      data: Omit<ContractInputs["services"]["create"], "projectId">,
-    ) => orpc.services.create.call({ projectId, ...data }),
+      data: Omit<ContractInputs["services"]["create"], "environmentId">,
+    ) => orpc.services.create.call({ environmentId, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.services.listByProject.key({ input: { projectId } }),
+        queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.projects.get.key({ input: { id: projectId } }),
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
       });
     },
   });
 }
 
-export function useUpdateService(id: string, projectId: string) {
+export function useUpdateService(id: string, environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: Omit<ContractInputs["services"]["update"], "id">) =>
@@ -42,28 +43,28 @@ export function useUpdateService(id: string, projectId: string) {
         queryKey: orpc.services.get.key({ input: { id } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.services.listByProject.key({ input: { projectId } }),
+        queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
     },
   });
 }
 
-export function useDeleteService(projectId: string) {
+export function useDeleteService(environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => orpc.services.delete.call({ id }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.services.listByProject.key({ input: { projectId } }),
+        queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.projects.get.key({ input: { id: projectId } }),
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
       });
     },
   });
 }
 
-export function useDeployService(id: string, projectId: string) {
+export function useDeployService(id: string, environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => orpc.services.deploy.call({ id }),
@@ -72,7 +73,7 @@ export function useDeployService(id: string, projectId: string) {
         queryKey: orpc.services.get.key({ input: { id } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.services.listByProject.key({ input: { projectId } }),
+        queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
     },
   });

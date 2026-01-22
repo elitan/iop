@@ -60,7 +60,7 @@ export function useDeployProject(id: string) {
         queryKey: orpc.projects.get.key({ input: { id } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.services.listByProject.key({ input: { projectId: id } }),
+        queryKey: orpc.environments.list.key({ input: { projectId: id } }),
       });
     },
   });

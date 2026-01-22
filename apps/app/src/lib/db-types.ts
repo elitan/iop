@@ -81,6 +81,7 @@ export interface Environments {
   'type': Generated<'production' | 'preview' | 'manual'>;
   prNumber: number | null;
   prBranch: string | null;
+  prCommentId: number | null;
   isEphemeral: Generated<boolean | null>;
   createdAt: number;
 }

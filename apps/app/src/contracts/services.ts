@@ -19,21 +19,16 @@ export const servicesContract = {
     .input(z.object({ id: z.string() }))
     .output(serviceWithDeploymentSchema),
 
-  listByProject: oc
-    .route({ method: "GET", path: "/projects/{projectId}/services" })
-    .input(z.object({ projectId: z.string() }))
-    .output(z.array(serviceWithDeploymentSchema)),
-
-  listByEnvironment: oc
+  list: oc
     .route({ method: "GET", path: "/environments/{environmentId}/services" })
     .input(z.object({ environmentId: z.string() }))
     .output(z.array(serviceWithDeploymentSchema)),
 
   create: oc
-    .route({ method: "POST", path: "/projects/{projectId}/services" })
+    .route({ method: "POST", path: "/environments/{environmentId}/services" })
     .input(
       z.object({
-        projectId: z.string(),
+        environmentId: z.string(),
         name: z.string().min(1),
         deployType: z.enum(["repo", "image", "database"]).default("repo"),
         repoUrl: z.string().optional(),
@@ -44,33 +39,6 @@ export const servicesContract = {
         envVars: z.array(envVarSchema).default([]),
         containerPort: z.number().min(1).max(65535).optional(),
         templateId: z.string().optional(),
-        healthCheckPath: z.string().optional(),
-        healthCheckTimeout: z.number().optional(),
-        memoryLimit: z
-          .string()
-          .regex(/^\d+[kmg]$/i)
-          .optional(),
-        cpuLimit: z.number().min(0.1).max(64).optional(),
-        shutdownTimeout: z.number().min(1).max(300).optional(),
-        registryId: z.string().optional(),
-      }),
-    )
-    .output(servicesSchema),
-
-  createInEnvironment: oc
-    .route({ method: "POST", path: "/environments/{environmentId}/services" })
-    .input(
-      z.object({
-        environmentId: z.string(),
-        name: z.string().min(1),
-        deployType: z.enum(["repo", "image"]).default("repo"),
-        repoUrl: z.string().optional(),
-        branch: z.string().default("main"),
-        dockerfilePath: z.string().default("Dockerfile"),
-        buildContext: z.string().optional(),
-        imageUrl: z.string().optional(),
-        envVars: z.array(envVarSchema).default([]),
-        containerPort: z.number().min(1).max(65535).optional(),
         healthCheckPath: z.string().optional(),
         healthCheckTimeout: z.number().optional(),
         memoryLimit: z

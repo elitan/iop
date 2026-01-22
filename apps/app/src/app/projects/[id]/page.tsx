@@ -1,163 +1,26 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import type { CanvasPositions } from "@/hooks/use-canvas-positions";
-import { useProject } from "@/hooks/use-projects";
-import { api } from "@/lib/api";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { orpc } from "@/lib/orpc-client";
-import { getPreferredDomain } from "@/lib/service-url";
-import { CanvasView } from "./_components/canvas-view";
-import { ServiceCard } from "./_components/service-card";
-import { ServiceSidebar } from "./_components/service-sidebar";
 
-export default function ProjectServicesPage() {
+export default function ProjectPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const projectId = params.id as string;
 
-  const { data: project } = useProject(projectId);
-  const [isMobile, setIsMobile] = useState(false);
-
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => api.settings.get(),
-  });
-  const serverIp = settings?.serverIp ?? null;
-
-  const serviceIds = useMemo(
-    () => project?.services?.map((s) => s.id) || [],
-    [project?.services],
+  const { data: environments = [] } = useQuery(
+    orpc.environments.list.queryOptions({ input: { projectId } }),
   );
-
-  const { data: allDomains = [] } = useQuery({
-    ...orpc.domains.listByServiceIds.queryOptions({ input: { serviceIds } }),
-    enabled: serviceIds.length > 0,
-  });
-
-  const domains = useMemo(() => {
-    const domainMap: Record<string, string> = {};
-    for (const domain of allDomains) {
-      if (!domainMap[domain.serviceId]) {
-        const serviceDomains = allDomains.filter(
-          (d) => d.serviceId === domain.serviceId,
-        );
-        const preferred = getPreferredDomain(serviceDomains);
-        if (preferred) {
-          domainMap[domain.serviceId] = preferred.domain;
-        }
-      }
-    }
-    return domainMap;
-  }, [allDomains]);
-
-  const selectedServiceId = searchParams.get("service");
 
   useEffect(() => {
-    function checkMobile() {
-      setIsMobile(window.innerWidth < 768);
+    if (environments.length > 0) {
+      const production = environments.find((e) => e.type === "production");
+      const targetEnv = production ?? environments[0];
+      router.replace(`/projects/${projectId}/environments/${targetEnv.id}`);
     }
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  }, [environments, projectId, router]);
 
-  const handleSelectService = useCallback(
-    (serviceId: string | null) => {
-      const url = serviceId
-        ? `/projects/${projectId}?service=${serviceId}`
-        : `/projects/${projectId}`;
-      router.push(url);
-    },
-    [projectId, router],
-  );
-
-  const handleOpenCreateModal = useCallback(() => {
-    router.push(`/projects/${projectId}?create=true`);
-  }, [projectId, router]);
-
-  if (!project) return null;
-
-  const services = project.services || [];
-  const canvasPositions: CanvasPositions = project.canvasPositions
-    ? JSON.parse(project.canvasPositions)
-    : {};
-
-  if (services.length === 0) {
-    if (isMobile) {
-      return (
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardContent className="py-12">
-            <EmptyState
-              title="No services yet"
-              description="Add a service to get started with deployments"
-              action={
-                <Button asChild size="sm">
-                  <Link href={`/projects/${projectId}/services/new`}>
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Add Service
-                  </Link>
-                </Button>
-              }
-            />
-          </CardContent>
-        </Card>
-      );
-    }
-    return (
-      <CanvasView
-        projectId={projectId}
-        services={[]}
-        initialPositions={{}}
-        domains={{}}
-        serverIp={serverIp}
-        selectedServiceId={null}
-        onSelectService={handleSelectService}
-        onOpenCreateModal={handleOpenCreateModal}
-      />
-    );
-  }
-
-  if (isMobile) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {services.map((service) => (
-          <ServiceCard
-            key={service.id}
-            service={service}
-            projectId={projectId}
-            domain={domains[service.id] || null}
-            serverIp={serverIp}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      <CanvasView
-        projectId={projectId}
-        services={services}
-        initialPositions={canvasPositions}
-        domains={domains}
-        serverIp={serverIp}
-        selectedServiceId={selectedServiceId}
-        onSelectService={handleSelectService}
-        onOpenCreateModal={handleOpenCreateModal}
-      />
-      <ServiceSidebar
-        projectId={projectId}
-        serviceId={selectedServiceId}
-        onClose={() => handleSelectService(null)}
-      />
-    </div>
-  );
+  return null;
 }

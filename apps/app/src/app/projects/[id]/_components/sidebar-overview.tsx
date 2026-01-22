@@ -22,6 +22,7 @@ import { useDeployments, useDeployService } from "@/hooks/use-services";
 import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/connection-strings";
+import { getCurrentDeployment } from "@/lib/deployment-utils";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "../services/[serviceId]/_components/service-metrics-card";
@@ -52,8 +53,7 @@ export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
   const preferredDomain = getPreferredDomain(domains);
 
   const { data: deployments = [] } = useDeployments(service.id);
-  const currentDeployment =
-    deployments.find((d) => d.id === service.currentDeploymentId) ?? null;
+  const currentDeployment = getCurrentDeployment(service, deployments);
 
   const { data: tcpProxy } = useQuery({
     queryKey: ["tcp-proxy", service.id],

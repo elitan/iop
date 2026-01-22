@@ -16,17 +16,32 @@ interface TabNavProps {
   actions?: React.ReactNode;
 }
 
+export function getPathFromHref(href: string): string {
+  const queryIndex = href.indexOf("?");
+  return queryIndex === -1 ? href : href.slice(0, queryIndex);
+}
+
+export function isTabActive(
+  pathname: string,
+  tabPath: string,
+  firstTabPath: string,
+): boolean {
+  if (pathname === tabPath) return true;
+  if (tabPath === firstTabPath) return false;
+  return pathname.startsWith(tabPath);
+}
+
 export function TabNav({ tabs, layoutId, actions }: TabNavProps) {
   const pathname = usePathname();
+  const firstTabPath = getPathFromHref(tabs[0].href);
 
   return (
     <nav className="border-b border-neutral-800">
       <div className="container mx-auto flex gap-6 px-4">
         <div className="flex flex-1 gap-6">
           {tabs.map((tab) => {
-            const isActive =
-              pathname === tab.href ||
-              (tab.href !== tabs[0].href && pathname.startsWith(tab.href));
+            const tabPath = getPathFromHref(tab.href);
+            const isActive = isTabActive(pathname, tabPath, firstTabPath);
 
             return (
               <Link

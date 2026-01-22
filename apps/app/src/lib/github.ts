@@ -385,8 +385,9 @@ export function buildManifest(domain: string): object {
       contents: "read",
       metadata: "read",
       statuses: "write",
+      pull_requests: "write",
     },
-    default_events: ["push"],
+    default_events: ["push", "pull_request", "delete"],
   };
 }
 
@@ -488,4 +489,121 @@ export async function listInstallationRepos(): Promise<{
     owners: Array.from(ownerMap.values()),
     repos,
   };
+}
+
+export async function createPRComment(
+  repoUrl: string,
+  prNumber: number,
+  body: string,
+): Promise<number> {
+  const parsed = parseOwnerRepoFromUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/issues/${prNumber}/comments`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body }),
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to create PR comment: ${error}`);
+  }
+
+  const data = await res.json();
+  return data.id;
+}
+
+export async function updatePRComment(
+  repoUrl: string,
+  commentId: number,
+  body: string,
+): Promise<void> {
+  const parsed = parseOwnerRepoFromUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body }),
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to update PR comment: ${error}`);
+  }
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  state: "open" | "closed";
+  head: {
+    ref: string;
+    sha: string;
+  };
+}
+
+export async function findOpenPRsForBranch(
+  repoUrl: string,
+  branch: string,
+): Promise<GitHubPullRequest[]> {
+  const parsed = parseOwnerRepoFromUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/pulls?state=open&head=${owner}:${branch}`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to find PRs for branch: ${error}`);
+  }
+
+  const data = await res.json();
+  return data.map((pr: any) => ({
+    number: pr.number,
+    state: pr.state,
+    head: {
+      ref: pr.head.ref,
+      sha: pr.head.sha,
+    },
+  }));
 }

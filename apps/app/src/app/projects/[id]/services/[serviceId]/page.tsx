@@ -25,6 +25,7 @@ import {
 import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import { buildConnectionString } from "@/lib/connection-strings";
+import { getCurrentDeployment } from "@/lib/deployment-utils";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 import { ServiceMetricsCard } from "./_components/service-metrics-card";
@@ -147,8 +148,8 @@ export default function ServiceOverviewPage() {
   const preferredDomain = getPreferredDomain(domains);
 
   const { data: deployments = [] } = useDeployments(serviceId);
-  const currentDeployment = service?.currentDeploymentId
-    ? (deployments.find((d) => d.id === service.currentDeploymentId) ?? null)
+  const currentDeployment = service
+    ? getCurrentDeployment(service, deployments)
     : null;
 
   const { data: tcpProxy } = useQuery({

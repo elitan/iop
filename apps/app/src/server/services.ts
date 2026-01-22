@@ -25,38 +25,15 @@ export const services = {
     return addLatestDeployment(service);
   }),
 
-  listByProject: os.services.listByProject.handler(async ({ input }) => {
-    const productionEnv = await db
-      .selectFrom("environments")
-      .select("id")
-      .where("projectId", "=", input.projectId)
-      .where("type", "=", "production")
-      .executeTakeFirst();
-
-    if (!productionEnv) {
-      return [];
-    }
-
+  list: os.services.list.handler(async ({ input }) => {
     const services = await db
       .selectFrom("services")
       .selectAll()
-      .where("environmentId", "=", productionEnv.id)
+      .where("environmentId", "=", input.environmentId)
       .execute();
 
     return addLatestDeployments(services);
   }),
-
-  listByEnvironment: os.services.listByEnvironment.handler(
-    async ({ input }) => {
-      const services = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("environmentId", "=", input.environmentId)
-        .execute();
-
-      return addLatestDeployments(services);
-    },
-  ),
 
   create: os.services.create.handler(async ({ input }) => {
     if (input.deployType === "repo" && !input.repoUrl) {
@@ -83,39 +60,36 @@ export const services = {
       }
     }
 
+    const environment = await db
+      .selectFrom("environments")
+      .selectAll()
+      .where("id", "=", input.environmentId)
+      .executeTakeFirst();
+
+    if (!environment) {
+      throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+    }
+
     const project = await db
       .selectFrom("projects")
       .select(["id", "name", "hostname"])
-      .where("id", "=", input.projectId)
+      .where("id", "=", environment.projectId)
       .executeTakeFirst();
 
     if (!project) {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
-    const productionEnv = await db
-      .selectFrom("environments")
-      .select("id")
-      .where("projectId", "=", input.projectId)
-      .where("type", "=", "production")
-      .executeTakeFirst();
-
-    if (!productionEnv) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: "Production environment not found",
-      });
-    }
-
     const existing = await db
       .selectFrom("services")
       .select("id")
-      .where("environmentId", "=", productionEnv.id)
+      .where("environmentId", "=", input.environmentId)
       .where("name", "=", input.name)
       .executeTakeFirst();
 
     if (existing) {
       throw new ORPCError("CONFLICT", {
-        message: "Service with this name already exists in project",
+        message: "Service with this name already exists in environment",
       });
     }
 
@@ -132,7 +106,7 @@ export const services = {
         .insertInto("services")
         .values({
           id,
-          environmentId: productionEnv.id,
+          environmentId: input.environmentId,
           name: input.name,
           hostname,
           deployType: "image",
@@ -160,7 +134,7 @@ export const services = {
         .insertInto("services")
         .values({
           id,
-          environmentId: productionEnv.id,
+          environmentId: input.environmentId,
           name: input.name,
           hostname,
           deployType: input.deployType,
@@ -199,112 +173,6 @@ export const services = {
     }
 
     if (input.deployType !== "database") {
-      await createWildcardDomain(
-        id,
-        productionEnv.id,
-        hostname,
-        project.hostname ?? slugify(project.name),
-      );
-    }
-
-    deployService(id).catch((err) => {
-      console.error(`Auto-deploy failed for service ${id}:`, err);
-    });
-
-    return service;
-  }),
-
-  createInEnvironment: os.services.createInEnvironment.handler(
-    async ({ input }) => {
-      if (input.deployType === "repo" && !input.repoUrl) {
-        throw new ORPCError("BAD_REQUEST", {
-          message: "repoUrl is required for repo deployments",
-        });
-      }
-      if (input.deployType === "image" && !input.imageUrl) {
-        throw new ORPCError("BAD_REQUEST", {
-          message: "imageUrl is required for image deployments",
-        });
-      }
-
-      const environment = await db
-        .selectFrom("environments")
-        .selectAll()
-        .where("id", "=", input.environmentId)
-        .executeTakeFirst();
-
-      if (!environment) {
-        throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
-      }
-
-      const project = await db
-        .selectFrom("projects")
-        .select(["id", "name", "hostname"])
-        .where("id", "=", environment.projectId)
-        .executeTakeFirst();
-
-      if (!project) {
-        throw new ORPCError("NOT_FOUND", { message: "Project not found" });
-      }
-
-      const existing = await db
-        .selectFrom("services")
-        .select("id")
-        .where("environmentId", "=", input.environmentId)
-        .where("name", "=", input.name)
-        .executeTakeFirst();
-
-      if (existing) {
-        throw new ORPCError("CONFLICT", {
-          message: "Service with this name already exists in environment",
-        });
-      }
-
-      const id = nanoid();
-      const now = Date.now();
-      const hostname = slugify(input.name);
-
-      await db
-        .insertInto("services")
-        .values({
-          id,
-          environmentId: input.environmentId,
-          name: input.name,
-          hostname,
-          deployType: input.deployType,
-          repoUrl: input.deployType === "repo" ? input.repoUrl! : null,
-          branch: input.deployType === "repo" ? input.branch : null,
-          dockerfilePath:
-            input.deployType === "repo" ? input.dockerfilePath : null,
-          buildContext:
-            input.deployType === "repo" ? (input.buildContext ?? null) : null,
-          imageUrl: input.deployType === "image" ? input.imageUrl! : null,
-          envVars: JSON.stringify(input.envVars),
-          containerPort: input.containerPort ?? null,
-          healthCheckPath: input.healthCheckPath ?? null,
-          healthCheckTimeout: input.healthCheckTimeout ?? null,
-          autoDeploy: input.deployType === "repo",
-          memoryLimit: input.memoryLimit ?? null,
-          cpuLimit: input.cpuLimit ?? null,
-          shutdownTimeout: input.shutdownTimeout ?? null,
-          registryId:
-            input.deployType === "image" ? (input.registryId ?? null) : null,
-          createdAt: now,
-        })
-        .execute();
-
-      const service = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("id", "=", id)
-        .executeTakeFirst();
-
-      if (!service) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message: "Failed to create service",
-        });
-      }
-
       const envName =
         environment.type !== "production"
           ? slugify(environment.name)
@@ -316,14 +184,14 @@ export const services = {
         project.hostname ?? slugify(project.name),
         envName,
       );
+    }
 
-      deployService(id).catch((err) => {
-        console.error(`Auto-deploy failed for service ${id}:`, err);
-      });
+    deployService(id).catch((err) => {
+      console.error(`Auto-deploy failed for service ${id}:`, err);
+    });
 
-      return service;
-    },
-  ),
+    return service;
+  }),
 
   update: os.services.update.handler(async ({ input }) => {
     const service = await db

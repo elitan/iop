@@ -11,7 +11,7 @@ export default function DocsLayout({
   return (
     <>
       <Header>
-        <BreadcrumbHeader items={[{ label: "Docs" }]} />
+        <BreadcrumbHeader pageName="Docs" />
       </Header>
       <div className="container mx-auto px-4">
         <div className="flex gap-8 py-8">

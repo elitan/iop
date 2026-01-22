@@ -74,7 +74,7 @@ export default function Home() {
   return (
     <>
       <Header>
-        <BreadcrumbHeader items={[]} />
+        <BreadcrumbHeader />
       </Header>
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex items-center gap-4">

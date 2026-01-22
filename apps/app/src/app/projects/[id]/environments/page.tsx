@@ -105,6 +105,8 @@ export default function EnvironmentsPage() {
 
       <CreateEnvironmentDialog
         projectId={projectId}
+        environments={environments}
+        currentEnvId={production?.id ?? environments[0]?.id ?? ""}
         open={createOpen}
         onOpenChange={setCreateOpen}
       />

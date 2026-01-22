@@ -90,25 +90,27 @@ export const environments = {
       })
       .execute();
 
-    if (input.cloneFromProduction) {
-      const productionEnv = await db
+    let shouldDeploy = false;
+
+    if (input.cloneFromEnvironmentId) {
+      const sourceEnv = await db
         .selectFrom("environments")
         .select("id")
+        .where("id", "=", input.cloneFromEnvironmentId)
         .where("projectId", "=", input.projectId)
-        .where("type", "=", "production")
         .executeTakeFirst();
 
-      if (productionEnv) {
-        const productionServices = await db
+      if (sourceEnv) {
+        const sourceServices = await db
           .selectFrom("services")
           .selectAll()
-          .where("environmentId", "=", productionEnv.id)
+          .where("environmentId", "=", sourceEnv.id)
           .execute();
 
         const projectHostname = project.hostname ?? slugify(project.name);
         const envName = slugify(input.name);
 
-        for (const service of productionServices) {
+        for (const service of sourceServices) {
           const serviceId = nanoid();
           const hostname = service.hostname ?? slugify(service.name);
 
@@ -120,6 +122,7 @@ export const environments = {
               name: service.name,
               hostname,
               deployType: service.deployType,
+              serviceType: service.serviceType,
               repoUrl: service.repoUrl,
               branch: service.branch,
               dockerfilePath: service.dockerfilePath,
@@ -134,6 +137,7 @@ export const environments = {
               shutdownTimeout: service.shutdownTimeout,
               registryId: service.registryId,
               command: service.command,
+              volumes: service.volumes,
               autoDeploy: false,
               createdAt: now,
             })
@@ -146,6 +150,10 @@ export const environments = {
             projectHostname,
             envName,
           );
+        }
+
+        if (sourceServices.length > 0) {
+          shouldDeploy = true;
         }
       }
     }
@@ -162,7 +170,61 @@ export const environments = {
       });
     }
 
+    if (shouldDeploy) {
+      deployEnvironment(id).catch(console.error);
+    }
+
     return environment;
+  }),
+
+  update: os.environments.update.handler(async ({ input }) => {
+    const environment = await db
+      .selectFrom("environments")
+      .selectAll()
+      .where("id", "=", input.id)
+      .executeTakeFirst();
+
+    if (!environment) {
+      throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+    }
+
+    if (input.name && input.name !== environment.name) {
+      const existing = await db
+        .selectFrom("environments")
+        .select("id")
+        .where("projectId", "=", environment.projectId)
+        .where("name", "=", input.name)
+        .where("id", "!=", input.id)
+        .executeTakeFirst();
+
+      if (existing) {
+        throw new ORPCError("CONFLICT", {
+          message: "Environment with this name already exists",
+        });
+      }
+    }
+
+    await db
+      .updateTable("environments")
+      .set({
+        name: input.name ?? environment.name,
+      })
+      .where("id", "=", input.id)
+      .execute();
+
+    const updated = await db
+      .selectFrom("environments")
+      .selectAll()
+      .where("id", "=", input.id)
+      .executeTakeFirst();
+
+    if (!updated) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Failed to update environment",
+      });
+    }
+
+    return updated;
   }),
 
   delete: os.environments.delete.handler(async ({ input }) => {

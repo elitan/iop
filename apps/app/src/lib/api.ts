@@ -13,7 +13,7 @@ export type ProjectLatestDeployment = NonNullable<
 export type CreateProjectInput = ContractInputs["projects"]["create"];
 export type CreateServiceInput = Omit<
   ContractInputs["services"]["create"],
-  "projectId"
+  "environmentId"
 >;
 
 export interface EnvVar {

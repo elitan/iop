@@ -134,6 +134,7 @@ export async function cloneServiceToEnvironment(
     name: string;
     hostname: string | null;
     deployType: "repo" | "image";
+    serviceType: "app" | "database";
     repoUrl: string | null;
     branch: string | null;
     dockerfilePath: string | null;
@@ -148,6 +149,7 @@ export async function cloneServiceToEnvironment(
     shutdownTimeout: number | null;
     registryId: string | null;
     command: string | null;
+    volumes: string | null;
   },
   input: CloneServiceInput,
 ): Promise<string> {
@@ -174,6 +176,7 @@ export async function cloneServiceToEnvironment(
       name: sourceService.name,
       hostname,
       deployType: sourceService.deployType,
+      serviceType: sourceService.serviceType,
       repoUrl: sourceService.repoUrl,
       branch: input.targetBranch,
       dockerfilePath: sourceService.dockerfilePath,
@@ -188,6 +191,7 @@ export async function cloneServiceToEnvironment(
       shutdownTimeout: sourceService.shutdownTimeout,
       registryId: sourceService.registryId,
       command: sourceService.command,
+      volumes: sourceService.volumes,
       autoDeploy: true,
       createdAt: now,
     })
@@ -246,4 +250,161 @@ export async function deletePreviewEnvironment(
 
   await cleanupEnvironment(environment);
   return true;
+}
+
+export async function findBranchEnvironment(projectId: string, branch: string) {
+  return db
+    .selectFrom("environments")
+    .selectAll()
+    .where("projectId", "=", projectId)
+    .where("prBranch", "=", branch)
+    .executeTakeFirst();
+}
+
+export async function createBranchEnvironment(
+  projectId: string,
+  branch: string,
+): Promise<string> {
+  const existing = await findBranchEnvironment(projectId, branch);
+  if (existing) {
+    return existing.id;
+  }
+
+  const id = nanoid();
+  const now = Date.now();
+  const safeBranch = slugify(branch);
+  const name = `branch-${safeBranch}`;
+
+  await db
+    .insertInto("environments")
+    .values({
+      id,
+      projectId,
+      name,
+      type: "preview",
+      prBranch: branch,
+      isEphemeral: true,
+      createdAt: now,
+    })
+    .execute();
+
+  return id;
+}
+
+export async function deleteBranchEnvironment(
+  projectId: string,
+  branch: string,
+): Promise<boolean> {
+  const environment = await db
+    .selectFrom("environments")
+    .select(["id", "projectId"])
+    .where("projectId", "=", projectId)
+    .where("prBranch", "=", branch)
+    .executeTakeFirst();
+
+  if (!environment) {
+    return false;
+  }
+
+  await cleanupEnvironment(environment);
+  return true;
+}
+
+export async function updateEnvironmentPRCommentId(
+  environmentId: string,
+  commentId: number,
+): Promise<void> {
+  await db
+    .updateTable("environments")
+    .set({ prCommentId: commentId })
+    .where("id", "=", environmentId)
+    .execute();
+}
+
+export interface ServiceDeployStatus {
+  name: string;
+  hostname: string;
+  status: string;
+  url: string | null;
+}
+
+export function buildPRCommentBody(
+  services: ServiceDeployStatus[],
+  branch: string,
+  commitSha: string,
+): string {
+  const rows = services
+    .map((s) => {
+      const statusEmoji =
+        s.status === "running" ? "✅" : s.status === "failed" ? "❌" : "🔄";
+      const url = s.url ? `[${s.hostname}](${s.url})` : "-";
+      return `| ${s.name} | ${statusEmoji} ${s.status} | ${url} |`;
+    })
+    .join("\n");
+
+  const now = new Date().toISOString().replace("T", " ").substring(0, 16);
+
+  return `## Frost Preview
+
+| Service | Status | URL |
+|---------|--------|-----|
+${rows}
+
+**Branch:** \`${branch}\`
+**Commit:** ${commitSha.substring(0, 7)}
+
+---
+*Updated: ${now} UTC*`;
+}
+
+export async function getEnvironmentServiceStatuses(
+  environmentId: string,
+  projectId: string,
+): Promise<ServiceDeployStatus[]> {
+  const services = await db
+    .selectFrom("services")
+    .select(["id", "name", "hostname"])
+    .where("environmentId", "=", environmentId)
+    .execute();
+
+  const project = await db
+    .selectFrom("projects")
+    .select("hostname")
+    .where("id", "=", projectId)
+    .executeTakeFirst();
+
+  const env = await db
+    .selectFrom("environments")
+    .select("name")
+    .where("id", "=", environmentId)
+    .executeTakeFirst();
+
+  const statuses: ServiceDeployStatus[] = [];
+
+  for (const service of services) {
+    const deployment = await db
+      .selectFrom("deployments")
+      .select("status")
+      .where("serviceId", "=", service.id)
+      .orderBy("createdAt", "desc")
+      .executeTakeFirst();
+
+    const hostname = service.hostname ?? slugify(service.name);
+    const projectHostname = project?.hostname ?? slugify(projectId);
+    const envName = env?.name ?? "";
+
+    let url: string | null = null;
+    if (deployment?.status === "running") {
+      url = `https://${hostname}.${envName}.${projectHostname}`;
+    }
+
+    statuses.push({
+      name: service.name,
+      hostname,
+      status: deployment?.status ?? "pending",
+      url,
+    });
+  }
+
+  return statuses;
 }

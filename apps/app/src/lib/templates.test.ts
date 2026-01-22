@@ -57,10 +57,10 @@ describe("getTemplate", () => {
 });
 
 describe("getServiceTemplates", () => {
-  it("returns only database and service templates", () => {
+  it("returns only service templates (not databases)", () => {
     const templates = getServiceTemplates();
     for (const t of templates) {
-      expect(["database", "service"]).toContain(t.type);
+      expect(t.type).toBe("service");
     }
   });
 });
