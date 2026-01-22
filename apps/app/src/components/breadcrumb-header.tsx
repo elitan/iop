@@ -1,16 +1,37 @@
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { FrostLogo } from "./frost-logo";
 import { HeaderNav } from "./header-nav";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface BreadcrumbItem {
   label: string;
   href?: string;
 }
 
+interface DropdownItem {
+  type: "dropdown";
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (value: string) => void;
+}
+
+type BreadcrumbEntry = BreadcrumbItem | DropdownItem;
+
 interface BreadcrumbHeaderProps {
-  items: BreadcrumbItem[];
+  items: BreadcrumbEntry[];
   actions?: ReactNode;
+}
+
+function isDropdownItem(item: BreadcrumbEntry): item is DropdownItem {
+  return "type" in item && item.type === "dropdown";
 }
 
 export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
@@ -23,13 +44,27 @@ export function BreadcrumbHeader({ items, actions }: BreadcrumbHeaderProps) {
         >
           <FrostLogo />
         </Link>
-        {items.map((item) => (
+        {items.map((item, index) => (
           <div
-            key={item.href ?? item.label}
+            key={isDropdownItem(item) ? item.value : item.label}
             className="flex items-center gap-2.5"
           >
             <span className="text-neutral-600">/</span>
-            {item.href ? (
+            {isDropdownItem(item) ? (
+              <Select value={item.value} onValueChange={item.onChange}>
+                <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-sm text-neutral-100 shadow-none focus:ring-0">
+                  <SelectValue />
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </SelectTrigger>
+                <SelectContent>
+                  {item.options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : item.href ? (
               <Link
                 href={item.href}
                 className="text-sm text-neutral-400 transition-colors hover:text-neutral-100"

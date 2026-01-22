@@ -56,7 +56,7 @@ export function CreateEnvironmentDialog({
           <DialogHeader>
             <DialogTitle>Create Environment</DialogTitle>
             <DialogDescription>
-              Create a new environment for staging or testing.
+              Create a new environment with a copy of your production services.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

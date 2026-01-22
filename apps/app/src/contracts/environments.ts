@@ -1,14 +1,7 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import {
-  deploymentsSchema,
-  environmentsSchema,
-  servicesSchema,
-} from "@/lib/db-schemas";
-
-const serviceWithDeploymentSchema = servicesSchema.extend({
-  latestDeployment: deploymentsSchema.nullable(),
-});
+import { environmentsSchema } from "@/lib/db-schemas";
+import { serviceWithDeploymentSchema } from "./shared";
 
 const environmentWithServicesSchema = environmentsSchema.extend({
   services: z.array(serviceWithDeploymentSchema),
@@ -32,6 +25,7 @@ export const environmentsContract = {
         projectId: z.string(),
         name: z.string().min(1),
         type: z.enum(["manual"]).default("manual"),
+        cloneFromProduction: z.boolean().default(true),
       }),
     )
     .output(environmentsSchema),

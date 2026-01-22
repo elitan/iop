@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import {
   useParams,
@@ -7,13 +8,14 @@ import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { Header } from "@/components/header";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProject } from "@/hooks/use-projects";
+import { orpc } from "@/lib/orpc-client";
 import { cn } from "@/lib/utils";
 import { CreateServiceModal } from "./_components/create-service-modal";
 
@@ -36,6 +38,34 @@ export default function ProjectLayout({
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data: project, isLoading } = useProject(projectId);
+
+  const { data: environments = [] } = useQuery(
+    orpc.environments.list.queryOptions({ input: { projectId } }),
+  );
+
+  const currentEnvId = useMemo(() => {
+    if (params.envId) return params.envId as string;
+    const production = environments.find((e) => e.type === "production");
+    return production?.id ?? "";
+  }, [params.envId, environments]);
+
+  const envOptions = useMemo(
+    () =>
+      environments.map((env) => ({
+        label: env.name,
+        value: env.id,
+      })),
+    [environments],
+  );
+
+  function handleEnvChange(envId: string) {
+    const env = environments.find((e) => e.id === envId);
+    if (env?.type === "production") {
+      router.push(`/projects/${projectId}`);
+    } else {
+      router.push(`/projects/${projectId}/environments/${envId}`);
+    }
+  }
 
   useEffect(() => {
     if (searchParams.get("create") === "true") {
@@ -98,10 +128,24 @@ export default function ProjectLayout({
     </Button>
   );
 
+  const breadcrumbItems = [
+    { label: project.name },
+    ...(envOptions.length > 0
+      ? [
+          {
+            type: "dropdown" as const,
+            value: currentEnvId,
+            options: envOptions,
+            onChange: handleEnvChange,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
       <Header>
-        <BreadcrumbHeader items={[{ label: project.name }]} />
+        <BreadcrumbHeader items={breadcrumbItems} />
         <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />
       </Header>
       <main

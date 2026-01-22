@@ -1,11 +1,11 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { deploymentsSchema, servicesSchema } from "@/lib/db-schemas";
-import { envVarSchema, volumeConfigSchema } from "./shared";
-
-const serviceWithDeploymentSchema = servicesSchema.extend({
-  latestDeployment: deploymentsSchema.nullable(),
-});
+import {
+  envVarSchema,
+  serviceWithDeploymentSchema,
+  volumeConfigSchema,
+} from "./shared";
 
 const volumeInfoSchema = z.object({
   name: z.string(),

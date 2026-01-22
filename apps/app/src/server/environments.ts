@@ -2,6 +2,8 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
+import { createWildcardDomain } from "@/lib/domains";
+import { slugify } from "@/lib/slugify";
 import { cleanupEnvironment } from "@/lib/webhook";
 import { os } from "./orpc";
 
@@ -52,7 +54,7 @@ export const environments = {
   create: os.environments.create.handler(async ({ input }) => {
     const project = await db
       .selectFrom("projects")
-      .select("id")
+      .select(["id", "hostname", "name"])
       .where("id", "=", input.projectId)
       .executeTakeFirst();
 
@@ -87,6 +89,66 @@ export const environments = {
         createdAt: now,
       })
       .execute();
+
+    if (input.cloneFromProduction) {
+      const productionEnv = await db
+        .selectFrom("environments")
+        .select("id")
+        .where("projectId", "=", input.projectId)
+        .where("type", "=", "production")
+        .executeTakeFirst();
+
+      if (productionEnv) {
+        const productionServices = await db
+          .selectFrom("services")
+          .selectAll()
+          .where("environmentId", "=", productionEnv.id)
+          .execute();
+
+        const projectHostname = project.hostname ?? slugify(project.name);
+        const envName = slugify(input.name);
+
+        for (const service of productionServices) {
+          const serviceId = nanoid();
+          const hostname = service.hostname ?? slugify(service.name);
+
+          await db
+            .insertInto("services")
+            .values({
+              id: serviceId,
+              environmentId: id,
+              name: service.name,
+              hostname,
+              deployType: service.deployType,
+              repoUrl: service.repoUrl,
+              branch: service.branch,
+              dockerfilePath: service.dockerfilePath,
+              buildContext: service.buildContext,
+              imageUrl: service.imageUrl,
+              envVars: service.envVars,
+              containerPort: service.containerPort,
+              healthCheckPath: service.healthCheckPath,
+              healthCheckTimeout: service.healthCheckTimeout,
+              memoryLimit: service.memoryLimit,
+              cpuLimit: service.cpuLimit,
+              shutdownTimeout: service.shutdownTimeout,
+              registryId: service.registryId,
+              command: service.command,
+              autoDeploy: false,
+              createdAt: now,
+            })
+            .execute();
+
+          await createWildcardDomain(
+            serviceId,
+            id,
+            hostname,
+            projectHostname,
+            envName,
+          );
+        }
+      }
+    }
 
     const environment = await db
       .selectFrom("environments")

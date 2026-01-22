@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
-import { db } from "@/lib/db";
+import { addLatestDeployment, addLatestDeployments, db } from "@/lib/db";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
 import { createWildcardDomain, syncCaddyConfig } from "@/lib/domains";
@@ -22,15 +22,7 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
 
-    const latestDeployment = await db
-      .selectFrom("deployments")
-      .selectAll()
-      .where("serviceId", "=", input.id)
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .executeTakeFirst();
-
-    return { ...service, latestDeployment: latestDeployment ?? null };
+    return addLatestDeployment(service);
   }),
 
   listByProject: os.services.listByProject.handler(async ({ input }) => {
@@ -51,19 +43,7 @@ export const services = {
       .where("environmentId", "=", productionEnv.id)
       .execute();
 
-    return Promise.all(
-      services.map(async (service) => {
-        const latestDeployment = await db
-          .selectFrom("deployments")
-          .selectAll()
-          .where("serviceId", "=", service.id)
-          .orderBy("createdAt", "desc")
-          .limit(1)
-          .executeTakeFirst();
-
-        return { ...service, latestDeployment: latestDeployment ?? null };
-      }),
-    );
+    return addLatestDeployments(services);
   }),
 
   listByEnvironment: os.services.listByEnvironment.handler(
@@ -74,19 +54,7 @@ export const services = {
         .where("environmentId", "=", input.environmentId)
         .execute();
 
-      return Promise.all(
-        services.map(async (service) => {
-          const latestDeployment = await db
-            .selectFrom("deployments")
-            .selectAll()
-            .where("serviceId", "=", service.id)
-            .orderBy("createdAt", "desc")
-            .limit(1)
-            .executeTakeFirst();
-
-          return { ...service, latestDeployment: latestDeployment ?? null };
-        }),
-      );
+      return addLatestDeployments(services);
     },
   ),
 
