@@ -97,6 +97,7 @@ function CanvasViewInner({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasMovedRef = useRef(false);
   const ignoreMoveRef = useRef(false);
+  const paneClickRef = useRef(false);
   const prevSelectedRef = useRef<string | null>(null);
 
   const [nodes, setNodes] = useState<ServiceNodeType[]>([]);
@@ -231,12 +232,18 @@ function CanvasViewInner({
       ignoreMoveRef.current = false;
       return;
     }
+    if (paneClickRef.current) {
+      paneClickRef.current = false;
+      return;
+    }
     if (selectedServiceId) {
       canvasMovedRef.current = true;
     }
   }
 
   function onPaneClick(): void {
+    paneClickRef.current = true;
+    canvasMovedRef.current = false;
     onSelectService(null);
     setContextMenu(null);
   }
