@@ -31,7 +31,7 @@ log "Testing autoDeploy toggle..."
 api -X PATCH "$BASE_URL/api/services/$SERVICE_ID" -d '{"autoDeployEnabled":false}' > /dev/null
 SERVICE_UPDATED=$(api "$BASE_URL/api/services/$SERVICE_ID")
 AUTO_DEPLOY_OFF=$(json_get "$SERVICE_UPDATED" '.autoDeploy')
-[ "$AUTO_DEPLOY_OFF" != "0" ] && fail "autoDeploy should be 0, got: $AUTO_DEPLOY_OFF"
+[ "$AUTO_DEPLOY_OFF" != "0" ] && [ "$AUTO_DEPLOY_OFF" != "false" ] && fail "autoDeploy should be 0/false, got: $AUTO_DEPLOY_OFF"
 log "autoDeploy toggle works"
 
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null

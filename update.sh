@@ -137,6 +137,7 @@ fi
 # Detect mode: git-based (dev/CI) or tarball (production)
 # A valid git repo has .git AND a valid HEAD commit
 GIT_MODE=false
+CONVERTED_FROM_TARBALL=false
 if [ -d "$FROST_DIR/.git" ]; then
   git config --global --add safe.directory "$FROST_DIR" 2>/dev/null || true
   if git rev-parse HEAD >/dev/null 2>&1; then
@@ -148,6 +149,7 @@ if [ -d "$FROST_DIR/.git" ]; then
       log "Converting tarball install to git mode..."
       git checkout -f origin/main 2>/dev/null || git reset --hard origin/main
       GIT_MODE=true
+      CONVERTED_FROM_TARBALL=true
     fi
   fi
 fi
@@ -168,7 +170,7 @@ if [ "$GIT_MODE" = true ]; then
   LOCAL=$(git rev-parse HEAD)
   REMOTE=$(git rev-parse @{u} 2>/dev/null || git rev-parse origin/main)
 
-  if [ "$LOCAL" = "$REMOTE" ]; then
+  if [ "$LOCAL" = "$REMOTE" ] && [ "$CONVERTED_FROM_TARBALL" = false ]; then
     log "Already up to date (v$CURRENT_VERSION)"
     if [ "$PRE_START" = false ]; then
       systemctl start frost 2>/dev/null || true
@@ -176,7 +178,11 @@ if [ "$GIT_MODE" = true ]; then
     exit 0
   fi
 
-  log "Updates available"
+  if [ "$CONVERTED_FROM_TARBALL" = true ]; then
+    log "Running rebuild for tarball-to-git conversion..."
+  else
+    log "Updates available"
+  fi
 
   if [ "$PRE_START" = false ]; then
     log "Stopping Frost..."

@@ -34,7 +34,7 @@ IMAGE_NAME=$(json_get "$DEPLOY_B_DATA" '.imageName')
 ROLLBACK_ELIGIBLE=$(json_get "$DEPLOY_B_DATA" '.rollbackEligible')
 
 [ "$IMAGE_NAME" = "null" ] || [ -z "$IMAGE_NAME" ] && fail "Deployment should have imageName. Data: $DEPLOY_B_DATA"
-[ "$ROLLBACK_ELIGIBLE" != "1" ] && fail "Deployment should be rollback-eligible"
+[ "$ROLLBACK_ELIGIBLE" != "1" ] && [ "$ROLLBACK_ELIGIBLE" != "true" ] && fail "Deployment should be rollback-eligible"
 log "Deployment has snapshot data"
 
 log "Rolling back to first deployment..."
