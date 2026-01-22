@@ -16,6 +16,8 @@ for i in $(seq 1 $NUM_SERVICES); do
   PROJECT_ID=$(require_field "$PROJECT" '.id' "create project $i") || fail "Failed to create project $i: $PROJECT"
   PROJECT_IDS+=("$PROJECT_ID")
 
+  ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment for project $i"
+
   SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
     -d "{\"name\":\"svc-$i\",\"deployType\":\"image\",\"imageUrl\":\"nginx:alpine\",\"containerPort\":80}")
   SERVICE_ID=$(require_field "$SERVICE" '.id' "create service $i") || fail "Failed to create service $i: $SERVICE"
