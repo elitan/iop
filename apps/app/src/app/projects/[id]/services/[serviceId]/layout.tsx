@@ -1,14 +1,15 @@
 "use client";
 
 import { Loader2, Rocket } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { Header } from "@/components/header";
+import { ProjectPicker } from "@/components/project-picker";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useProject } from "@/hooks/use-projects";
+import { useProject, useProjects } from "@/hooks/use-projects";
 import { useDeployService, useService } from "@/hooks/use-services";
 
 export default function ServiceLayout({
@@ -17,12 +18,28 @@ export default function ServiceLayout({
   children: React.ReactNode;
 }) {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
   const serviceId = params.serviceId as string;
 
   const { data: project } = useProject(projectId);
+  const { data: projects = [] } = useProjects();
   const { data: service, isLoading } = useService(serviceId);
   const deployMutation = useDeployService(serviceId, projectId);
+
+  function handleProjectChange(newProjectId: string) {
+    router.push(`/projects/${newProjectId}`);
+  }
+
+  const projectPicker = projects.length > 0 && project && (
+    <ProjectPicker
+      projects={projects}
+      currentProjectId={projectId}
+      currentProjectName={project.name}
+      onSelect={handleProjectChange}
+      onCreateNew={() => router.push("/projects/new")}
+    />
+  );
 
   const tabs = [
     { label: "Overview", href: `/projects/${projectId}/services/${serviceId}` },
@@ -52,8 +69,9 @@ export default function ServiceLayout({
       <>
         <Header>
           <BreadcrumbHeader
-            projectName={project?.name ?? "..."}
-            projectHref={`/projects/${projectId}`}
+            projectPicker={projectPicker}
+            projectName={!projectPicker ? (project?.name ?? "...") : undefined}
+            projectHref={!projectPicker ? `/projects/${projectId}` : undefined}
             serviceName="..."
           />
           <div className="border-b border-neutral-800">
@@ -76,8 +94,9 @@ export default function ServiceLayout({
       <>
         <Header>
           <BreadcrumbHeader
-            projectName={project?.name ?? "..."}
-            projectHref={`/projects/${projectId}`}
+            projectPicker={projectPicker}
+            projectName={!projectPicker ? (project?.name ?? "...") : undefined}
+            projectHref={!projectPicker ? `/projects/${projectId}` : undefined}
           />
         </Header>
         <main className="container mx-auto px-4 py-8">
@@ -111,8 +130,7 @@ export default function ServiceLayout({
     <>
       <Header>
         <BreadcrumbHeader
-          projectName={project?.name ?? "..."}
-          projectHref={`/projects/${projectId}`}
+          projectPicker={projectPicker}
           serviceName={service.name}
           actions={actions}
         />

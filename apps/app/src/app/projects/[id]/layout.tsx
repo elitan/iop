@@ -12,10 +12,11 @@ import { useEffect, useMemo, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { EnvironmentPicker } from "@/components/environment-picker";
 import { Header } from "@/components/header";
+import { ProjectPicker } from "@/components/project-picker";
 import { TabNav } from "@/components/tab-nav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useProject } from "@/hooks/use-projects";
+import { useProject, useProjects } from "@/hooks/use-projects";
 import { orpc } from "@/lib/orpc-client";
 import { cn } from "@/lib/utils";
 import { CreateServiceModal } from "./_components/create-service-modal";
@@ -43,6 +44,7 @@ export default function ProjectLayout({
   const [createServiceModalOpen, setCreateServiceModalOpen] = useState(false);
   const [createEnvDialogOpen, setCreateEnvDialogOpen] = useState(false);
   const { data: project, isLoading } = useProject(projectId);
+  const { data: projects = [] } = useProjects();
 
   const { data: environments = [] } = useQuery(
     orpc.environments.list.queryOptions({ input: { projectId } }),
@@ -60,6 +62,10 @@ export default function ProjectLayout({
 
   function handleEnvChange(envId: string) {
     router.push(`/projects/${projectId}/environments/${envId}`);
+  }
+
+  function handleProjectChange(newProjectId: string) {
+    router.push(`/projects/${newProjectId}`);
   }
 
   useEffect(() => {
@@ -132,6 +138,16 @@ export default function ProjectLayout({
     </Button>
   );
 
+  const projectPicker = projects.length > 0 && project && (
+    <ProjectPicker
+      projects={projects}
+      currentProjectId={projectId}
+      currentProjectName={project.name}
+      onSelect={handleProjectChange}
+      onCreateNew={() => router.push("/projects/new")}
+    />
+  );
+
   const environmentPicker = environments.length > 0 && (
     <EnvironmentPicker
       environments={environments}
@@ -145,7 +161,7 @@ export default function ProjectLayout({
     <>
       <Header>
         <BreadcrumbHeader
-          projectName={project.name}
+          projectPicker={projectPicker}
           environmentPicker={environmentPicker}
         />
         <TabNav tabs={tabs} layoutId="project-tabs" actions={tabActions} />

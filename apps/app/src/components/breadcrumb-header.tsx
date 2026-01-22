@@ -6,6 +6,7 @@ import { HeaderNav } from "./header-nav";
 interface BreadcrumbHeaderProps {
   projectName?: string;
   projectHref?: string;
+  projectPicker?: ReactNode;
   serviceName?: string;
   environmentPicker?: ReactNode;
   pageName?: string;
@@ -15,6 +16,7 @@ interface BreadcrumbHeaderProps {
 export function BreadcrumbHeader({
   projectName,
   projectHref,
+  projectPicker,
   serviceName,
   environmentPicker,
   pageName,
@@ -36,10 +38,12 @@ export function BreadcrumbHeader({
               <span className="text-sm text-neutral-100">{pageName}</span>
             </>
           )}
-          {projectName && (
+          {(projectName || projectPicker) && (
             <>
               <span className="text-neutral-600">/</span>
-              {projectHref ? (
+              {projectPicker ? (
+                projectPicker
+              ) : projectHref ? (
                 <Link
                   href={projectHref}
                   className="text-sm text-neutral-100 hover:text-neutral-300"
