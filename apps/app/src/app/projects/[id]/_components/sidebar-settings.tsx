@@ -15,6 +15,7 @@ import { BuildConfigCard } from "../services/[serviceId]/settings/_components/bu
 import { CpuLimitCard } from "../services/[serviceId]/settings/_components/cpu-limit-card";
 import { DangerZoneCard } from "../services/[serviceId]/settings/_components/danger-zone-card";
 import { HealthCheckCard } from "../services/[serviceId]/settings/_components/health-check-card";
+import { HostnameCard } from "../services/[serviceId]/settings/_components/hostname-card";
 import { ImageConfigCard } from "../services/[serviceId]/settings/_components/image-config-card";
 import { MemoryLimitCard } from "../services/[serviceId]/settings/_components/memory-limit-card";
 import { RequestTimeoutCard } from "../services/[serviceId]/settings/_components/request-timeout-card";
@@ -29,15 +30,9 @@ interface SidebarSettingsProps {
 
 type SettingsTab = "general" | "variables" | "domains" | "runtime" | "danger";
 
-function VariablesTab({
-  service,
-  projectId,
-}: {
-  service: Service;
-  projectId: string;
-}) {
-  const updateMutation = useUpdateService(service.id, projectId);
-  const deployMutation = useDeployService(service.id, projectId);
+function VariablesTab({ service }: { service: Service }) {
+  const updateMutation = useUpdateService(service.id, service.environmentId);
+  const deployMutation = useDeployService(service.id, service.environmentId);
 
   const [editing, setEditing] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
@@ -207,27 +202,26 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
       <div className="flex-1 space-y-4">
         {activeTab === "general" && (
           <>
-            <ServiceNameCard serviceId={service.id} projectId={projectId} />
-            <BuildConfigCard serviceId={service.id} projectId={projectId} />
-            <ImageConfigCard serviceId={service.id} projectId={projectId} />
+            <ServiceNameCard serviceId={service.id} />
+            <HostnameCard serviceId={service.id} />
+            <BuildConfigCard serviceId={service.id} />
+            <ImageConfigCard serviceId={service.id} />
           </>
         )}
 
-        {activeTab === "variables" && (
-          <VariablesTab service={service} projectId={projectId} />
-        )}
+        {activeTab === "variables" && <VariablesTab service={service} />}
 
         {activeTab === "domains" && <DomainsTab service={service} />}
 
         {activeTab === "runtime" && (
           <>
-            <HealthCheckCard serviceId={service.id} projectId={projectId} />
-            <RequestTimeoutCard serviceId={service.id} projectId={projectId} />
-            <ShutdownTimeoutCard serviceId={service.id} projectId={projectId} />
-            <MemoryLimitCard serviceId={service.id} projectId={projectId} />
-            <CpuLimitCard serviceId={service.id} projectId={projectId} />
+            <HealthCheckCard serviceId={service.id} />
+            <RequestTimeoutCard serviceId={service.id} />
+            <ShutdownTimeoutCard serviceId={service.id} />
+            <MemoryLimitCard serviceId={service.id} />
+            <CpuLimitCard serviceId={service.id} />
             {service.serviceType !== "database" && (
-              <VolumesCard serviceId={service.id} projectId={projectId} />
+              <VolumesCard serviceId={service.id} />
             )}
           </>
         )}

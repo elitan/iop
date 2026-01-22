@@ -13,7 +13,6 @@ import { DeploymentRow } from "../services/[serviceId]/_components/deployment-ro
 
 interface SidebarDeploymentsProps {
   service: Service;
-  projectId: string;
 }
 
 export function SidebarDeployments({ service }: SidebarDeploymentsProps) {

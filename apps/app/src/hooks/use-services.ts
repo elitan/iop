@@ -45,6 +45,9 @@ export function useUpdateService(id: string, environmentId: string) {
       await queryClient.refetchQueries({
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
+      await queryClient.refetchQueries({
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+      });
     },
   });
 }
@@ -74,6 +77,9 @@ export function useDeployService(id: string, environmentId: string) {
       });
       await queryClient.refetchQueries({
         queryKey: orpc.services.list.key({ input: { environmentId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
       });
     },
   });

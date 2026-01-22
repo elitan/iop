@@ -29,16 +29,13 @@ const REQUEST_TIMEOUT_OPTIONS = [
 
 interface RequestTimeoutCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function RequestTimeoutCard({
-  serviceId,
-  projectId,
-}: RequestTimeoutCardProps) {
+export function RequestTimeoutCard({ serviceId }: RequestTimeoutCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [requestTimeout, setRequestTimeout] = useState("none");
   const initialValue = useRef("none");

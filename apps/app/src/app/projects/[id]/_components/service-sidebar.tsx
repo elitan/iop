@@ -24,7 +24,10 @@ export function ServiceSidebar({
   onClose,
 }: ServiceSidebarProps) {
   const { data: service } = useService(serviceId || "");
-  const deployMutation = useDeployService(serviceId || "", projectId);
+  const deployMutation = useDeployService(
+    serviceId || "",
+    service?.environmentId ?? "",
+  );
   const [activeTab, setActiveTab] = useState<
     "overview" | "deployments" | "logs" | "settings"
   >("overview");
@@ -108,14 +111,10 @@ export function ServiceSidebar({
 
             <div className="flex-1 overflow-auto p-4">
               {activeTab === "overview" && (
-                <SidebarOverview
-                  service={service}
-                  projectId={projectId}
-                  onDeploy={handleDeploy}
-                />
+                <SidebarOverview service={service} onDeploy={handleDeploy} />
               )}
               {activeTab === "deployments" && (
-                <SidebarDeployments service={service} projectId={projectId} />
+                <SidebarDeployments service={service} />
               )}
               {activeTab === "logs" && <SidebarLogs service={service} />}
               {activeTab === "settings" && (

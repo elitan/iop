@@ -14,16 +14,13 @@ import {
 
 interface HealthCheckCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function HealthCheckCard({
-  serviceId,
-  projectId,
-}: HealthCheckCardProps) {
+export function HealthCheckCard({ serviceId }: HealthCheckCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [healthType, setHealthType] = useState<"tcp" | "http">("tcp");
   const [healthPath, setHealthPath] = useState("");

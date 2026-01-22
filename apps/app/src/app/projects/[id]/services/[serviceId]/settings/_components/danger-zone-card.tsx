@@ -26,7 +26,7 @@ export function DangerZoneCard({
     try {
       await deleteMutation.mutateAsync(serviceId);
       toast.success("Service deleted");
-      router.push(`/projects/${projectId}`);
+      router.push(`/projects/${projectId}/environments/${environmentId}`);
     } catch {
       toast.error("Failed to delete service");
     }

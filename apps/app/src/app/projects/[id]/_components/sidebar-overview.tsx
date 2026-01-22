@@ -35,13 +35,12 @@ function getGitHubRepoFromUrl(url: string | null): string | null {
 
 interface SidebarOverviewProps {
   service: Service;
-  projectId: string;
   onDeploy: () => void;
 }
 
-export function SidebarOverview({ service, projectId }: SidebarOverviewProps) {
+export function SidebarOverview({ service }: SidebarOverviewProps) {
   const queryClient = useQueryClient();
-  const deployMutation = useDeployService(service.id, projectId);
+  const deployMutation = useDeployService(service.id, service.environmentId);
 
   const { data: settings } = useQuery({
     queryKey: ["settings"],

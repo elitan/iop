@@ -23,16 +23,13 @@ import { orpc } from "@/lib/orpc-client";
 
 interface ImageConfigCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function ImageConfigCard({
-  serviceId,
-  projectId,
-}: ImageConfigCardProps) {
+export function ImageConfigCard({ serviceId }: ImageConfigCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [imageUrl, setImageUrl] = useState("");
   const [registryId, setRegistryId] = useState("");

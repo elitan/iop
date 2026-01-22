@@ -35,16 +35,13 @@ const MEMORY_OPTIONS = [
 
 interface MemoryLimitCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function MemoryLimitCard({
-  serviceId,
-  projectId,
-}: MemoryLimitCardProps) {
+export function MemoryLimitCard({ serviceId }: MemoryLimitCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [memoryLimit, setMemoryLimit] = useState("none");
   const initialValue = useRef("none");

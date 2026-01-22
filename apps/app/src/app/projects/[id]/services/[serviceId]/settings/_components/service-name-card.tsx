@@ -10,15 +10,14 @@ import { useService, useUpdateService } from "@/hooks/use-services";
 
 interface ServiceNameCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function ServiceNameCard({
-  serviceId,
-  projectId,
-}: ServiceNameCardProps) {
+export function ServiceNameCard({ serviceId }: ServiceNameCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
+  const updateMutation = useUpdateService(
+    serviceId,
+    service?.environmentId ?? "",
+  );
 
   const [name, setName] = useState("");
   const initialName = useRef("");
@@ -66,24 +65,11 @@ export function ServiceNameCard({
         </Button>
       }
     >
-      <div className="space-y-4">
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="my-service"
-        />
-        {service.hostname && (
-          <div>
-            <span className="text-sm text-neutral-500">Hostname</span>
-            <p className="mt-1 font-mono text-sm text-neutral-300">
-              {service.hostname}
-            </p>
-            <p className="mt-1 text-xs text-neutral-500">
-              Used for inter-service communication within the project network
-            </p>
-          </div>
-        )}
-      </div>
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="my-service"
+      />
     </SettingCard>
   );
 }

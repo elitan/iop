@@ -20,7 +20,6 @@ function pathToVolumeName(path: string): string {
 
 interface VolumesCardProps {
   serviceId: string;
-  projectId: string;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -32,11 +31,12 @@ function formatBytes(bytes: number | null): string {
   return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }
 
-export function VolumesCard({ serviceId, projectId }: VolumesCardProps) {
+export function VolumesCard({ serviceId }: VolumesCardProps) {
   const { data: service } = useService(serviceId);
   const { data: volumeInfo } = useServiceVolumes(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [volumes, setVolumes] = useState<VolumeConfig[]>([]);
   const [newPath, setNewPath] = useState("");

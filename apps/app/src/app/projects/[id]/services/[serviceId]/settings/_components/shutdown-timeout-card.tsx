@@ -27,16 +27,13 @@ const SHUTDOWN_OPTIONS = [
 
 interface ShutdownTimeoutCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function ShutdownTimeoutCard({
-  serviceId,
-  projectId,
-}: ShutdownTimeoutCardProps) {
+export function ShutdownTimeoutCard({ serviceId }: ShutdownTimeoutCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [shutdownTimeout, setShutdownTimeout] = useState("10");
   const initialValue = useRef("10");

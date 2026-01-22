@@ -34,13 +34,13 @@ const CPU_OPTIONS = [
 
 interface CpuLimitCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function CpuLimitCard({ serviceId, projectId }: CpuLimitCardProps) {
+export function CpuLimitCard({ serviceId }: CpuLimitCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [cpuLimit, setCpuLimit] = useState("none");
   const initialValue = useRef("none");

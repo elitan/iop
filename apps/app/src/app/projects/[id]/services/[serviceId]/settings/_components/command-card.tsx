@@ -14,13 +14,13 @@ import {
 
 interface CommandCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function CommandCard({ serviceId, projectId }: CommandCardProps) {
+export function CommandCard({ serviceId }: CommandCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [command, setCommand] = useState("");
   const initialValue = useRef("");

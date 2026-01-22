@@ -14,16 +14,13 @@ import {
 
 interface BuildConfigCardProps {
   serviceId: string;
-  projectId: string;
 }
 
-export function BuildConfigCard({
-  serviceId,
-  projectId,
-}: BuildConfigCardProps) {
+export function BuildConfigCard({ serviceId }: BuildConfigCardProps) {
   const { data: service } = useService(serviceId);
-  const updateMutation = useUpdateService(serviceId, projectId);
-  const deployMutation = useDeployService(serviceId, projectId);
+  const envId = service?.environmentId ?? "";
+  const updateMutation = useUpdateService(serviceId, envId);
+  const deployMutation = useDeployService(serviceId, envId);
 
   const [branch, setBranch] = useState("");
   const [dockerfilePath, setDockerfilePath] = useState("");
