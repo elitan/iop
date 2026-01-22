@@ -200,6 +200,8 @@ if [ "$GIT_MODE" = true ]; then
   if [ "$CONVERTED_FROM_TARBALL" = true ]; then
     log "Cleaning old node_modules..."
     rm -rf node_modules apps/*/node_modules
+    log "Creating .env symlink for monorepo..."
+    ln -sf "$FROST_DIR/.env" "$FROST_DIR/apps/app/.env"
   fi
 
   log "Installing dependencies..."
