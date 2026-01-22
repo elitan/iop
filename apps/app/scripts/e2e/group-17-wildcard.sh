@@ -28,7 +28,10 @@ PRE_PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-backfill"}')
 PRE_PROJECT_ID=$(require_field "$PRE_PROJECT" '.id' "create pre-wildcard project") || fail "Failed to create pre-wildcard project: $PRE_PROJECT"
 log "Created pre-wildcard project: $PRE_PROJECT_ID"
 
-PRE_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PRE_PROJECT_ID/services" \
+PRE_ENV_ID=$(get_default_environment "$PRE_PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $PRE_ENV_ID"
+
+PRE_SERVICE=$(api -X POST "$BASE_URL/api/environments/$PRE_ENV_ID/services" \
   -d '{"name":"backfilltest","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 PRE_SERVICE_ID=$(require_field "$PRE_SERVICE" '.id' "create pre-wildcard service") || fail "Failed to create pre-wildcard service: $PRE_SERVICE"
 log "Created pre-wildcard service: $PRE_SERVICE_ID"
@@ -86,6 +89,9 @@ log "Creating service to test auto-domain..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-wildcard"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create wildcard project") || fail "Failed to create wildcard project: $PROJECT"
 log "Created project: $PROJECT_ID"
+
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
 
 SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"wildcardtest","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
