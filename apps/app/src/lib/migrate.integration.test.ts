@@ -98,7 +98,7 @@ describe("migrate integration", () => {
     const columnNames = columns.map((c) => c.name);
 
     expect(columnNames).toContain("id");
-    expect(columnNames).toContain("project_id");
+    expect(columnNames).toContain("environment_id");
     expect(columnNames).toContain("name");
     expect(columnNames).toContain("deploy_type");
     expect(columnNames).toContain("repo_url");
@@ -136,7 +136,7 @@ describe("migrate integration", () => {
     const columnNames = columns.map((c) => c.name);
 
     expect(columnNames).toContain("id");
-    expect(columnNames).toContain("project_id");
+    expect(columnNames).toContain("environment_id");
     expect(columnNames).toContain("service_id");
     expect(columnNames).toContain("commit_sha");
     expect(columnNames).toContain("status");
@@ -183,29 +183,34 @@ describe("migrate integration", () => {
       "INSERT INTO projects (id, name, env_vars, created_at) VALUES (?, ?, ?, ?)",
     ).run(projectId, "Test Project", "{}", Date.now());
 
+    const envId = "test-env-123";
+    db.prepare(
+      "INSERT INTO environments (id, project_id, name, created_at) VALUES (?, ?, ?, ?)",
+    ).run(envId, projectId, "production", Date.now());
+
     const serviceId = "test-service-456";
     db.prepare(
-      "INSERT INTO services (id, project_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run(serviceId, projectId, "test-svc", "repo", "{}", Date.now(), "web");
+      "INSERT INTO services (id, environment_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(serviceId, envId, "test-svc", "repo", "{}", Date.now(), "app");
 
     expect(() => {
       db.prepare(
-        "INSERT INTO services (id, project_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO services (id, environment_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
       ).run(
         "orphan-service",
-        "non-existent-project",
+        "non-existent-env",
         "orphan",
         "repo",
         "{}",
         Date.now(),
-        "web",
+        "app",
       );
     }).toThrow();
 
     db.close();
   });
 
-  test("cascade delete works for services when project is deleted", () => {
+  test("cascade delete works for services when environment is deleted", () => {
     runMigrations({ dbPath: TEST_DB, schemaDir: PROD_SCHEMA_DIR });
 
     const db = new Database(TEST_DB);
@@ -216,24 +221,29 @@ describe("migrate integration", () => {
       "INSERT INTO projects (id, name, env_vars, created_at) VALUES (?, ?, ?, ?)",
     ).run(projectId, "Cascade Test", "{}", Date.now());
 
+    const envId = "cascade-test-env";
     db.prepare(
-      "INSERT INTO services (id, project_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run("svc-1", projectId, "svc1", "repo", "{}", Date.now(), "web");
+      "INSERT INTO environments (id, project_id, name, created_at) VALUES (?, ?, ?, ?)",
+    ).run(envId, projectId, "production", Date.now());
 
     db.prepare(
-      "INSERT INTO services (id, project_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run("svc-2", projectId, "svc2", "image", "{}", Date.now(), "web");
+      "INSERT INTO services (id, environment_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run("svc-1", envId, "svc1", "repo", "{}", Date.now(), "app");
+
+    db.prepare(
+      "INSERT INTO services (id, environment_id, name, deploy_type, env_vars, created_at, service_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run("svc-2", envId, "svc2", "image", "{}", Date.now(), "app");
 
     let services = db
-      .prepare("SELECT id FROM services WHERE project_id = ?")
-      .all(projectId) as Array<{ id: string }>;
+      .prepare("SELECT id FROM services WHERE environment_id = ?")
+      .all(envId) as Array<{ id: string }>;
     expect(services).toHaveLength(2);
 
-    db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+    db.prepare("DELETE FROM environments WHERE id = ?").run(envId);
 
     services = db
-      .prepare("SELECT id FROM services WHERE project_id = ?")
-      .all(projectId) as Array<{ id: string }>;
+      .prepare("SELECT id FROM services WHERE environment_id = ?")
+      .all(envId) as Array<{ id: string }>;
     expect(services).toHaveLength(0);
 
     db.close();
@@ -308,8 +318,7 @@ describe("migrate integration", () => {
     db.close();
 
     expect(migrations[0].name).toBe("001-init.sql");
-    expect(migrations[1].name).toBe("002-env-vars.sql");
-    expect(migrations[22].name).toBe("023-build-context.sql");
+    expect(migrations.length).toBe(MIGRATION_COUNT);
 
     for (let i = 1; i < migrations.length; i++) {
       expect(migrations[i].name > migrations[i - 1].name).toBe(true);

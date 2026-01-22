@@ -10,12 +10,15 @@ PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-multiservice"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 log "Created project: $PROJECT_ID"
 
-BACKEND=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+BACKEND=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"backend","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 BACKEND_ID=$(require_field "$BACKEND" '.id' "create backend") || fail "Failed to create backend: $BACKEND"
 log "Created backend: $BACKEND_ID"
 
-FRONTEND=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+FRONTEND=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"frontend","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 FRONTEND_ID=$(require_field "$FRONTEND" '.id' "create frontend") || fail "Failed to create frontend: $FRONTEND"
 log "Created frontend: $FRONTEND_ID"
@@ -30,7 +33,7 @@ wait_for_deployment "$DEPLOY_BACKEND_ID" || fail "Backend deployment failed"
 wait_for_deployment "$DEPLOY_FRONTEND_ID" || fail "Frontend deployment failed"
 
 log "Verifying inter-service communication..."
-NETWORK_NAME=$(sanitize_name "frost-net-$PROJECT_ID")
+NETWORK_NAME=$(sanitize_name "frost-net-$PROJECT_ID-$ENV_ID")
 CURL_RESULT=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf http://backend:80")
 echo "$CURL_RESULT" | grep -q "nginx" || fail "Inter-service communication failed"
 log "Inter-service communication works"

@@ -112,6 +112,12 @@ remote() {
   ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=10 root@$SERVER_IP "$@"
 }
 
+get_default_environment() {
+  local PROJECT_ID=$1
+  local ENVS=$(api "$BASE_URL/api/projects/$PROJECT_ID/environments")
+  json_get "$ENVS" '.[0].id'
+}
+
 sanitize_name() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed -E 's/-+/-/g' | sed 's/^-//' | sed 's/-$//'
 }

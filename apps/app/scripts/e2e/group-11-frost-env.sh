@@ -9,7 +9,10 @@ log "Creating service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-frost-env"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"frost-env-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"

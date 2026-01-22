@@ -17,7 +17,10 @@ log "Testing autoDeploy default..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"webhook-test","repoUrl":"https://github.com/test/repo.git"}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 AUTO_DEPLOY=$(json_get "$SERVICE" '.autoDeploy')

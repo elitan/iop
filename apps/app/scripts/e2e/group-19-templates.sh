@@ -48,7 +48,10 @@ log "Creating nginx from service template..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-svc-template"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"nginx","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create nginx") || fail "Failed: $SERVICE"
 
@@ -74,8 +77,11 @@ log "Creating project with postgres + app..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-db-app"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
 
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
 log "Adding postgres from template..."
-DB_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+DB_SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"postgres","deployType":"database","templateId":"postgres"}')
 DB_SERVICE_ID=$(require_field "$DB_SERVICE" '.id' "create postgres") || fail "Failed: $DB_SERVICE"
 
@@ -114,7 +120,7 @@ log "Checking postgres network aliases..."
 remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
 
 log "Adding app service from test fixture..."
-APP_SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+APP_SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d "{\"name\":\"app\",\"deployType\":\"repo\",\"repoUrl\":\"https://github.com/elitan/frost.git\",\"branch\":\"$TEST_BRANCH\",\"dockerfilePath\":\"apps/app/test/fixtures/db-health-check/Dockerfile.repo\",\"containerPort\":8080,\"envVars\":[{\"key\":\"DATABASE_URL\",\"value\":\"postgresql://$PG_USER:$PG_PASS@postgres:5432/$PG_DB\"}]}")
 APP_SERVICE_ID=$(require_field "$APP_SERVICE" '.id' "create app") || fail "Failed: $APP_SERVICE"
 
@@ -158,7 +164,7 @@ if [ "$HEALTH_STATUS" != "ok" ]; then
   log "Checking postgres network..."
   remote "docker inspect $DB_CONTAINER_ID --format '{{json .NetworkSettings.Networks}}'" || true
   log "Listing all containers on network..."
-  SANITIZED_NET=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+  SANITIZED_NET=$(echo "frost-net-$PROJECT_ID-$ENV_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
   remote "docker network inspect $SANITIZED_NET --format '{{json .Containers}}'" || true
   log "Testing DNS resolution from app to postgres..."
   remote "docker exec $APP_CONTAINER_ID getent hosts postgres" || log "DNS resolution failed"
@@ -170,7 +176,7 @@ log "App connected to database successfully!"
 
 log "Verifying cross-service communication via hostname..."
 # Replicate sanitizeDockerName: lowercase, replace non-alphanumeric with -, collapse --, remove leading/trailing -
-NETWORK_NAME=$(echo "frost-net-$PROJECT_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+NETWORK_NAME=$(echo "frost-net-$PROJECT_ID-$ENV_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
 log "Looking for network: $NETWORK_NAME"
 log "All frost networks:"
 remote "docker network ls --filter name=frost-net --format '{{.Name}}'" || true
@@ -188,7 +194,10 @@ log "Testing invalid template ID..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-invalid-template"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
 
-INVALID_RESP=$(curl -sf -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+INVALID_RESP=$(curl -sf -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"name":"test","deployType":"database","templateId":"nonexistent"}' 2>&1 || echo '{"error":"expected"}')

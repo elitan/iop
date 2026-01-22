@@ -11,10 +11,13 @@ log "Using branch: $TEST_BRANCH"
 log "Creating project..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-buildctx"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
+
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
 log "Created project: $PROJECT_ID"
 
 log "Creating monorepo service..."
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d "{
     \"name\":\"monorepo-api\",
     \"deployType\":\"repo\",

@@ -16,7 +16,7 @@ for i in $(seq 1 $NUM_SERVICES); do
   PROJECT_ID=$(require_field "$PROJECT" '.id' "create project $i") || fail "Failed to create project $i: $PROJECT"
   PROJECT_IDS+=("$PROJECT_ID")
 
-  SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+  SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
     -d "{\"name\":\"svc-$i\",\"deployType\":\"image\",\"imageUrl\":\"nginx:alpine\",\"containerPort\":80}")
   SERVICE_ID=$(require_field "$SERVICE" '.id' "create service $i") || fail "Failed to create service $i: $SERVICE"
   SERVICE_IDS+=("$SERVICE_ID")

@@ -15,7 +15,10 @@ log "Creating database service..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-database"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"postgres","deployType":"database","templateId":"postgres"}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create db service") || fail "Failed to create database service: $SERVICE"
 SERVICE_TYPE=$(json_get "$SERVICE" '.serviceType')

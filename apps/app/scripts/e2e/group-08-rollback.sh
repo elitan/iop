@@ -9,7 +9,10 @@ log "Creating service and deploying twice..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-rollback"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"rollback-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
@@ -54,7 +57,7 @@ curl -sf "http://$SERVER_IP:$HOST_PORT" > /dev/null || fail "Rollback service no
 log "Rollback service responding"
 
 log "Verifying rollback blocked for database services..."
-SERVICE_DB=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+SERVICE_DB=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"db-rollback-test","deployType":"database","templateId":"postgres"}')
 SERVICE_DB_ID=$(require_field "$SERVICE_DB" '.id' "create db service") || fail "Failed to create db service: $SERVICE_DB"
 

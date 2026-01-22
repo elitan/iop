@@ -87,7 +87,7 @@ PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-wildcard"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create wildcard project") || fail "Failed to create wildcard project: $PROJECT"
 log "Created project: $PROJECT_ID"
 
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"wildcardtest","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create wildcard service") || fail "Failed to create wildcard service: $SERVICE"
 log "Created service: $SERVICE_ID"
