@@ -518,6 +518,7 @@ jobs:
             bun install 2>&1 && \
             bun run build 2>&1 && \
             bun run migrate 2>&1 && \
+            sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
             systemctl start frost" 2>&1 | tee /tmp/e2e-reset-ui.log
 
@@ -590,6 +591,7 @@ jobs:
             bun install 2>&1 && \
             bun run build 2>&1 && \
             bun run migrate 2>&1 && \
+            sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
             systemctl start frost" 2>&1 | tee /tmp/e2e-reset-rollback.log
 
