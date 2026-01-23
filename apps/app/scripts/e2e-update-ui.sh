@@ -35,9 +35,24 @@ echo "Target branch: $TARGET_BRANCH"
 api() {
   local RESPONSE
   local HTTP_CODE
-  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@")
+  local CURL_EXIT
+
+  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@" 2>&1) || CURL_EXIT=$?
+
+  if [ -n "$CURL_EXIT" ]; then
+    echo "CURL FAILED (exit $CURL_EXIT):"
+    echo "$RESPONSE"
+    return 1
+  fi
+
   HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
   RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+  if ! [[ "$HTTP_CODE" =~ ^[0-9]+$ ]]; then
+    echo "INVALID HTTP CODE: '$HTTP_CODE'"
+    echo "Response: $RESPONSE"
+    return 1
+  fi
 
   if [ "$HTTP_CODE" -ge 400 ]; then
     echo "API ERROR (HTTP $HTTP_CODE):"
