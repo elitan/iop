@@ -162,8 +162,8 @@ else
   timer "Caddy DNS modules present"
 fi
 
-# Get server IP for HTTPS setup
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
+# Get server IP for HTTPS setup (force IPv4)
+SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || curl -4 -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
 
 # Configure Caddy with self-signed HTTPS
 timer "Configuring Caddy..."
