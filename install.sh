@@ -162,10 +162,18 @@ else
   timer "Caddy DNS modules present"
 fi
 
-# Configure Caddy to proxy to Frost
+# Get server IP for HTTPS setup
+SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
+
+# Configure Caddy with self-signed HTTPS
 timer "Configuring Caddy..."
-cat > /etc/caddy/Caddyfile << 'EOF'
+cat > /etc/caddy/Caddyfile << EOF
 :80 {
+  redir https://$SERVER_IP{uri} permanent
+}
+
+$SERVER_IP {
+  tls internal
   reverse_proxy localhost:3000
 }
 EOF
@@ -323,14 +331,12 @@ else
   echo -e "${YELLOW}Warning: Could not reach Frost. Check: journalctl -u frost -f${NC}"
 fi
 
-# Get server IP
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
-
 TOTAL_TIME=$(($(date +%s) - START_TIME))
 echo ""
 echo -e "${GREEN}Installation complete! (${TOTAL_TIME}s total)${NC}"
 echo ""
-echo -e "Frost is running at: ${GREEN}http://$SERVER_IP${NC}"
+echo -e "Frost is running at: ${GREEN}https://$SERVER_IP${NC}"
+echo -e "${YELLOW}Note: Browser will show certificate warning (self-signed). Click through to proceed.${NC}"
 
 if [ "$CREATE_API_KEY" = true ]; then
   echo ""
@@ -346,7 +352,7 @@ fi
 
 echo ""
 echo "Next steps:"
-echo "  1. Open http://$SERVER_IP to complete setup"
+echo "  1. Open https://$SERVER_IP to complete setup"
 echo "  2. Point your domain to $SERVER_IP"
 echo "  3. Go to Settings in Frost to configure SSL"
 echo ""
