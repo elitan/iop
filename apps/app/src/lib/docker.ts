@@ -3,6 +3,8 @@ import { createConnection } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
+import { db } from "./db";
+
 const execAsync = promisify(exec);
 
 export interface BuildResult {
@@ -394,13 +396,36 @@ export async function getAvailablePort(
   const usedPorts = new Set<number>();
 
   try {
-    const { stdout } = await execAsync(`docker ps --format '{{.Ports}}'`);
+    const { stdout } = await execAsync(`docker ps -a --format '{{.Ports}}'`);
     const portMatches = stdout.matchAll(/0\.0\.0\.0:(\d+)/g);
     for (const match of portMatches) {
       usedPorts.add(parseInt(match[1], 10));
     }
   } catch {
     // Ignore errors
+  }
+
+  try {
+    const deployments = await db
+      .selectFrom("deployments")
+      .select("hostPort")
+      .where("hostPort", "is not", null)
+      .where("status", "in", [
+        "pending",
+        "cloning",
+        "pulling",
+        "building",
+        "deploying",
+        "running",
+      ])
+      .execute();
+    for (const d of deployments) {
+      if (d.hostPort) {
+        usedPorts.add(d.hostPort);
+      }
+    }
+  } catch {
+    // Ignore - db might not be ready
   }
 
   for (let port = start; port < end; port++) {
