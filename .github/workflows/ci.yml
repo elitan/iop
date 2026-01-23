@@ -515,10 +515,9 @@ jobs:
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
-            NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
-            npm run build 2>&1 && \
+            bun install 2>&1 && \
+            bun run build 2>&1 && \
             bun run migrate 2>&1 && \
-            sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
             systemctl start frost" 2>&1 | tee /tmp/e2e-reset-ui.log
 
@@ -588,10 +587,9 @@ jobs:
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
-            NODE_ENV=development npm install --legacy-peer-deps --silent 2>&1 && \
-            npm run build 2>&1 && \
+            bun install 2>&1 && \
+            bun run build 2>&1 && \
             bun run migrate 2>&1 && \
-            sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
             systemctl start frost" 2>&1 | tee /tmp/e2e-reset-rollback.log
 
