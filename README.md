@@ -1,6 +1,6 @@
 # Frost
 
-Deploy Docker apps. Simply.
+Deploy Docker apps. Simple.
 
 ## Features
 
