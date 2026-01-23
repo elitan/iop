@@ -40,8 +40,8 @@ api() {
   RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@" 2>&1) || CURL_EXIT=$?
 
   if [ -n "$CURL_EXIT" ]; then
-    echo "CURL FAILED (exit $CURL_EXIT):"
-    echo "$RESPONSE"
+    echo "CURL FAILED (exit $CURL_EXIT):" >&2
+    echo "$RESPONSE" >&2
     return 1
   fi
 
@@ -49,14 +49,14 @@ api() {
   RESPONSE=$(echo "$RESPONSE" | sed '$d')
 
   if ! [[ "$HTTP_CODE" =~ ^[0-9]+$ ]]; then
-    echo "INVALID HTTP CODE: '$HTTP_CODE'"
-    echo "Response: $RESPONSE"
+    echo "INVALID HTTP CODE: '$HTTP_CODE'" >&2
+    echo "Response: $RESPONSE" >&2
     return 1
   fi
 
   if [ "$HTTP_CODE" -ge 400 ]; then
-    echo "API ERROR (HTTP $HTTP_CODE):"
-    echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+    echo "API ERROR (HTTP $HTTP_CODE):" >&2
+    echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE" >&2
     return 1
   fi
   echo "$RESPONSE"
