@@ -90,8 +90,20 @@ fi
 echo "Created project: $PROJECT_ID"
 
 echo ""
+echo "=== Getting production environment ==="
+ENVIRONMENTS=$(api "$BASE_URL/api/projects/$PROJECT_ID/environments")
+ENV_ID=$(echo "$ENVIRONMENTS" | jq -r '.[] | select(.type == "production") | .id')
+
+if [ "$ENV_ID" = "null" ] || [ -z "$ENV_ID" ]; then
+  echo "Failed to find production environment:"
+  echo "$ENVIRONMENTS" | jq
+  exit 1
+fi
+echo "Production environment: $ENV_ID"
+
+echo ""
 echo "=== Creating service (auto-deploys) ==="
-SERVICE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/services" \
+SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"upgrade-svc","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(echo "$SERVICE" | jq -r '.id')
 
