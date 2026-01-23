@@ -3,7 +3,7 @@ set -e
 
 SERVER_IP=$1
 API_KEY=$2
-BASE_URL="http://$SERVER_IP"
+BASE_URL="http://$SERVER_IP:3000"
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ]; then
   echo "Usage: $0 <server-ip> <api-key>"

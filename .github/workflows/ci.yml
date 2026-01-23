@@ -198,9 +198,9 @@ jobs:
 
       - name: Wait for Frost
         run: |
-          echo "Waiting for Frost..."
+          echo "Waiting for Frost (HTTPS with self-signed cert)..."
           for i in {1..12}; do
-            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
+            if curl -sk -o /dev/null -w "%{http_code}" "https://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
               echo "Frost is ready!"
               exit 0
             fi
@@ -410,7 +410,7 @@ jobs:
         run: |
           echo "Waiting for Frost..."
           for i in {1..12}; do
-            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
+            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}:3000/api/health" | grep -q "200"; then
               echo "Frost is ready!"
               exit 0
             fi
@@ -470,7 +470,7 @@ jobs:
         run: |
           echo "Waiting for Frost after upgrade..."
           for i in {1..12}; do
-            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}/api/health" | grep -q "200"; then
+            if curl -s -o /dev/null -w "%{http_code}" "http://${{ steps.server.outputs.ip }}:3000/api/health" | grep -q "200"; then
               echo "Frost is ready!"
               exit 0
             fi

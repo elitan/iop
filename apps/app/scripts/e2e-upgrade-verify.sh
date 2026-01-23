@@ -6,7 +6,7 @@ API_KEY=$2
 PROJECT_ID=$3
 SERVICE_ID=$4
 DEPLOYMENT_ID=$5
-BASE_URL="http://$SERVER_IP"
+BASE_URL="http://$SERVER_IP:3000"
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$PROJECT_ID" ] || [ -z "$SERVICE_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
   echo "Usage: $0 <server-ip> <api-key> <project-id> <service-id> <deployment-id>"
