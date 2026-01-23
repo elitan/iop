@@ -216,18 +216,33 @@ jobs:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
-          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
 
       - name: Collect logs on failure
         if: failure()
         run: |
+          echo "=========================================="
+          echo "=== LOCAL TEST SCRIPT OUTPUT ==="
+          echo "=========================================="
+          if [ -f /tmp/e2e-tests.log ]; then
+            cat /tmp/e2e-tests.log
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "=== REMOTE SERVER LOGS ==="
+          echo "=========================================="
+
+          echo ""
           echo "=== Frost logs (last 500 lines) ==="
           ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 500" || true
+
           echo ""
           echo "=== Caddy logs ==="
           ssh root@${{ steps.server.outputs.ip }} "journalctl -u caddy --no-pager -n 50" || true
+
           echo ""
-          echo "=== Docker ==="
+          echo "=== Docker containers ==="
           ssh root@${{ steps.server.outputs.ip }} "docker ps -a" || true
 
       - name: Delete server
@@ -411,7 +426,7 @@ jobs:
         id: predata
         run: |
           chmod +x ./apps/app/scripts/e2e-upgrade-create.sh
-          ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-create.log
 
       - name: Upgrade to PR branch
         if: steps.release.outputs.skip != 'true'
@@ -432,13 +447,13 @@ jobs:
             else \
               git remote set-url origin https://github.com/${REPO}.git; \
             fi && \
-            git fetch origin ${BRANCH}:refs/remotes/origin/main -f"
+            git fetch origin ${BRANCH}:refs/remotes/origin/main -f" 2>&1 | tee /tmp/e2e-git-setup.log
 
           scp /tmp/update.sh root@${{ steps.server.outputs.ip }}:/opt/frost/update.sh
           ssh root@${{ steps.server.outputs.ip }} "chmod +x /opt/frost/update.sh && \
             sed -i 's|git fetch origin main.*|:|' /opt/frost/update.sh"
 
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "/opt/frost/update.sh"
+          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "/opt/frost/update.sh" 2>&1 | tee /tmp/e2e-upgrade.log
 
       - name: Initialize test fixture git repos
         if: steps.release.outputs.skip != 'true'
@@ -475,13 +490,13 @@ jobs:
             "${{ steps.install.outputs.api_key }}" \
             "${{ steps.predata.outputs.project_id }}" \
             "${{ steps.predata.outputs.service_id }}" \
-            "${{ steps.predata.outputs.deployment_id }}"
+            "${{ steps.predata.outputs.deployment_id }}" 2>&1 | tee /tmp/e2e-verify.log
 
       - name: Run standard E2E tests
         if: steps.release.outputs.skip != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
-          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}"
+          ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
 
@@ -505,7 +520,7 @@ jobs:
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
-            systemctl start frost"
+            systemctl start frost" 2>&1 | tee /tmp/e2e-reset-ui.log
 
           echo "Waiting for Frost on port 3000..."
           for i in {1..24}; do
@@ -517,7 +532,7 @@ jobs:
             sleep 5
           done
           echo "Frost failed to start"
-          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 50" || true
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 100" || true
           exit 1
 
       - name: Test UI-triggered update flow
@@ -528,7 +543,7 @@ jobs:
             "${{ steps.server.outputs.ip }}" \
             "${{ steps.install.outputs.api_key }}" \
             "${{ github.head_ref || github.ref_name }}" \
-            "${{ github.repository }}"
+            "${{ github.repository }}" 2>&1 | tee /tmp/e2e-update-ui.log
 
       - name: Create broken branch for rollback test
         if: steps.release.outputs.skip != 'true'
@@ -578,7 +593,7 @@ jobs:
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/bin/npm run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
-            systemctl start frost"
+            systemctl start frost" 2>&1 | tee /tmp/e2e-reset-rollback.log
 
           echo "Waiting for Frost on port 3000..."
           for i in {1..24}; do
@@ -590,7 +605,7 @@ jobs:
             sleep 5
           done
           echo "Frost failed to start"
-          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 50" || true
+          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 100" || true
           exit 1
 
       - name: Test rollback on build failure
@@ -601,7 +616,7 @@ jobs:
             "${{ steps.server.outputs.ip }}" \
             "${{ steps.install.outputs.api_key }}" \
             "${{ steps.broken.outputs.branch }}" \
-            "${{ github.repository }}"
+            "${{ github.repository }}" 2>&1 | tee /tmp/e2e-rollback.log
 
       - name: Cleanup broken branch
         if: always() && steps.broken.outputs.branch
@@ -612,14 +627,41 @@ jobs:
       - name: Collect logs on failure
         if: failure() && steps.release.outputs.skip != 'true'
         run: |
+          echo "=========================================="
+          echo "=== LOCAL TEST SCRIPT OUTPUTS ==="
+          echo "=========================================="
+          for log in /tmp/e2e-*.log; do
+            if [ -f "$log" ]; then
+              echo ""
+              echo "=== $(basename $log) ==="
+              cat "$log"
+            fi
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "=== REMOTE SERVER LOGS ==="
+          echo "=========================================="
+
+          echo ""
           echo "=== Frost logs (last 500 lines) ==="
           ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 500" || true
+
           echo ""
           echo "=== Caddy logs ==="
           ssh root@${{ steps.server.outputs.ip }} "journalctl -u caddy --no-pager -n 50" || true
+
           echo ""
-          echo "=== Docker ==="
+          echo "=== Docker containers ==="
           ssh root@${{ steps.server.outputs.ip }} "docker ps -a" || true
+
+          echo ""
+          echo "=== Update log (if exists) ==="
+          ssh root@${{ steps.server.outputs.ip }} "cat /opt/frost/data/.update-log 2>/dev/null" || echo "(no update log)"
+
+          echo ""
+          echo "=== Update result (if exists) ==="
+          ssh root@${{ steps.server.outputs.ip }} "cat /opt/frost/data/.update-result 2>/dev/null" || echo "(no update result)"
 
       - name: Delete server
         if: always() && steps.server.outputs.server_id

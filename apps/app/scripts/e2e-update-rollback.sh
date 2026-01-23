@@ -13,11 +13,38 @@ if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$BROKEN_BRANCH" ] || [ -z "
   exit 1
 fi
 
+error_handler() {
+  echo ""
+  echo "!!! ERROR at line $1 !!!"
+  echo "Last command exited with status $2"
+  echo ""
+  echo "=== Debug: Frost health ==="
+  curl -sS --max-time 5 "$BASE_URL/api/health" 2>&1 || echo "(health check failed)"
+  echo ""
+  echo "=== Debug: Recent Frost logs ==="
+  ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@$SERVER_IP "journalctl -u frost --no-pager -n 50" 2>&1 || echo "(failed to get logs)"
+  echo ""
+  echo "=== Debug: Update log ==="
+  ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 root@$SERVER_IP "cat /opt/frost/data/.update-log 2>/dev/null" || echo "(no update log)"
+}
+trap 'error_handler $LINENO $?' ERR
+
 echo "Testing update rollback on $BASE_URL"
 echo "Broken branch: $BROKEN_BRANCH"
 
 api() {
-  curl -sS --max-time 30 -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@"
+  local RESPONSE
+  local HTTP_CODE
+  RESPONSE=$(curl -sS --max-time 30 -w "\n%{http_code}" -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" "$@")
+  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+  RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+  if [ "$HTTP_CODE" -ge 400 ]; then
+    echo "API ERROR (HTTP $HTTP_CODE):"
+    echo "$RESPONSE" | jq . 2>/dev/null || echo "$RESPONSE"
+    return 1
+  fi
+  echo "$RESPONSE"
 }
 
 remote() {
