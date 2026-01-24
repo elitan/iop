@@ -119,6 +119,7 @@ Types in `src/lib/db-types.ts` are auto-generated. Never modify manually.
 6. Stop previous deployment
 
 ## Conventions
+- Use static imports (not dynamic `await import`) - we run on VPS only, no edge runtime
 - When planning features, consider if docs need updating
 - New service settings must work across API, UI, and frost.yaml config file
 - Never use non-null assertions (`!`). Handle undefined properly or throw explicit errors.
