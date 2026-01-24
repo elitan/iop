@@ -1,5 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeGitHubUrl, parseOwnerRepoFromUrl } from "./github";
+import {
+  deriveServiceName,
+  findDockerfiles,
+  type GitHubTreeEntry,
+  normalizeGitHubUrl,
+  parseDockerfilePort,
+  parseOwnerRepoFromUrl,
+} from "./github";
+
+function entry(path: string, type: "blob" | "tree" = "blob"): GitHubTreeEntry {
+  return { path, type, sha: "abc123" };
+}
 
 describe("normalizeGitHubUrl", () => {
   test("strips .git suffix", () => {
@@ -53,5 +64,107 @@ describe("parseOwnerRepoFromUrl", () => {
       "https://github.com/my-org/my-repo-123",
     );
     expect(result).toEqual({ owner: "my-org", repo: "my-repo-123" });
+  });
+});
+
+describe("findDockerfiles", () => {
+  test("finds root Dockerfile", () => {
+    const tree = [entry("Dockerfile"), entry("README.md")];
+    expect(findDockerfiles(tree)).toEqual(["Dockerfile"]);
+  });
+
+  test("finds nested Dockerfiles", () => {
+    const tree = [
+      entry("apps/api/Dockerfile"),
+      entry("apps/web/Dockerfile"),
+      entry("README.md"),
+    ];
+    expect(findDockerfiles(tree)).toEqual([
+      "apps/api/Dockerfile",
+      "apps/web/Dockerfile",
+    ]);
+  });
+
+  test("finds Dockerfile.suffix variants", () => {
+    const tree = [entry("Dockerfile.worker"), entry("Dockerfile.api")];
+    expect(findDockerfiles(tree)).toEqual([
+      "Dockerfile.worker",
+      "Dockerfile.api",
+    ]);
+  });
+
+  test("ignores directories", () => {
+    const tree = [entry("Dockerfile", "tree"), entry("app/Dockerfile")];
+    expect(findDockerfiles(tree)).toEqual(["app/Dockerfile"]);
+  });
+
+  test("ignores files containing Dockerfile in name", () => {
+    const tree = [
+      entry("Dockerfile"),
+      entry("Dockerfile.bak"),
+      entry("NotADockerfile"),
+    ];
+    expect(findDockerfiles(tree)).toEqual(["Dockerfile", "Dockerfile.bak"]);
+  });
+});
+
+describe("deriveServiceName", () => {
+  test("root Dockerfile uses repo name", () => {
+    expect(deriveServiceName("Dockerfile", "my-app")).toBe("my-app");
+  });
+
+  test("nested Dockerfile uses parent directory", () => {
+    expect(deriveServiceName("apps/api/Dockerfile", "monorepo")).toBe("api");
+    expect(deriveServiceName("apps/web/Dockerfile", "monorepo")).toBe("web");
+    expect(deriveServiceName("services/backend/Dockerfile", "proj")).toBe(
+      "backend",
+    );
+  });
+
+  test("Dockerfile.suffix uses suffix as name", () => {
+    expect(deriveServiceName("Dockerfile.worker", "my-app")).toBe("worker");
+    expect(deriveServiceName("Dockerfile.api", "my-app")).toBe("api");
+  });
+
+  test("nested Dockerfile.suffix uses suffix", () => {
+    expect(deriveServiceName("apps/Dockerfile.web", "monorepo")).toBe("web");
+  });
+});
+
+describe("parseDockerfilePort", () => {
+  test("parses EXPOSE directive", () => {
+    expect(parseDockerfilePort("FROM node\nEXPOSE 3000\nCMD node")).toBe(3000);
+    expect(parseDockerfilePort("EXPOSE 8080")).toBe(8080);
+  });
+
+  test("parses ENV PORT with equals", () => {
+    expect(parseDockerfilePort("FROM node\nENV PORT=4000")).toBe(4000);
+  });
+
+  test("parses ENV PORT with space", () => {
+    expect(parseDockerfilePort("FROM node\nENV PORT 5000")).toBe(5000);
+  });
+
+  test("returns first port found", () => {
+    const content = `
+FROM node
+EXPOSE 3000
+EXPOSE 8080
+`;
+    expect(parseDockerfilePort(content)).toBe(3000);
+  });
+
+  test("returns null when no port found", () => {
+    expect(parseDockerfilePort("FROM node\nCMD npm start")).toBeNull();
+    expect(parseDockerfilePort("")).toBeNull();
+  });
+
+  test("handles case insensitivity", () => {
+    expect(parseDockerfilePort("expose 3000")).toBe(3000);
+    expect(parseDockerfilePort("env port=4000")).toBe(4000);
+  });
+
+  test("ignores commented lines", () => {
+    expect(parseDockerfilePort("# EXPOSE 3000\nEXPOSE 8080")).toBe(8080);
   });
 });
