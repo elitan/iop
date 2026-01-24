@@ -1,6 +1,6 @@
 {
   "name": "frost",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Open source Vercel alternative",
   "private": true,
   "workspaces": [
