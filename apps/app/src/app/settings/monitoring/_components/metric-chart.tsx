@@ -22,8 +22,8 @@ interface MetricChartProps {
   height?: number;
 }
 
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
+function formatTime(label: unknown): string {
+  const date = new Date(Number(label));
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
