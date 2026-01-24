@@ -10,8 +10,7 @@ RUN bun install --frozen-lockfile --filter @frost/marketing
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/marketing ./apps/marketing
-WORKDIR /app/apps/marketing
-RUN bun run build
+RUN bun run --cwd apps/marketing build
 
 FROM base AS runner
 ENV NODE_ENV=production
