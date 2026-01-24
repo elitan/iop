@@ -49,7 +49,7 @@ export function Hero() {
         >
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-border bg-card/50 text-sm text-muted-foreground backdrop-blur-sm">
             <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            Open Source
+            Open Source · Self-Hosted
           </span>
         </motion.div>
 
@@ -59,20 +59,18 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.1]"
         >
-          Deploy Docker apps.
+          Get your app online,
           <br />
-          <span className="text-accent">Simply.</span>
+          <span className="text-accent">for the AI coding era.</span>
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="text-lg md:text-xl text-muted-foreground max-w-md mb-12 leading-relaxed"
+          className="text-lg md:text-xl text-muted-foreground max-w-lg mb-12 leading-relaxed"
         >
-          Open source Railway alternative.
-          <br />
-          One server, one command.
+          Deploy in seconds. No usage fees. Open source.
         </motion.p>
 
         <motion.div
@@ -89,7 +87,7 @@ export function Hero() {
               boxShadow: "0 0 30px -5px rgba(var(--color-accent-rgb), 0.4)",
             }}
           >
-            Install Now
+            Get Started
             <ArrowRight
               size={18}
               className="transition-transform group-hover:translate-x-1"

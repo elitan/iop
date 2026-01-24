@@ -8,21 +8,21 @@ const steps = [
     number: "01",
     icon: Terminal,
     title: "Install",
-    description: "One curl command on your server",
+    description: "One command on your server",
     code: "curl ... | bash",
   },
   {
     number: "02",
     icon: Plus,
-    title: "Create",
-    description: "Add project + service via UI",
-    code: "frost.yaml",
+    title: "Connect",
+    description: "Link your repo in the UI",
+    code: "github.com/you/app",
   },
   {
     number: "03",
     icon: Rocket,
-    title: "Deploy",
-    description: "Git push or click deploy",
+    title: "Ship",
+    description: "Push code, it's live",
     code: "git push",
   },
 ];
@@ -40,10 +40,10 @@ export function Steps() {
           className="text-center mb-20"
         >
           <span className="text-sm uppercase tracking-widest text-accent mb-4 block">
-            How it works
+            Get Started
           </span>
           <h2 className="text-3xl md:text-4xl font-bold">
-            Three steps to production
+            Three steps to ship
           </h2>
         </motion.div>
 

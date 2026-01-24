@@ -7,23 +7,26 @@ const features = [
   {
     icon: GitBranch,
     title: "Git Push Deploy",
-    description: "Connect your repo. Push to deploy. Builds from Dockerfile.",
+    description:
+      "Connect repo, push, deployed. AI generates code, you push, it's live.",
   },
   {
     icon: Lock,
     title: "Automatic SSL",
-    description: "Custom domains with Let's Encrypt certificates. Zero config.",
+    description:
+      "HTTPS on every domain. Let's Encrypt certificates. Zero config needed.",
   },
   {
     icon: Box,
     title: "Docker Native",
-    description: "No Kubernetes. One server, Docker under the hood. Simple.",
+    description:
+      "No K8s complexity for AI to hallucinate. Just Docker. Predictable.",
   },
   {
     icon: Zap,
     title: "Fast Deploys",
     description:
-      "Instant rollbacks. Zero-downtime deployments. Built-in health checks.",
+      "Ship as fast as AI codes. Instant rollbacks. Zero-downtime deploys.",
   },
 ];
 
@@ -46,10 +49,10 @@ export function Features() {
           className="text-center mb-20"
         >
           <span className="text-sm uppercase tracking-widest text-accent mb-4 block">
-            Features
+            AI-Native by Design
           </span>
           <h2 className="text-3xl md:text-4xl font-bold">
-            Everything you need to deploy
+            Infrastructure AI agents understand
           </h2>
         </motion.div>
 

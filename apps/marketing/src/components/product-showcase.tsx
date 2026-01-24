@@ -17,10 +17,10 @@ export function ProductShowcase() {
             How it works
           </span>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            From push to <span className="text-accent">production</span>
+            Push to <span className="text-accent">production</span>
           </h2>
           <p className="text-muted-foreground">
-            Watch your code go live in real-time
+            AI writes the code. You push. It&apos;s live.
           </p>
         </motion.div>
 
