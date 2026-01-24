@@ -16,14 +16,6 @@ export function verifyWebhookSignature(
   return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
 
-export function shouldTriggerDeploy(
-  ref: string,
-  defaultBranch: string,
-): boolean {
-  const expectedRef = `refs/heads/${defaultBranch}`;
-  return ref === expectedRef;
-}
-
 export async function findMatchingServices(webhookRepoUrl: string) {
   const normalizedWebhookUrl = normalizeGitHubUrl(webhookRepoUrl);
 
@@ -88,6 +80,7 @@ export async function createPreviewEnvironment(
   projectId: string,
   prNumber: number,
   prBranch: string,
+  prTitle: string,
 ): Promise<string> {
   const existing = await db
     .selectFrom("environments")
@@ -102,7 +95,7 @@ export async function createPreviewEnvironment(
 
   const id = nanoid();
   const now = Date.now();
-  const name = `pr-${prNumber}`;
+  const name = slugify(prTitle).substring(0, 50);
 
   await db
     .insertInto("environments")
@@ -119,6 +112,20 @@ export async function createPreviewEnvironment(
     .execute();
 
   return id;
+}
+
+export async function updatePreviewEnvironmentName(
+  projectId: string,
+  prNumber: number,
+  prTitle: string,
+): Promise<void> {
+  const name = slugify(prTitle).substring(0, 50);
+  await db
+    .updateTable("environments")
+    .set({ name })
+    .where("projectId", "=", projectId)
+    .where("prNumber", "=", prNumber)
+    .execute();
 }
 
 interface CloneServiceInput {
@@ -252,62 +259,16 @@ export async function deletePreviewEnvironment(
   return true;
 }
 
-export async function findBranchEnvironment(projectId: string, branch: string) {
+export async function findPreviewEnvironment(
+  projectId: string,
+  prNumber: number,
+) {
   return db
     .selectFrom("environments")
     .selectAll()
     .where("projectId", "=", projectId)
-    .where("prBranch", "=", branch)
+    .where("prNumber", "=", prNumber)
     .executeTakeFirst();
-}
-
-export async function createBranchEnvironment(
-  projectId: string,
-  branch: string,
-): Promise<string> {
-  const existing = await findBranchEnvironment(projectId, branch);
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  const now = Date.now();
-  const safeBranch = slugify(branch);
-  const name = `branch-${safeBranch}`;
-
-  await db
-    .insertInto("environments")
-    .values({
-      id,
-      projectId,
-      name,
-      type: "preview",
-      prBranch: branch,
-      isEphemeral: true,
-      createdAt: now,
-    })
-    .execute();
-
-  return id;
-}
-
-export async function deleteBranchEnvironment(
-  projectId: string,
-  branch: string,
-): Promise<boolean> {
-  const environment = await db
-    .selectFrom("environments")
-    .select(["id", "projectId"])
-    .where("projectId", "=", projectId)
-    .where("prBranch", "=", branch)
-    .executeTakeFirst();
-
-  if (!environment) {
-    return false;
-  }
-
-  await cleanupEnvironment(environment);
-  return true;
 }
 
 export async function updateEnvironmentPRCommentId(
@@ -335,8 +296,9 @@ export function buildPRCommentBody(
 ): string {
   const rows = services
     .map((s) => {
-      const statusEmoji =
-        s.status === "running" ? "✅" : s.status === "failed" ? "❌" : "🔄";
+      let statusEmoji = "🔄";
+      if (s.status === "running") statusEmoji = "✅";
+      else if (s.status === "failed") statusEmoji = "❌";
       const url = s.url ? `[${s.hostname}](${s.url})` : "-";
       return `| ${s.name} | ${statusEmoji} ${s.status} | ${url} |`;
     })
