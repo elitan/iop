@@ -28,13 +28,7 @@ interface SidebarSettingsProps {
   projectId: string;
 }
 
-type SettingsTab =
-  | "general"
-  | "variables"
-  | "domains"
-  | "volumes"
-  | "runtime"
-  | "danger";
+type SettingsTab = "general" | "variables" | "domains" | "volumes" | "runtime";
 
 function VariablesTab({ service }: { service: Service }) {
   const updateMutation = useUpdateService(service.id, service.environmentId);
@@ -170,7 +164,6 @@ const NAV_ITEMS: { id: SettingsTab; label: string }[] = [
   { id: "domains", label: "Domains" },
   { id: "volumes", label: "Volumes" },
   { id: "runtime", label: "Runtime" },
-  { id: "danger", label: "Danger" },
 ];
 
 export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
@@ -194,11 +187,11 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
               />
             )}
             <span
-              className={`relative z-10 ${
+              className={
                 activeTab === item.id
-                  ? "text-white"
-                  : "text-neutral-400 hover:text-neutral-200"
-              }`}
+                  ? "relative z-10 text-white"
+                  : "relative z-10 text-neutral-400 hover:text-neutral-200"
+              }
             >
               {item.label}
             </span>
@@ -213,6 +206,11 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
             <HostnameCard serviceId={service.id} />
             <BuildConfigCard serviceId={service.id} />
             <ImageConfigCard serviceId={service.id} />
+            <DangerZoneCard
+              serviceId={service.id}
+              projectId={projectId}
+              environmentId={service.environmentId}
+            />
           </>
         )}
 
@@ -230,14 +228,6 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
             <MemoryLimitCard serviceId={service.id} />
             <CpuLimitCard serviceId={service.id} />
           </>
-        )}
-
-        {activeTab === "danger" && (
-          <DangerZoneCard
-            serviceId={service.id}
-            projectId={projectId}
-            environmentId={service.environmentId}
-          />
         )}
       </div>
     </div>
