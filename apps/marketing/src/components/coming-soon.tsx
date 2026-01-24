@@ -1,12 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { FileCode, GitBranch, HardDrive, Terminal } from "lucide-react";
 
 const upcoming = [
-  { name: "S3 Storage", description: "Built-in object storage for your apps" },
-  { name: "Postgres Branching", description: "Branch databases like code" },
-  { name: "CLI", description: "Deploy and manage from your terminal" },
-  { name: "YAML Config", description: "Infrastructure as code, version controlled" },
+  { name: "S3 Storage", description: "Built-in object storage for your apps", icon: HardDrive },
+  { name: "Postgres Branching", description: "Branch databases like code", icon: GitBranch },
+  { name: "CLI", description: "Deploy and manage from your terminal", icon: Terminal },
+  { name: "YAML Config", description: "Infrastructure as code, version controlled", icon: FileCode },
 ];
 
 export function ComingSoon() {
@@ -35,7 +36,9 @@ export function ComingSoon() {
               className="p-4 rounded-xl border border-dashed border-neutral-800 bg-neutral-900/30"
             >
               <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-accent/50 mt-1.5 shrink-0" />
+                <div className="w-7 h-7 rounded-md bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+                  <item.icon className="text-accent" size={14} />
+                </div>
                 <div>
                   <div className="text-sm font-medium">{item.name}</div>
                   <div className="text-xs text-muted-foreground">{item.description}</div>
