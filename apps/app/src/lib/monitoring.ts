@@ -1,4 +1,5 @@
 import { exec } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 import { promisify } from "node:util";
 import { db } from "./db";
@@ -81,12 +82,28 @@ function getCpuPercent(): number {
   return Math.round(((totalDiff - idleDiff) / totalDiff) * 100 * 10) / 10;
 }
 
+async function getMemoryAvailable(): Promise<number> {
+  if (process.platform !== "linux") {
+    return os.freemem();
+  }
+
+  try {
+    const meminfo = await fs.promises.readFile("/proc/meminfo", "utf-8");
+    const match = meminfo.match(/MemAvailable:\s+(\d+)\s+kB/);
+    if (match) {
+      return parseInt(match[1], 10) * 1024;
+    }
+  } catch {}
+
+  return os.freemem();
+}
+
 export async function getSystemStats(): Promise<SystemStats> {
   const cpuPercent = getCpuPercent();
   const cpuCores = os.cpus().length;
   const memoryTotal = os.totalmem();
-  const memoryFree = os.freemem();
-  const memoryUsed = memoryTotal - memoryFree;
+  const memoryAvailable = await getMemoryAvailable();
+  const memoryUsed = memoryTotal - memoryAvailable;
   const memoryPercent = Math.round((memoryUsed / memoryTotal) * 100 * 10) / 10;
 
   let diskUsed = 0;
