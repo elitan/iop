@@ -1,11 +1,16 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-import { useService } from "@/hooks/use-services";
-import { slugify } from "@/lib/slugify";
+import { Input } from "@/components/ui/input";
+import {
+  useDeployService,
+  useService,
+  useUpdateService,
+} from "@/hooks/use-services";
 
 interface HostnameCardProps {
   serviceId: string;
@@ -13,35 +18,78 @@ interface HostnameCardProps {
 
 export function HostnameCard({ serviceId }: HostnameCardProps) {
   const { data: service } = useService(serviceId);
-  const [copied, setCopied] = useState(false);
+  const updateMutation = useUpdateService(
+    serviceId,
+    service?.environmentId ?? "",
+  );
+  const deployMutation = useDeployService(
+    serviceId,
+    service?.environmentId ?? "",
+  );
+
+  const [hostname, setHostname] = useState("");
+  const initialHostname = useRef("");
+
+  useEffect(() => {
+    if (service?.hostname) {
+      setHostname(service.hostname);
+      initialHostname.current = service.hostname;
+    }
+  }, [service]);
+
+  const hasChanges = hostname !== initialHostname.current;
+
+  async function handleSave() {
+    if (!hostname.trim()) {
+      toast.error("Hostname is required");
+      return;
+    }
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname.trim())) {
+      toast.error("Invalid hostname format");
+      return;
+    }
+    try {
+      await updateMutation.mutateAsync({ hostname: hostname.trim() });
+      initialHostname.current = hostname.trim();
+      toast.success("Hostname updated", {
+        description: "Redeploy required for changes to take effect",
+        action: {
+          label: "Redeploy",
+          onClick: () => deployMutation.mutate(),
+        },
+      });
+    } catch {
+      toast.error("Failed to update");
+    }
+  }
 
   if (!service) return null;
-
-  const hostname = service.hostname ?? slugify(service.name);
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(hostname);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
 
   return (
     <SettingCard
       title="Hostname"
-      description="Used for inter-service communication within the project network."
-    >
-      <div className="flex items-center gap-2">
-        <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-sm text-neutral-200">
-          {hostname}
-        </code>
-        <Button variant="outline" size="icon" onClick={handleCopy}>
-          {copied ? (
-            <Check className="h-4 w-4 text-green-500" />
+      description="DNS-safe identifier for inter-service communication within the environment network."
+      footerRight={
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={updateMutation.isPending || !hasChanges}
+        >
+          {updateMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Copy className="h-4 w-4" />
+            "Save"
           )}
         </Button>
-      </div>
+      }
+    >
+      <Input
+        value={hostname}
+        onChange={(e) => setHostname(e.target.value.toLowerCase())}
+        placeholder="my-service"
+        pattern="^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        className="font-mono"
+      />
     </SettingCard>
   );
 }

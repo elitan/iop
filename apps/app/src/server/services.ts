@@ -95,7 +95,20 @@ export const services = {
 
     const id = nanoid();
     const now = Date.now();
-    const hostname = slugify(input.name);
+    const hostname = input.hostname ?? slugify(input.name);
+
+    const existingHostname = await db
+      .selectFrom("services")
+      .select("id")
+      .where("environmentId", "=", input.environmentId)
+      .where("hostname", "=", hostname)
+      .executeTakeFirst();
+
+    if (existingHostname) {
+      throw new ORPCError("CONFLICT", {
+        message: "Service with this hostname already exists in environment",
+      });
+    }
 
     if (input.deployType === "database") {
       const template = getTemplate(input.templateId!)!;
@@ -204,8 +217,25 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
 
+    if (input.hostname !== undefined) {
+      const existingHostname = await db
+        .selectFrom("services")
+        .select("id")
+        .where("environmentId", "=", service.environmentId)
+        .where("hostname", "=", input.hostname)
+        .where("id", "!=", input.id)
+        .executeTakeFirst();
+
+      if (existingHostname) {
+        throw new ORPCError("CONFLICT", {
+          message: "Service with this hostname already exists in environment",
+        });
+      }
+    }
+
     const updates: Record<string, unknown> = {};
     if (input.name !== undefined) updates.name = input.name;
+    if (input.hostname !== undefined) updates.hostname = input.hostname;
     if (input.envVars !== undefined)
       updates.envVars = JSON.stringify(input.envVars);
     if (input.containerPort !== undefined)

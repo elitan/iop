@@ -30,6 +30,10 @@ export const servicesContract = {
       z.object({
         environmentId: z.string(),
         name: z.string().min(1),
+        hostname: z
+          .string()
+          .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
+          .optional(),
         deployType: z.enum(["repo", "image", "database"]).default("repo"),
         repoUrl: z.string().optional(),
         branch: z.string().default("main"),
@@ -58,6 +62,10 @@ export const servicesContract = {
       z.object({
         id: z.string(),
         name: z.string().optional(),
+        hostname: z
+          .string()
+          .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
+          .optional(),
         envVars: z.array(envVarSchema).optional(),
         containerPort: z.number().min(1).max(65535).optional(),
         branch: z.string().optional(),
