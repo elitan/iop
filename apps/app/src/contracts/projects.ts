@@ -17,6 +17,7 @@ const latestDeploymentSchema = z.object({
 const projectListServiceSchema = z.object({
   id: z.string(),
   name: z.string(),
+  icon: z.string().nullable(),
   imageUrl: z.string().nullable(),
   deployType: z.string(),
   status: z.string().nullable(),

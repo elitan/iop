@@ -102,6 +102,7 @@ export const projects = {
           services: services.map((s) => ({
             id: s.id,
             name: s.name,
+            icon: s.icon,
             imageUrl: s.imageUrl,
             deployType: s.deployType,
             status: latestDeploymentByService[s.id]?.status ?? null,
