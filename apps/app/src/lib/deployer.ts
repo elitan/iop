@@ -38,6 +38,7 @@ import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
 import type { EnvVar } from "./types";
 import { buildVolumeName, createVolume } from "./volumes";
+import { updateEnvironmentPRComment } from "./webhook";
 
 const execAsync = promisify(exec);
 
@@ -750,6 +751,12 @@ async function runServiceDeployment(
       deploymentId,
     );
 
+    try {
+      await updateEnvironmentPRComment(environment.id, service.repoUrl);
+    } catch (err) {
+      console.warn("Failed to update PR comment:", err);
+    }
+
     await updateRollbackEligible(service.id);
 
     const previousDeployments = await db
@@ -797,6 +804,12 @@ async function runServiceDeployment(
       "Deployment failed",
       deploymentId,
     );
+
+    try {
+      await updateEnvironmentPRComment(environment.id, service.repoUrl);
+    } catch (prErr) {
+      console.warn("Failed to update PR comment:", prErr);
+    }
   }
 }
 

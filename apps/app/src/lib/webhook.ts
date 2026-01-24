@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { removeNetwork, stopContainer } from "./docker";
-import { normalizeGitHubUrl } from "./github";
+import { normalizeGitHubUrl, updatePRComment } from "./github";
 import { createService } from "./services";
 import { slugify } from "./slugify";
 
@@ -372,4 +372,38 @@ export async function getEnvironmentServiceStatuses(
   }
 
   return statuses;
+}
+
+export async function updateEnvironmentPRComment(
+  environmentId: string,
+  repoUrl: string | null,
+): Promise<void> {
+  if (!repoUrl) return;
+
+  const env = await db
+    .selectFrom("environments")
+    .select(["prCommentId", "prBranch", "projectId"])
+    .where("id", "=", environmentId)
+    .executeTakeFirst();
+
+  if (!env?.prCommentId || !env.prBranch) return;
+
+  const latestDeployment = await db
+    .selectFrom("deployments")
+    .select("commitSha")
+    .where("environmentId", "=", environmentId)
+    .orderBy("createdAt", "desc")
+    .executeTakeFirst();
+
+  const statuses = await getEnvironmentServiceStatuses(
+    environmentId,
+    env.projectId,
+  );
+  const body = buildPRCommentBody(
+    statuses,
+    env.prBranch,
+    latestDeployment?.commitSha ?? "HEAD",
+  );
+
+  await updatePRComment(repoUrl, env.prCommentId, body);
 }
