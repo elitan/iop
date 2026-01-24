@@ -31,8 +31,8 @@ export function OpenSourceSection() {
 
           <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
             Frost is fully open source and runs on your own infrastructure. No
-            vendor lock-in. No usage limits. No surprise bills. Just Docker on
-            a server you control.
+            vendor lock-in. No usage limits. No surprise bills. Just Docker on a
+            server you control.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

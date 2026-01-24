@@ -42,9 +42,7 @@ export function RoadmapSection() {
           <span className="text-sm uppercase tracking-widest text-accent mb-4 block">
             Roadmap
           </span>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Coming soon
-          </h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Coming soon</h2>
           <p className="text-muted-foreground">
             Making Frost even more AI-native.
           </p>

@@ -28,7 +28,15 @@ const technologies = [
   { name: "WordPress", slug: "wordpress", color: "21759B" },
 ];
 
-function TechItem({ name, slug, color }: { name: string; slug: string; color: string }) {
+function TechItem({
+  name,
+  slug,
+  color,
+}: {
+  name: string;
+  slug: string;
+  color: string;
+}) {
   return (
     <div className="flex items-center gap-3 px-5 py-3 mx-2 rounded-lg bg-neutral-900/50 border border-neutral-800/50 shrink-0">
       <img

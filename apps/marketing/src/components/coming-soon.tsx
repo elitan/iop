@@ -4,10 +4,26 @@ import { motion } from "framer-motion";
 import { FileCode, GitBranch, HardDrive, Terminal } from "lucide-react";
 
 const upcoming = [
-  { name: "S3 Storage", description: "Built-in object storage for your apps", icon: HardDrive },
-  { name: "Postgres Branching", description: "Branch databases like code", icon: GitBranch },
-  { name: "CLI", description: "Deploy and manage from your terminal", icon: Terminal },
-  { name: "YAML Config", description: "Infrastructure as code, version controlled", icon: FileCode },
+  {
+    name: "S3 Storage",
+    description: "Built-in object storage for your apps",
+    icon: HardDrive,
+  },
+  {
+    name: "Postgres Branching",
+    description: "Branch databases like code",
+    icon: GitBranch,
+  },
+  {
+    name: "CLI",
+    description: "Deploy and manage from your terminal",
+    icon: Terminal,
+  },
+  {
+    name: "YAML Config",
+    description: "Infrastructure as code, version controlled",
+    icon: FileCode,
+  },
 ];
 
 export function ComingSoon() {
@@ -41,7 +57,9 @@ export function ComingSoon() {
                 </div>
                 <div>
                   <div className="text-sm font-medium">{item.name}</div>
-                  <div className="text-xs text-muted-foreground">{item.description}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.description}
+                  </div>
                 </div>
               </div>
             </motion.div>
