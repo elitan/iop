@@ -388,17 +388,16 @@ export async function updateEnvironmentPRComment(
 
   if (!env?.prCommentId || !env.prBranch) return;
 
-  const latestDeployment = await db
-    .selectFrom("deployments")
-    .select("commitSha")
-    .where("environmentId", "=", environmentId)
-    .orderBy("createdAt", "desc")
-    .executeTakeFirst();
+  const [latestDeployment, statuses] = await Promise.all([
+    db
+      .selectFrom("deployments")
+      .select("commitSha")
+      .where("environmentId", "=", environmentId)
+      .orderBy("createdAt", "desc")
+      .executeTakeFirst(),
+    getEnvironmentServiceStatuses(environmentId, env.projectId),
+  ]);
 
-  const statuses = await getEnvironmentServiceStatuses(
-    environmentId,
-    env.projectId,
-  );
   const body = buildPRCommentBody(
     statuses,
     env.prBranch,

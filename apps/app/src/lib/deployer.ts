@@ -807,8 +807,8 @@ async function runServiceDeployment(
 
     try {
       await updateEnvironmentPRComment(environment.id, service.repoUrl);
-    } catch (prErr) {
-      console.warn("Failed to update PR comment:", prErr);
+    } catch (err) {
+      console.warn("Failed to update PR comment:", err);
     }
   }
 }
