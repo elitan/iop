@@ -70,13 +70,15 @@ export function ServiceContent({
       )}
 
       {deployment && (
-        <div className="flex items-center gap-1 text-xs text-neutral-500 mt-auto">
-          <span>{getTimeAgo(new Date(deployment.createdAt))}</span>
+        <div className="flex items-center gap-1 text-xs text-neutral-500 mt-auto min-w-0">
+          <span className="shrink-0">
+            {getTimeAgo(new Date(deployment.createdAt))}
+          </span>
           {service.deployType === "repo" && (
             <>
-              <span>on</span>
-              <GitBranch className="h-3 w-3" />
-              <span>{service.branch || "main"}</span>
+              <span className="shrink-0">on</span>
+              <GitBranch className="h-3 w-3 shrink-0" />
+              <span className="truncate">{service.branch || "main"}</span>
             </>
           )}
         </div>

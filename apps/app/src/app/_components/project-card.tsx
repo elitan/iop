@@ -73,9 +73,9 @@ export function ProjectCard({
             {latestDeployment.branch && (
               <>
                 <span>on</span>
-                <span className="inline-flex items-center gap-1">
-                  <GitBranch className="h-3 w-3" />
-                  {latestDeployment.branch}
+                <span className="inline-flex items-center gap-1 min-w-0 max-w-[150px]">
+                  <GitBranch className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{latestDeployment.branch}</span>
                 </span>
               </>
             )}
