@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev -p 3001",
+    "prebuild": "cp ../../install.sh public/install.sh && cp ../../INSTALL.md public/install.md",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit"
