@@ -1,6 +1,6 @@
 # Frost
 
-Deploy Docker apps. Simple.
+Get your app online, for the AI coding era.
 
 ## Features
 

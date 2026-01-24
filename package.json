@@ -1,7 +1,7 @@
 {
   "name": "frost",
   "version": "0.9.16",
-  "description": "Open source Vercel alternative",
+  "description": "Get your app online, for the AI coding era.",
   "private": true,
   "workspaces": [
     "apps/*",
