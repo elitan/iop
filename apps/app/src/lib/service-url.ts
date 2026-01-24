@@ -1,5 +1,11 @@
 import type { Domain } from "@/lib/api";
 
+export function getGitHubRepoFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/github\.com\/([^/]+\/[^/]+)/);
+  return match ? match[1] : null;
+}
+
 export function getPreferredDomain(domains: Domain[]): Domain | null {
   const verified = domains.filter((d) => d.dnsVerified);
   return (

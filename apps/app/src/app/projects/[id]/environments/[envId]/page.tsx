@@ -28,6 +28,10 @@ export default function EnvironmentDetailPage() {
     orpc.environments.get.queryOptions({ input: { id: envId } }),
   );
 
+  const { data: project } = useQuery(
+    orpc.projects.get.queryOptions({ input: { id: projectId } }),
+  );
+
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.settings.get(),
@@ -89,7 +93,9 @@ export default function EnvironmentDetailPage() {
 
   if (!environment) return null;
 
-  const canvasPositions: CanvasPositions = {};
+  const canvasPositions: CanvasPositions = project?.canvasPositions
+    ? (JSON.parse(project.canvasPositions) as CanvasPositions)
+    : {};
 
   if (services.length === 0) {
     if (isMobile) {

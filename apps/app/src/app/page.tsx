@@ -1,20 +1,42 @@
 "use client";
 
-import { Plus, Rocket, Search } from "lucide-react";
+import { LayoutGrid, List, Plus, Rocket, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
 import { EmptyState } from "@/components/empty-state";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjects } from "@/hooks/use-projects";
-import { ProjectCard } from "./_components/project-card";
-import { SkeletonCard } from "./_components/skeleton-card";
+import { ProjectArchitectureCard } from "./_components/project-architecture-card";
+import { ProjectListRow } from "./_components/project-list-item";
+import {
+  SkeletonArchitectureCard,
+  SkeletonListItem,
+} from "./_components/skeleton-card";
+
+type ViewMode = "architecture" | "list";
+const VIEW_STORAGE_KEY = "frost-projects-view";
 
 export default function Home() {
   const { data: projects, isLoading } = useProjects();
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<ViewMode>("architecture");
+
+  useEffect(() => {
+    const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === "architecture" || saved === "list") {
+      setView(saved);
+    }
+  }, []);
+
+  function handleViewChange(value: string) {
+    const v = value as ViewMode;
+    setView(v);
+    localStorage.setItem(VIEW_STORAGE_KEY, v);
+  }
 
   const filteredProjects = useMemo(() => {
     if (!projects) return [];
@@ -25,11 +47,20 @@ export default function Home() {
 
   function renderContent() {
     if (isLoading) {
+      if (view === "list") {
+        return (
+          <div className="flex flex-col gap-2">
+            <SkeletonListItem />
+            <SkeletonListItem />
+            <SkeletonListItem />
+          </div>
+        );
+      }
       return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
+          <SkeletonArchitectureCard />
+          <SkeletonArchitectureCard />
+          <SkeletonArchitectureCard />
         </div>
       );
     }
@@ -55,17 +86,20 @@ export default function Home() {
       );
     }
 
+    if (view === "architecture") {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredProjects.map((project) => (
+            <ProjectArchitectureCard key={project.id} project={project} />
+          ))}
+        </div>
+      );
+    }
+
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col gap-2">
         {filteredProjects.map((project) => (
-          <ProjectCard
-            key={project.id}
-            id={project.id}
-            name={project.name}
-            runningUrl={project.runningUrl}
-            repoUrl={project.repoUrl}
-            latestDeployment={project.latestDeployment}
-          />
+          <ProjectListRow key={project.id} project={project} />
         ))}
       </div>
     );
@@ -87,6 +121,18 @@ export default function Home() {
               className="pl-9"
             />
           </div>
+          <Tabs value={view} onValueChange={handleViewChange}>
+            <TabsList className="bg-neutral-800">
+              <TabsTrigger value="architecture" className="gap-1.5">
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden sm:inline">Architecture</span>
+              </TabsTrigger>
+              <TabsTrigger value="list" className="gap-1.5">
+                <List className="h-4 w-4" />
+                <span className="hidden sm:inline">List</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Button asChild>
             <Link href="/projects/new">
               <Plus className="mr-1.5 h-4 w-4" />

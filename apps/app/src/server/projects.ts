@@ -33,6 +33,25 @@ export const projects = {
               .execute()
           : [];
 
+        const latestDeploymentByService: Record<
+          string,
+          { status: string } | undefined
+        > = {};
+        if (productionEnv && services.length > 0) {
+          const deployments = await db
+            .selectFrom("deployments")
+            .select(["serviceId", "status", "createdAt"])
+            .where("environmentId", "=", productionEnv.id)
+            .orderBy("createdAt", "desc")
+            .execute();
+
+          for (const d of deployments) {
+            if (!latestDeploymentByService[d.serviceId]) {
+              latestDeploymentByService[d.serviceId] = { status: d.status };
+            }
+          }
+        }
+
         const latestDeployment = productionEnv
           ? await db
               .selectFrom("deployments")
@@ -80,6 +99,13 @@ export const projects = {
             : null,
           repoUrl,
           runningUrl,
+          services: services.map((s) => ({
+            id: s.id,
+            name: s.name,
+            imageUrl: s.imageUrl,
+            deployType: s.deployType,
+            status: latestDeploymentByService[s.id]?.status ?? null,
+          })),
         };
       }),
     );

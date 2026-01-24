@@ -14,11 +14,20 @@ const latestDeploymentSchema = z.object({
   branch: z.string().nullable(),
 });
 
+const projectListServiceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  imageUrl: z.string().nullable(),
+  deployType: z.string(),
+  status: z.string().nullable(),
+});
+
 const projectListItemSchema = projectsSchema.extend({
   servicesCount: z.number(),
   latestDeployment: latestDeploymentSchema.nullable(),
   repoUrl: z.string().nullable(),
   runningUrl: z.string().nullable(),
+  services: z.array(projectListServiceSchema),
 });
 
 const serviceWithDeploymentSchema = servicesSchema.extend({
