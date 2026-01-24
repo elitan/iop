@@ -28,7 +28,13 @@ interface SidebarSettingsProps {
   projectId: string;
 }
 
-type SettingsTab = "general" | "variables" | "domains" | "runtime" | "danger";
+type SettingsTab =
+  | "general"
+  | "variables"
+  | "domains"
+  | "volumes"
+  | "runtime"
+  | "danger";
 
 function VariablesTab({ service }: { service: Service }) {
   const updateMutation = useUpdateService(service.id, service.environmentId);
@@ -162,6 +168,7 @@ const NAV_ITEMS: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "variables", label: "Variables" },
   { id: "domains", label: "Domains" },
+  { id: "volumes", label: "Volumes" },
   { id: "runtime", label: "Runtime" },
   { id: "danger", label: "Danger" },
 ];
@@ -171,7 +178,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
 
   return (
     <div className="flex gap-6">
-      <nav className="w-32 shrink-0 space-y-0.5">
+      <nav className="sticky top-0 w-32 shrink-0 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <button
             type="button"
@@ -213,6 +220,10 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
 
         {activeTab === "domains" && <DomainsTab service={service} />}
 
+        {activeTab === "volumes" && service.serviceType !== "database" && (
+          <VolumesCard serviceId={service.id} />
+        )}
+
         {activeTab === "runtime" && (
           <>
             <HealthCheckCard serviceId={service.id} />
@@ -220,9 +231,6 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
             <ShutdownTimeoutCard serviceId={service.id} />
             <MemoryLimitCard serviceId={service.id} />
             <CpuLimitCard serviceId={service.id} />
-            {service.serviceType !== "database" && (
-              <VolumesCard serviceId={service.id} />
-            )}
           </>
         )}
 
