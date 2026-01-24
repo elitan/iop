@@ -220,9 +220,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
 
         {activeTab === "domains" && <DomainsTab service={service} />}
 
-        {activeTab === "volumes" && service.serviceType !== "database" && (
-          <VolumesCard serviceId={service.id} />
-        )}
+        {activeTab === "volumes" && <VolumesCard serviceId={service.id} />}
 
         {activeTab === "runtime" && (
           <>
