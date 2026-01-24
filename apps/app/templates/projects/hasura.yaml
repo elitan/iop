@@ -1,0 +1,31 @@
+name: Hasura
+description: Instant GraphQL APIs on your data
+category: baas
+docs: https://hasura.io/docs/latest/index/
+
+services:
+  hasura:
+    image: hasura/graphql-engine:v2.46.0
+    port: 8080
+    main: true
+    icon: hasura
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/hasura
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "false"
+      HASURA_GRAPHQL_ADMIN_SECRET:
+        generated: password
+    health_check:
+      path: /healthz
+      timeout: 60
+
+  postgres:
+    image: postgres:16-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: hasura
+    volumes:
+      - data:/var/lib/postgresql/data

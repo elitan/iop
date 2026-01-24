@@ -1,0 +1,18 @@
+name: Grafana
+description: Dashboards and observability platform
+category: analytics
+docs: https://grafana.com/docs/grafana/latest/
+
+services:
+  grafana:
+    image: grafana/grafana:11.5.1
+    port: 3000
+    icon: grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD:
+        generated: password
+    volumes:
+      - data:/var/lib/grafana
+    health_check:
+      path: /api/health
+      timeout: 30

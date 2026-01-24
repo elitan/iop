@@ -1,0 +1,29 @@
+name: Umami Analytics
+description: Privacy-focused web analytics
+category: analytics
+docs: https://umami.is/docs
+
+services:
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    port: 3000
+    main: true
+    icon: umami
+    environment:
+      DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/umami
+      APP_SECRET:
+        generated: base64_32
+    health_check:
+      path: /api/heartbeat
+      timeout: 60
+
+  postgres:
+    image: postgres:16-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: umami
+    volumes:
+      - data:/var/lib/postgresql/data

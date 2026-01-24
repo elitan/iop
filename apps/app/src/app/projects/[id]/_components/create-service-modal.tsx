@@ -46,11 +46,6 @@ function getTemplatePort(template: Template): number {
   return firstService?.port ?? 8080;
 }
 
-function getTemplateImage(template: Template): string {
-  const firstService = Object.values(template.services)[0];
-  return firstService?.image ?? "";
-}
-
 type Step = "category" | "repo" | "database" | "image";
 
 interface CreateServiceModalProps {
@@ -274,8 +269,7 @@ export function CreateServiceModal({
     await createService({
       name,
       deployType: "image",
-      imageUrl: getTemplateImage(template),
-      containerPort: getTemplatePort(template),
+      serviceTemplateId: templateId,
       envVars: [],
     });
   }

@@ -1,0 +1,45 @@
+name: Strapi
+description: Headless CMS with admin panel
+category: cms
+docs: https://docs.strapi.io/
+
+services:
+  strapi:
+    image: strapi/strapi:5.8.1
+    port: 1337
+    main: true
+    icon: strapi
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: strapi
+      DATABASE_USERNAME: strapi
+      DATABASE_PASSWORD: ${postgres.POSTGRES_PASSWORD}
+      APP_KEYS:
+        generated: base64_32
+      API_TOKEN_SALT:
+        generated: base64_32
+      ADMIN_JWT_SECRET:
+        generated: base64_32
+      TRANSFER_TOKEN_SALT:
+        generated: base64_32
+      JWT_SECRET:
+        generated: base64_32
+    volumes:
+      - data:/opt/app
+    health_check:
+      path: /_health
+      timeout: 120
+
+  postgres:
+    image: postgres:16-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: strapi
+      POSTGRES_USER: strapi
+    volumes:
+      - data:/var/lib/postgresql/data

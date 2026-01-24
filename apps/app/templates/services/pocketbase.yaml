@@ -1,0 +1,15 @@
+name: PocketBase
+description: Open source backend with embedded SQLite
+category: baas
+docs: https://pocketbase.io/docs/
+
+services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:0.25.9
+    port: 8090
+    icon: pocketbase
+    volumes:
+      - data:/pb_data
+    health_check:
+      path: /api/health
+      timeout: 30

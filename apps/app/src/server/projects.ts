@@ -238,6 +238,7 @@ export const projects = {
             serviceType: svc.isDatabase ? "database" : "app",
             volumes: JSON.stringify(svc.volumes),
             command: svc.command ?? null,
+            icon: svc.icon ?? null,
             createdAt: now,
           })
           .execute();

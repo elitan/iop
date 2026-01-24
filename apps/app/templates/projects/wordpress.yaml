@@ -1,0 +1,35 @@
+name: WordPress
+description: Popular content management system
+category: cms
+docs: https://developer.wordpress.org/
+
+services:
+  wordpress:
+    image: wordpress:6.7-apache
+    port: 80
+    main: true
+    icon: wordpress
+    environment:
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${mysql.MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - data:/var/www/html
+    health_check:
+      path: /wp-admin/install.php
+      timeout: 120
+
+  mysql:
+    image: mysql:8.0
+    port: 3306
+    type: database
+    environment:
+      MYSQL_ROOT_PASSWORD:
+        generated: password
+      MYSQL_PASSWORD:
+        generated: password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+    volumes:
+      - data:/var/lib/mysql

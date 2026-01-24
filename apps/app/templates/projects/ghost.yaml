@@ -1,0 +1,37 @@
+name: Ghost
+description: Professional publishing platform
+category: cms
+docs: https://ghost.org/docs/
+
+services:
+  ghost:
+    image: ghost:5.107-alpine
+    port: 2368
+    main: true
+    icon: ghost
+    environment:
+      url: http://localhost:2368
+      database__client: mysql
+      database__connection__host: mysql
+      database__connection__user: ghost
+      database__connection__password: ${mysql.MYSQL_PASSWORD}
+      database__connection__database: ghost
+    volumes:
+      - data:/var/lib/ghost/content
+    health_check:
+      path: /ghost/api/admin/site/
+      timeout: 120
+
+  mysql:
+    image: mysql:8.0
+    port: 3306
+    type: database
+    environment:
+      MYSQL_ROOT_PASSWORD:
+        generated: password
+      MYSQL_PASSWORD:
+        generated: password
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+    volumes:
+      - data:/var/lib/mysql

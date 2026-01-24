@@ -487,7 +487,7 @@ async function runServiceDeployment(
       );
       await appendLog(deploymentId, cloneResult || "Cloned successfully\n");
 
-      const detectedIcon = await detectIcon(
+      const detectedIcon = detectIcon(
         repoPath,
         service.dockerfilePath ?? undefined,
       );

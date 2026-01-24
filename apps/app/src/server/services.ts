@@ -41,7 +41,11 @@ export const services = {
         message: "repoUrl is required for repo deployments",
       });
     }
-    if (input.deployType === "image" && !input.imageUrl) {
+    if (
+      input.deployType === "image" &&
+      !input.imageUrl &&
+      !input.serviceTemplateId
+    ) {
       throw new ORPCError("BAD_REQUEST", {
         message: "imageUrl is required for image deployments",
       });
@@ -143,6 +147,39 @@ export const services = {
       if (serviceConfig.ssl) {
         await generateSelfSignedCert(id);
       }
+    } else if (input.serviceTemplateId) {
+      const template = getTemplate(input.serviceTemplateId);
+      if (!template) {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Unknown service template",
+        });
+      }
+      const resolved = resolveTemplateServices(template);
+      const serviceConfig = resolved[0];
+
+      await db
+        .insertInto("services")
+        .values({
+          id,
+          environmentId: input.environmentId,
+          name: input.name,
+          hostname,
+          deployType: "image",
+          repoUrl: null,
+          branch: null,
+          dockerfilePath: null,
+          imageUrl: serviceConfig.image,
+          envVars: JSON.stringify(serviceConfig.envVars),
+          containerPort: serviceConfig.port,
+          healthCheckPath: serviceConfig.healthCheckPath ?? null,
+          healthCheckTimeout: serviceConfig.healthCheckTimeout,
+          autoDeploy: false,
+          volumes: JSON.stringify(serviceConfig.volumes),
+          command: serviceConfig.command ?? null,
+          icon: serviceConfig.icon ?? null,
+          createdAt: now,
+        })
+        .execute();
     } else {
       await db
         .insertInto("services")

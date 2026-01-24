@@ -41,9 +41,18 @@ const IMAGE_PATTERNS: Array<{ pattern: string; icon: string }> = [
   { pattern: "rabbitmq", icon: "rabbitmq" },
   { pattern: "elasticsearch", icon: "elasticsearch" },
   { pattern: "minio", icon: "minio" },
+  { pattern: "clickhouse", icon: "clickhouse" },
 
-  { pattern: "go", icon: "go" },
-  { pattern: "java", icon: "openjdk" },
+  { pattern: "meilisearch", icon: "meilisearch" },
+  { pattern: "pocketbase", icon: "pocketbase" },
+  { pattern: "grafana", icon: "grafana" },
+  { pattern: "ghost", icon: "ghost" },
+  { pattern: "strapi", icon: "strapi" },
+  { pattern: "wordpress", icon: "wordpress" },
+  { pattern: "n8n", icon: "n8n" },
+  { pattern: "hasura", icon: "hasura" },
+  { pattern: "umami", icon: "umami" },
+  { pattern: "plausible", icon: "plausible" },
 ];
 
 function detectFromDockerfile(content: string): string | null {
@@ -79,18 +88,26 @@ function detectFromPackageJson(content: object): string | null {
   return "nodedotjs";
 }
 
-export async function detectIcon(
+function tryParseJson(content: string): object | null {
+  try {
+    return JSON.parse(content) as object;
+  } catch {
+    return null;
+  }
+}
+
+export function detectIcon(
   repoPath: string,
   dockerfilePath = "Dockerfile",
-): Promise<string | null> {
+): string | null {
   const dockerfileDir = dirname(join(repoPath, dockerfilePath));
   const packageJsonPath = join(dockerfileDir, "package.json");
   if (existsSync(packageJsonPath)) {
-    try {
-      const content = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+    const content = tryParseJson(readFileSync(packageJsonPath, "utf-8"));
+    if (content) {
       const detected = detectFromPackageJson(content);
       if (detected) return detected;
-    } catch {}
+    }
   }
 
   const fullDockerfilePath = join(repoPath, dockerfilePath);

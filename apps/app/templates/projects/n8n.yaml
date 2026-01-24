@@ -1,0 +1,37 @@
+name: n8n
+description: Workflow automation platform
+category: automation
+docs: https://docs.n8n.io/
+
+services:
+  n8n:
+    image: n8nio/n8n:1.76.1
+    port: 5678
+    main: true
+    icon: n8n
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${postgres.POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY:
+        generated: base64_32
+    volumes:
+      - data:/home/node/.n8n
+    health_check:
+      path: /healthz
+      timeout: 60
+
+  postgres:
+    image: postgres:16-alpine
+    port: 5432
+    type: database
+    environment:
+      POSTGRES_PASSWORD:
+        generated: password
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n
+    volumes:
+      - data:/var/lib/postgresql/data

@@ -1,0 +1,19 @@
+name: Meilisearch
+description: Lightning-fast search engine
+category: search
+docs: https://www.meilisearch.com/docs
+
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    port: 7700
+    icon: meilisearch
+    environment:
+      MEILI_MASTER_KEY:
+        generated: password
+      MEILI_ENV: production
+    volumes:
+      - data:/meili_data
+    health_check:
+      path: /health
+      timeout: 30

@@ -43,6 +43,7 @@ export const servicesContract = {
         envVars: z.array(envVarSchema).default([]),
         containerPort: z.number().min(1).max(65535).optional(),
         templateId: z.string().optional(),
+        serviceTemplateId: z.string().optional(),
         healthCheckPath: z.string().optional(),
         healthCheckTimeout: z.number().optional(),
         memoryLimit: z

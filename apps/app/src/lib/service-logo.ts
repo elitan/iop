@@ -16,6 +16,17 @@ const KEYWORD_ICONS: Array<{ keywords: string[]; icon: string }> = [
   { keywords: ["rabbitmq"], icon: "rabbitmq" },
   { keywords: ["elasticsearch", "elastic"], icon: "elasticsearch" },
   { keywords: ["minio"], icon: "minio" },
+  { keywords: ["meilisearch", "meili"], icon: "meilisearch" },
+  { keywords: ["pocketbase"], icon: "pocketbase" },
+  { keywords: ["grafana"], icon: "grafana" },
+  { keywords: ["ghost"], icon: "ghost" },
+  { keywords: ["strapi"], icon: "strapi" },
+  { keywords: ["wordpress"], icon: "wordpress" },
+  { keywords: ["n8n"], icon: "n8n" },
+  { keywords: ["hasura"], icon: "hasura" },
+  { keywords: ["umami"], icon: "umami" },
+  { keywords: ["plausible"], icon: "plausible" },
+  { keywords: ["clickhouse"], icon: "clickhouse" },
 ];
 
 export const FALLBACK_ICON = "https://cdn.simpleicons.org/docker/666666";
