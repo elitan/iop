@@ -3,7 +3,7 @@
 import { GitBranch, Github, Package } from "lucide-react";
 import { StatusDot } from "@/components/status-dot";
 import type { Service } from "@/lib/api";
-import { getKnownServiceLogo } from "@/lib/service-logo";
+import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
 import { getGitHubRepoFromUrl } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
 
@@ -20,19 +20,13 @@ export function ServiceContent({
 }: ServiceContentProps) {
   const deployment = service.latestDeployment;
   const githubRepo = getGitHubRepoFromUrl(service.repoUrl);
-  const knownLogo = getKnownServiceLogo(service);
+  const serviceIcon = getServiceIcon(service) ?? FALLBACK_ICON;
 
   return (
     <>
       <div className="flex items-start gap-3 mb-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400">
-          {knownLogo ? (
-            <img src={knownLogo} alt="" className="h-5 w-5 object-contain" />
-          ) : (
-            <span className="text-sm font-semibold text-neutral-300">
-              {service.name.charAt(0).toUpperCase()}
-            </span>
-          )}
+          <img src={serviceIcon} alt="" className="h-5 w-5 object-contain" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">

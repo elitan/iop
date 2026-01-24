@@ -18,6 +18,7 @@ const healthCheckSchema = z.object({
 const serviceDefinitionSchema = z.object({
   image: z.string(),
   port: z.number(),
+  icon: z.string().optional(),
   main: z.boolean().optional(),
   type: z.enum(["database", "app"]).optional(),
   command: z.string().optional(),
@@ -67,6 +68,7 @@ export interface ResolvedService {
   name: string;
   image: string;
   port: number;
+  icon?: string;
   isMain: boolean;
   isDatabase: boolean;
   command?: string;
@@ -225,6 +227,7 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
       name: serviceName,
       image: service.image,
       port: service.port,
+      icon: service.icon,
       isMain: service.main ?? false,
       isDatabase: service.type === "database",
       command: service.command,

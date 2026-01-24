@@ -7,3 +7,4 @@ services:
   nginx:
     image: nginx:alpine
     port: 80
+    icon: nginx

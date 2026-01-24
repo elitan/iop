@@ -135,6 +135,7 @@ export const services = {
           serviceType: "database",
           volumes: JSON.stringify(serviceConfig.volumes),
           command: serviceConfig.command ?? null,
+          icon: serviceConfig.icon ?? null,
           createdAt: now,
         })
         .execute();

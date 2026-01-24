@@ -33,6 +33,7 @@ import {
   injectTokenIntoUrl,
   isGitHubRepo,
 } from "./github";
+import { detectIcon, detectIconFromImage } from "./icon-detector";
 import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
 import type { EnvVar } from "./types";
@@ -434,6 +435,15 @@ async function runServiceDeployment(
         .set({ commitSha: imageTag })
         .where("id", "=", deploymentId)
         .execute();
+
+      const detectedIcon = detectIconFromImage(service.imageUrl);
+      if (detectedIcon && !service.icon) {
+        await db
+          .updateTable("services")
+          .set({ icon: detectedIcon })
+          .where("id", "=", service.id)
+          .execute();
+      }
     } else {
       if (!service.repoUrl || !service.branch || !service.dockerfilePath) {
         throw new Error("Repo URL, branch, and Dockerfile path are required");
@@ -476,6 +486,15 @@ async function runServiceDeployment(
         `git clone --depth 1 --branch ${service.branch} ${cloneUrl} ${repoPath}`,
       );
       await appendLog(deploymentId, cloneResult || "Cloned successfully\n");
+
+      const detectedIcon = await detectIcon(repoPath);
+      if (detectedIcon && !service.icon) {
+        await db
+          .updateTable("services")
+          .set({ icon: detectedIcon })
+          .where("id", "=", service.id)
+          .execute();
+      }
 
       const { stdout: commitResult } = await execAsync(
         `git -C ${repoPath} rev-parse HEAD`,

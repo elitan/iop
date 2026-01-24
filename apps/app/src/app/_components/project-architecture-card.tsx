@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { StatusDot } from "@/components/status-dot";
 import type { ProjectListItem } from "@/lib/api";
-import { getKnownServiceLogo } from "@/lib/service-logo";
+import { getServiceIcon } from "@/lib/service-logo";
 import { cn } from "@/lib/utils";
 import { ProjectAvatar } from "./project-avatar";
 
@@ -19,7 +19,7 @@ interface MiniServiceNodeProps {
 const POSITION_SCALE = 3;
 
 function MiniServiceNode({ service }: MiniServiceNodeProps) {
-  const logo = getKnownServiceLogo(service);
+  const logo = getServiceIcon(service);
 
   return (
     <div

@@ -7,6 +7,7 @@ services:
   postgres:
     image: postgres:17-alpine
     port: 5432
+    icon: postgresql
     type: database
     environment:
       POSTGRES_USER: postgres

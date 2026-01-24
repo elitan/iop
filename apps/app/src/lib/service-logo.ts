@@ -1,38 +1,36 @@
 interface ServiceLike {
   name: string;
+  icon?: string | null;
   imageUrl?: string | null;
 }
 
-const KNOWN_LOGOS: Array<{ keywords: string[]; logo: string }> = [
-  {
-    keywords: ["postgres", "pg"],
-    logo: "https://www.postgresql.org/media/img/about/press/elephant.png",
-  },
-  { keywords: ["redis"], logo: "https://cdn.simpleicons.org/redis/DC382D" },
-  { keywords: ["mysql"], logo: "https://cdn.simpleicons.org/mysql/4479A1" },
-  { keywords: ["mongo"], logo: "https://cdn.simpleicons.org/mongodb/47A248" },
-  { keywords: ["mariadb"], logo: "https://cdn.simpleicons.org/mariadb/003545" },
-  { keywords: ["nginx"], logo: "https://cdn.simpleicons.org/nginx/009639" },
-  { keywords: ["node"], logo: "https://cdn.simpleicons.org/nodedotjs/339933" },
-  { keywords: ["python"], logo: "https://cdn.simpleicons.org/python/3776AB" },
-  {
-    keywords: ["rabbitmq"],
-    logo: "https://cdn.simpleicons.org/rabbitmq/FF6600",
-  },
-  {
-    keywords: ["elasticsearch", "elastic"],
-    logo: "https://cdn.simpleicons.org/elasticsearch/005571",
-  },
-  { keywords: ["minio"], logo: "https://cdn.simpleicons.org/minio/C72E49" },
+const KEYWORD_ICONS: Array<{ keywords: string[]; icon: string }> = [
+  { keywords: ["postgres", "pg"], icon: "postgresql" },
+  { keywords: ["redis"], icon: "redis" },
+  { keywords: ["mysql"], icon: "mysql" },
+  { keywords: ["mongo"], icon: "mongodb" },
+  { keywords: ["mariadb"], icon: "mariadb" },
+  { keywords: ["nginx"], icon: "nginx" },
+  { keywords: ["node"], icon: "nodedotjs" },
+  { keywords: ["python"], icon: "python" },
+  { keywords: ["rabbitmq"], icon: "rabbitmq" },
+  { keywords: ["elasticsearch", "elastic"], icon: "elasticsearch" },
+  { keywords: ["minio"], icon: "minio" },
 ];
 
-export function getKnownServiceLogo(service: ServiceLike): string | null {
-  const imageUrl = service.imageUrl?.toLowerCase() || "";
+export const FALLBACK_ICON = "https://cdn.simpleicons.org/docker/666666";
+
+export function getServiceIcon(service: ServiceLike): string | null {
+  if (service.icon) {
+    return `https://cdn.simpleicons.org/${service.icon}`;
+  }
+
+  const imageUrl = service.imageUrl?.toLowerCase() ?? "";
   const name = service.name.toLowerCase();
 
-  for (const { keywords, logo } of KNOWN_LOGOS) {
+  for (const { keywords, icon } of KEYWORD_ICONS) {
     if (keywords.some((kw) => imageUrl.includes(kw) || name.includes(kw))) {
-      return logo;
+      return `https://cdn.simpleicons.org/${icon}`;
     }
   }
 

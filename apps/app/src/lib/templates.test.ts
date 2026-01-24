@@ -165,6 +165,41 @@ describe("resolveTemplateServices", () => {
     expect(svc.volumes[0].name).toBe("data");
     expect(svc.volumes[0].path).toBe("/var/lib/postgresql/data");
   });
+
+  it("includes icon from postgres template", () => {
+    const template = getTemplate("postgres");
+    expect(template).toBeDefined();
+    const resolved = resolveTemplateServices(template!);
+    expect(resolved[0].icon).toBe("postgresql");
+  });
+
+  it("includes icon from redis template", () => {
+    const template = getTemplate("redis");
+    expect(template).toBeDefined();
+    const resolved = resolveTemplateServices(template!);
+    expect(resolved[0].icon).toBe("redis");
+  });
+
+  it("includes icon from mysql template", () => {
+    const template = getTemplate("mysql");
+    expect(template).toBeDefined();
+    const resolved = resolveTemplateServices(template!);
+    expect(resolved[0].icon).toBe("mysql");
+  });
+
+  it("includes icon from mongo template", () => {
+    const template = getTemplate("mongo");
+    expect(template).toBeDefined();
+    const resolved = resolveTemplateServices(template!);
+    expect(resolved[0].icon).toBe("mongodb");
+  });
+
+  it("includes icon from nginx template", () => {
+    const template = getTemplate("nginx");
+    expect(template).toBeDefined();
+    const resolved = resolveTemplateServices(template!);
+    expect(resolved[0].icon).toBe("nginx");
+  });
 });
 
 describe("buildConnectionString", () => {
