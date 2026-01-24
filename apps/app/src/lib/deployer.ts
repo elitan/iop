@@ -54,6 +54,7 @@ export type DeploymentStatus =
   | "deploying"
   | "running"
   | "failed"
+  | "stopped"
   | "cancelled";
 
 async function updateDeployment(
@@ -727,18 +728,6 @@ async function runServiceDeployment(
       deploymentId,
     );
 
-    try {
-      const synced = await syncCaddyConfig();
-      if (synced) {
-        await appendLog(deploymentId, "Caddy config synced\n");
-      }
-    } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
-    }
-
     await updateRollbackEligible(service.id);
 
     const previousDeployments = await db
@@ -755,9 +744,21 @@ async function runServiceDeployment(
       }
       await db
         .updateTable("deployments")
-        .set({ status: "failed", finishedAt: Date.now() })
+        .set({ status: "stopped", finishedAt: Date.now() })
         .where("id", "=", prev.id)
         .execute();
+    }
+
+    try {
+      const synced = await syncCaddyConfig();
+      if (synced) {
+        await appendLog(deploymentId, "Caddy config synced\n");
+      }
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: Failed to sync Caddy config: ${err.message}\n`,
+      );
     }
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
@@ -1067,18 +1068,6 @@ async function runRollbackDeployment(
       `\nRollback successful! App available at http://localhost:${hostPort}\n`,
     );
 
-    try {
-      const synced = await syncCaddyConfig();
-      if (synced) {
-        await appendLog(deploymentId, "Caddy config synced\n");
-      }
-    } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
-    }
-
     await updateRollbackEligible(service.id);
 
     const previousDeployments = await db
@@ -1095,9 +1084,21 @@ async function runRollbackDeployment(
       }
       await db
         .updateTable("deployments")
-        .set({ status: "failed", finishedAt: Date.now() })
+        .set({ status: "stopped", finishedAt: Date.now() })
         .where("id", "=", prev.id)
         .execute();
+    }
+
+    try {
+      const synced = await syncCaddyConfig();
+      if (synced) {
+        await appendLog(deploymentId, "Caddy config synced\n");
+      }
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: Failed to sync Caddy config: ${err.message}\n`,
+      );
     }
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
