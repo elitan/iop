@@ -41,8 +41,8 @@ POSTGRES_PASSWORD=$(echo "$SERVICE_ENVVARS" | jq -r '.[] | select(.key == "POSTG
 log "Credentials auto-generated (pw length: ${#POSTGRES_PASSWORD})"
 
 log "Verifying SSL cert generated..."
-SSL_CERT_EXISTS=$(remote "test -f /opt/frost/data/ssl/$SERVICE_ID/server.crt && echo 'exists'" 2>&1)
-SSL_KEY_EXISTS=$(remote "test -f /opt/frost/data/ssl/$SERVICE_ID/server.key && echo 'exists'" 2>&1)
+SSL_CERT_EXISTS=$(remote "test -f $FROST_DATA_DIR/ssl/$SERVICE_ID/server.crt && echo 'exists'" 2>&1)
+SSL_KEY_EXISTS=$(remote "test -f $FROST_DATA_DIR/ssl/$SERVICE_ID/server.key && echo 'exists'" 2>&1)
 [ "$SSL_CERT_EXISTS" != "exists" ] || [ "$SSL_KEY_EXISTS" != "exists" ] && fail "SSL cert/key not generated"
 log "SSL certificate generated"
 
@@ -77,7 +77,7 @@ VOLUME_AFTER=$(remote "docker volume ls --filter name=$EXPECTED_VOLUME --format 
 echo "$VOLUME_AFTER" | grep -q "$EXPECTED_VOLUME" && fail "Volume should have been deleted"
 log "Volume deleted"
 
-SSL_CERT_AFTER=$(remote "test -f /opt/frost/data/ssl/$SERVICE_ID/server.crt && echo 'exists' || echo 'deleted'" 2>&1)
+SSL_CERT_AFTER=$(remote "test -f $FROST_DATA_DIR/ssl/$SERVICE_ID/server.crt && echo 'exists' || echo 'deleted'" 2>&1)
 [ "$SSL_CERT_AFTER" = "exists" ] && fail "SSL cert should have been deleted"
 log "SSL cert deleted"
 

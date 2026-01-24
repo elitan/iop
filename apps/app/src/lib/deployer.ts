@@ -33,6 +33,7 @@ import {
   injectTokenIntoUrl,
   isGitHubRepo,
 } from "./github";
+import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
 import type { EnvVar } from "./types";
 import { buildVolumeName, createVolume } from "./volumes";
@@ -648,8 +649,8 @@ async function runServiceDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.hostname ?? service.name,
-        networkAlias: service.name,
+        hostname: service.hostname ?? slugify(service.name),
+        networkAlias: service.hostname ?? slugify(service.name),
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,
@@ -996,8 +997,8 @@ async function runRollbackDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.hostname ?? service.name,
-        networkAlias: service.name,
+        hostname: service.hostname ?? slugify(service.name),
+        networkAlias: service.hostname ?? slugify(service.name),
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,

@@ -57,11 +57,26 @@ Dev deploy (push local changes to test VPS):
 bun run dev          # start dev server
 bun run build        # production build
 bun run db:gen       # regenerate db types (run after schema changes)
-./scripts/e2e-test.sh <ip> <api-key>  # run e2e tests - extend when adding features (runs automatically via GitHub Actions on PRs)
 ```
 
-## Testing
-Create a PR to trigger e2e tests via GitHub Actions. Watch CI checks in the PR to verify tests pass.
+## E2E Tests
+
+Run locally (start `bun run dev` first):
+```bash
+./apps/app/scripts/e2e-local.sh <api-key>           # run all tests
+./apps/app/scripts/e2e-local.sh <api-key> 2         # batch size 2 (fewer parallel tests)
+
+# run single test
+SERVER_IP=localhost API_KEY=<key> E2E_LOCAL=1 FROST_DATA_DIR=./apps/app/data \
+  ./apps/app/scripts/e2e/group-01-basic.sh
+```
+
+Run against remote VPS:
+```bash
+./apps/app/scripts/e2e-test.sh <ip> <api-key>
+```
+
+E2E tests run automatically via GitHub Actions on PRs.
 
 ## Test locally
 ```bash

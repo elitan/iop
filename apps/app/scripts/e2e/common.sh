@@ -4,6 +4,15 @@ export SERVER_IP="${SERVER_IP:?SERVER_IP required}"
 export API_KEY="${API_KEY:?API_KEY required}"
 export BASE_URL="http://$SERVER_IP:3000"
 
+if [ -z "${FROST_DATA_DIR:-}" ]; then
+  if [ "${E2E_LOCAL:-}" = "1" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export FROST_DATA_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)/data"
+  else
+    export FROST_DATA_DIR="/opt/frost/data"
+  fi
+fi
+
 api() {
   local FULL_RESPONSE
   local RESPONSE
@@ -32,8 +41,12 @@ api() {
     if [ "$HTTP_CODE" = "500" ] && [ -n "$REQUEST_ID" ]; then
       echo "Request ID: $REQUEST_ID" >&2
       echo "--- Server logs for request $REQUEST_ID ---" >&2
-      ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
-        "journalctl -u frost --no-pager -n 50 2>/dev/null | grep -A 20 '\[$REQUEST_ID\]'" 2>&1 | head -30 >&2
+      if [ "${E2E_LOCAL:-}" = "1" ]; then
+        grep -A 20 "\[$REQUEST_ID\]" /tmp/frost-dev.log 2>/dev/null | head -30 >&2 || echo "(no local log found)" >&2
+      else
+        ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
+          "journalctl -u frost --no-pager -n 50 2>/dev/null | grep -A 20 '\[$REQUEST_ID\]'" 2>&1 | head -30 >&2
+      fi
       echo "--- End server logs ---" >&2
     fi
   fi
@@ -109,7 +122,11 @@ wait_for_deployment() {
 }
 
 remote() {
-  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=10 root@$SERVER_IP "$@"
+  if [ "${E2E_LOCAL:-}" = "1" ]; then
+    bash -c "$@"
+  else
+    ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=10 root@$SERVER_IP "$@"
+  fi
 }
 
 get_default_environment() {
@@ -136,8 +153,12 @@ log() {
 fail() {
   log "FAIL: $*"
   echo "--- Recent server logs (last 30 lines) ---" >&2
-  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
-    "journalctl -u frost --no-pager -n 30" 2>&1 | tail -30 >&2
+  if [ "${E2E_LOCAL:-}" = "1" ]; then
+    tail -30 /tmp/frost-dev.log 2>/dev/null || echo "(no local log found)" >&2
+  else
+    ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=5 root@$SERVER_IP \
+      "journalctl -u frost --no-pager -n 30" 2>&1 | tail -30 >&2
+  fi
   echo "--- End server logs ---" >&2
   exit 1
 }
