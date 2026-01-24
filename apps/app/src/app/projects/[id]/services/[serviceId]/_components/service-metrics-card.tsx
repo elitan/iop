@@ -136,7 +136,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                         fontSize: "11px",
                       }}
                       labelStyle={{ color: "#a3a3a3" }}
-                      labelFormatter={formatTime}
+                      labelFormatter={(label) => formatTime(label as number)}
                       formatter={(value) => [
                         `${Number(value).toFixed(1)}%`,
                         "CPU",
@@ -214,7 +214,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                         fontSize: "11px",
                       }}
                       labelStyle={{ color: "#a3a3a3" }}
-                      labelFormatter={formatTime}
+                      labelFormatter={(label) => formatTime(label as number)}
                       formatter={(value, _name, props) => {
                         const percent = `${Number(value).toFixed(1)}%`;
                         const bytes = props.payload?.bytes;

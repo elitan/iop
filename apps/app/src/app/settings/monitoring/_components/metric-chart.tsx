@@ -88,7 +88,7 @@ export function MetricChart({
               fontSize: "12px",
             }}
             labelStyle={{ color: "#a3a3a3" }}
-            labelFormatter={formatTime}
+            labelFormatter={(label) => formatTime(label as number)}
             formatter={(value) => [`${Number(value).toFixed(1)}${unit}`, label]}
           />
           <Area
