@@ -3,14 +3,14 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json bun.lock ./
-COPY apps/app/package.json ./apps/app/
 COPY apps/marketing/package.json ./apps/marketing/
-RUN bun install --frozen-lockfile --filter @frost/marketing
+RUN bun install --frozen-lockfile
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/marketing ./apps/marketing
-RUN bun run --cwd apps/marketing build
+WORKDIR /app/apps/marketing
+RUN bun run build
 
 FROM base AS runner
 ENV NODE_ENV=production
