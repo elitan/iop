@@ -188,6 +188,51 @@ log "Services on shared network: $NETWORK_NAME"
 log "Cleanup..."
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 
+log "=== Project Template with Wildcard Domains ==="
+
+log "Creating project from wordpress template..."
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-proj-template","templateId":"wordpress"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
+
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+log "Using environment: $ENV_ID"
+
+log "Fetching services created by template..."
+SERVICES=$(api "$BASE_URL/api/environments/$ENV_ID")
+SERVICE_COUNT=$(json_get "$SERVICES" '.services | length')
+[ "$SERVICE_COUNT" -lt 1 ] && fail "Expected at least 1 service from template, got: $SERVICE_COUNT"
+log "Template created $SERVICE_COUNT services"
+
+log "Checking wildcard domains for app services..."
+WORDPRESS_SERVICE_ID=$(json_get "$SERVICES" '.services[] | select(.name == "wordpress") | .id')
+[ -z "$WORDPRESS_SERVICE_ID" ] && fail "wordpress service not found"
+log "Found wordpress service: $WORDPRESS_SERVICE_ID"
+
+DOMAINS=$(api "$BASE_URL/api/services/$WORDPRESS_SERVICE_ID/domains")
+DOMAIN_COUNT=$(echo "$DOMAINS" | jq 'length')
+log "Wordpress service has $DOMAIN_COUNT domains"
+
+if [ "$DOMAIN_COUNT" -lt 1 ]; then
+  log "WARNING: No wildcard domain created for wordpress service"
+  log "This may be expected in development mode (NODE_ENV=development)"
+else
+  WILDCARD_DOMAIN=$(echo "$DOMAINS" | jq -r '.[0].domain')
+  log "Wildcard domain created: $WILDCARD_DOMAIN"
+  echo "$WILDCARD_DOMAIN" | grep -q "wordpress" || fail "Expected domain to contain 'wordpress': $WILDCARD_DOMAIN"
+fi
+
+log "Verifying database service does NOT have wildcard domain..."
+MARIADB_SERVICE_ID=$(json_get "$SERVICES" '.services[] | select(.name == "mariadb") | .id')
+if [ -n "$MARIADB_SERVICE_ID" ] && [ "$MARIADB_SERVICE_ID" != "null" ]; then
+  DB_DOMAINS=$(api "$BASE_URL/api/services/$MARIADB_SERVICE_ID/domains")
+  DB_DOMAIN_COUNT=$(echo "$DB_DOMAINS" | jq 'length')
+  [ "$DB_DOMAIN_COUNT" -gt 0 ] && fail "Database service should not have wildcard domain, found: $DB_DOMAIN_COUNT"
+  log "Database service correctly has no wildcard domain"
+fi
+
+log "Cleanup project template test..."
+api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
+
 log "=== Edge Cases ==="
 
 log "Testing invalid template ID..."

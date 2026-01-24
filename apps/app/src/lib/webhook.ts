@@ -2,8 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { removeNetwork, stopContainer } from "./docker";
-import { createWildcardDomain } from "./domains";
 import { normalizeGitHubUrl } from "./github";
+import { createService } from "./services";
 import { slugify } from "./slugify";
 
 export function verifyWebhookSignature(
@@ -171,48 +171,43 @@ export async function cloneServiceToEnvironment(
     return existing.id;
   }
 
-  const id = nanoid();
-  const now = Date.now();
   const hostname = sourceService.hostname ?? slugify(sourceService.name);
+  const envVars = sourceService.envVars
+    ? (JSON.parse(sourceService.envVars) as { key: string; value: string }[])
+    : [];
+  const volumes = sourceService.volumes
+    ? (JSON.parse(sourceService.volumes) as { name: string; path: string }[])
+    : [];
 
-  await db
-    .insertInto("services")
-    .values({
-      id,
-      environmentId: input.environmentId,
-      name: sourceService.name,
-      hostname,
-      deployType: sourceService.deployType,
-      serviceType: sourceService.serviceType,
-      repoUrl: sourceService.repoUrl,
-      branch: input.targetBranch,
-      dockerfilePath: sourceService.dockerfilePath,
-      buildContext: sourceService.buildContext,
-      imageUrl: sourceService.imageUrl,
-      envVars: sourceService.envVars,
-      containerPort: sourceService.containerPort,
-      healthCheckPath: sourceService.healthCheckPath,
-      healthCheckTimeout: sourceService.healthCheckTimeout,
-      memoryLimit: sourceService.memoryLimit,
-      cpuLimit: sourceService.cpuLimit,
-      shutdownTimeout: sourceService.shutdownTimeout,
-      registryId: sourceService.registryId,
-      command: sourceService.command,
-      volumes: sourceService.volumes,
-      autoDeploy: true,
-      createdAt: now,
-    })
-    .execute();
-
-  await createWildcardDomain(
-    id,
-    input.environmentId,
+  const service = await createService({
+    environmentId: input.environmentId,
+    name: sourceService.name,
     hostname,
-    input.projectHostname,
-    input.envName,
-  );
+    deployType: sourceService.deployType,
+    serviceType: sourceService.serviceType,
+    repoUrl: sourceService.repoUrl,
+    branch: input.targetBranch,
+    dockerfilePath: sourceService.dockerfilePath,
+    buildContext: sourceService.buildContext,
+    imageUrl: sourceService.imageUrl,
+    envVars,
+    containerPort: sourceService.containerPort,
+    healthCheckPath: sourceService.healthCheckPath,
+    healthCheckTimeout: sourceService.healthCheckTimeout,
+    memoryLimit: sourceService.memoryLimit,
+    cpuLimit: sourceService.cpuLimit,
+    shutdownTimeout: sourceService.shutdownTimeout,
+    registryId: sourceService.registryId,
+    command: sourceService.command,
+    volumes,
+    autoDeploy: true,
+    wildcardDomain: {
+      projectHostname: input.projectHostname,
+      environmentName: input.envName,
+    },
+  });
 
-  return id;
+  return service.id;
 }
 
 export async function cleanupEnvironment(environment: {
@@ -296,9 +291,17 @@ export function buildPRCommentBody(
 ): string {
   const rows = services
     .map((s) => {
-      let statusEmoji = "🔄";
-      if (s.status === "running") statusEmoji = "✅";
-      else if (s.status === "failed") statusEmoji = "❌";
+      let statusEmoji: string;
+      switch (s.status) {
+        case "running":
+          statusEmoji = "✅";
+          break;
+        case "failed":
+          statusEmoji = "❌";
+          break;
+        default:
+          statusEmoji = "🔄";
+      }
       const url = s.url ? `[${s.hostname}](${s.url})` : "-";
       return `| ${s.name} | ${statusEmoji} ${s.status} | ${url} |`;
     })
