@@ -350,7 +350,7 @@ function buildCaddyConfig(
 
   if (wildcardConfig && wildcardDomains.length > 0) {
     policies.push({
-      subjects: [`*.${wildcardConfig.domain}`],
+      subjects: [`*.${wildcardConfig.domain}`, ...wildcardDomains],
       issuers: [dnsAcmeIssuer(email, wildcardConfig.dnsConfig, staging)],
     });
   }
