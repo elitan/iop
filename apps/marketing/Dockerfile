@@ -10,6 +10,7 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/marketing/node_modules ./apps/marketing/node_modules
 COPY apps/marketing ./apps/marketing
+COPY install.sh INSTALL.md ./
 WORKDIR /app/apps/marketing
 RUN bun run build
 
