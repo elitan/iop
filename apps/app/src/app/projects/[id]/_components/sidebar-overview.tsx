@@ -137,7 +137,26 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <StatusDot status={currentDeployment.status} showLabel />
-            {service.serviceType !== "database" && (
+            {service.serviceType !== "database" &&
+              (preferredDomain || currentDeployment.hostPort) && (
+                <a
+                  href={
+                    preferredDomain
+                      ? `https://${preferredDomain.domain}`
+                      : `http://${serverIp || "localhost"}:${currentDeployment.hostPort}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+                >
+                  Open
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+          </div>
+
+          {service.serviceType !== "database" &&
+            (preferredDomain || currentDeployment.hostPort) && (
               <a
                 href={
                   preferredDomain
@@ -146,30 +165,13 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+                className="block font-mono text-sm text-blue-400 hover:text-blue-300 truncate mb-3"
               >
-                Open
-                <ExternalLink className="h-3.5 w-3.5" />
+                {preferredDomain
+                  ? preferredDomain.domain
+                  : `${serverIp || "localhost"}:${currentDeployment.hostPort}`}
               </a>
             )}
-          </div>
-
-          {service.serviceType !== "database" && (
-            <a
-              href={
-                preferredDomain
-                  ? `https://${preferredDomain.domain}`
-                  : `http://${serverIp || "localhost"}:${currentDeployment.hostPort}`
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block font-mono text-sm text-blue-400 hover:text-blue-300 truncate mb-3"
-            >
-              {preferredDomain
-                ? preferredDomain.domain
-                : `${serverIp || "localhost"}:${currentDeployment.hostPort}`}
-            </a>
-          )}
 
           {service.deployType === "repo" && githubRepo && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-700 px-2.5 py-1 text-xs text-neutral-400 mb-2">
