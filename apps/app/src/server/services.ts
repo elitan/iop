@@ -376,4 +376,95 @@ export const services = {
       }),
     );
   }),
+
+  createBatch: os.services.createBatch.handler(async ({ input }) => {
+    const environment = await db
+      .selectFrom("environments")
+      .selectAll()
+      .where("id", "=", input.environmentId)
+      .executeTakeFirst();
+
+    if (!environment) {
+      throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+    }
+
+    const project = await db
+      .selectFrom("projects")
+      .select(["id", "name", "hostname"])
+      .where("id", "=", environment.projectId)
+      .executeTakeFirst();
+
+    if (!project) {
+      throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+    }
+
+    const existingServices = await db
+      .selectFrom("services")
+      .select(["name", "hostname"])
+      .where("environmentId", "=", input.environmentId)
+      .execute();
+
+    const existingNames = new Set(existingServices.map((s) => s.name));
+    const existingHostnames = new Set(
+      existingServices
+        .map((s) => s.hostname)
+        .filter((h): h is string => h !== null),
+    );
+
+    function generateUniqueName(
+      baseName: string,
+      usedNames: Set<string>,
+    ): string {
+      if (!usedNames.has(baseName)) return baseName;
+      let counter = 2;
+      while (usedNames.has(`${baseName}-${counter}`)) counter++;
+      return `${baseName}-${counter}`;
+    }
+
+    const projectHostname = project.hostname ?? slugify(project.name);
+    const envName =
+      environment.type === "production" ? undefined : slugify(environment.name);
+
+    const usedNames = new Set(existingNames);
+    const usedHostnames = new Set(existingHostnames);
+
+    const created: Selectable<Services>[] = [];
+    const errors: { name: string; error: string }[] = [];
+
+    for (const svc of input.services) {
+      const uniqueName = generateUniqueName(svc.name, usedNames);
+      const hostname = slugify(uniqueName);
+      const uniqueHostname = generateUniqueName(hostname, usedHostnames);
+
+      usedNames.add(uniqueName);
+      usedHostnames.add(uniqueHostname);
+
+      try {
+        const service = await createService({
+          environmentId: input.environmentId,
+          name: uniqueName,
+          hostname: uniqueHostname,
+          deployType: "repo",
+          repoUrl: input.repoUrl,
+          branch: input.branch,
+          dockerfilePath: svc.dockerfilePath,
+          buildContext: svc.buildContext === "." ? null : svc.buildContext,
+          containerPort: svc.containerPort,
+          autoDeploy: true,
+          wildcardDomain: { projectHostname, environmentName: envName },
+        });
+
+        created.push(service);
+
+        deployService(service.id).catch((err) => {
+          console.error(`Auto-deploy failed for service ${service.id}:`, err);
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        errors.push({ name: uniqueName, error: message });
+      }
+    }
+
+    return { created, errors };
+  }),
 };

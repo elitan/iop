@@ -25,7 +25,7 @@ const KEYWORD_ICONS: Array<{ keywords: string[]; icon: string }> = [
   { keywords: ["n8n"], icon: "n8n" },
   { keywords: ["hasura"], icon: "hasura" },
   { keywords: ["umami"], icon: "umami" },
-  { keywords: ["plausible"], icon: "plausible" },
+  { keywords: ["plausible"], icon: "plausibleanalytics" },
   { keywords: ["clickhouse"], icon: "clickhouse" },
 ];
 

@@ -111,4 +111,36 @@ export const servicesContract = {
     .route({ method: "GET", path: "/services/{id}/volumes" })
     .input(z.object({ id: z.string() }))
     .output(z.array(volumeInfoSchema)),
+
+  createBatch: oc
+    .route({
+      method: "POST",
+      path: "/environments/{environmentId}/services/batch",
+    })
+    .input(
+      z.object({
+        environmentId: z.string(),
+        repoUrl: z.string(),
+        branch: z.string(),
+        services: z.array(
+          z.object({
+            name: z.string().min(1),
+            dockerfilePath: z.string(),
+            buildContext: z.string(),
+            containerPort: z.number().min(1).max(65535).optional(),
+          }),
+        ),
+      }),
+    )
+    .output(
+      z.object({
+        created: z.array(servicesSchema),
+        errors: z.array(
+          z.object({
+            name: z.string(),
+            error: z.string(),
+          }),
+        ),
+      }),
+    ),
 };
