@@ -178,7 +178,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
 
   return (
     <div className="flex gap-6">
-      <nav className="sticky top-0 w-32 shrink-0 space-y-0.5">
+      <nav className="sticky top-0 self-start w-32 shrink-0 space-y-0.5">
         {NAV_ITEMS.map((item) => (
           <button
             type="button"
