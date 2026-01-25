@@ -24,6 +24,47 @@ import { useCreateProject } from "@/hooks/use-projects";
 import type { CreateProjectInput, EnvVar } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 
+interface TemplateInfoProps {
+  template:
+    | {
+        description: string;
+        services: Record<string, unknown>;
+        docs?: string;
+      }
+    | undefined;
+}
+
+function TemplateInfo({ template }: TemplateInfoProps) {
+  if (!template) return null;
+
+  const serviceNames = Object.keys(template.services);
+  const serviceCount = serviceNames.length;
+
+  return (
+    <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
+      <p className="mb-2 font-medium text-neutral-300">
+        {template.description}
+      </p>
+      <p>
+        Creates {serviceCount} service{serviceCount > 1 ? "s" : ""}:{" "}
+        {serviceNames.join(", ")}
+      </p>
+      {template.docs && (
+        <p className="mt-2">
+          <a
+            href={template.docs}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:underline"
+          >
+            Documentation
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function NewProjectPage() {
   const router = useRouter();
   const createMutation = useCreateProject();
@@ -110,40 +151,11 @@ export default function NewProjectPage() {
                       </p>
                     </div>
 
-                    {selectedTemplate &&
-                      (() => {
-                        const template = projectTemplates.find(
-                          (t) => t.id === selectedTemplate,
-                        );
-                        if (!template) return null;
-                        const serviceCount = Object.keys(
-                          template.services,
-                        ).length;
-                        return (
-                          <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
-                            <p className="mb-2 font-medium text-neutral-300">
-                              {template.description}
-                            </p>
-                            <p>
-                              Creates {serviceCount} service
-                              {serviceCount > 1 ? "s" : ""}:{" "}
-                              {Object.keys(template.services).join(", ")}
-                            </p>
-                            {template.docs && (
-                              <p className="mt-2">
-                                <a
-                                  href={template.docs}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-400 hover:underline"
-                                >
-                                  Documentation
-                                </a>
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
+                    <TemplateInfo
+                      template={projectTemplates.find(
+                        (t) => t.id === selectedTemplate,
+                      )}
+                    />
 
                     <Separator className="bg-neutral-800" />
                   </>
@@ -171,11 +183,11 @@ export default function NewProjectPage() {
 
                 <div className="space-y-4">
                   <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
-                    Shared Environment Variables
+                    Project Environment Variables
                   </p>
                   <p className="text-xs text-neutral-500">
-                    These variables will be inherited by all services in this
-                    project.
+                    These environment variables will be inherited by all
+                    services in this project.
                   </p>
                   <EnvVarEditor value={envVars} onChange={setEnvVars} />
                 </div>

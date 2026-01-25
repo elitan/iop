@@ -61,8 +61,8 @@ export default function ProjectVariablesPage() {
 
   return (
     <SettingCard
-      title="Shared Environment Variables"
-      description="These variables are inherited by all services in this project."
+      title="Project Environment Variables"
+      description="These environment variables are inherited by all services in this project."
       learnMoreUrl="/docs/guides/env-vars"
       learnMoreText="Learn more about environment variables"
       footerRight={

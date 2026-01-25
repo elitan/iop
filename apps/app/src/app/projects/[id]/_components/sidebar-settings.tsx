@@ -41,7 +41,7 @@ function getServiceEnvVars(service: Service): EnvVar[] {
   return parseEnvVars(service.envVars).filter((v) => v.key !== "PORT");
 }
 
-interface FrostVar {
+interface ReadOnlyVarProps {
   name: string;
   value: string;
 }
@@ -50,8 +50,8 @@ function buildFrostVars(
   service: Service,
   projectName: string,
   projectId: string,
-): FrostVar[] {
-  const vars: FrostVar[] = [
+): ReadOnlyVarProps[] {
+  const vars: ReadOnlyVarProps[] = [
     { name: "FROST", value: "1" },
     { name: "FROST_SERVICE_NAME", value: service.name },
     { name: "FROST_SERVICE_ID", value: service.id },
@@ -81,7 +81,7 @@ interface VariablesTabProps {
   runtimeSettingsUrl: string;
 }
 
-function ReadOnlyVar({ name, value }: { name: string; value: string }) {
+function ReadOnlyVar({ name, value }: ReadOnlyVarProps) {
   return (
     <div className="flex gap-2 font-mono text-sm">
       <span className="text-neutral-400">{name}</span>
@@ -169,7 +169,7 @@ function VariablesTab({
       </SettingCard>
 
       <SettingCard
-        title="Project Variables"
+        title="Project Environment Variables"
         description={
           <>
             Inherited from project settings.{" "}
@@ -190,13 +190,13 @@ function VariablesTab({
           </div>
         ) : (
           <p className="text-sm text-neutral-500">
-            No project variables configured
+            No project environment variables configured
           </p>
         )}
       </SettingCard>
 
       <SettingCard
-        title="Frost Variables"
+        title="Frost Environment Variables"
         description="Automatically injected by Frost at runtime."
       >
         <div className="space-y-1">
