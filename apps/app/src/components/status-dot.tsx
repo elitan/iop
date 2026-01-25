@@ -1,23 +1,34 @@
 import { cn } from "@/lib/utils";
 
-type Status =
-  | "pending"
-  | "cloning"
-  | "pulling"
-  | "building"
-  | "deploying"
-  | "running"
-  | "failed";
+type StatusColor = "yellow" | "red" | "green";
 
-const statusConfig: Record<Status, { color: string; pulse: boolean }> = {
-  pending: { color: "bg-neutral-500", pulse: false },
-  cloning: { color: "bg-yellow-500", pulse: true },
-  pulling: { color: "bg-yellow-500", pulse: true },
-  building: { color: "bg-yellow-500", pulse: true },
-  deploying: { color: "bg-yellow-500", pulse: true },
-  running: { color: "bg-green-500", pulse: false },
-  failed: { color: "bg-red-500", pulse: false },
+interface StatusConfig {
+  color: string;
+  pulse: boolean;
+  label: string;
+}
+
+const colorConfig: Record<StatusColor, StatusConfig> = {
+  yellow: { color: "bg-yellow-500", pulse: true, label: "pending" },
+  red: { color: "bg-red-500", pulse: false, label: "failed" },
+  green: { color: "bg-green-500", pulse: false, label: "ok" },
 };
+
+function getStatusColor(status: string): StatusColor {
+  switch (status) {
+    case "pending":
+    case "cloning":
+    case "pulling":
+    case "building":
+    case "deploying":
+      return "yellow";
+    case "failed":
+    case "cancelled":
+      return "red";
+    default:
+      return "green";
+  }
+}
 
 interface StatusDotProps {
   status: string;
@@ -30,7 +41,8 @@ export function StatusDot({
   className,
   showLabel = false,
 }: StatusDotProps) {
-  const config = statusConfig[status as Status] ?? statusConfig.pending;
+  const statusColor = getStatusColor(status);
+  const config = colorConfig[statusColor];
 
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
@@ -42,8 +54,10 @@ export function StatusDot({
         )}
       />
       {showLabel && (
-        <span className="text-xs text-neutral-400 capitalize">{status}</span>
+        <span className="text-xs text-neutral-400">{config.label}</span>
       )}
     </span>
   );
 }
+
+export { getStatusColor, colorConfig };

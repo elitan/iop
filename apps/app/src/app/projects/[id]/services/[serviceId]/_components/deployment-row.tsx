@@ -1,4 +1,4 @@
-import { Check, GitBranch, GitCommit, Play, RotateCcw } from "lucide-react";
+import { GitBranch, GitCommit, RotateCcw } from "lucide-react";
 import { StatusDot } from "@/components/status-dot";
 import { formatDuration, getTimeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -22,26 +22,10 @@ interface DeploymentRowProps {
   isCurrent?: boolean;
 }
 
-function getTriggerIcon(trigger: string | null | undefined) {
-  switch (trigger) {
-    case "git":
-      return <GitCommit className="h-3 w-3" />;
-    case "rollback":
-      return <RotateCcw className="h-3 w-3" />;
-    default:
-      return <Play className="h-3 w-3" />;
-  }
-}
-
-function getTriggerLabel(trigger: string | null | undefined): string {
-  switch (trigger) {
-    case "git":
-      return "push";
-    case "rollback":
-      return "rollback";
-    default:
-      return "manual";
-  }
+function isInProgress(status: string): boolean {
+  return ["pending", "cloning", "pulling", "building", "deploying"].includes(
+    status,
+  );
 }
 
 export function DeploymentRow({
@@ -62,14 +46,11 @@ export function DeploymentRow({
   isRollingBack,
   isCurrent,
 }: DeploymentRowProps) {
-  const date = new Date(createdAt);
-  const timeAgo = getTimeAgo(date);
+  const timeAgo = getTimeAgo(new Date(createdAt));
   const duration =
     finishedAt && createdAt ? formatDuration(createdAt, finishedAt) : null;
-  const truncatedMessage = commitMessage
-    ? commitMessage.split("\n")[0].slice(0, 50) +
-      (commitMessage.length > 50 ? "..." : "")
-    : null;
+  const inProgress = isInProgress(status);
+  const elapsed = inProgress ? formatDuration(createdAt, Date.now()) : null;
 
   function handleRollback(e: React.MouseEvent) {
     e.stopPropagation();
@@ -95,56 +76,60 @@ export function DeploymentRow({
         selected && "bg-neutral-800",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <StatusDot status={status} />
-          <span className="text-xs capitalize text-neutral-300 w-16 shrink-0">
-            {status}
-          </span>
-          {gitBranch && (
-            <span className="flex items-center gap-1 text-xs text-neutral-500 shrink-0">
-              <GitBranch className="h-3 w-3" />
-              <span className="max-w-20 truncate">{gitBranch}</span>
-            </span>
-          )}
-          <span className="font-mono text-xs text-neutral-400 shrink-0">
-            {commitSha.slice(0, 7)}
-          </span>
-          {truncatedMessage && (
-            <span className="min-w-0 truncate text-xs text-neutral-500">
-              {truncatedMessage}
-            </span>
-          )}
+      <div className="flex items-center gap-4">
+        <div className="w-20 shrink-0">
+          <div className="flex items-center gap-2">
+            <StatusDot status={status} showLabel />
+          </div>
+          <div className="text-xs text-neutral-500 mt-0.5">
+            {inProgress ? elapsed : duration}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-sm text-neutral-300">
+            {trigger === "rollback" ? (
+              <>
+                <RotateCcw className="h-3.5 w-3.5 text-neutral-500" />
+                <span>Rollback</span>
+              </>
+            ) : gitBranch ? (
+              <>
+                <GitBranch className="h-3.5 w-3.5 text-neutral-500" />
+                <span className="truncate max-w-32">{gitBranch}</span>
+              </>
+            ) : (
+              <span className="text-neutral-500">Manual deploy</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
+            <GitCommit className="h-3 w-3" />
+            <span className="font-mono">{commitSha.slice(0, 7)}</span>
+            {commitMessage && (
+              <span className="truncate">{commitMessage.split("\n")[0]}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
           {isCurrent && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400">
-              <Check className="h-3 w-3" />
+            <span className="rounded-full bg-blue-500 px-2 py-0.5 text-xs font-medium text-white">
+              Current
             </span>
           )}
-          {triggeredByAvatarUrl ? (
-            <img
-              src={triggeredByAvatarUrl}
-              alt={triggeredByUsername || ""}
-              title={triggeredByUsername || getTriggerLabel(trigger)}
-              className="h-5 w-5 rounded-full"
-            />
-          ) : (
-            <span
-              className="flex items-center gap-1 text-xs text-neutral-500"
-              title={getTriggerLabel(trigger)}
-            >
-              {getTriggerIcon(trigger)}
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <span>
+              {timeAgo}
+              {triggeredByUsername && ` by ${triggeredByUsername}`}
             </span>
-          )}
-          {duration && (
-            <span className="text-xs text-neutral-500 w-12 text-right">
-              {duration}
-            </span>
-          )}
-          <span className="text-xs text-neutral-500 w-14 text-right">
-            {timeAgo}
-          </span>
+            {triggeredByAvatarUrl && (
+              <img
+                src={triggeredByAvatarUrl}
+                alt={triggeredByUsername || ""}
+                className="h-5 w-5 rounded-full"
+              />
+            )}
+          </div>
           <span className="w-6 flex justify-center">
             {canRollback && !isRunning && (
               <button
