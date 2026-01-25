@@ -72,11 +72,11 @@ echo ""
 timer "Installing dependencies..."
 
 # Install build tools if not present
-if ! command -v git &> /dev/null || ! command -v unzip &> /dev/null; then
+if ! command -v git &> /dev/null || ! command -v unzip &> /dev/null || ! command -v jq &> /dev/null; then
   timer "apt-get update..."
   apt-get update -qq
   timer "apt-get install build tools..."
-  apt-get install -y -qq git unzip build-essential > /dev/null
+  apt-get install -y -qq git unzip build-essential jq > /dev/null
 else
   timer "Build tools already installed"
 fi
@@ -89,6 +89,25 @@ if ! command -v docker &> /dev/null; then
   systemctl start docker
 else
   timer "Docker already installed"
+fi
+
+# Configure Docker network pools for more networks (~70k instead of ~31)
+DOCKER_POOLS='[{"base":"10.0.0.0/8","size":24},{"base":"172.17.0.0/12","size":24},{"base":"192.168.0.0/16","size":24}]'
+DAEMON_JSON="/etc/docker/daemon.json"
+
+if [ -f "$DAEMON_JSON" ] && grep -q "default-address-pools" "$DAEMON_JSON"; then
+  timer "Docker network pools already configured"
+else
+  if [ -f "$DAEMON_JSON" ]; then
+    timer "Updating Docker daemon config..."
+    jq --argjson pools "$DOCKER_POOLS" '. + {"default-address-pools": $pools}' "$DAEMON_JSON" > "$DAEMON_JSON.tmp"
+    mv "$DAEMON_JSON.tmp" "$DAEMON_JSON"
+  else
+    timer "Creating Docker daemon config..."
+    echo "{\"default-address-pools\": $DOCKER_POOLS}" | jq '.' > "$DAEMON_JSON"
+  fi
+  timer "Restarting Docker to apply network config..."
+  systemctl restart docker
 fi
 
 # Install Go if not present (needed for xcaddy)

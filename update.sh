@@ -127,6 +127,25 @@ if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
 
   systemctl start caddy 2>/dev/null || true
 fi
+
+# Configure Docker network pools for existing installs
+DOCKER_POOLS='[{"base":"10.0.0.0/8","size":24},{"base":"172.17.0.0/12","size":24},{"base":"192.168.0.0/16","size":24}]'
+DAEMON_JSON="/etc/docker/daemon.json"
+
+if [ -f "$DAEMON_JSON" ] && grep -q "default-address-pools" "$DAEMON_JSON"; then
+  : # already configured
+elif command -v jq &> /dev/null; then
+  log "Configuring Docker network pools..."
+  if [ -f "$DAEMON_JSON" ]; then
+    jq --argjson pools "$DOCKER_POOLS" '. + {"default-address-pools": $pools}' "$DAEMON_JSON" > "$DAEMON_JSON.tmp"
+    mv "$DAEMON_JSON.tmp" "$DAEMON_JSON"
+  else
+    echo "{\"default-address-pools\": $DOCKER_POOLS}" | jq '.' > "$DAEMON_JSON"
+  fi
+  log "Restarting Docker to apply network config..."
+  systemctl restart docker
+fi
+
 if [ -f "$BUN_INSTALL/bin/bun" ]; then
   ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
 else

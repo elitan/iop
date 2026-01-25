@@ -4,6 +4,17 @@ export async function register() {
     runMigrations();
     console.log("[startup] migrations: ok");
 
+    const { ensureDockerNetworkConfig } = await import("./lib/docker-config");
+    const dockerRestarted = await ensureDockerNetworkConfig().catch((err) => {
+      console.error("[startup] docker: failed to configure network pools", err);
+      return false;
+    });
+    console.log(
+      dockerRestarted
+        ? "[startup] docker: configured network pools, restarted"
+        : "[startup] docker: network pools ok",
+    );
+
     const { persistUpdateResult } = await import("./lib/updater");
     await persistUpdateResult();
 
