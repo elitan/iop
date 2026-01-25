@@ -636,3 +636,28 @@ export async function pruneStoppedContainers(): Promise<number> {
     return 0;
   }
 }
+
+export async function pruneBuildCache(): Promise<{ bytes: number }> {
+  try {
+    const { stdout } = await execAsync(
+      `docker builder prune -f --keep-storage 10GB`,
+    );
+    const match = stdout.match(
+      /Total reclaimed space:\s*([\d.]+)\s*(B|KB|MB|GB)/i,
+    );
+    if (!match) {
+      return { bytes: 0 };
+    }
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    const multipliers: Record<string, number> = {
+      B: 1,
+      KB: 1024,
+      MB: 1024 * 1024,
+      GB: 1024 * 1024 * 1024,
+    };
+    return { bytes: Math.round(value * (multipliers[unit] || 1)) };
+  } catch {
+    return { bytes: 0 };
+  }
+}

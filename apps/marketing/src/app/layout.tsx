@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/header";
 
-const title = "Frost - Deploy Docker apps. Simply.";
+const title = "Frost - Get your app online, for the AI coding era.";
 const description =
-  "Open source Railway alternative. One server, one command. Deploy Docker apps with git push and automatic SSL.";
+  "Deploy in seconds. No usage fees. Open source. Self-hosted Railway/Vercel alternative.";
 const url = "https://frost.build";
 
 export const metadata: Metadata = {

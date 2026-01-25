@@ -20,6 +20,13 @@ const repoSchema = z.object({
   }),
 });
 
+const dockerfileInfoSchema = z.object({
+  path: z.string(),
+  suggestedName: z.string(),
+  buildContext: z.string(),
+  detectedPort: z.number().nullable(),
+});
+
 export const githubContract = {
   repos: oc
     .route({ method: "GET", path: "/github/repos" })
@@ -28,6 +35,21 @@ export const githubContract = {
       z.object({
         owners: z.array(ownerSchema),
         repos: z.array(repoSchema),
+      }),
+    ),
+
+  scan: oc
+    .route({ method: "POST", path: "/github/scan" })
+    .input(
+      z.object({
+        repoUrl: z.string(),
+        branch: z.string(),
+        repoName: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        dockerfiles: z.array(dockerfileInfoSchema),
       }),
     ),
 };

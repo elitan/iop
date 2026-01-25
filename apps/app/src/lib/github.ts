@@ -1,4 +1,6 @@
 import { createPrivateKey, createSign, randomUUID } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { getSetting, setSetting } from "./auth";
 import { db } from "./db";
 
@@ -606,4 +608,167 @@ export async function findOpenPRsForBranch(
       sha: pr.head.sha,
     },
   }));
+}
+
+export interface GitHubTreeEntry {
+  path: string;
+  type: "blob" | "tree";
+  sha: string;
+}
+
+export async function fetchRepoTree(
+  repoUrl: string,
+  branch: string,
+): Promise<GitHubTreeEntry[]> {
+  const parsed = parseOwnerRepoFromUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to fetch repo tree: ${error}`);
+  }
+
+  const data = await res.json();
+  return data.tree.map((entry: any) => ({
+    path: entry.path,
+    type: entry.type,
+    sha: entry.sha,
+  }));
+}
+
+export function findDockerfiles(tree: GitHubTreeEntry[]): string[] {
+  return tree
+    .filter((entry) => {
+      if (entry.type !== "blob") return false;
+      const name = basename(entry.path);
+      return name === "Dockerfile" || name.startsWith("Dockerfile.");
+    })
+    .map((entry) => entry.path);
+}
+
+export function deriveServiceName(
+  dockerfilePath: string,
+  repoName: string,
+): string {
+  const dir = dirname(dockerfilePath);
+  const file = basename(dockerfilePath);
+
+  if (file.startsWith("Dockerfile.")) {
+    return file.replace("Dockerfile.", "");
+  }
+
+  if (dir === ".") {
+    return repoName;
+  }
+
+  const parts = dir.split("/");
+  return parts[parts.length - 1];
+}
+
+export async function scanLocalDirectory(basePath: string): Promise<string[]> {
+  const dockerfiles: string[] = [];
+
+  async function scan(
+    currentPath: string,
+    relativePath: string,
+  ): Promise<void> {
+    const entries = await readdir(currentPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (entry.name === "node_modules") continue;
+
+      const fullPath = join(currentPath, entry.name);
+      const relPath = relativePath
+        ? `${relativePath}/${entry.name}`
+        : entry.name;
+
+      if (entry.isDirectory()) {
+        await scan(fullPath, relPath);
+      } else if (
+        entry.name === "Dockerfile" ||
+        entry.name.startsWith("Dockerfile.")
+      ) {
+        dockerfiles.push(relPath);
+      }
+    }
+  }
+
+  await scan(basePath, "");
+  return dockerfiles;
+}
+
+export async function readLocalFile(
+  basePath: string,
+  filePath: string,
+): Promise<string> {
+  const fullPath = join(basePath, filePath);
+  return readFile(fullPath, "utf-8");
+}
+
+export async function fetchFileContent(
+  repoUrl: string,
+  branch: string,
+  filePath: string,
+): Promise<string> {
+  const parsed = parseOwnerRepoFromUrl(repoUrl);
+  if (!parsed) {
+    throw new Error("Invalid GitHub repo URL");
+  }
+
+  const token = await generateInstallationToken(repoUrl);
+  const { owner, repo } = parsed;
+
+  const res = await fetch(
+    `${GITHUB_API}/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`,
+    {
+      headers: {
+        Accept: "application/vnd.github.raw+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    },
+  );
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch file: ${res.statusText}`);
+  }
+
+  return res.text();
+}
+
+export function parseDockerfilePort(content: string): number | null {
+  const lines = content.split("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    const exposeMatch = trimmed.match(/^EXPOSE\s+(\d+)/i);
+    if (exposeMatch) {
+      return parseInt(exposeMatch[1], 10);
+    }
+
+    const envPortMatch = trimmed.match(/^ENV\s+PORT[=\s]+(\d+)/i);
+    if (envPortMatch) {
+      return parseInt(envPortMatch[1], 10);
+    }
+  }
+
+  return null;
 }

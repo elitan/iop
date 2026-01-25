@@ -25,15 +25,22 @@ const KEYWORD_ICONS: Array<{ keywords: string[]; icon: string }> = [
   { keywords: ["n8n"], icon: "n8n" },
   { keywords: ["hasura"], icon: "hasura" },
   { keywords: ["umami"], icon: "umami" },
-  { keywords: ["plausible"], icon: "plausible" },
+  { keywords: ["plausible"], icon: "plausibleanalytics" },
   { keywords: ["clickhouse"], icon: "clickhouse" },
 ];
+
+const DARK_ICONS = new Set(["ghost", "umami", "nextdotjs"]);
+
+function getIconUrl(icon: string): string {
+  const color = DARK_ICONS.has(icon) ? "/ffffff" : "";
+  return `https://cdn.simpleicons.org/${icon}${color}`;
+}
 
 export const FALLBACK_ICON = "https://cdn.simpleicons.org/docker/666666";
 
 export function getServiceIcon(service: ServiceLike): string | null {
   if (service.icon) {
-    return `https://cdn.simpleicons.org/${service.icon}`;
+    return getIconUrl(service.icon);
   }
 
   const imageUrl = service.imageUrl?.toLowerCase() ?? "";
@@ -41,7 +48,7 @@ export function getServiceIcon(service: ServiceLike): string | null {
 
   for (const { keywords, icon } of KEYWORD_ICONS) {
     if (keywords.some((kw) => imageUrl.includes(kw) || name.includes(kw))) {
-      return `https://cdn.simpleicons.org/${icon}`;
+      return getIconUrl(icon);
     }
   }
 

@@ -3,9 +3,21 @@ import { FALLBACK_ICON, getServiceIcon } from "./service-logo";
 
 describe("getServiceIcon", () => {
   test("returns icon url when service has icon field", () => {
-    const service = { name: "myapp", icon: "nextdotjs" };
+    const service = { name: "myapp", icon: "postgresql" };
     expect(getServiceIcon(service)).toBe(
-      "https://cdn.simpleicons.org/nextdotjs",
+      "https://cdn.simpleicons.org/postgresql",
+    );
+  });
+
+  test("uses white color for dark icons", () => {
+    expect(getServiceIcon({ name: "app", icon: "nextdotjs" })).toBe(
+      "https://cdn.simpleicons.org/nextdotjs/ffffff",
+    );
+    expect(getServiceIcon({ name: "app", icon: "ghost" })).toBe(
+      "https://cdn.simpleicons.org/ghost/ffffff",
+    );
+    expect(getServiceIcon({ name: "app", icon: "umami" })).toBe(
+      "https://cdn.simpleicons.org/umami/ffffff",
     );
   });
 

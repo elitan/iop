@@ -1,11 +1,13 @@
 import { ORPCError } from "@orpc/server";
-import { nanoid } from "nanoid";
+import type { Selectable } from "kysely";
 import { addLatestDeployment, addLatestDeployments, db } from "@/lib/db";
+import type { Services } from "@/lib/db-types";
 import { deployService } from "@/lib/deployer";
 import { stopContainer } from "@/lib/docker";
-import { createWildcardDomain, syncCaddyConfig } from "@/lib/domains";
+import { syncCaddyConfig } from "@/lib/domains";
+import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
-import { generateSelfSignedCert, removeSSLCerts } from "@/lib/ssl";
+import { removeSSLCerts } from "@/lib/ssl";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
 import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
 import { os } from "./orpc";
@@ -97,8 +99,6 @@ export const services = {
       });
     }
 
-    const id = nanoid();
-    const now = Date.now();
     const hostname = input.hostname ?? slugify(input.name);
 
     const existingHostname = await db
@@ -114,39 +114,33 @@ export const services = {
       });
     }
 
+    const projectHostname = project.hostname ?? slugify(project.name);
+    const envName =
+      environment.type === "production" ? undefined : slugify(environment.name);
+
+    let service: Selectable<Services>;
+
     if (input.deployType === "database") {
       const template = getTemplate(input.templateId!)!;
       const resolved = resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 
-      await db
-        .insertInto("services")
-        .values({
-          id,
-          environmentId: input.environmentId,
-          name: input.name,
-          hostname,
-          deployType: "image",
-          repoUrl: null,
-          branch: null,
-          dockerfilePath: null,
-          imageUrl: serviceConfig.image,
-          envVars: JSON.stringify(serviceConfig.envVars),
-          containerPort: serviceConfig.port,
-          healthCheckPath: serviceConfig.healthCheckPath ?? null,
-          healthCheckTimeout: serviceConfig.healthCheckTimeout,
-          autoDeploy: false,
-          serviceType: "database",
-          volumes: JSON.stringify(serviceConfig.volumes),
-          command: serviceConfig.command ?? null,
-          icon: serviceConfig.icon ?? null,
-          createdAt: now,
-        })
-        .execute();
-
-      if (serviceConfig.ssl) {
-        await generateSelfSignedCert(id);
-      }
+      service = await createService({
+        environmentId: input.environmentId,
+        name: input.name,
+        hostname,
+        deployType: "image",
+        serviceType: "database",
+        imageUrl: serviceConfig.image,
+        envVars: serviceConfig.envVars,
+        containerPort: serviceConfig.port,
+        healthCheckPath: serviceConfig.healthCheckPath,
+        healthCheckTimeout: serviceConfig.healthCheckTimeout,
+        volumes: serviceConfig.volumes,
+        command: serviceConfig.command,
+        icon: serviceConfig.icon,
+        ssl: serviceConfig.ssl,
+      });
     } else if (input.serviceTemplateId) {
       const template = getTemplate(input.serviceTemplateId);
       if (!template) {
@@ -157,90 +151,49 @@ export const services = {
       const resolved = resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 
-      await db
-        .insertInto("services")
-        .values({
-          id,
-          environmentId: input.environmentId,
-          name: input.name,
-          hostname,
-          deployType: "image",
-          repoUrl: null,
-          branch: null,
-          dockerfilePath: null,
-          imageUrl: serviceConfig.image,
-          envVars: JSON.stringify(serviceConfig.envVars),
-          containerPort: serviceConfig.port,
-          healthCheckPath: serviceConfig.healthCheckPath ?? null,
-          healthCheckTimeout: serviceConfig.healthCheckTimeout,
-          autoDeploy: false,
-          volumes: JSON.stringify(serviceConfig.volumes),
-          command: serviceConfig.command ?? null,
-          icon: serviceConfig.icon ?? null,
-          createdAt: now,
-        })
-        .execute();
+      service = await createService({
+        environmentId: input.environmentId,
+        name: input.name,
+        hostname,
+        deployType: "image",
+        imageUrl: serviceConfig.image,
+        envVars: serviceConfig.envVars,
+        containerPort: serviceConfig.port,
+        healthCheckPath: serviceConfig.healthCheckPath,
+        healthCheckTimeout: serviceConfig.healthCheckTimeout,
+        volumes: serviceConfig.volumes,
+        command: serviceConfig.command,
+        icon: serviceConfig.icon,
+        wildcardDomain: { projectHostname, environmentName: envName },
+      });
     } else {
-      await db
-        .insertInto("services")
-        .values({
-          id,
-          environmentId: input.environmentId,
-          name: input.name,
-          hostname,
-          deployType: input.deployType,
-          repoUrl: input.deployType === "repo" ? input.repoUrl! : null,
-          branch: input.deployType === "repo" ? input.branch : null,
-          dockerfilePath:
-            input.deployType === "repo" ? input.dockerfilePath : null,
-          buildContext:
-            input.deployType === "repo" ? (input.buildContext ?? null) : null,
-          imageUrl: input.deployType === "image" ? input.imageUrl! : null,
-          envVars: JSON.stringify(input.envVars),
-          containerPort: input.containerPort ?? null,
-          healthCheckPath: input.healthCheckPath ?? null,
-          healthCheckTimeout: input.healthCheckTimeout ?? null,
-          autoDeploy: input.deployType === "repo",
-          memoryLimit: input.memoryLimit ?? null,
-          cpuLimit: input.cpuLimit ?? null,
-          shutdownTimeout: input.shutdownTimeout ?? null,
-          registryId:
-            input.deployType === "image" ? (input.registryId ?? null) : null,
-          frostFilePath:
-            input.deployType === "repo" ? (input.frostFilePath ?? null) : null,
-          createdAt: now,
-        })
-        .execute();
-    }
-
-    const service = await db
-      .selectFrom("services")
-      .selectAll()
-      .where("id", "=", id)
-      .executeTakeFirst();
-
-    if (!service) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: "Failed to create service",
+      service = await createService({
+        environmentId: input.environmentId,
+        name: input.name,
+        hostname,
+        deployType: input.deployType,
+        repoUrl: input.deployType === "repo" ? input.repoUrl : null,
+        branch: input.deployType === "repo" ? input.branch : null,
+        dockerfilePath:
+          input.deployType === "repo" ? input.dockerfilePath : null,
+        buildContext: input.deployType === "repo" ? input.buildContext : null,
+        imageUrl: input.deployType === "image" ? input.imageUrl : null,
+        registryId: input.deployType === "image" ? input.registryId : null,
+        envVars: input.envVars,
+        containerPort: input.containerPort,
+        healthCheckPath: input.healthCheckPath,
+        healthCheckTimeout: input.healthCheckTimeout,
+        memoryLimit: input.memoryLimit,
+        cpuLimit: input.cpuLimit,
+        shutdownTimeout: input.shutdownTimeout,
+        autoDeploy: input.deployType === "repo",
+        frostFilePath: input.deployType === "repo" ? input.frostFilePath : null,
+        wildcardDomain: { projectHostname, environmentName: envName },
       });
     }
 
-    if (input.deployType !== "database") {
-      const envName =
-        environment.type !== "production"
-          ? slugify(environment.name)
-          : undefined;
-      await createWildcardDomain(
-        id,
-        input.environmentId,
-        hostname,
-        project.hostname ?? slugify(project.name),
-        envName,
-      );
-    }
-
-    deployService(id).catch((err) => {
-      console.error(`Auto-deploy failed for service ${id}:`, err);
+    deployService(service.id).catch((err) => {
+      console.error(`Auto-deploy failed for service ${service.id}:`, err);
     });
 
     return service;
@@ -426,5 +379,96 @@ export const services = {
         return { name: v.name, path: v.path, sizeBytes };
       }),
     );
+  }),
+
+  createBatch: os.services.createBatch.handler(async ({ input }) => {
+    const environment = await db
+      .selectFrom("environments")
+      .selectAll()
+      .where("id", "=", input.environmentId)
+      .executeTakeFirst();
+
+    if (!environment) {
+      throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+    }
+
+    const project = await db
+      .selectFrom("projects")
+      .select(["id", "name", "hostname"])
+      .where("id", "=", environment.projectId)
+      .executeTakeFirst();
+
+    if (!project) {
+      throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+    }
+
+    const existingServices = await db
+      .selectFrom("services")
+      .select(["name", "hostname"])
+      .where("environmentId", "=", input.environmentId)
+      .execute();
+
+    const existingNames = new Set(existingServices.map((s) => s.name));
+    const existingHostnames = new Set(
+      existingServices
+        .map((s) => s.hostname)
+        .filter((h): h is string => h !== null),
+    );
+
+    function generateUniqueName(
+      baseName: string,
+      usedNames: Set<string>,
+    ): string {
+      if (!usedNames.has(baseName)) return baseName;
+      let counter = 2;
+      while (usedNames.has(`${baseName}-${counter}`)) counter++;
+      return `${baseName}-${counter}`;
+    }
+
+    const projectHostname = project.hostname ?? slugify(project.name);
+    const envName =
+      environment.type === "production" ? undefined : slugify(environment.name);
+
+    const usedNames = new Set(existingNames);
+    const usedHostnames = new Set(existingHostnames);
+
+    const created: Selectable<Services>[] = [];
+    const errors: { name: string; error: string }[] = [];
+
+    for (const svc of input.services) {
+      const uniqueName = generateUniqueName(svc.name, usedNames);
+      const hostname = slugify(uniqueName);
+      const uniqueHostname = generateUniqueName(hostname, usedHostnames);
+
+      usedNames.add(uniqueName);
+      usedHostnames.add(uniqueHostname);
+
+      try {
+        const service = await createService({
+          environmentId: input.environmentId,
+          name: uniqueName,
+          hostname: uniqueHostname,
+          deployType: "repo",
+          repoUrl: input.repoUrl,
+          branch: input.branch,
+          dockerfilePath: svc.dockerfilePath,
+          buildContext: svc.buildContext === "." ? null : svc.buildContext,
+          containerPort: svc.containerPort,
+          autoDeploy: true,
+          wildcardDomain: { projectHostname, environmentName: envName },
+        });
+
+        created.push(service);
+
+        deployService(service.id).catch((err) => {
+          console.error(`Auto-deploy failed for service ${service.id}:`, err);
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        errors.push({ name: uniqueName, error: message });
+      }
+    }
+
+    return { created, errors };
   }),
 };

@@ -1,13 +1,64 @@
 # Frost
 
-Deploy Docker apps. Simple.
+**Get your app online, for the AI coding era.**
+
+Open source · Self-hosted · No usage fees
+
+---
+
+## The Problem
+
+AI lets you build apps in hours. Getting them online still takes forever.
+
+- 47-step deployment guides
+- YAML configs AI hallucinates
+- IAM policies that take hours
+- Cryptic errors, impossible to debug
+
+Frost fixes that.
+
+## Install
+
+**With AI agent** — give your agent: `https://frost.build/install.md`
+
+**Manual** — run on your server:
+
+```bash
+curl -fsSL https://frost.build/install.sh | sudo bash
+```
+
+Need a server? See [INSTALL.md](INSTALL.md) for AI-assisted VPS provisioning.
 
 ## Features
 
-- Deploy any repo with a Dockerfile
-- Web UI for managing projects
-- Build logs and deployment status
-- Auto-assigns ports (10000-20000 range)
+**AI-native by design**
+
+- Simple config AI writes perfectly
+- Clear errors, actionable feedback
+- No K8s complexity to hallucinate
+- Just Docker. Predictable.
+
+**Everything you need**
+
+- Git push → deployed
+- Automatic SSL (Let's Encrypt)
+- Custom domains
+- GitHub webhooks
+- PR preview environments
+- Instant rollbacks
+- Health checks
+- Resource limits
+- Full REST API
+
+## Deploy Anything
+
+Docker-native. If it has a Dockerfile, Frost runs it.
+
+- **Web apps** — Next.js, Rails, Django, Go, etc.
+- **Databases** — Postgres, MySQL, Redis, MongoDB
+- **Multi-service projects** — frontend, API, workers on shared Docker network
+- **Private images** — pull from GHCR, Docker Hub, custom registries
+- **Long-running jobs** — workers, queues, background processes
 
 ## Stack
 
@@ -16,16 +67,7 @@ Deploy Docker apps. Simple.
 - Tailwind + shadcn/ui
 - Docker
 
-## Installation
-
-**Need a server?** See [INSTALL.md](INSTALL.md) for AI-assisted VPS provisioning.
-
-**Already have a server?**
-```bash
-curl -fsSL https://frost.build/install.sh | sudo bash
-```
-
-## Local Development
+## Development
 
 ```bash
 bun install
@@ -34,33 +76,11 @@ bun run dev
 
 Open http://localhost:3000
 
-## Usage
-
-1. Create a project (provide repo URL, branch, port)
-2. Click Deploy
-3. Access your app at the assigned port
-
-## API
-
-```bash
-# Create project
-curl -X POST localhost:3000/api/projects \
-  -H "Content-Type: application/json" \
-  -d '{"name":"myapp","repo_url":"https://github.com/user/repo","port":3000}'
-
-# Deploy
-curl -X POST localhost:3000/api/projects/{id}/deploy
-
-# Get deployment status
-curl localhost:3000/api/deployments/{id}
-```
-
 ## Requirements
 
-- Bun
-- Docker
+- VPS or server with Docker
+- Ubuntu 20.04+ recommended
 
 ## License
 
 MIT
-

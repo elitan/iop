@@ -1,9 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
+import { getSetting } from "./auth";
 import { db } from "./db";
 import { removeNetwork, stopContainer } from "./docker";
-import { createWildcardDomain } from "./domains";
-import { normalizeGitHubUrl } from "./github";
+import { getDomainsForService } from "./domains";
+import { normalizeGitHubUrl, updatePRComment } from "./github";
+import { getPreferredDomain } from "./service-url";
+import { createService } from "./services";
 import { slugify } from "./slugify";
 
 export function verifyWebhookSignature(
@@ -171,48 +174,43 @@ export async function cloneServiceToEnvironment(
     return existing.id;
   }
 
-  const id = nanoid();
-  const now = Date.now();
   const hostname = sourceService.hostname ?? slugify(sourceService.name);
+  const envVars = sourceService.envVars
+    ? (JSON.parse(sourceService.envVars) as { key: string; value: string }[])
+    : [];
+  const volumes = sourceService.volumes
+    ? (JSON.parse(sourceService.volumes) as { name: string; path: string }[])
+    : [];
 
-  await db
-    .insertInto("services")
-    .values({
-      id,
-      environmentId: input.environmentId,
-      name: sourceService.name,
-      hostname,
-      deployType: sourceService.deployType,
-      serviceType: sourceService.serviceType,
-      repoUrl: sourceService.repoUrl,
-      branch: input.targetBranch,
-      dockerfilePath: sourceService.dockerfilePath,
-      buildContext: sourceService.buildContext,
-      imageUrl: sourceService.imageUrl,
-      envVars: sourceService.envVars,
-      containerPort: sourceService.containerPort,
-      healthCheckPath: sourceService.healthCheckPath,
-      healthCheckTimeout: sourceService.healthCheckTimeout,
-      memoryLimit: sourceService.memoryLimit,
-      cpuLimit: sourceService.cpuLimit,
-      shutdownTimeout: sourceService.shutdownTimeout,
-      registryId: sourceService.registryId,
-      command: sourceService.command,
-      volumes: sourceService.volumes,
-      autoDeploy: true,
-      createdAt: now,
-    })
-    .execute();
-
-  await createWildcardDomain(
-    id,
-    input.environmentId,
+  const service = await createService({
+    environmentId: input.environmentId,
+    name: sourceService.name,
     hostname,
-    input.projectHostname,
-    input.envName,
-  );
+    deployType: sourceService.deployType,
+    serviceType: sourceService.serviceType,
+    repoUrl: sourceService.repoUrl,
+    branch: input.targetBranch,
+    dockerfilePath: sourceService.dockerfilePath,
+    buildContext: sourceService.buildContext,
+    imageUrl: sourceService.imageUrl,
+    envVars,
+    containerPort: sourceService.containerPort,
+    healthCheckPath: sourceService.healthCheckPath,
+    healthCheckTimeout: sourceService.healthCheckTimeout,
+    memoryLimit: sourceService.memoryLimit,
+    cpuLimit: sourceService.cpuLimit,
+    shutdownTimeout: sourceService.shutdownTimeout,
+    registryId: sourceService.registryId,
+    command: sourceService.command,
+    volumes,
+    autoDeploy: true,
+    wildcardDomain: {
+      projectHostname: input.projectHostname,
+      environmentName: input.envName,
+    },
+  });
 
-  return id;
+  return service.id;
 }
 
 export async function cleanupEnvironment(environment: {
@@ -283,63 +281,96 @@ export async function updateEnvironmentPRCommentId(
 }
 
 export interface ServiceDeployStatus {
+  id: string;
   name: string;
   hostname: string;
   status: string;
   url: string | null;
 }
 
-export function buildPRCommentBody(
-  services: ServiceDeployStatus[],
-  branch: string,
-  commitSha: string,
-): string {
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function formatDate(date: Date): string {
+  const month = MONTHS[date.getUTCMonth()];
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  const hours24 = date.getUTCHours();
+  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
+  const ampm = hours24 >= 12 ? "pm" : "am";
+  const hours = hours24 % 12 || 12;
+  return `${month} ${day}, ${year} ${hours}:${minutes}${ampm} UTC`;
+}
+
+export interface BuildPRCommentParams {
+  services: ServiceDeployStatus[];
+  branch: string;
+  commitSha: string;
+  projectId: string;
+  environmentId: string;
+  frostDomain: string | null;
+}
+
+function getStatusBadge(status: string, frostDomain: string | null): string {
+  if (status === "running") {
+    return frostDomain
+      ? `![Ready](https://${frostDomain}/static/status/ready.svg)`
+      : "🟢 Ready";
+  }
+  if (status === "failed") {
+    return frostDomain
+      ? `![Failed](https://${frostDomain}/static/status/failed.svg)`
+      : "🔴 Failed";
+  }
+  return frostDomain
+    ? `![Building](https://${frostDomain}/static/status/building.svg)`
+    : "🟡 Building";
+}
+
+export function buildPRCommentBody(params: BuildPRCommentParams): string {
+  const { services, branch, commitSha, projectId, environmentId, frostDomain } =
+    params;
+
   const rows = services
     .map((s) => {
-      let statusEmoji = "🔄";
-      if (s.status === "running") statusEmoji = "✅";
-      else if (s.status === "failed") statusEmoji = "❌";
-      const url = s.url ? `[${s.hostname}](${s.url})` : "-";
-      return `| ${s.name} | ${statusEmoji} ${s.status} | ${url} |`;
+      const statusBadge = getStatusBadge(s.status, frostDomain);
+      const serviceLink = frostDomain
+        ? `[${s.name}](https://${frostDomain}/projects/${projectId}/environments/${environmentId}/services/${s.id})`
+        : s.name;
+      const preview = s.url ? `[Visit](${s.url})` : "-";
+      return `| ${serviceLink} | ${statusBadge} | ${preview} |`;
     })
     .join("\n");
 
-  const now = new Date().toISOString().replace("T", " ").substring(0, 16);
+  const now = formatDate(new Date());
 
-  return `## Frost Preview
-
-| Service | Status | URL |
-|---------|--------|-----|
+  return `| Service | Status | Preview |
+|---------|--------|---------|
 ${rows}
 
-**Branch:** \`${branch}\`
-**Commit:** ${commitSha.substring(0, 7)}
-
----
-*Updated: ${now} UTC*`;
+**Branch:** \`${branch}\` · **Commit:** \`${commitSha.substring(0, 7)}\` · *Updated: ${now}*`;
 }
 
 export async function getEnvironmentServiceStatuses(
   environmentId: string,
-  projectId: string,
 ): Promise<ServiceDeployStatus[]> {
   const services = await db
     .selectFrom("services")
     .select(["id", "name", "hostname"])
     .where("environmentId", "=", environmentId)
     .execute();
-
-  const project = await db
-    .selectFrom("projects")
-    .select("hostname")
-    .where("id", "=", projectId)
-    .executeTakeFirst();
-
-  const env = await db
-    .selectFrom("environments")
-    .select("name")
-    .where("id", "=", environmentId)
-    .executeTakeFirst();
 
   const statuses: ServiceDeployStatus[] = [];
 
@@ -352,15 +383,18 @@ export async function getEnvironmentServiceStatuses(
       .executeTakeFirst();
 
     const hostname = service.hostname ?? slugify(service.name);
-    const projectHostname = project?.hostname ?? slugify(projectId);
-    const envName = env?.name ?? "";
 
     let url: string | null = null;
     if (deployment?.status === "running") {
-      url = `https://${hostname}.${envName}.${projectHostname}`;
+      const domains = await getDomainsForService(service.id);
+      const preferred = getPreferredDomain(domains);
+      if (preferred) {
+        url = `https://${preferred.domain}`;
+      }
     }
 
     statuses.push({
+      id: service.id,
       name: service.name,
       hostname,
       status: deployment?.status ?? "pending",
@@ -369,4 +403,41 @@ export async function getEnvironmentServiceStatuses(
   }
 
   return statuses;
+}
+
+export async function updateEnvironmentPRComment(
+  environmentId: string,
+  repoUrl: string | null,
+): Promise<void> {
+  if (!repoUrl) return;
+
+  const env = await db
+    .selectFrom("environments")
+    .select(["prCommentId", "prBranch", "projectId"])
+    .where("id", "=", environmentId)
+    .executeTakeFirst();
+
+  if (!env?.prCommentId || !env.prBranch) return;
+
+  const [latestDeployment, statuses, frostDomain] = await Promise.all([
+    db
+      .selectFrom("deployments")
+      .select("commitSha")
+      .where("environmentId", "=", environmentId)
+      .orderBy("createdAt", "desc")
+      .executeTakeFirst(),
+    getEnvironmentServiceStatuses(environmentId),
+    getSetting("domain"),
+  ]);
+
+  const body = buildPRCommentBody({
+    services: statuses,
+    branch: env.prBranch,
+    commitSha: latestDeployment?.commitSha ?? "HEAD",
+    projectId: env.projectId,
+    environmentId,
+    frostDomain,
+  });
+
+  await updatePRComment(repoUrl, env.prCommentId, body);
 }

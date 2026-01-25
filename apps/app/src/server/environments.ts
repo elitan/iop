@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
-import { createWildcardDomain } from "@/lib/domains";
+import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { cleanupEnvironment } from "@/lib/webhook";
 import { os } from "./orpc";
@@ -111,45 +111,37 @@ export const environments = {
         const envName = slugify(input.name);
 
         for (const service of sourceServices) {
-          const serviceId = nanoid();
           const hostname = service.hostname ?? slugify(service.name);
+          const envVars = service.envVars
+            ? (JSON.parse(service.envVars) as { key: string; value: string }[])
+            : [];
+          const volumes = service.volumes
+            ? (JSON.parse(service.volumes) as { name: string; path: string }[])
+            : [];
 
-          await db
-            .insertInto("services")
-            .values({
-              id: serviceId,
-              environmentId: id,
-              name: service.name,
-              hostname,
-              deployType: service.deployType,
-              serviceType: service.serviceType,
-              repoUrl: service.repoUrl,
-              branch: service.branch,
-              dockerfilePath: service.dockerfilePath,
-              buildContext: service.buildContext,
-              imageUrl: service.imageUrl,
-              envVars: service.envVars,
-              containerPort: service.containerPort,
-              healthCheckPath: service.healthCheckPath,
-              healthCheckTimeout: service.healthCheckTimeout,
-              memoryLimit: service.memoryLimit,
-              cpuLimit: service.cpuLimit,
-              shutdownTimeout: service.shutdownTimeout,
-              registryId: service.registryId,
-              command: service.command,
-              volumes: service.volumes,
-              autoDeploy: false,
-              createdAt: now,
-            })
-            .execute();
-
-          await createWildcardDomain(
-            serviceId,
-            id,
+          await createService({
+            environmentId: id,
+            name: service.name,
             hostname,
-            projectHostname,
-            envName,
-          );
+            deployType: service.deployType as "repo" | "image",
+            serviceType: service.serviceType as "app" | "database",
+            repoUrl: service.repoUrl,
+            branch: service.branch,
+            dockerfilePath: service.dockerfilePath,
+            buildContext: service.buildContext,
+            imageUrl: service.imageUrl,
+            envVars,
+            containerPort: service.containerPort,
+            healthCheckPath: service.healthCheckPath,
+            healthCheckTimeout: service.healthCheckTimeout,
+            memoryLimit: service.memoryLimit,
+            cpuLimit: service.cpuLimit,
+            shutdownTimeout: service.shutdownTimeout,
+            registryId: service.registryId,
+            command: service.command,
+            volumes,
+            wildcardDomain: { projectHostname, environmentName: envName },
+          });
         }
 
         if (sourceServices.length > 0) {

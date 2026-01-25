@@ -4,8 +4,8 @@ import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
+import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
-import { generateSelfSignedCert } from "@/lib/ssl";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
 import { os } from "./orpc";
 
@@ -215,40 +215,30 @@ export const projects = {
       const resolved = resolveTemplateServices(template);
 
       for (const svc of resolved) {
-        const serviceId = nanoid();
         const serviceHostname = slugify(svc.name);
 
-        await db
-          .insertInto("services")
-          .values({
-            id: serviceId,
-            environmentId: envId,
-            name: svc.name,
-            hostname: serviceHostname,
-            deployType: "image",
-            repoUrl: null,
-            branch: null,
-            dockerfilePath: null,
-            imageUrl: svc.image,
-            envVars: JSON.stringify(svc.envVars),
-            containerPort: svc.port,
-            healthCheckPath: svc.healthCheckPath ?? null,
-            healthCheckTimeout: svc.healthCheckTimeout,
-            autoDeploy: false,
-            serviceType: svc.isDatabase ? "database" : "app",
-            volumes: JSON.stringify(svc.volumes),
-            command: svc.command ?? null,
-            icon: svc.icon ?? null,
-            createdAt: now,
-          })
-          .execute();
+        const service = await createService({
+          environmentId: envId,
+          name: svc.name,
+          hostname: serviceHostname,
+          deployType: "image",
+          serviceType: svc.isDatabase ? "database" : "app",
+          imageUrl: svc.image,
+          envVars: svc.envVars,
+          containerPort: svc.port,
+          healthCheckPath: svc.healthCheckPath,
+          healthCheckTimeout: svc.healthCheckTimeout,
+          volumes: svc.volumes,
+          command: svc.command,
+          icon: svc.icon,
+          ssl: svc.ssl,
+          wildcardDomain: svc.isDatabase
+            ? undefined
+            : { projectHostname: hostname },
+        });
 
-        if (svc.ssl) {
-          await generateSelfSignedCert(serviceId);
-        }
-
-        deployService(serviceId).catch((err) => {
-          console.error(`Auto-deploy failed for service ${serviceId}:`, err);
+        deployService(service.id).catch((err) => {
+          console.error(`Auto-deploy failed for service ${service.id}:`, err);
         });
       }
     }
