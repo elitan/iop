@@ -42,7 +42,7 @@ import { ExternalLink } from "lucide-react";
 
 interface SettingCardProps {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   headerAction?: React.ReactNode;
   footerLeft?: React.ReactNode;
   footerRight?: React.ReactNode;
@@ -72,7 +72,7 @@ export function SettingCard({
 
   return (
     <div
-      className={`rounded-lg border ${isDanger ? "border-red-900/50" : "border-neutral-800"} bg-neutral-900`}
+      className={`rounded-lg border ${isDanger ? "border-red-900/50" : "border-neutral-800"} border-t-neutral-700 bg-neutral-900 shadow-lg shadow-black/25`}
     >
       <div className="p-6">
         <div className="flex items-start justify-between">
