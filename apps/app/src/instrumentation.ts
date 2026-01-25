@@ -11,6 +11,10 @@ export async function register() {
     startMetricsCollector();
     console.log("[startup] metrics collector: started");
 
+    const { startCleanupScheduler } = await import("./lib/cleanup-scheduler");
+    startCleanupScheduler();
+    console.log("[startup] cleanup scheduler: started");
+
     const { syncCaddyConfig } = await import("./lib/domains");
     try {
       const synced = await syncCaddyConfig();

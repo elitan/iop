@@ -8,6 +8,7 @@ export interface CleanupResult {
   deletedImages: string[];
   deletedNetworks: string[];
   prunedContainers: number;
+  prunedBuildCacheBytes: number;
   freedBytes: number;
   errors: string[];
   startedAt: string;
@@ -24,46 +25,34 @@ export interface CleanupSettings {
   lastResult: CleanupResult | null;
 }
 
-function parseSettings(data: {
-  enabled: boolean;
-  retentionDays: number;
-  running: boolean;
-  lastRun: string | null;
-  lastResult: string | null;
-}): CleanupSettings {
-  return {
-    enabled: data.enabled,
-    keepImages: data.retentionDays,
-    pruneDangling: true,
-    pruneNetworks: true,
-    running: data.running,
-    lastRun: data.lastRun,
-    lastResult: data.lastResult ? JSON.parse(data.lastResult) : null,
-  };
+function parseResult(json: string | null): CleanupResult | null {
+  if (!json) return null;
+  return JSON.parse(json) as CleanupResult;
 }
 
 export function useCleanupSettings() {
   const queryClient = useQueryClient();
 
   const { data, isError } = useQuery(orpc.cleanup.get.queryOptions());
-  const settings = data ? parseSettings(data) : null;
 
   const { data: runStatusData } = useQuery({
     ...orpc.cleanup.runStatus.queryOptions(),
-    refetchInterval: settings?.running ? 2000 : false,
+    refetchInterval: data?.running ? 2000 : false,
   });
 
-  const mergedSettings: CleanupSettings | null =
-    settings && runStatusData
-      ? {
-          ...settings,
-          running: runStatusData.running,
-          lastRun: runStatusData.lastRun,
-          lastResult: runStatusData.result
-            ? JSON.parse(runStatusData.result)
-            : settings.lastResult,
-        }
-      : settings;
+  const settings: CleanupSettings | null = data
+    ? {
+        enabled: data.enabled,
+        keepImages: data.retentionDays,
+        pruneDangling: true,
+        pruneNetworks: true,
+        running: runStatusData?.running ?? data.running,
+        lastRun: runStatusData?.lastRun ?? data.lastRun,
+        lastResult:
+          parseResult(runStatusData?.result ?? null) ??
+          parseResult(data.lastResult),
+      }
+    : null;
 
   const updateMutation = useMutation(
     orpc.cleanup.update.mutationOptions({
@@ -89,15 +78,11 @@ export function useCleanupSettings() {
   }
 
   async function runCleanup(): Promise<void> {
-    try {
-      await runMutation.mutateAsync({});
-    } catch {
-      throw new Error("Cleanup already running");
-    }
+    await runMutation.mutateAsync({});
   }
 
   return {
-    settings: mergedSettings,
+    settings,
     saving: updateMutation.isPending,
     error: isError ? "Failed to load cleanup settings" : "",
     updateSetting,

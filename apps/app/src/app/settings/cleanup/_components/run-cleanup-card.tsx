@@ -74,6 +74,13 @@ export function RunCleanupCard({
                 {settings.lastResult.deletedImages.length} images •{" "}
                 {settings.lastResult.prunedContainers} containers •{" "}
                 {settings.lastResult.deletedNetworks.length} networks
+                {settings.lastResult.prunedBuildCacheBytes > 0 && (
+                  <>
+                    {" "}
+                    • {formatBytes(settings.lastResult.prunedBuildCacheBytes)}{" "}
+                    build cache
+                  </>
+                )}
               </p>
               {settings.lastResult.errors.length > 0 && (
                 <p className="mt-1 text-red-400">

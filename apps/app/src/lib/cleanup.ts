@@ -7,6 +7,7 @@ import {
   isNetworkInUse,
   listFrostImages,
   listFrostNetworks,
+  pruneBuildCache,
   pruneDanglingImages,
   pruneStoppedContainers,
   removeImage,
@@ -34,6 +35,7 @@ export interface CleanupResult {
   deletedImages: string[];
   deletedNetworks: string[];
   prunedContainers: number;
+  prunedBuildCacheBytes: number;
   freedBytes: number;
   errors: string[];
   startedAt: string;
@@ -88,26 +90,26 @@ export async function updateCleanupSettings(
     >
   >,
 ): Promise<void> {
-  const updates: Promise<void>[] = [];
+  const settingMap: Record<string, string | undefined> = {
+    cleanup_enabled:
+      settings.enabled !== undefined ? String(settings.enabled) : undefined,
+    cleanup_keep_images:
+      settings.keepImages !== undefined
+        ? String(settings.keepImages)
+        : undefined,
+    cleanup_prune_dangling:
+      settings.pruneDangling !== undefined
+        ? String(settings.pruneDangling)
+        : undefined,
+    cleanup_prune_networks:
+      settings.pruneNetworks !== undefined
+        ? String(settings.pruneNetworks)
+        : undefined,
+  };
 
-  if (settings.enabled !== undefined) {
-    updates.push(setSetting("cleanup_enabled", String(settings.enabled)));
-  }
-  if (settings.keepImages !== undefined) {
-    updates.push(
-      setSetting("cleanup_keep_images", String(settings.keepImages)),
-    );
-  }
-  if (settings.pruneDangling !== undefined) {
-    updates.push(
-      setSetting("cleanup_prune_dangling", String(settings.pruneDangling)),
-    );
-  }
-  if (settings.pruneNetworks !== undefined) {
-    updates.push(
-      setSetting("cleanup_prune_networks", String(settings.pruneNetworks)),
-    );
-  }
+  const updates = Object.entries(settingMap)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .map(([key, value]) => setSetting(key, value));
 
   await Promise.all(updates);
 }
@@ -121,6 +123,7 @@ export async function runCleanup(
     deletedImages: [],
     deletedNetworks: [],
     prunedContainers: 0,
+    prunedBuildCacheBytes: 0,
     freedBytes: 0,
     errors: [],
     startedAt,
@@ -176,6 +179,10 @@ export async function runCleanup(
       result.freedBytes += bytes;
     }
 
+    const buildCacheResult = await pruneBuildCache();
+    result.prunedBuildCacheBytes = buildCacheResult.bytes;
+    result.freedBytes += buildCacheResult.bytes;
+
     result.prunedContainers = await pruneStoppedContainers();
 
     if (options.pruneNetworks) {
@@ -222,6 +229,7 @@ export async function startCleanupJob(): Promise<boolean> {
         deletedImages: [],
         deletedNetworks: [],
         prunedContainers: 0,
+        prunedBuildCacheBytes: 0,
         freedBytes: 0,
         errors: [err instanceof Error ? err.message : String(err)],
         startedAt: new Date().toISOString(),
