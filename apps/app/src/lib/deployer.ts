@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
+import { getSetting } from "./auth";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
@@ -220,12 +221,17 @@ async function updateCommitStatusIfGitHub(
   if (commitSha === "HEAD" || commitSha.length < 7) return;
 
   try {
+    const frostDomain = await getSetting("domain");
+    const targetUrl = frostDomain
+      ? `https://${frostDomain}/deployments/${deploymentId}`
+      : undefined;
+
     await createCommitStatus({
       repoUrl,
       commitSha,
       state,
       description,
-      targetUrl: `/deployments/${deploymentId}`,
+      targetUrl,
     });
   } catch (err) {
     console.warn("Failed to update commit status:", err);

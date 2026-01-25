@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSetting } from "@/lib/auth";
 import { deployService } from "@/lib/deployer";
 import {
   createPRComment,
@@ -211,10 +212,8 @@ async function handlePullRequest(rawBody: string) {
       console.log(
         `Skipping deployment for service ${clonedServiceId}: existing deployment with same commit`,
       );
-      const existingStatuses = await getEnvironmentServiceStatuses(
-        environmentId,
-        projectId,
-      );
+      const existingStatuses =
+        await getEnvironmentServiceStatuses(environmentId);
       const existing = existingStatuses.find((s) => s.name === service.name);
       if (existing) {
         serviceStatuses.push(existing);
@@ -230,6 +229,7 @@ async function handlePullRequest(rawBody: string) {
       });
       deploymentIds.push(deploymentId);
       serviceStatuses.push({
+        id: clonedServiceId,
         name: service.name,
         hostname,
         status: "deploying",
@@ -238,6 +238,7 @@ async function handlePullRequest(rawBody: string) {
     } catch (err) {
       console.error(`Failed to deploy service ${clonedServiceId}:`, err);
       serviceStatuses.push({
+        id: clonedServiceId,
         name: service.name,
         hostname,
         status: "failed",
@@ -246,8 +247,18 @@ async function handlePullRequest(rawBody: string) {
     }
   }
 
-  const env = await findPreviewEnvironment(projectId, prNumber);
-  const body = buildPRCommentBody(serviceStatuses, branch, commitSha);
+  const [env, frostDomain] = await Promise.all([
+    findPreviewEnvironment(projectId, prNumber),
+    getSetting("domain"),
+  ]);
+  const body = buildPRCommentBody({
+    services: serviceStatuses,
+    branch,
+    commitSha,
+    projectId,
+    environmentId,
+    frostDomain,
+  });
 
   try {
     if (env?.prCommentId) {
