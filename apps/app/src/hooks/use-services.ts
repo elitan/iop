@@ -95,3 +95,34 @@ export function useDeployments(serviceId: string) {
     refetchInterval: 2000,
   });
 }
+
+export function useScanRepo() {
+  return useMutation({
+    mutationFn: (data: { repoUrl: string; branch: string; repoName: string }) =>
+      orpc.github.scan.call(data),
+  });
+}
+
+export function useBatchCreateServices(environmentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      repoUrl: string;
+      branch: string;
+      services: {
+        name: string;
+        dockerfilePath: string;
+        buildContext: string;
+        containerPort?: number;
+      }[];
+    }) => orpc.services.createBatch.call({ environmentId, ...data }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.services.list.key({ input: { environmentId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+      });
+    },
+  });
+}

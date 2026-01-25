@@ -10,6 +10,7 @@ import {
   Github,
   Loader2,
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,11 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateService, useServices } from "@/hooks/use-services";
+import {
+  useBatchCreateServices,
+  useCreateService,
+  useScanRepo,
+  useServices,
+} from "@/hooks/use-services";
 import type { CreateServiceInput, Template } from "@/lib/api";
 import { api } from "@/lib/api";
 
 import { RepoSelector } from "../services/new/_components/repo-selector";
+import { type StagedService, StagedServicesList } from "./staged-services-list";
 
 function generateUniqueName(baseName: string, existingNames: string[]): string {
   if (!existingNames.includes(baseName)) return baseName;
@@ -46,7 +53,7 @@ function getTemplatePort(template: Template): number {
   return firstService?.port ?? 8080;
 }
 
-type Step = "category" | "repo" | "database" | "image";
+type Step = "category" | "repo" | "scanning" | "staged" | "database" | "image";
 
 interface CreateServiceModalProps {
   projectId: string;
@@ -91,10 +98,10 @@ const DB_OPTIONS = [
   { id: "mongodb", name: "MongoDB", color: "text-green-400" },
 ];
 
-function matchesSearch(search: string, ...terms: string[]): boolean {
-  if (!search) return true;
-  const q = search.toLowerCase();
-  return terms.some((t) => t.toLowerCase().includes(q));
+function matchesSearch(query: string, ...terms: string[]): boolean {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return terms.some((term) => term.toLowerCase().includes(q));
 }
 
 export function CreateServiceModal({
@@ -105,12 +112,22 @@ export function CreateServiceModal({
   onServiceCreated,
 }: CreateServiceModalProps): React.ReactElement {
   const createMutation = useCreateService(environmentId);
+  const scanMutation = useScanRepo();
+  const batchCreateMutation = useBatchCreateServices(environmentId);
+
   const [step, setStep] = useState<Step>("category");
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dbSearchInputRef = useRef<HTMLInputElement>(null);
   const imageNameRef = useRef<HTMLInputElement>(null);
+
+  const [stagedServices, setStagedServices] = useState<StagedService[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<{
+    url: string;
+    branch: string;
+    name: string;
+  } | null>(null);
 
   const { data: dbTemplates } = useQuery({
     queryKey: ["db-templates"],
@@ -143,6 +160,8 @@ export function CreateServiceModal({
       category: searchInputRef,
       database: dbSearchInputRef,
       repo: null,
+      scanning: null,
+      staged: null,
       image: null,
     };
     const ref = inputRefs[step];
@@ -153,6 +172,8 @@ export function CreateServiceModal({
     setStep("category");
     setSearch("");
     setSelectedIndex(0);
+    setStagedServices([]);
+    setSelectedRepo(null);
   }
 
   function handleOpenChange(isOpen: boolean): void {
@@ -165,27 +186,24 @@ export function CreateServiceModal({
     items: { id: string }[],
     onSelect: (id: string) => void,
   ): void {
-    switch (e.key) {
-      case "Backspace":
-        if (search === "") {
-          e.preventDefault();
-          resetState();
-        }
-        break;
-      case "ArrowDown":
-        e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, items.length - 1));
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex((i) => Math.max(i - 1, 0));
-        break;
-      case "Enter":
-        if (items.length > 0 && items[selectedIndex]) {
-          e.preventDefault();
-          onSelect(items[selectedIndex].id);
-        }
-        break;
+    if (e.key === "Backspace" && search === "") {
+      e.preventDefault();
+      resetState();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, items.length - 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === "Enter" && items[selectedIndex]) {
+      e.preventDefault();
+      onSelect(items[selectedIndex].id);
     }
   }
 
@@ -216,15 +234,81 @@ export function CreateServiceModal({
     branch: string;
     name: string;
   }) {
-    await createService({
-      name: repo.name,
-      deployType: "repo",
-      repoUrl: repo.url,
-      branch: repo.branch,
-      dockerfilePath: "Dockerfile",
-      containerPort: 8080,
-      envVars: [],
-    });
+    setSelectedRepo(repo);
+    setStep("scanning");
+
+    try {
+      const result = await scanMutation.mutateAsync({
+        repoUrl: repo.url,
+        branch: repo.branch,
+        repoName: repo.name,
+      });
+
+      if (result.dockerfiles.length === 0) {
+        toast.error("No Dockerfiles found in repository");
+        setStep("repo");
+        return;
+      }
+
+      const staged: StagedService[] = result.dockerfiles.map((df) => ({
+        id: nanoid(),
+        name: df.suggestedName,
+        dockerfilePath: df.path,
+        buildContext: df.buildContext,
+        containerPort: df.detectedPort ?? 8080,
+        enabled: true,
+      }));
+
+      setStagedServices(staged);
+      setStep("staged");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to scan repository";
+      toast.error(message);
+      setStep("repo");
+    }
+  }
+
+  async function handleBatchCreate() {
+    if (!selectedRepo) return;
+
+    const enabledServices = stagedServices.filter((s) => s.enabled);
+    if (enabledServices.length === 0) return;
+
+    try {
+      const result = await batchCreateMutation.mutateAsync({
+        repoUrl: selectedRepo.url,
+        branch: selectedRepo.branch,
+        services: enabledServices.map((s) => ({
+          name: s.name,
+          dockerfilePath: s.dockerfilePath,
+          buildContext: s.buildContext,
+          containerPort: s.containerPort,
+        })),
+      });
+
+      if (result.errors.length > 0) {
+        for (const error of result.errors) {
+          toast.error(`Failed to create ${error.name}: ${error.error}`);
+        }
+      }
+
+      if (result.created.length > 0) {
+        toast.success(
+          `Created ${result.created.length} service${result.created.length !== 1 ? "s" : ""}`,
+        );
+        resetState();
+        onOpenChange(false);
+
+        if (onServiceCreated && result.created[0]) {
+          onServiceCreated(result.created[0].id);
+        }
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create services";
+      toast.error(message);
+    }
   }
 
   async function handleDbSelect(dbId: string) {
@@ -289,6 +373,8 @@ export function CreateServiceModal({
   const STEP_TITLES: Record<Step, string> = {
     category: "Add New Service",
     repo: "Import from GitHub",
+    scanning: "Scanning Repository...",
+    staged: "Configure Services",
     database: "Add Database",
     image: "Deploy Docker Image",
   };
@@ -353,6 +439,45 @@ export function CreateServiceModal({
               Back
             </button>
             <RepoSelector onSelect={handleRepoSelect} />
+          </div>
+        );
+
+      case "scanning":
+        return (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            <p className="mt-4 text-sm text-neutral-400">
+              Scanning for Dockerfiles...
+            </p>
+          </div>
+        );
+
+      case "staged":
+        return (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => setStep("repo")}
+              className="flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            {selectedRepo && (
+              <p className="text-sm text-neutral-400">
+                <span className="font-mono text-neutral-300">
+                  {selectedRepo.name}
+                </span>{" "}
+                ({selectedRepo.branch})
+              </p>
+            )}
+            <StagedServicesList
+              services={stagedServices}
+              onChange={setStagedServices}
+              onCancel={resetState}
+              onSubmit={handleBatchCreate}
+              isLoading={batchCreateMutation.isPending}
+            />
           </div>
         );
 

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Loader2, Pencil } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
@@ -12,6 +13,7 @@ import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import { DomainsSection } from "../services/[serviceId]/_components/domains-section";
 import { BuildConfigCard } from "../services/[serviceId]/settings/_components/build-config-card";
+import { ContainerPortCard } from "../services/[serviceId]/settings/_components/container-port-card";
 import { CpuLimitCard } from "../services/[serviceId]/settings/_components/cpu-limit-card";
 import { DangerZoneCard } from "../services/[serviceId]/settings/_components/danger-zone-card";
 import { HealthCheckCard } from "../services/[serviceId]/settings/_components/health-check-card";
@@ -30,16 +32,27 @@ interface SidebarSettingsProps {
 
 type SettingsTab = "general" | "variables" | "domains" | "volumes" | "runtime";
 
-function VariablesTab({ service }: { service: Service }) {
+function parseEnvVars(service: Service): EnvVar[] {
+  const allVars: EnvVar[] = service.envVars ? JSON.parse(service.envVars) : [];
+  return allVars.filter((v) => v.key !== "PORT");
+}
+
+interface VariablesTabProps {
+  service: Service;
+  runtimeSettingsUrl: string;
+}
+
+function VariablesTab({ service, runtimeSettingsUrl }: VariablesTabProps) {
   const updateMutation = useUpdateService(service.id, service.environmentId);
   const deployMutation = useDeployService(service.id, service.environmentId);
 
   const [editing, setEditing] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
+  const [hasValidationErrors, setHasValidationErrors] = useState(false);
   const initialEnvVars = useRef<EnvVar[]>([]);
 
   function handleEdit() {
-    const vars = service.envVars ? JSON.parse(service.envVars) : [];
+    const vars = parseEnvVars(service);
     setEnvVars(vars);
     initialEnvVars.current = vars;
     setEditing(true);
@@ -67,7 +80,7 @@ function VariablesTab({ service }: { service: Service }) {
     }
   }
 
-  const vars: EnvVar[] = service.envVars ? JSON.parse(service.envVars) : [];
+  const vars = parseEnvVars(service);
 
   return (
     <Card className="bg-neutral-800 border-neutral-700">
@@ -85,16 +98,24 @@ function VariablesTab({ service }: { service: Service }) {
       <CardContent>
         <p className="mb-4 text-xs text-neutral-500">
           These are specific to this service (in addition to project-level
-          vars).
+          vars). The <code className="text-neutral-400">PORT</code> variable is
+          managed by the Container Port setting in Runtime.
         </p>
         {editing ? (
           <div className="space-y-4">
-            <EnvVarEditor value={envVars} onChange={setEnvVars} />
+            <EnvVarEditor
+              value={envVars}
+              onChange={setEnvVars}
+              onValidationChange={setHasValidationErrors}
+              managedKeySettingsUrl={runtimeSettingsUrl}
+            />
             <div className="flex gap-2">
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={updateMutation.isPending || !hasChanges}
+                disabled={
+                  updateMutation.isPending || !hasChanges || hasValidationErrors
+                }
               >
                 {updateMutation.isPending ? (
                   <>
@@ -167,7 +188,30 @@ const NAV_ITEMS: { id: SettingsTab; label: string }[] = [
 ];
 
 export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get("tab");
+  const activeTab: SettingsTab =
+    tabParam && NAV_ITEMS.some((item) => item.id === tabParam)
+      ? (tabParam as SettingsTab)
+      : "general";
+
+  function buildTabUrl(tab: SettingsTab): string {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "general") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }
+
+  function setActiveTab(tab: SettingsTab) {
+    router.push(buildTabUrl(tab), { scroll: false });
+  }
 
   return (
     <div className="flex gap-6">
@@ -214,7 +258,12 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
           </>
         )}
 
-        {activeTab === "variables" && <VariablesTab service={service} />}
+        {activeTab === "variables" && (
+          <VariablesTab
+            service={service}
+            runtimeSettingsUrl={buildTabUrl("runtime")}
+          />
+        )}
 
         {activeTab === "domains" && <DomainsTab service={service} />}
 
@@ -222,6 +271,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
 
         {activeTab === "runtime" && (
           <>
+            <ContainerPortCard serviceId={service.id} />
             <HealthCheckCard serviceId={service.id} />
             <RequestTimeoutCard serviceId={service.id} />
             <ShutdownTimeoutCard serviceId={service.id} />

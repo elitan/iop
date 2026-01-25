@@ -1,7 +1,8 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { type ClipboardEvent, useId } from "react";
+import Link from "next/link";
+import { type ClipboardEvent, useEffect, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -13,6 +14,9 @@ interface EnvVar {
 interface EnvVarEditorProps {
   value: EnvVar[];
   onChange: (vars: EnvVar[]) => void;
+  managedKeys?: string[];
+  onValidationChange?: (hasErrors: boolean) => void;
+  managedKeySettingsUrl?: string;
 }
 
 function parseEnvContent(text: string): EnvVar[] {
@@ -35,8 +39,27 @@ function parseEnvContent(text: string): EnvVar[] {
   return results;
 }
 
-export function EnvVarEditor({ value, onChange }: EnvVarEditorProps) {
+const RESERVED_KEYS = ["PORT"];
+
+export function EnvVarEditor({
+  value,
+  onChange,
+  managedKeys = [],
+  onValidationChange,
+  managedKeySettingsUrl,
+}: EnvVarEditorProps) {
   const baseId = useId();
+  const reservedKeysUpper = new Set(
+    [...RESERVED_KEYS, ...managedKeys].map((k) => k.toUpperCase()),
+  );
+
+  const hasErrors = value.some((v) =>
+    reservedKeysUpper.has(v.key.toUpperCase()),
+  );
+
+  useEffect(() => {
+    onValidationChange?.(hasErrors);
+  }, [hasErrors, onValidationChange]);
 
   function handleAdd() {
     onChange([...value, { key: "", value: "" }]);
@@ -76,28 +99,46 @@ export function EnvVarEditor({ value, onChange }: EnvVarEditorProps) {
       )}
       {value.map((envVar, index) => {
         const id = `${baseId}-${index}`;
+        const isReserved = reservedKeysUpper.has(envVar.key.toUpperCase());
         return (
-          <div key={id} className="flex gap-2 group">
-            <Input
-              value={envVar.key}
-              onChange={(e) => handleChange(index, "key", e.target.value)}
-              onPaste={(e) => handlePaste(e, index)}
-              className="flex-1 font-mono text-sm"
-            />
-            <Input
-              value={envVar.value}
-              onChange={(e) => handleChange(index, "value", e.target.value)}
-              className="flex-1 font-mono text-sm"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="opacity-50 hover:opacity-100"
-              onClick={() => handleRemove(index)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div key={id} className="space-y-1">
+            <div className="flex gap-2 group">
+              <Input
+                value={envVar.key}
+                onChange={(e) => handleChange(index, "key", e.target.value)}
+                onPaste={(e) => handlePaste(e, index)}
+                className={`flex-1 font-mono text-sm ${isReserved ? "border-red-500" : ""}`}
+              />
+              <Input
+                value={envVar.value}
+                onChange={(e) => handleChange(index, "value", e.target.value)}
+                className="flex-1 font-mono text-sm"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="opacity-50 hover:opacity-100"
+                onClick={() => handleRemove(index)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            {isReserved && (
+              <p className="text-xs text-red-500">
+                {envVar.key.toUpperCase()} is managed by{" "}
+                {managedKeySettingsUrl ? (
+                  <Link
+                    href={managedKeySettingsUrl}
+                    className="underline hover:text-red-400"
+                  >
+                    Container Port setting
+                  </Link>
+                ) : (
+                  "Container Port setting"
+                )}
+              </p>
+            )}
           </div>
         );
       })}

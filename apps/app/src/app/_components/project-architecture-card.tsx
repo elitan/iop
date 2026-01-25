@@ -11,31 +11,31 @@ import { cn } from "@/lib/utils";
 import { ProjectAvatar } from "./project-avatar";
 
 type CanvasPositions = Record<string, { x: number; y: number }>;
-
-interface MiniServiceNodeProps {
-  service: ProjectListItem["services"][number];
-}
+type Service = ProjectListItem["services"][number];
 
 const POSITION_SCALE = 3;
 
-function MiniServiceNode({ service }: MiniServiceNodeProps) {
+function MiniServiceNode({ data }: { data: { service: Service } }) {
+  const { service } = data;
   const logo = getServiceIcon(service);
 
   return (
     <div
-      className="flex h-11 w-11 items-center justify-center rounded-lg bg-neutral-800 border border-neutral-700"
+      className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-800 border border-neutral-700"
       title={service.name}
     >
       {logo ? (
-        <img src={logo} alt="" className="h-6 w-6 object-contain" />
+        <img src={logo} alt="" className="h-4 w-4 object-contain" />
       ) : (
-        <span className="text-base font-semibold text-neutral-300">
+        <span className="text-xs font-semibold text-neutral-300">
           {service.name.charAt(0).toUpperCase()}
         </span>
       )}
     </div>
   );
 }
+
+const NODE_TYPES = { miniService: MiniServiceNode };
 
 interface ProjectArchitectureCardProps {
   project: ProjectListItem;
@@ -55,30 +55,15 @@ export function ProjectArchitectureCard({
       : {};
 
     return project.services.map((service, index) => {
-      const realPos = positions[service.id] || { x: 60 + index * 140, y: 60 };
-      const scaledPos = {
-        x: realPos.x / POSITION_SCALE,
-        y: realPos.y / POSITION_SCALE,
-      };
+      const pos = positions[service.id] ?? { x: 60 + index * 140, y: 60 };
       return {
         id: service.id,
-        position: scaledPos,
+        position: { x: pos.x / POSITION_SCALE, y: pos.y / POSITION_SCALE },
         data: { service },
         type: "miniService",
       };
     });
   }, [project.services, project.canvasPositions]);
-
-  const nodeTypes = useMemo(
-    () => ({
-      miniService: ({
-        data,
-      }: {
-        data: { service: MiniServiceNodeProps["service"] };
-      }) => <MiniServiceNode service={data.service} />,
-    }),
-    [],
-  );
 
   const hasDeployment =
     runningCount > 0 || project.services.some((s) => s.status);
@@ -98,9 +83,10 @@ export function ProjectArchitectureCard({
           <span className="text-sm text-neutral-500">No services</span>
         ) : (
           <ReactFlow
+            key={`${project.canvasPositions}-${totalCount}`}
             nodes={nodes}
             edges={[]}
-            nodeTypes={nodeTypes}
+            nodeTypes={NODE_TYPES}
             fitView
             fitViewOptions={{ padding: 0.15, maxZoom: 1.5 }}
             panOnDrag={false}
