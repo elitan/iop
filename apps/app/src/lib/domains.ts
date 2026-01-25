@@ -415,7 +415,14 @@ function buildCaddyConfig(
   };
 }
 
-export async function syncCaddyConfig(): Promise<boolean> {
+interface SyncResult {
+  synced: boolean;
+  frostDomain?: string;
+  serviceDomains: number;
+  staging: boolean;
+}
+
+export async function syncCaddyConfig(): Promise<SyncResult> {
   const frostDomain = await getSetting("domain");
   const email = await getSetting("email");
   const staging = (await getSetting("ssl_staging")) === "true";
@@ -425,7 +432,7 @@ export async function syncCaddyConfig(): Promise<boolean> {
   const dnsApiToken = await getSetting("dns_api_token");
 
   if (!email) {
-    return false;
+    return { synced: false, serviceDomains: 0, staging };
   }
 
   const verifiedDomains = await db
@@ -475,7 +482,7 @@ export async function syncCaddyConfig(): Promise<boolean> {
   }
 
   if (routes.length === 0) {
-    return false;
+    return { synced: false, serviceDomains: 0, staging };
   }
 
   const wildcardConfig: WildcardConfig | undefined =
@@ -499,5 +506,11 @@ export async function syncCaddyConfig(): Promise<boolean> {
     throw new Error(`Failed to sync Caddy config: ${text}`);
   }
 
-  return true;
+  const serviceDomains = verifiedDomains.length;
+  return {
+    synced: true,
+    frostDomain: frostDomain ?? undefined,
+    serviceDomains,
+    staging,
+  };
 }
