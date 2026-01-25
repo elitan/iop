@@ -42,8 +42,7 @@ yarn-error.log*
 **/data/
 /repos/
 
-# test fixtures
-/test/
+# test fixtures - ignore nested .git dirs from cloned repos
 **/test/fixtures/*/.git/
 
 # bun
