@@ -100,4 +100,20 @@ resources:
     const config = parseFrostConfig("dockerfile: build/Dockerfile.prod");
     expect(config.dockerfile).toBe("build/Dockerfile.prod");
   });
+
+  test("throws on invalid timeout - too low", () => {
+    expect(() =>
+      parseFrostConfig("health_check:\n  timeout: 0"),
+    ).toThrow();
+  });
+
+  test("throws on invalid timeout - too high", () => {
+    expect(() =>
+      parseFrostConfig("health_check:\n  timeout: 500"),
+    ).toThrow();
+  });
+
+  test("throws on unknown keys (strict mode)", () => {
+    expect(() => parseFrostConfig("unknown_key: value")).toThrow();
+  });
 });

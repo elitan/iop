@@ -30,6 +30,7 @@ export interface CreateServiceInput {
   command?: string | null;
   icon?: string | null;
   autoDeploy?: boolean;
+  frostFilePath?: string | null;
   ssl?: boolean;
   wildcardDomain?: {
     projectHostname: string;
@@ -70,6 +71,7 @@ export async function createService(
       command: input.command ?? null,
       icon: input.icon ?? null,
       autoDeploy: input.autoDeploy ?? false,
+      frostFilePath: input.frostFilePath ?? null,
       createdAt: now,
     })
     .execute();

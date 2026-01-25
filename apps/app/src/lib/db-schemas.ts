@@ -433,6 +433,7 @@ export const servicesSchema = z.object({
   icon: z.string().nullable(),
   hostname: z.string().nullable(),
   currentDeploymentId: z.string().nullable(),
+  frostFilePath: z.string().nullable(),
   createdAt: z.number(),
 });
 
@@ -463,6 +464,7 @@ export const newServicesSchema = z.object({
   icon: z.string().nullable(),
   hostname: z.string().nullable(),
   currentDeploymentId: z.string().nullable(),
+  frostFilePath: z.string().nullable().optional(),
   createdAt: z.number(),
 });
 
@@ -493,6 +495,7 @@ export const servicesUpdateSchema = z.object({
   icon: z.string().nullable().optional(),
   hostname: z.string().nullable().optional(),
   currentDeploymentId: z.string().nullable().optional(),
+  frostFilePath: z.string().nullable().optional(),
   createdAt: z.number().optional(),
 });
 
