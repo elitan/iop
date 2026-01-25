@@ -21,6 +21,8 @@ function readDaemonConfig(): Record<string, unknown> {
 }
 
 export async function ensureDockerNetworkConfig(): Promise<boolean> {
+  if (process.platform !== "linux") return false;
+
   const config = readDaemonConfig();
   if (config["default-address-pools"]) return false;
 

@@ -722,6 +722,7 @@ async function runServiceDeployment(
     );
     const runtimeEnvVars = { ...frostEnvVars, ...envVars };
 
+    const internalHostname = service.hostname ?? slugify(service.name);
     const { containerId, hostPort } = await runContainerWithPortRetry(
       {
         imageName,
@@ -729,8 +730,8 @@ async function runServiceDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.hostname ?? slugify(service.name),
-        networkAlias: service.hostname ?? slugify(service.name),
+        hostname: internalHostname,
+        networkAlias: `${internalHostname}.frost.internal`,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,
@@ -1085,6 +1086,7 @@ async function runRollbackDeployment(
       throw new Error("Source deployment has no image");
     }
 
+    const internalHostname = service.hostname ?? slugify(service.name);
     const { containerId, hostPort } = await runContainerWithPortRetry(
       {
         imageName: sourceDeployment.imageName,
@@ -1092,8 +1094,8 @@ async function runRollbackDeployment(
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
-        hostname: service.hostname ?? slugify(service.name),
-        networkAlias: service.hostname ?? slugify(service.name),
+        hostname: internalHostname,
+        networkAlias: `${internalHostname}.frost.internal`,
         labels: {
           ...baseLabels,
           "frost.deployment.id": deploymentId,
