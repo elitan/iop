@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   deriveServiceName,
   findDockerfiles,
+  findFrostFiles,
   type GitHubTreeEntry,
   normalizeGitHubUrl,
   parseDockerfilePort,
@@ -166,5 +167,49 @@ EXPOSE 8080
 
   test("ignores commented lines", () => {
     expect(parseDockerfilePort("# EXPOSE 3000\nEXPOSE 8080")).toBe(8080);
+  });
+});
+
+describe("findFrostFiles", () => {
+  test("finds root frost.yaml", () => {
+    const tree = [entry("frost.yaml"), entry("Dockerfile")];
+    expect(findFrostFiles(tree)).toEqual(["frost.yaml"]);
+  });
+
+  test("finds root frost.yml", () => {
+    const tree = [entry("frost.yml"), entry("Dockerfile")];
+    expect(findFrostFiles(tree)).toEqual(["frost.yml"]);
+  });
+
+  test("finds nested frost files", () => {
+    const tree = [
+      entry("apps/api/frost.yaml"),
+      entry("apps/web/frost.yml"),
+      entry("apps/api/Dockerfile"),
+    ];
+    expect(findFrostFiles(tree)).toEqual([
+      "apps/api/frost.yaml",
+      "apps/web/frost.yml",
+    ]);
+  });
+
+  test("ignores directories", () => {
+    const tree = [entry("frost.yaml", "tree"), entry("app/frost.yaml")];
+    expect(findFrostFiles(tree)).toEqual(["app/frost.yaml"]);
+  });
+
+  test("ignores files with similar names", () => {
+    const tree = [
+      entry("frost.yaml"),
+      entry("frost.yaml.bak"),
+      entry("my-frost.yaml"),
+      entry("frost.yml"),
+    ];
+    expect(findFrostFiles(tree)).toEqual(["frost.yaml", "frost.yml"]);
+  });
+
+  test("returns empty array when no frost files", () => {
+    const tree = [entry("Dockerfile"), entry("README.md")];
+    expect(findFrostFiles(tree)).toEqual([]);
   });
 });

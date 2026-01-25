@@ -128,6 +128,13 @@ export const servicesContract = {
             dockerfilePath: z.string(),
             buildContext: z.string(),
             containerPort: z.number().min(1).max(65535).optional(),
+            healthCheckPath: z.string().optional(),
+            healthCheckTimeout: z.number().optional(),
+            memoryLimit: z
+              .string()
+              .regex(/^\d+[kmg]$/i)
+              .optional(),
+            cpuLimit: z.number().min(0.1).max(64).optional(),
           }),
         ),
       }),

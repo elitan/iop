@@ -662,6 +662,16 @@ export function findDockerfiles(tree: GitHubTreeEntry[]): string[] {
     .map((entry) => entry.path);
 }
 
+export function findFrostFiles(tree: GitHubTreeEntry[]): string[] {
+  return tree
+    .filter((entry) => {
+      if (entry.type !== "blob") return false;
+      const name = basename(entry.path);
+      return name === "frost.yaml" || name === "frost.yml";
+    })
+    .map((entry) => entry.path);
+}
+
 export function deriveServiceName(
   dockerfilePath: string,
   repoName: string,
@@ -681,8 +691,16 @@ export function deriveServiceName(
   return parts[parts.length - 1];
 }
 
-export async function scanLocalDirectory(basePath: string): Promise<string[]> {
+export interface LocalScanResult {
+  dockerfiles: string[];
+  frostFiles: string[];
+}
+
+export async function scanLocalDirectory(
+  basePath: string,
+): Promise<LocalScanResult> {
   const dockerfiles: string[] = [];
+  const frostFiles: string[] = [];
 
   async function scan(
     currentPath: string,
@@ -706,12 +724,14 @@ export async function scanLocalDirectory(basePath: string): Promise<string[]> {
         entry.name.startsWith("Dockerfile.")
       ) {
         dockerfiles.push(relPath);
+      } else if (entry.name === "frost.yaml" || entry.name === "frost.yml") {
+        frostFiles.push(relPath);
       }
     }
   }
 
   await scan(basePath, "");
-  return dockerfiles;
+  return { dockerfiles, frostFiles };
 }
 
 export async function readLocalFile(

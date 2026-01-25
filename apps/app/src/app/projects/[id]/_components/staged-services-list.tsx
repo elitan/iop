@@ -1,6 +1,6 @@
 "use client";
 
-import { File, Loader2, Minus, Plus, X } from "lucide-react";
+import { File, Loader2, Minus, Plus, Snowflake, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +12,11 @@ export interface StagedService {
   buildContext: string;
   containerPort: number;
   enabled: boolean;
+  frostFilePath?: string;
+  healthCheckPath?: string;
+  healthCheckTimeout?: number;
+  memoryLimit?: string;
+  cpuLimit?: number;
 }
 
 interface StagedServicesListProps {
@@ -124,9 +129,22 @@ export function StagedServicesList({
                     />
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-                    <File className="h-3 w-3" />
-                    <span className="font-mono">{service.dockerfilePath}</span>
+                  <div className="flex items-center gap-2 text-xs text-neutral-500">
+                    <div className="flex items-center gap-1.5">
+                      <File className="h-3 w-3" />
+                      <span className="font-mono">
+                        {service.dockerfilePath}
+                      </span>
+                    </div>
+                    {service.frostFilePath && (
+                      <div
+                        className="flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-blue-400"
+                        title={`Config from ${service.frostFilePath}`}
+                      >
+                        <Snowflake className="h-3 w-3" />
+                        <span>frost.yaml</span>
+                      </div>
+                    )}
                   </div>
 
                   {isDuplicate && (

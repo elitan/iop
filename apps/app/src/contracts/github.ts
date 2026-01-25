@@ -20,11 +20,20 @@ const repoSchema = z.object({
   }),
 });
 
+const frostConfigInfoSchema = z.object({
+  frostFilePath: z.string(),
+  healthCheckPath: z.string().optional(),
+  healthCheckTimeout: z.number().optional(),
+  memoryLimit: z.string().optional(),
+  cpuLimit: z.number().optional(),
+});
+
 const dockerfileInfoSchema = z.object({
   path: z.string(),
   suggestedName: z.string(),
   buildContext: z.string(),
   detectedPort: z.number().nullable(),
+  frostConfig: frostConfigInfoSchema.optional(),
 });
 
 export const githubContract = {

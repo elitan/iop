@@ -450,6 +450,10 @@ export const services = {
           dockerfilePath: svc.dockerfilePath,
           buildContext: svc.buildContext === "." ? null : svc.buildContext,
           containerPort: svc.containerPort,
+          healthCheckPath: svc.healthCheckPath,
+          healthCheckTimeout: svc.healthCheckTimeout,
+          memoryLimit: svc.memoryLimit,
+          cpuLimit: svc.cpuLimit,
           autoDeploy: true,
           wildcardDomain: { projectHostname, environmentName: envName },
         });

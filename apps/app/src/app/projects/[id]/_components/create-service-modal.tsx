@@ -257,6 +257,11 @@ export function CreateServiceModal({
         buildContext: df.buildContext,
         containerPort: df.detectedPort ?? 8080,
         enabled: true,
+        frostFilePath: df.frostConfig?.frostFilePath,
+        healthCheckPath: df.frostConfig?.healthCheckPath,
+        healthCheckTimeout: df.frostConfig?.healthCheckTimeout,
+        memoryLimit: df.frostConfig?.memoryLimit,
+        cpuLimit: df.frostConfig?.cpuLimit,
       }));
 
       setStagedServices(staged);
@@ -284,6 +289,10 @@ export function CreateServiceModal({
           dockerfilePath: s.dockerfilePath,
           buildContext: s.buildContext,
           containerPort: s.containerPort,
+          healthCheckPath: s.healthCheckPath,
+          healthCheckTimeout: s.healthCheckTimeout,
+          memoryLimit: s.memoryLimit,
+          cpuLimit: s.cpuLimit,
         })),
       });
 
