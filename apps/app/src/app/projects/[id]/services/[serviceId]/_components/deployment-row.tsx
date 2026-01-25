@@ -11,6 +11,8 @@ interface DeploymentRowProps {
   createdAt: number;
   finishedAt?: number | null;
   trigger?: string | null;
+  triggeredByUsername?: string | null;
+  triggeredByAvatarUrl?: string | null;
   selected: boolean;
   onClick: () => void;
   canRollback?: boolean;
@@ -50,6 +52,8 @@ export function DeploymentRow({
   createdAt,
   finishedAt,
   trigger,
+  triggeredByUsername,
+  triggeredByAvatarUrl,
   selected,
   onClick,
   canRollback,
@@ -118,12 +122,21 @@ export function DeploymentRow({
               <Check className="h-3 w-3" />
             </span>
           )}
-          <span
-            className="flex items-center gap-1 text-xs text-neutral-500"
-            title={getTriggerLabel(trigger)}
-          >
-            {getTriggerIcon(trigger)}
-          </span>
+          {triggeredByAvatarUrl ? (
+            <img
+              src={triggeredByAvatarUrl}
+              alt={triggeredByUsername || ""}
+              title={triggeredByUsername || getTriggerLabel(trigger)}
+              className="h-5 w-5 rounded-full"
+            />
+          ) : (
+            <span
+              className="flex items-center gap-1 text-xs text-neutral-500"
+              title={getTriggerLabel(trigger)}
+            >
+              {getTriggerIcon(trigger)}
+            </span>
+          )}
           {duration && (
             <span className="text-xs text-neutral-500 w-12 text-right">
               {duration}

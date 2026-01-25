@@ -116,6 +116,8 @@ export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
                   createdAt={d.createdAt}
                   finishedAt={d.finishedAt}
                   trigger={d.trigger}
+                  triggeredByUsername={d.triggeredByUsername}
+                  triggeredByAvatarUrl={d.triggeredByAvatarUrl}
                   selected={selectedDeployment?.id === d.id}
                   onClick={() => handleSelectDeployment(d)}
                   canRollback={canRollback}
