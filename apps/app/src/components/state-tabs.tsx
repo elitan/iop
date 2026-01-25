@@ -30,7 +30,7 @@ export function StateTabs<T extends string>({
             key={tab.id}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative py-3 text-sm transition-colors",
+              "relative py-3 text-sm transition-colors cursor-pointer",
               value === tab.id
                 ? "text-neutral-100"
                 : "text-neutral-500 hover:text-neutral-300",

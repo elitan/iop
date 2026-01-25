@@ -157,6 +157,7 @@ export interface Services {
   createdAt: number;
   icon: string | null;
   configFiles: Generated<string | null>;
+  frostFilePath: Generated<string | null>;
 }
 
 export interface Settings {

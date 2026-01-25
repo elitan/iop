@@ -42,7 +42,7 @@ yarn-error.log*
 **/data/
 /repos/
 
-# test fixtures
+# e2e cloned repos (root test/ is for local e2e testing, real fixtures in apps/app/test/)
 /test/
 **/test/fixtures/*/.git/
 

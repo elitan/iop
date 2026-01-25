@@ -24,9 +24,10 @@ export default function EnvironmentDetailPage() {
 
   const [isMobile, setIsMobile] = useState(false);
 
-  const { data: environment } = useQuery(
-    orpc.environments.get.queryOptions({ input: { id: envId } }),
-  );
+  const { data: environment } = useQuery({
+    ...orpc.environments.get.queryOptions({ input: { id: envId } }),
+    refetchInterval: 2000,
+  });
 
   const { data: project } = useQuery(
     orpc.projects.get.queryOptions({ input: { id: projectId } }),

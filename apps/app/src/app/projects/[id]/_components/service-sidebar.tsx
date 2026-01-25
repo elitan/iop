@@ -1,11 +1,11 @@
 "use client";
 
-import { Loader2, Rocket, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { StateTabs } from "@/components/state-tabs";
 import { Button } from "@/components/ui/button";
-import { useDeployService, useService } from "@/hooks/use-services";
+import { useService } from "@/hooks/use-services";
+import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
 import { cn } from "@/lib/utils";
 import { SidebarDeployments } from "./sidebar-deployments";
 import { SidebarLogs } from "./sidebar-logs";
@@ -24,23 +24,9 @@ export function ServiceSidebar({
   onClose,
 }: ServiceSidebarProps) {
   const { data: service } = useService(serviceId || "");
-  const deployMutation = useDeployService(
-    serviceId || "",
-    service?.environmentId ?? "",
-  );
   const [activeTab, setActiveTab] = useState<
     "overview" | "deployments" | "logs" | "settings"
   >("overview");
-
-  async function handleDeploy() {
-    if (!serviceId) return;
-    try {
-      await deployMutation.mutateAsync();
-      toast.success("Deployment started");
-    } catch {
-      toast.error("Failed to start deployment");
-    }
-  }
 
   const isOpen = !!serviceId;
 
@@ -64,36 +50,26 @@ export function ServiceSidebar({
       {service && (
         <>
           <div className="flex flex-row items-center justify-between border-b border-neutral-800 px-4 py-3">
-            <h2 className="text-lg font-semibold text-neutral-200">
-              {service.name}
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={handleDeploy}
-                disabled={deployMutation.isPending}
-              >
-                {deployMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    Deploying
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="mr-1.5 h-4 w-4" />
-                    Deploy
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400">
+                <img
+                  src={getServiceIcon(service) ?? FALLBACK_ICON}
+                  alt=""
+                  className="h-4 w-4 object-contain"
+                />
+              </div>
+              <h2 className="text-lg font-semibold text-neutral-200">
+                {service.name}
+              </h2>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="flex h-[calc(100%-57px)] flex-col">
@@ -109,9 +85,9 @@ export function ServiceSidebar({
               layoutId="sidebar-tabs"
             />
 
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
               {activeTab === "overview" && (
-                <SidebarOverview service={service} onDeploy={handleDeploy} />
+                <SidebarOverview service={service} />
               )}
               {activeTab === "deployments" && (
                 <SidebarDeployments service={service} />

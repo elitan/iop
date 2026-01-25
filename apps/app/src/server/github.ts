@@ -1,9 +1,12 @@
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
+import type { FrostConfig } from "@/lib/frost-config";
+import { parseFrostConfig } from "@/lib/frost-config";
 import {
   deriveServiceName,
   fetchFileContent,
   fetchRepoTree,
   findDockerfiles,
+  findFrostFiles,
   hasGitHubApp,
   listInstallationRepos,
   parseDockerfilePort,
@@ -118,34 +121,136 @@ export const github = {
   scan: os.github.scan.handler(async ({ input }) => {
     const { repoUrl, branch, repoName } = input;
 
+    interface FrostConfigInfo {
+      frostFilePath: string;
+      healthCheckPath?: string;
+      healthCheckTimeout?: number;
+      memoryLimit?: string;
+      cpuLimit?: number;
+    }
+
+    interface DockerfileInfo {
+      path: string;
+      suggestedName: string;
+      buildContext: string;
+      detectedPort: number | null;
+      frostConfig?: FrostConfigInfo;
+    }
+
+    function extractFrostConfigInfo(
+      frostFilePath: string,
+      config: FrostConfig,
+    ): FrostConfigInfo {
+      const info: FrostConfigInfo = { frostFilePath };
+      if (config.health_check?.path)
+        info.healthCheckPath = config.health_check.path;
+      if (config.health_check?.timeout)
+        info.healthCheckTimeout = config.health_check.timeout;
+      if (config.resources?.memory) info.memoryLimit = config.resources.memory;
+      if (config.resources?.cpu) info.cpuLimit = config.resources.cpu;
+      return info;
+    }
+
     async function buildDockerfileInfo(
-      paths: string[],
+      dockerfilePaths: string[],
+      frostFilePaths: string[],
       readFile: (path: string) => Promise<string>,
-    ) {
-      return Promise.all(
-        paths.map(async (path) => {
-          let detectedPort: number | null = null;
+    ): Promise<DockerfileInfo[]> {
+      const frostByDir = new Map<string, string[]>();
+      for (const frostPath of frostFilePaths) {
+        const dir = dirname(frostPath);
+        const existing = frostByDir.get(dir) ?? [];
+        existing.push(frostPath);
+        frostByDir.set(dir, existing);
+      }
+
+      for (const [dir, files] of frostByDir) {
+        if (files.length > 1) {
+          throw new Error(
+            `Multiple frost config files found in ${dir === "." ? "root" : dir}: ${files.map((f) => basename(f)).join(", ")}`,
+          );
+        }
+      }
+
+      const dockerfileByDir = new Map<string, string>();
+      for (const path of dockerfilePaths) {
+        const dir = dirname(path);
+        if (!dockerfileByDir.has(dir)) {
+          dockerfileByDir.set(dir, path);
+        }
+      }
+
+      const results: DockerfileInfo[] = [];
+      const processedDirs = new Set<string>();
+
+      for (const [dir, frostPaths] of frostByDir) {
+        const frostPath = frostPaths[0];
+        let config: FrostConfig | null = null;
+        try {
+          const content = await readFile(frostPath);
+          config = parseFrostConfig(content);
+        } catch {}
+
+        let dockerfilePath = dockerfileByDir.get(dir);
+        if (config?.dockerfile) {
+          const customPath =
+            dir === "." ? config.dockerfile : `${dir}/${config.dockerfile}`;
+          dockerfilePath = customPath;
+        }
+
+        if (!dockerfilePath) continue;
+
+        let detectedPort: number | null = config?.port ?? null;
+        if (detectedPort === null) {
           try {
-            const content = await readFile(path);
+            const content = await readFile(dockerfilePath);
             detectedPort = parseDockerfilePort(content);
           } catch {}
-          return {
-            path,
-            suggestedName: deriveServiceName(path, repoName),
-            buildContext: ".",
-            detectedPort,
-          };
-        }),
-      );
+        }
+
+        results.push({
+          path: dockerfilePath,
+          suggestedName: deriveServiceName(dockerfilePath, repoName),
+          buildContext: ".",
+          detectedPort,
+          frostConfig: config
+            ? extractFrostConfigInfo(frostPath, config)
+            : undefined,
+        });
+        processedDirs.add(dir);
+      }
+
+      for (const dockerfilePath of dockerfilePaths) {
+        const dir = dirname(dockerfilePath);
+        if (processedDirs.has(dir)) continue;
+
+        let detectedPort: number | null = null;
+        try {
+          const content = await readFile(dockerfilePath);
+          detectedPort = parseDockerfilePort(content);
+        } catch {}
+
+        results.push({
+          path: dockerfilePath,
+          suggestedName: deriveServiceName(dockerfilePath, repoName),
+          buildContext: ".",
+          detectedPort,
+        });
+      }
+
+      return results;
     }
 
     if (repoUrl.startsWith("./") || repoUrl.startsWith("/")) {
       const basePath = repoUrl.startsWith("./")
         ? resolve(getDataDir(), "..", repoUrl)
         : repoUrl;
-      const paths = await scanLocalDirectory(basePath);
-      const dockerfiles = await buildDockerfileInfo(paths, (p) =>
-        readLocalFile(basePath, p),
+      const { dockerfiles: dockerfilePaths, frostFiles } =
+        await scanLocalDirectory(basePath);
+      const dockerfiles = await buildDockerfileInfo(
+        dockerfilePaths,
+        frostFiles,
+        (p) => readLocalFile(basePath, p),
       );
       return { dockerfiles };
     }
@@ -167,9 +272,12 @@ export const github = {
     }
 
     const tree = await fetchRepoTree(repoUrl, branch);
-    const paths = findDockerfiles(tree);
-    const dockerfiles = await buildDockerfileInfo(paths, (p) =>
-      fetchFileContent(repoUrl, branch, p),
+    const dockerfilePaths = findDockerfiles(tree);
+    const frostFilePaths = findFrostFiles(tree);
+    const dockerfiles = await buildDockerfileInfo(
+      dockerfilePaths,
+      frostFilePaths,
+      (p) => fetchFileContent(repoUrl, branch, p),
     );
     return { dockerfiles };
   }),

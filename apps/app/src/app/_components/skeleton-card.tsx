@@ -11,16 +11,3 @@ export function SkeletonArchitectureCard() {
     </div>
   );
 }
-
-export function SkeletonListItem() {
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-3">
-      <Skeleton className="h-5 w-32" />
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-2 w-2 rounded-full" />
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-32" />
-      </div>
-    </div>
-  );
-}

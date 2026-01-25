@@ -35,7 +35,6 @@ function getGitHubRepoFromUrl(url: string | null): string | null {
 
 interface SidebarOverviewProps {
   service: Service;
-  onDeploy: () => void;
 }
 
 export function SidebarOverview({ service }: SidebarOverviewProps) {

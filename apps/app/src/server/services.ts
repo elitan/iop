@@ -187,6 +187,7 @@ export const services = {
         cpuLimit: input.cpuLimit,
         shutdownTimeout: input.shutdownTimeout,
         autoDeploy: input.deployType === "repo",
+        frostFilePath: input.deployType === "repo" ? input.frostFilePath : null,
         wildcardDomain: { projectHostname, environmentName: envName },
       });
     }
@@ -260,6 +261,9 @@ export const services = {
       updates.volumes = JSON.stringify(input.volumes);
     if (input.registryId !== undefined) updates.registryId = input.registryId;
     if (input.command !== undefined) updates.command = input.command;
+    if (service.deployType === "repo" && input.frostFilePath !== undefined) {
+      updates.frostFilePath = input.frostFilePath;
+    }
 
     if (Object.keys(updates).length > 0) {
       await db
@@ -450,6 +454,10 @@ export const services = {
           dockerfilePath: svc.dockerfilePath,
           buildContext: svc.buildContext === "." ? null : svc.buildContext,
           containerPort: svc.containerPort,
+          healthCheckPath: svc.healthCheckPath,
+          healthCheckTimeout: svc.healthCheckTimeout,
+          memoryLimit: svc.memoryLimit,
+          cpuLimit: svc.cpuLimit,
           autoDeploy: true,
           wildcardDomain: { projectHostname, environmentName: envName },
         });

@@ -17,10 +17,17 @@ export async function register() {
 
     const { syncCaddyConfig } = await import("./lib/domains");
     try {
-      const synced = await syncCaddyConfig();
-      console.log(
-        `[startup] caddy sync: ${synced ? "ok" : "skipped (no domains)"}`,
-      );
+      const result = await syncCaddyConfig();
+      if (!result.synced) {
+        console.log("[startup] caddy sync: skipped (no domains)");
+        return;
+      }
+      const parts = [
+        result.frostDomain,
+        result.serviceDomains > 0 && `${result.serviceDomains} service domains`,
+      ].filter(Boolean);
+      console.log(`[startup] caddy sync: ok (${parts.join(", ")})`);
+      if (result.staging) console.log("[startup] ssl: staging mode");
     } catch (err) {
       console.error("[startup] caddy sync: failed", err);
     }

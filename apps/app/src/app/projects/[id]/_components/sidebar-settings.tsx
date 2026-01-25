@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
+import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useProject } from "@/hooks/use-projects";
 import { useDeployService, useUpdateService } from "@/hooks/use-services";
 import type { EnvVar, Service } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -32,31 +33,86 @@ interface SidebarSettingsProps {
 
 type SettingsTab = "general" | "variables" | "domains" | "volumes" | "runtime";
 
-function parseEnvVars(service: Service): EnvVar[] {
-  const allVars: EnvVar[] = service.envVars ? JSON.parse(service.envVars) : [];
-  return allVars.filter((v) => v.key !== "PORT");
+function parseEnvVars(json: string | null): EnvVar[] {
+  return json ? JSON.parse(json) : [];
+}
+
+function getServiceEnvVars(service: Service): EnvVar[] {
+  return parseEnvVars(service.envVars).filter((v) => v.key !== "PORT");
+}
+
+interface ReadOnlyVarProps {
+  name: string;
+  value: string;
+}
+
+function buildFrostVars(
+  service: Service,
+  projectName: string,
+  projectId: string,
+): ReadOnlyVarProps[] {
+  const vars: ReadOnlyVarProps[] = [
+    { name: "FROST", value: "1" },
+    { name: "FROST_SERVICE_NAME", value: service.name },
+    { name: "FROST_SERVICE_ID", value: service.id },
+    { name: "FROST_PROJECT_NAME", value: projectName },
+    { name: "FROST_PROJECT_ID", value: projectId },
+    { name: "FROST_DEPLOYMENT_ID", value: "(set at runtime)" },
+    {
+      name: "FROST_INTERNAL_HOSTNAME",
+      value: service.hostname ?? service.name,
+    },
+  ];
+
+  if (service.deployType === "repo") {
+    vars.push(
+      { name: "FROST_GIT_COMMIT_SHA", value: "(set at runtime)" },
+      { name: "FROST_GIT_BRANCH", value: service.branch ?? "main" },
+    );
+  }
+
+  vars.push({ name: "PORT", value: String(service.containerPort ?? 8080) });
+  return vars;
 }
 
 interface VariablesTabProps {
   service: Service;
+  projectId: string;
   runtimeSettingsUrl: string;
 }
 
-function VariablesTab({ service, runtimeSettingsUrl }: VariablesTabProps) {
+function ReadOnlyVar({ name, value }: ReadOnlyVarProps) {
+  return (
+    <div className="flex gap-2 font-mono text-sm">
+      <span className="text-neutral-400">{name}</span>
+      <span className="text-neutral-600">=</span>
+      <span className="text-neutral-500">{value}</span>
+    </div>
+  );
+}
+
+function VariablesTab({
+  service,
+  projectId,
+  runtimeSettingsUrl,
+}: VariablesTabProps) {
   const updateMutation = useUpdateService(service.id, service.environmentId);
   const deployMutation = useDeployService(service.id, service.environmentId);
+  const { data: project } = useProject(projectId);
 
-  const [editing, setEditing] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
   const initialEnvVars = useRef<EnvVar[]>([]);
+  const initialized = useRef(false);
 
-  function handleEdit() {
-    const vars = parseEnvVars(service);
-    setEnvVars(vars);
-    initialEnvVars.current = vars;
-    setEditing(true);
-  }
+  useEffect(() => {
+    if (!initialized.current) {
+      const vars = getServiceEnvVars(service);
+      setEnvVars(vars);
+      initialEnvVars.current = vars;
+      initialized.current = true;
+    }
+  }, [service]);
 
   const hasChanges =
     JSON.stringify(envVars) !== JSON.stringify(initialEnvVars.current);
@@ -74,86 +130,82 @@ function VariablesTab({ service, runtimeSettingsUrl }: VariablesTabProps) {
           onClick: () => deployMutation.mutateAsync(),
         },
       });
-      setEditing(false);
     } catch {
       toast.error("Failed to save");
     }
   }
 
-  const vars = parseEnvVars(service);
+  const projectVars = parseEnvVars(project?.envVars ?? null);
+
+  const frostVars = buildFrostVars(service, project?.name ?? "", projectId);
 
   return (
-    <Card className="bg-neutral-800 border-neutral-700">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-sm font-medium text-neutral-300">
-          <span>Service Environment Variables</span>
-          {!editing && (
-            <Button variant="ghost" size="sm" onClick={handleEdit}>
-              <Pencil className="mr-1 h-3 w-3" />
-              Edit
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-4 text-xs text-neutral-500">
-          These are specific to this service (in addition to project-level
-          vars). The <code className="text-neutral-400">PORT</code> variable is
-          managed by the Container Port setting in Runtime.
-        </p>
-        {editing ? (
-          <div className="space-y-4">
-            <EnvVarEditor
-              value={envVars}
-              onChange={setEnvVars}
-              onValidationChange={setHasValidationErrors}
-              managedKeySettingsUrl={runtimeSettingsUrl}
-            />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={
-                  updateMutation.isPending || !hasChanges || hasValidationErrors
-                }
-              >
-                {updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    Saving
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-            </div>
+    <div className="space-y-4">
+      <SettingCard
+        title="Service Environment Variables"
+        description="These are specific to this service (in addition to project-level vars). The PORT variable is managed by the Container Port setting in Runtime."
+        footerRight={
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={
+              updateMutation.isPending || !hasChanges || hasValidationErrors
+            }
+          >
+            {updateMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Save"
+            )}
+          </Button>
+        }
+      >
+        <EnvVarEditor
+          value={envVars}
+          onChange={setEnvVars}
+          onValidationChange={setHasValidationErrors}
+          managedKeySettingsUrl={runtimeSettingsUrl}
+        />
+      </SettingCard>
+
+      <SettingCard
+        title="Project Environment Variables"
+        description={
+          <>
+            Inherited from project settings.{" "}
+            <a
+              href={`/projects/${projectId}/settings/variables`}
+              className="text-blue-400 hover:underline"
+            >
+              Edit in project settings
+            </a>
+          </>
+        }
+      >
+        {projectVars.length > 0 ? (
+          <div className="space-y-1">
+            {projectVars.map((v) => (
+              <ReadOnlyVar key={v.key} name={v.key} value="••••••••" />
+            ))}
           </div>
         ) : (
-          <div className="space-y-2">
-            {vars.length === 0 ? (
-              <p className="text-sm text-neutral-500">
-                No service-specific environment variables
-              </p>
-            ) : (
-              vars.map((v) => (
-                <div key={v.key} className="flex gap-2 font-mono text-sm">
-                  <span className="text-neutral-300">{v.key}</span>
-                  <span className="text-neutral-600">=</span>
-                  <span className="text-neutral-500">••••••••</span>
-                </div>
-              ))
-            )}
-          </div>
+          <p className="text-sm text-neutral-500">
+            No project environment variables configured
+          </p>
         )}
-      </CardContent>
-    </Card>
+      </SettingCard>
+
+      <SettingCard
+        title="Frost Environment Variables"
+        description="Automatically injected by Frost at runtime."
+      >
+        <div className="space-y-1">
+          {frostVars.map((v) => (
+            <ReadOnlyVar key={v.name} name={v.name} value={v.value} />
+          ))}
+        </div>
+      </SettingCard>
+    </div>
   );
 }
 
@@ -181,11 +233,17 @@ function DomainsTab({ service }: { service: Service }) {
 
 const NAV_ITEMS: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
-  { id: "variables", label: "Variables" },
+  { id: "variables", label: "Env vars" },
   { id: "domains", label: "Domains" },
   { id: "volumes", label: "Volumes" },
   { id: "runtime", label: "Runtime" },
 ];
+
+const VALID_TABS = new Set<string>(NAV_ITEMS.map((item) => item.id));
+
+function isValidTab(tab: string | null): tab is SettingsTab {
+  return tab !== null && VALID_TABS.has(tab);
+}
 
 export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
   const router = useRouter();
@@ -193,10 +251,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
   const searchParams = useSearchParams();
 
   const tabParam = searchParams.get("tab");
-  const activeTab: SettingsTab =
-    tabParam && NAV_ITEMS.some((item) => item.id === tabParam)
-      ? (tabParam as SettingsTab)
-      : "general";
+  const activeTab: SettingsTab = isValidTab(tabParam) ? tabParam : "general";
 
   function buildTabUrl(tab: SettingsTab): string {
     const params = new URLSearchParams(searchParams.toString());
@@ -261,6 +316,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
         {activeTab === "variables" && (
           <VariablesTab
             service={service}
+            projectId={projectId}
             runtimeSettingsUrl={buildTabUrl("runtime")}
           />
         )}

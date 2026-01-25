@@ -2,12 +2,7 @@
 
 import { ArrowDown, Circle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useRuntimeLogs } from "@/hooks/use-runtime-logs";
 import { cn } from "@/lib/utils";
-
-interface RuntimeLogsProps {
-  deploymentId: string;
-}
 
 function parseLogLine(line: string): {
   timestamp: string | null;
@@ -36,11 +31,25 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-export function RuntimeLogs({ deploymentId }: RuntimeLogsProps) {
+interface LogViewerProps {
+  logs: string[];
+  isStreaming?: boolean;
+  isConnected?: boolean;
+  error?: string | null;
+  emptyMessage?: string;
+  className?: string;
+}
+
+export function LogViewer({
+  logs,
+  isStreaming = false,
+  isConnected = false,
+  error,
+  emptyMessage = "No logs yet...",
+  className,
+}: LogViewerProps) {
   const [autoScroll, setAutoScroll] = useState(true);
   const containerRef = useRef<HTMLPreElement>(null);
-
-  const { logs, isConnected, error } = useRuntimeLogs({ deploymentId });
 
   useEffect(
     function scrollToBottom() {
@@ -59,20 +68,22 @@ export function RuntimeLogs({ deploymentId }: RuntimeLogsProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 pb-3">
-        <Circle
-          className={cn(
-            "h-2 w-2",
-            isConnected
-              ? "fill-green-500 text-green-500"
-              : "fill-neutral-500 text-neutral-500",
-          )}
-        />
-        <span className="text-xs text-neutral-500">
-          {isConnected ? "Live" : "Reconnecting..."}
-        </span>
-      </div>
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      {isStreaming && (
+        <div className="flex items-center gap-2 pb-3">
+          <Circle
+            className={cn(
+              "h-2 w-2",
+              isConnected
+                ? "fill-green-500 text-green-500"
+                : "fill-neutral-500 text-neutral-500",
+            )}
+          />
+          <span className="text-xs text-neutral-500">
+            {isConnected ? "Live" : "Reconnecting..."}
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="mb-3 rounded border border-red-900 bg-red-950/50 p-2 text-xs text-red-400">
@@ -83,10 +94,10 @@ export function RuntimeLogs({ deploymentId }: RuntimeLogsProps) {
       <pre
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 max-h-96 overflow-auto rounded bg-neutral-950 p-4 font-mono text-xs"
+        className="min-h-0 flex-1 overflow-auto bg-neutral-950 p-4 font-mono text-xs"
       >
         {logs.length === 0 ? (
-          <span className="text-neutral-600">Waiting for logs...</span>
+          <span className="text-neutral-600">{emptyMessage}</span>
         ) : (
           logs.map((line, i) => {
             const { timestamp, content } = parseLogLine(line);

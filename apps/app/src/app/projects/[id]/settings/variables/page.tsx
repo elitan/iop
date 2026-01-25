@@ -1,12 +1,12 @@
 "use client";
 
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
+import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   useDeployProject,
   useProject,
@@ -22,18 +22,19 @@ export default function ProjectVariablesPage() {
   const updateMutation = useUpdateProject(projectId);
   const deployProjectMutation = useDeployProject(projectId);
 
-  const [editing, setEditing] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
+  const [hasValidationErrors, setHasValidationErrors] = useState(false);
   const initialEnvVars = useRef<EnvVar[]>([]);
+  const initialized = useRef(false);
 
-  function handleEdit() {
-    if (project) {
-      const vars = project.envVars ? JSON.parse(project.envVars) : [];
+  useEffect(() => {
+    if (project && !initialized.current) {
+      const vars: EnvVar[] = project.envVars ? JSON.parse(project.envVars) : [];
       setEnvVars(vars);
       initialEnvVars.current = vars;
-      setEditing(true);
+      initialized.current = true;
     }
-  }
+  }, [project]);
 
   const hasChanges =
     JSON.stringify(envVars) !== JSON.stringify(initialEnvVars.current);
@@ -51,7 +52,6 @@ export default function ProjectVariablesPage() {
           onClick: () => deployProjectMutation.mutateAsync(),
         },
       });
-      setEditing(false);
     } catch {
       toast.error("Failed to save");
     }
@@ -59,76 +59,33 @@ export default function ProjectVariablesPage() {
 
   if (!project) return null;
 
-  const vars: EnvVar[] = project.envVars ? JSON.parse(project.envVars) : [];
-
   return (
-    <Card className="bg-neutral-900 border-neutral-800">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-sm font-medium text-neutral-300">
-          <span>Shared Environment Variables</span>
-          {!editing && (
-            <Button variant="ghost" size="sm" onClick={handleEdit}>
-              <Pencil className="mr-1 h-3 w-3" />
-              Edit
-            </Button>
+    <SettingCard
+      title="Project Environment Variables"
+      description="These environment variables are inherited by all services in this project."
+      learnMoreUrl="/docs/guides/env-vars"
+      learnMoreText="Learn more about environment variables"
+      footerRight={
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={
+            updateMutation.isPending || !hasChanges || hasValidationErrors
+          }
+        >
+          {updateMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            "Save"
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-4 text-xs text-neutral-500">
-          These variables are inherited by all services in this project.{" "}
-          <a
-            href="/docs/guides/env-vars"
-            className="text-blue-400 hover:underline"
-          >
-            Learn more
-          </a>
-        </p>
-        {editing ? (
-          <div className="space-y-4">
-            <EnvVarEditor value={envVars} onChange={setEnvVars} />
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={updateMutation.isPending || !hasChanges}
-              >
-                {updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    Saving
-                  </>
-                ) : (
-                  "Save"
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {vars.length === 0 ? (
-              <p className="text-sm text-neutral-500">
-                No shared environment variables configured
-              </p>
-            ) : (
-              vars.map((v) => (
-                <div key={v.key} className="flex gap-2 font-mono text-sm">
-                  <span className="text-neutral-300">{v.key}</span>
-                  <span className="text-neutral-600">=</span>
-                  <span className="text-neutral-500">••••••••</span>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </Button>
+      }
+    >
+      <EnvVarEditor
+        value={envVars}
+        onChange={setEnvVars}
+        onValidationChange={setHasValidationErrors}
+      />
+    </SettingCard>
   );
 }

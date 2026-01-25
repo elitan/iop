@@ -1,39 +1,52 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Circle } from "lucide-react";
+import { LogViewer } from "@/components/log-viewer";
+import { useRuntimeLogs } from "@/hooks/use-runtime-logs";
 import type { Service } from "@/lib/api";
-import { RuntimeLogs } from "../services/[serviceId]/_components/runtime-logs";
+import { cn } from "@/lib/utils";
 
 interface SidebarLogsProps {
   service: Service;
 }
 
+function RuntimeLogsContent({ deploymentId }: { deploymentId: string }) {
+  const { logs, isConnected, error } = useRuntimeLogs({ deploymentId });
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-3 flex items-center gap-2">
+        <Circle
+          className={cn(
+            "h-2 w-2",
+            isConnected
+              ? "fill-green-500 text-green-500"
+              : "fill-neutral-500 text-neutral-500",
+          )}
+        />
+        <span className="text-xs text-neutral-500">
+          {isConnected ? "Live" : "Reconnecting..."}
+        </span>
+      </div>
+
+      <LogViewer logs={logs} error={error} emptyMessage="Waiting for logs..." />
+    </div>
+  );
+}
+
 export function SidebarLogs({ service }: SidebarLogsProps) {
   if (!service.currentDeploymentId) {
     return (
-      <Card className="bg-neutral-800 border-neutral-700">
-        <CardContent className="py-8 text-center">
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-center">
           <p className="text-neutral-500">No active deployment</p>
           <p className="mt-1 text-sm text-neutral-600">
             Deploy the service to view runtime logs
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
-  return (
-    <div className="">
-      <Card className="bg-neutral-800 border-neutral-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-neutral-300">
-            Runtime Logs
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RuntimeLogs deploymentId={service.currentDeploymentId} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <RuntimeLogsContent deploymentId={service.currentDeploymentId} />;
 }

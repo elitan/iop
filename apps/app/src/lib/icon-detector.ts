@@ -52,7 +52,7 @@ const IMAGE_PATTERNS: Array<{ pattern: string; icon: string }> = [
   { pattern: "n8n", icon: "n8n" },
   { pattern: "hasura", icon: "hasura" },
   { pattern: "umami", icon: "umami" },
-  { pattern: "plausible", icon: "plausible" },
+  { pattern: "plausible", icon: "plausibleanalytics" },
 ];
 
 function detectFromDockerfile(content: string): string | null {
