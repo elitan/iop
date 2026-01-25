@@ -1,12 +1,12 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { SideDrawer } from "@/components/side-drawer";
 import { StateTabs } from "@/components/state-tabs";
 import { Button } from "@/components/ui/button";
 import { useService } from "@/hooks/use-services";
 import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
-import { cn } from "@/lib/utils";
 import { SidebarDeployments } from "./sidebar-deployments";
 import { SidebarLogs } from "./sidebar-logs";
 import { SidebarOverview } from "./sidebar-overview";
@@ -27,25 +27,19 @@ export function ServiceSidebar({
   const [activeTab, setActiveTab] = useState<
     "overview" | "deployments" | "logs" | "settings"
   >("overview");
+  const [hasNestedDrawer, setHasNestedDrawer] = useState(false);
 
-  const isOpen = !!serviceId;
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  const handleNestedDrawerChange = useCallback((hasDrawer: boolean) => {
+    setHasNestedDrawer(hasDrawer);
+  }, []);
 
   return (
-    <div
-      className={cn(
-        "fixed bottom-0 right-0 top-[120px] z-30 w-[60vw] rounded-tl-xl border-l border-t border-neutral-800 bg-neutral-900 transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full",
-      )}
+    <SideDrawer
+      isOpen={!!serviceId}
+      onClose={onClose}
+      width="60vw"
+      zIndex={30}
+      hasNestedDrawer={hasNestedDrawer}
     >
       {service && (
         <>
@@ -90,7 +84,10 @@ export function ServiceSidebar({
                 <SidebarOverview service={service} />
               )}
               {activeTab === "deployments" && (
-                <SidebarDeployments service={service} />
+                <SidebarDeployments
+                  service={service}
+                  onNestedDrawerChange={handleNestedDrawerChange}
+                />
               )}
               {activeTab === "logs" && <SidebarLogs service={service} />}
               {activeTab === "settings" && (
@@ -100,6 +97,6 @@ export function ServiceSidebar({
           </div>
         </>
       )}
-    </div>
+    </SideDrawer>
   );
 }

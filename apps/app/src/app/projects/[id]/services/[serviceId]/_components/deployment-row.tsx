@@ -28,6 +28,34 @@ function isInProgress(status: string): boolean {
   );
 }
 
+interface TriggerLabelProps {
+  trigger?: string | null;
+  gitBranch?: string | null;
+}
+
+function TriggerLabel({
+  trigger,
+  gitBranch,
+}: TriggerLabelProps): React.ReactNode {
+  if (trigger === "rollback") {
+    return (
+      <>
+        <RotateCcw className="h-3.5 w-3.5 text-neutral-500" />
+        <span>Rollback</span>
+      </>
+    );
+  }
+  if (gitBranch) {
+    return (
+      <>
+        <GitBranch className="h-3.5 w-3.5 text-neutral-500" />
+        <span className="truncate max-w-32">{gitBranch}</span>
+      </>
+    );
+  }
+  return <span className="text-neutral-500">Manual deploy</span>;
+}
+
 export function DeploymentRow({
   commitSha,
   commitMessage,
@@ -88,19 +116,7 @@ export function DeploymentRow({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-sm text-neutral-300">
-            {trigger === "rollback" ? (
-              <>
-                <RotateCcw className="h-3.5 w-3.5 text-neutral-500" />
-                <span>Rollback</span>
-              </>
-            ) : gitBranch ? (
-              <>
-                <GitBranch className="h-3.5 w-3.5 text-neutral-500" />
-                <span className="truncate max-w-32">{gitBranch}</span>
-              </>
-            ) : (
-              <span className="text-neutral-500">Manual deploy</span>
-            )}
+            <TriggerLabel trigger={trigger} gitBranch={gitBranch} />
           </div>
           <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
             <GitCommit className="h-3 w-3" />
