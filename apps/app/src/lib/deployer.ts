@@ -239,9 +239,18 @@ async function updateCommitStatusIfGitHub(
   }
 }
 
+export type DeployTrigger = "manual" | "git" | "rollback";
+
+export interface TriggeredBy {
+  username: string;
+  avatarUrl?: string;
+}
+
 export interface DeployOptions {
   commitSha?: string;
   commitMessage?: string;
+  trigger?: DeployTrigger;
+  triggeredBy?: TriggeredBy;
 }
 
 export async function deployEnvironment(
@@ -349,6 +358,9 @@ export async function deployService(
       commitMessage: options?.commitMessage || null,
       status: "pending",
       createdAt: now,
+      trigger: options?.trigger || "manual",
+      triggeredByUsername: options?.triggeredBy?.username || null,
+      triggeredByAvatarUrl: options?.triggeredBy?.avatarUrl || null,
     })
     .execute();
 
@@ -967,7 +979,11 @@ export async function rollbackDeployment(
       .execute();
   }
 
-  await updateDeployment(deploymentId, { status: "deploying" });
+  await db
+    .updateTable("deployments")
+    .set({ status: "deploying", trigger: "rollback" })
+    .where("id", "=", deploymentId)
+    .execute();
 
   runRollbackDeployment(
     deploymentId,
@@ -1017,7 +1033,6 @@ async function runRollbackDeployment(
   const envVars = Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
 
   try {
-    await updateDeployment(deploymentId, { status: "deploying" });
     await appendLog(
       deploymentId,
       `Rolling back to image ${sourceDeployment.imageName}...\n`,

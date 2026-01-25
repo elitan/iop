@@ -102,17 +102,20 @@ export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
         ) : (
           <div className="max-h-48 divide-y divide-neutral-700 overflow-auto">
             {deployments.map((d) => {
-              const hasVolumes = service?.volumes && service.volumes !== "[]";
+              const hasVolumes = service.volumes && service.volumes !== "[]";
               const canRollback =
                 !hasVolumes && !!d.imageName && d.rollbackEligible === true;
               const isCurrent = d.id === service.currentDeploymentId;
               return (
                 <DeploymentRow
                   key={d.id}
-                  id={d.id}
                   commitSha={d.commitSha}
+                  commitMessage={d.commitMessage}
+                  gitBranch={d.gitBranch}
                   status={d.status}
                   createdAt={d.createdAt}
+                  finishedAt={d.finishedAt}
+                  trigger={d.trigger}
                   selected={selectedDeployment?.id === d.id}
                   onClick={() => handleSelectDeployment(d)}
                   canRollback={canRollback}
@@ -123,7 +126,6 @@ export function SidebarDeployments({ service }: SidebarDeploymentsProps) {
                     rollbackMutation.variables === d.id
                   }
                   isCurrent={isCurrent}
-                  imageName={d.imageName}
                 />
               );
             })}

@@ -23,6 +23,11 @@ import {
   verifyWebhookSignature,
 } from "@/lib/webhook";
 
+interface GitHubSender {
+  login: string;
+  avatar_url: string;
+}
+
 interface PushPayload {
   ref: string;
   after: string;
@@ -34,6 +39,7 @@ interface PushPayload {
   head_commit: {
     message: string;
   } | null;
+  sender: GitHubSender;
 }
 
 interface PullRequestPayload {
@@ -49,6 +55,7 @@ interface PullRequestPayload {
   repository: {
     clone_url: string;
   };
+  sender: GitHubSender;
 }
 
 export async function POST(request: Request) {
@@ -105,7 +112,7 @@ async function handlePush(rawBody: string) {
 }
 
 async function handleProductionPush(payload: PushPayload) {
-  const { after: commitSha, repository, head_commit } = payload;
+  const { after: commitSha, repository, head_commit, sender } = payload;
 
   const matchedServices = await findMatchingServices(repository.clone_url);
 
@@ -130,6 +137,11 @@ async function handleProductionPush(payload: PushPayload) {
       const deploymentId = await deployService(service.id, {
         commitSha,
         commitMessage: commitMessage || undefined,
+        trigger: "git",
+        triggeredBy: {
+          username: sender.login,
+          avatarUrl: sender.avatar_url,
+        },
       });
       deploymentIds.push(deploymentId);
     } catch (err) {
@@ -151,7 +163,13 @@ async function handleBranchPush(_payload: PushPayload) {
 
 async function handlePullRequest(rawBody: string) {
   const payload: PullRequestPayload = JSON.parse(rawBody);
-  const { action, number: prNumber, pull_request, repository } = payload;
+  const {
+    action,
+    number: prNumber,
+    pull_request,
+    repository,
+    sender,
+  } = payload;
 
   if (action !== "opened" && action !== "synchronize" && action !== "closed") {
     return NextResponse.json({
@@ -226,6 +244,11 @@ async function handlePullRequest(rawBody: string) {
       const deploymentId = await deployService(clonedServiceId, {
         commitSha,
         commitMessage: `PR #${prNumber}: ${prTitle}`,
+        trigger: "git",
+        triggeredBy: {
+          username: sender.login,
+          avatarUrl: sender.avatar_url,
+        },
       });
       deploymentIds.push(deploymentId);
       serviceStatuses.push({

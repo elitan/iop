@@ -1,13 +1,16 @@
-import { Check, RotateCcw } from "lucide-react";
+import { Check, GitBranch, GitCommit, Play, RotateCcw } from "lucide-react";
 import { StatusDot } from "@/components/status-dot";
-import { getTimeAgo } from "@/lib/time";
+import { formatDuration, getTimeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 interface DeploymentRowProps {
-  id: string;
   commitSha: string;
+  commitMessage?: string | null;
+  gitBranch?: string | null;
   status: string;
   createdAt: number;
+  finishedAt?: number | null;
+  trigger?: string | null;
   selected: boolean;
   onClick: () => void;
   canRollback?: boolean;
@@ -15,17 +18,38 @@ interface DeploymentRowProps {
   onRollback?: () => void;
   isRollingBack?: boolean;
   isCurrent?: boolean;
-  imageName?: string | null;
 }
 
-function getDisplayStatus(status: string): string {
-  return status;
+function getTriggerIcon(trigger: string | null | undefined) {
+  switch (trigger) {
+    case "git":
+      return <GitCommit className="h-3 w-3" />;
+    case "rollback":
+      return <RotateCcw className="h-3 w-3" />;
+    default:
+      return <Play className="h-3 w-3" />;
+  }
+}
+
+function getTriggerLabel(trigger: string | null | undefined): string {
+  switch (trigger) {
+    case "git":
+      return "push";
+    case "rollback":
+      return "rollback";
+    default:
+      return "manual";
+  }
 }
 
 export function DeploymentRow({
   commitSha,
+  commitMessage,
+  gitBranch,
   status,
   createdAt,
+  finishedAt,
+  trigger,
   selected,
   onClick,
   canRollback,
@@ -33,11 +57,15 @@ export function DeploymentRow({
   onRollback,
   isRollingBack,
   isCurrent,
-  imageName,
 }: DeploymentRowProps) {
   const date = new Date(createdAt);
   const timeAgo = getTimeAgo(date);
-  const displayStatus = getDisplayStatus(status);
+  const duration =
+    finishedAt && createdAt ? formatDuration(createdAt, finishedAt) : null;
+  const truncatedMessage = commitMessage
+    ? commitMessage.split("\n")[0].slice(0, 50) +
+      (commitMessage.length > 50 ? "..." : "")
+    : null;
 
   function handleRollback(e: React.MouseEvent) {
     e.stopPropagation();
@@ -59,24 +87,51 @@ export function DeploymentRow({
       onClick={onClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group w-full px-4 py-3 text-left transition-colors hover:bg-neutral-800/50 cursor-pointer",
+        "group w-full px-4 py-2.5 text-left transition-colors hover:bg-neutral-800/50 cursor-pointer",
         selected && "bg-neutral-800",
       )}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <StatusDot status={displayStatus} />
-          <span className="font-mono text-sm text-neutral-300">
-            {commitSha}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <StatusDot status={status} />
+          <span className="text-xs capitalize text-neutral-300 w-16 shrink-0">
+            {status}
           </span>
-          {isCurrent && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">
-              <Check className="h-3 w-3" />
-              Current
+          {gitBranch && (
+            <span className="flex items-center gap-1 text-xs text-neutral-500 shrink-0">
+              <GitBranch className="h-3 w-3" />
+              <span className="max-w-20 truncate">{gitBranch}</span>
+            </span>
+          )}
+          <span className="font-mono text-xs text-neutral-400 shrink-0">
+            {commitSha.slice(0, 7)}
+          </span>
+          {truncatedMessage && (
+            <span className="min-w-0 truncate text-xs text-neutral-500">
+              {truncatedMessage}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {isCurrent && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400">
+              <Check className="h-3 w-3" />
+            </span>
+          )}
+          <span
+            className="flex items-center gap-1 text-xs text-neutral-500"
+            title={getTriggerLabel(trigger)}
+          >
+            {getTriggerIcon(trigger)}
+          </span>
+          {duration && (
+            <span className="text-xs text-neutral-500 w-12 text-right">
+              {duration}
+            </span>
+          )}
+          <span className="text-xs text-neutral-500 w-14 text-right">
+            {timeAgo}
+          </span>
           <span className="w-6 flex justify-center">
             {canRollback && !isRunning && (
               <button
@@ -91,9 +146,6 @@ export function DeploymentRow({
                 />
               </button>
             )}
-          </span>
-          <span className="text-xs text-neutral-500 w-14 text-right">
-            {timeAgo}
           </span>
         </div>
       </div>

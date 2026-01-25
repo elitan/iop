@@ -8,3 +8,11 @@ export function getTimeAgo(date: Date): string {
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
+
+export function formatDuration(startMs: number, endMs: number): string {
+  const totalSeconds = Math.floor((endMs - startMs) / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}

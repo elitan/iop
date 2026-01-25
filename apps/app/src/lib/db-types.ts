@@ -58,6 +58,9 @@ export interface Deployments {
   gitBranch: string | null;
   createdAt: number;
   finishedAt: number | null;
+  trigger: Generated<string | null>;
+  triggeredByUsername: string | null;
+  triggeredByAvatarUrl: string | null;
 }
 
 export interface Domains {

@@ -135,6 +135,9 @@ export const deploymentsSchema = z.object({
   rollbackSourceId: z.string().nullable(),
   gitCommitSha: z.string().nullable(),
   gitBranch: z.string().nullable(),
+  trigger: z.string().nullable(),
+  triggeredByUsername: z.string().nullable(),
+  triggeredByAvatarUrl: z.string().nullable(),
 });
 
 export const newDeploymentsSchema = z.object({
@@ -160,6 +163,9 @@ export const newDeploymentsSchema = z.object({
   rollbackSourceId: z.string().nullable(),
   gitCommitSha: z.string().nullable(),
   gitBranch: z.string().nullable(),
+  trigger: z.string().nullable().optional(),
+  triggeredByUsername: z.string().nullable().optional(),
+  triggeredByAvatarUrl: z.string().nullable().optional(),
 });
 
 export const deploymentsUpdateSchema = z.object({
@@ -185,6 +191,9 @@ export const deploymentsUpdateSchema = z.object({
   rollbackSourceId: z.string().nullable().optional(),
   gitCommitSha: z.string().nullable().optional(),
   gitBranch: z.string().nullable().optional(),
+  trigger: z.string().nullable().optional(),
+  triggeredByUsername: z.string().nullable().optional(),
+  triggeredByAvatarUrl: z.string().nullable().optional(),
 });
 
 export type Deployments = z.infer<typeof deploymentsSchema>;
