@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
+import { deleteConfigFiles } from "./config-files";
 import { db } from "./db";
 import { removeNetwork, stopContainer } from "./docker";
 import { getDomainsForService } from "./domains";
@@ -217,6 +218,12 @@ export async function cleanupEnvironment(environment: {
   id: string;
   projectId: string;
 }): Promise<void> {
+  const services = await db
+    .selectFrom("services")
+    .select("id")
+    .where("environmentId", "=", environment.id)
+    .execute();
+
   const deployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
@@ -227,6 +234,10 @@ export async function cleanupEnvironment(environment: {
     if (deployment.containerId) {
       await stopContainer(deployment.containerId);
     }
+  }
+
+  for (const service of services) {
+    deleteConfigFiles(service.id);
   }
 
   await removeNetwork(

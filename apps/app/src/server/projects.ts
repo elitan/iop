@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { getSetting } from "@/lib/auth";
+import { deleteConfigFiles } from "@/lib/config-files";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
 import { removeNetwork, stopContainer } from "@/lib/docker";
@@ -298,6 +299,12 @@ export const projects = {
       .execute();
 
     for (const env of environments) {
+      const services = await db
+        .selectFrom("services")
+        .select("id")
+        .where("environmentId", "=", env.id)
+        .execute();
+
       const deployments = await db
         .selectFrom("deployments")
         .select(["id", "containerId"])
@@ -308,6 +315,10 @@ export const projects = {
         if (deployment.containerId) {
           await stopContainer(deployment.containerId);
         }
+      }
+
+      for (const service of services) {
+        deleteConfigFiles(service.id);
       }
 
       await removeNetwork(`frost-net-${input.id}-${env.id}`.toLowerCase());

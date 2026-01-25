@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Selectable } from "kysely";
+import { deleteConfigFiles } from "@/lib/config-files";
 import { addLatestDeployment, addLatestDeployments, db } from "@/lib/db";
 import type { Services } from "@/lib/db-types";
 import { deployService } from "@/lib/deployer";
@@ -317,6 +318,8 @@ export const services = {
     if (service?.serviceType === "database") {
       await removeSSLCerts(input.id);
     }
+
+    deleteConfigFiles(input.id);
 
     await db.deleteFrom("services").where("id", "=", input.id).execute();
 

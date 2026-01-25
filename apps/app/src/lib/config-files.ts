@@ -5,7 +5,11 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
+
+function safeFileName(path: string): string {
+  return path.replace(/\//g, "__").replace(/^__/, "");
+}
 
 export interface ConfigFile {
   path: string;
@@ -27,8 +31,7 @@ export function writeConfigFiles(serviceId: string, files: ConfigFile[]): void {
   }
 
   for (const file of files) {
-    const fileName = basename(file.path);
-    const hostPath = join(configDir, fileName);
+    const hostPath = join(configDir, safeFileName(file.path));
     writeFileSync(hostPath, file.content);
     chmodSync(hostPath, 0o644);
   }
@@ -43,7 +46,7 @@ export function getConfigFileMounts(
   const configDir = getConfigDir(serviceId);
 
   return files.map((file) => ({
-    hostPath: join(configDir, basename(file.path)),
+    hostPath: join(configDir, safeFileName(file.path)),
     containerPath: file.path,
   }));
 }
