@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
-import { removeNetwork, stopContainer } from "@/lib/docker";
+import { cleanupProject } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
@@ -290,30 +290,7 @@ export const projects = {
   }),
 
   delete: os.projects.delete.handler(async ({ input }) => {
-    const environments = await db
-      .selectFrom("environments")
-      .select("id")
-      .where("projectId", "=", input.id)
-      .execute();
-
-    for (const env of environments) {
-      const deployments = await db
-        .selectFrom("deployments")
-        .select(["id", "containerId"])
-        .where("environmentId", "=", env.id)
-        .execute();
-
-      for (const deployment of deployments) {
-        if (deployment.containerId) {
-          await stopContainer(deployment.containerId);
-        }
-      }
-
-      await removeNetwork(`frost-net-${input.id}-${env.id}`.toLowerCase());
-    }
-
-    await db.deleteFrom("projects").where("id", "=", input.id).execute();
-
+    await cleanupProject(input.id);
     return { success: true };
   }),
 
