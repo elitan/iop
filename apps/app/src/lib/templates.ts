@@ -189,8 +189,7 @@ async function generateSupabaseJWT(
   role: "anon" | "service_role",
   secret: string,
 ): Promise<string> {
-  const encoder = new TextEncoder();
-  const secretKey = encoder.encode(secret);
+  const secretKey = new TextEncoder().encode(secret);
   const now = Math.floor(Date.now() / 1000);
   const exp = now + 10 * 365 * 24 * 60 * 60;
 
@@ -208,18 +207,48 @@ export function generateCredential(
     | "jwt_anon"
     | "jwt_service_role" = "password",
 ): string {
-  if (type === "base64_32") return randomBase64(32);
-  if (type === "base64_64") return randomBase64(64);
-  if (type === "jwt_secret") return nanoid(64);
-  if (type === "jwt_anon" || type === "jwt_service_role") {
-    throw new Error("JWT tokens require async generation with secret");
+  switch (type) {
+    case "base64_32":
+      return randomBase64(32);
+    case "base64_64":
+      return randomBase64(64);
+    case "jwt_secret":
+      return nanoid(64);
+    case "jwt_anon":
+    case "jwt_service_role":
+      throw new Error("JWT tokens require async generation with secret");
+    default:
+      return nanoid(32);
   }
-  return nanoid(32);
 }
 
 export function isGeneratedValue(value: EnvValue): value is GeneratedValue {
   return typeof value === "object" && "generated" in value;
 }
+
+const REF_PATTERN = /\$\{([^.]+)\.([^}]+)\}/g;
+
+function resolveReferences(
+  text: string,
+  generatedValues: Record<string, Record<string, string>>,
+): string {
+  let result = text;
+  for (const match of text.matchAll(REF_PATTERN)) {
+    const [fullMatch, refService, refKey] = match;
+    const refValue = generatedValues[refService]?.[refKey];
+    if (refValue) {
+      result = result.replace(fullMatch, refValue);
+    }
+  }
+  return result;
+}
+
+const SYNC_CREDENTIAL_TYPES = new Set([
+  "password",
+  "base64_32",
+  "base64_64",
+  "jwt_secret",
+]);
 
 export async function resolveTemplateServices(
   template: Template,
@@ -228,47 +257,42 @@ export async function resolveTemplateServices(
 
   for (const [serviceName, service] of Object.entries(template.services)) {
     generatedValues[serviceName] = {};
-    if (service.environment) {
-      for (const [key, value] of Object.entries(service.environment)) {
-        if (isGeneratedValue(value)) {
-          const genType = value.generated;
-          if (
-            genType === "password" ||
-            genType === "base64_32" ||
-            genType === "base64_64" ||
-            genType === "jwt_secret"
-          ) {
-            generatedValues[serviceName][key] = generateCredential(genType);
-          }
-        }
+    if (!service.environment) continue;
+
+    for (const [key, value] of Object.entries(service.environment)) {
+      if (
+        isGeneratedValue(value) &&
+        SYNC_CREDENTIAL_TYPES.has(value.generated)
+      ) {
+        generatedValues[serviceName][key] = generateCredential(value.generated);
       }
     }
   }
 
   for (const [serviceName, service] of Object.entries(template.services)) {
-    if (service.environment) {
-      for (const [key, value] of Object.entries(service.environment)) {
-        if (isGeneratedValue(value)) {
-          const genType = value.generated;
-          if (genType === "jwt_anon" || genType === "jwt_service_role") {
-            const jwtSecret = findJwtSecret(
-              serviceName,
-              service.environment,
-              generatedValues,
-            );
-            if (!jwtSecret) {
-              throw new Error(
-                `jwt_secret not found for ${genType} in service ${serviceName}`,
-              );
-            }
-            const role = genType === "jwt_anon" ? "anon" : "service_role";
-            generatedValues[serviceName][key] = await generateSupabaseJWT(
-              role,
-              jwtSecret,
-            );
-          }
-        }
+    if (!service.environment) continue;
+
+    for (const [key, value] of Object.entries(service.environment)) {
+      if (!isGeneratedValue(value)) continue;
+
+      const genType = value.generated;
+      if (genType !== "jwt_anon" && genType !== "jwt_service_role") continue;
+
+      const jwtSecret = findJwtSecret(
+        serviceName,
+        service.environment,
+        generatedValues,
+      );
+      if (!jwtSecret) {
+        throw new Error(
+          `jwt_secret not found for ${genType} in service ${serviceName}`,
+        );
       }
+      const role = genType === "jwt_anon" ? "anon" : "service_role";
+      generatedValues[serviceName][key] = await generateSupabaseJWT(
+        role,
+        jwtSecret,
+      );
     }
   }
 
@@ -286,17 +310,10 @@ export async function resolveTemplateServices(
             generated: true,
           });
         } else {
-          let resolvedValue = value;
-          const refPattern = /\$\{([^.]+)\.([^}]+)\}/g;
-          const matches = value.matchAll(refPattern);
-          for (const match of matches) {
-            const [fullMatch, refService, refKey] = match;
-            const refValue = generatedValues[refService]?.[refKey];
-            if (refValue) {
-              resolvedValue = resolvedValue.replace(fullMatch, refValue);
-            }
-          }
-          envVars.push({ key, value: resolvedValue });
+          envVars.push({
+            key,
+            value: resolveReferences(value, generatedValues),
+          });
         }
       }
     }
@@ -304,19 +321,10 @@ export async function resolveTemplateServices(
     const volumes = service.volumes?.map(parseVolumeString) ?? [];
 
     const configFiles: ConfigFile[] =
-      service.config_files?.map((cf) => {
-        let content = cf.content;
-        const refPattern = /\$\{([^.]+)\.([^}]+)\}/g;
-        const matches = content.matchAll(refPattern);
-        for (const match of matches) {
-          const [fullMatch, refService, refKey] = match;
-          const refValue = generatedValues[refService]?.[refKey];
-          if (refValue) {
-            content = content.replace(fullMatch, refValue);
-          }
-        }
-        return { path: cf.path, content };
-      }) ?? [];
+      service.config_files?.map((cf) => ({
+        path: cf.path,
+        content: resolveReferences(cf.content, generatedValues),
+      })) ?? [];
 
     resolved.push({
       name: serviceName,
@@ -352,20 +360,17 @@ function findJwtSecret(
     if (isGeneratedValue(value) && value.generated === "jwt_secret") {
       return generatedValues[serviceName][key];
     }
-  }
 
-  for (const [, value] of Object.entries(environment)) {
-    if (typeof value === "string") {
-      const refPattern = /\$\{([^.]+)\.([^}]+)\}/;
-      const match = value.match(refPattern);
-      if (match) {
-        const [, refService, refKey] = match;
-        const refValue = generatedValues[refService]?.[refKey];
-        if (refValue && refKey.toLowerCase().includes("jwt")) {
-          return refValue;
-        }
-      }
-    }
+    if (typeof value !== "string") continue;
+
+    const match = value.match(/\$\{([^.]+)\.([^}]+)\}/);
+    if (!match) continue;
+
+    const [, refService, refKey] = match;
+    if (!refKey.toLowerCase().includes("jwt")) continue;
+
+    const refValue = generatedValues[refService]?.[refKey];
+    if (refValue) return refValue;
   }
 
   return null;
