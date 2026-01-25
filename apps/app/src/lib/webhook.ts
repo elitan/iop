@@ -323,20 +323,15 @@ export interface BuildPRCommentParams {
   frostDomain: string | null;
 }
 
-function getStatusBadge(status: string, frostDomain: string | null): string {
+function getStatusBadge(status: string): string {
+  const baseUrl = "https://frost.build/static/status";
   if (status === "running") {
-    return frostDomain
-      ? `![Ready](https://${frostDomain}/static/status/ready.svg)`
-      : "🟢 Ready";
+    return `![Ready](${baseUrl}/ready.svg)`;
   }
   if (status === "failed") {
-    return frostDomain
-      ? `![Failed](https://${frostDomain}/static/status/failed.svg)`
-      : "🔴 Failed";
+    return `![Failed](${baseUrl}/failed.svg)`;
   }
-  return frostDomain
-    ? `![Building](https://${frostDomain}/static/status/building.svg)`
-    : "🟡 Building";
+  return `![Building](${baseUrl}/building.svg)`;
 }
 
 export function buildPRCommentBody(params: BuildPRCommentParams): string {
@@ -345,7 +340,7 @@ export function buildPRCommentBody(params: BuildPRCommentParams): string {
 
   const rows = services
     .map((s) => {
-      const statusBadge = getStatusBadge(s.status, frostDomain);
+      const statusBadge = getStatusBadge(s.status);
       const serviceLink = frostDomain
         ? `[${s.name}](https://${frostDomain}/projects/${projectId}/environments/${environmentId}/services/${s.id})`
         : s.name;
