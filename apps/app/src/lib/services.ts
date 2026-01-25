@@ -27,6 +27,7 @@ export interface CreateServiceInput {
   shutdownTimeout?: number | null;
   requestTimeout?: number | null;
   volumes?: { name: string; path: string }[];
+  configFiles?: { path: string; content: string }[];
   command?: string | null;
   icon?: string | null;
   autoDeploy?: boolean;
@@ -67,6 +68,7 @@ export async function createService(
       shutdownTimeout: input.shutdownTimeout ?? null,
       requestTimeout: input.requestTimeout ?? null,
       volumes: JSON.stringify(input.volumes ?? []),
+      configFiles: JSON.stringify(input.configFiles ?? []),
       command: input.command ?? null,
       icon: input.icon ?? null,
       autoDeploy: input.autoDeploy ?? false,

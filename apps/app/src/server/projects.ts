@@ -212,7 +212,7 @@ export const projects = {
 
     if (input.templateId) {
       const template = getTemplate(input.templateId)!;
-      const resolved = resolveTemplateServices(template);
+      const resolved = await resolveTemplateServices(template);
 
       for (const svc of resolved) {
         const serviceHostname = slugify(svc.name);
@@ -229,6 +229,7 @@ export const projects = {
           healthCheckPath: svc.healthCheckPath,
           healthCheckTimeout: svc.healthCheckTimeout,
           volumes: svc.volumes,
+          configFiles: svc.configFiles,
           command: svc.command,
           icon: svc.icon,
           ssl: svc.ssl,

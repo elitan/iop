@@ -103,10 +103,10 @@ describe("generateCredential", () => {
 });
 
 describe("resolveTemplateServices", () => {
-  it("resolves a single-service template", () => {
+  it("resolves a single-service template", async () => {
     const template = getTemplate("postgres");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved.length).toBe(1);
 
     const svc = resolved[0];
@@ -116,10 +116,10 @@ describe("resolveTemplateServices", () => {
     expect(svc.isDatabase).toBe(true);
   });
 
-  it("generates credentials for env vars", () => {
+  it("generates credentials for env vars", async () => {
     const template = getTemplate("postgres");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     const svc = resolved[0];
 
     const passwordEnv = svc.envVars.find((e) => e.key === "POSTGRES_PASSWORD");
@@ -128,10 +128,10 @@ describe("resolveTemplateServices", () => {
     expect(passwordEnv?.generated).toBe(true);
   });
 
-  it("resolves cross-service references in project templates", () => {
+  it("resolves cross-service references in project templates", async () => {
     const template = getTemplate("plausible");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved.length).toBe(3);
 
     const plausibleSvc = resolved.find((s) => s.name === "plausible");
@@ -145,20 +145,20 @@ describe("resolveTemplateServices", () => {
     expect(dbUrlEnv?.value).toContain("postgres://postgres:");
   });
 
-  it("sets main service correctly in project templates", () => {
+  it("sets main service correctly in project templates", async () => {
     const template = getTemplate("plausible");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
 
     const mainServices = resolved.filter((s) => s.isMain);
     expect(mainServices.length).toBe(1);
     expect(mainServices[0].name).toBe("plausible");
   });
 
-  it("parses volumes correctly", () => {
+  it("parses volumes correctly", async () => {
     const template = getTemplate("postgres");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     const svc = resolved[0];
 
     expect(svc.volumes.length).toBe(1);
@@ -166,39 +166,75 @@ describe("resolveTemplateServices", () => {
     expect(svc.volumes[0].path).toBe("/var/lib/postgresql/data");
   });
 
-  it("includes icon from postgres template", () => {
+  it("includes icon from postgres template", async () => {
     const template = getTemplate("postgres");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("postgresql");
   });
 
-  it("includes icon from redis template", () => {
+  it("includes icon from redis template", async () => {
     const template = getTemplate("redis");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("redis");
   });
 
-  it("includes icon from mysql template", () => {
+  it("includes icon from mysql template", async () => {
     const template = getTemplate("mysql");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("mysql");
   });
 
-  it("includes icon from mongo template", () => {
+  it("includes icon from mongo template", async () => {
     const template = getTemplate("mongo");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("mongodb");
   });
 
-  it("includes icon from nginx template", () => {
+  it("includes icon from nginx template", async () => {
     const template = getTemplate("nginx");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = await resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("nginx");
+  });
+
+  it("generates JWT tokens for supabase template", async () => {
+    const template = getTemplate("supabase");
+    expect(template).toBeDefined();
+    const resolved = await resolveTemplateServices(template!);
+
+    const kong = resolved.find((s) => s.name === "kong");
+    expect(kong).toBeDefined();
+
+    const jwtSecret = kong?.envVars.find((e) => e.key === "JWT_SECRET");
+    expect(jwtSecret).toBeDefined();
+    expect(jwtSecret?.value.length).toBe(64);
+
+    const anonKey = kong?.envVars.find((e) => e.key === "SUPABASE_ANON_KEY");
+    expect(anonKey).toBeDefined();
+    expect(anonKey?.value).toContain("eyJ");
+
+    const serviceKey = kong?.envVars.find(
+      (e) => e.key === "SUPABASE_SERVICE_KEY",
+    );
+    expect(serviceKey).toBeDefined();
+    expect(serviceKey?.value).toContain("eyJ");
+  });
+
+  it("resolves config files with variable references", async () => {
+    const template = getTemplate("supabase");
+    expect(template).toBeDefined();
+    const resolved = await resolveTemplateServices(template!);
+
+    const kong = resolved.find((s) => s.name === "kong");
+    expect(kong).toBeDefined();
+    expect(kong?.configFiles.length).toBeGreaterThan(0);
+
+    const kongConfig = kong?.configFiles[0];
+    expect(kongConfig?.content).not.toContain("${");
   });
 });
 

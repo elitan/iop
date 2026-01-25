@@ -1,11 +1,19 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import * as jose from "jose";
 import { nanoid } from "nanoid";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
 const generatedValueSchema = z.object({
-  generated: z.enum(["password", "base64_32", "base64_64"]),
+  generated: z.enum([
+    "password",
+    "base64_32",
+    "base64_64",
+    "jwt_secret",
+    "jwt_anon",
+    "jwt_service_role",
+  ]),
 });
 
 const envValueSchema = z.union([z.string(), generatedValueSchema]);
@@ -13,6 +21,11 @@ const envValueSchema = z.union([z.string(), generatedValueSchema]);
 const healthCheckSchema = z.object({
   path: z.string().optional(),
   timeout: z.number().default(60),
+});
+
+const configFileSchema = z.object({
+  path: z.string(),
+  content: z.string(),
 });
 
 const serviceDefinitionSchema = z.object({
@@ -24,6 +37,7 @@ const serviceDefinitionSchema = z.object({
   command: z.string().optional(),
   environment: z.record(z.string(), envValueSchema).optional(),
   volumes: z.array(z.string()).optional(),
+  config_files: z.array(configFileSchema).optional(),
   health_check: healthCheckSchema.optional(),
   ssl: z.boolean().optional(),
 });
@@ -38,6 +52,7 @@ const templateFileSchema = z.object({
 
 export type GeneratedValue = z.infer<typeof generatedValueSchema>;
 export type EnvValue = z.infer<typeof envValueSchema>;
+export type ConfigFileDefinition = z.infer<typeof configFileSchema>;
 export type ServiceDefinition = z.infer<typeof serviceDefinitionSchema>;
 export type TemplateFile = z.infer<typeof templateFileSchema>;
 
@@ -58,6 +73,11 @@ export interface VolumeMount {
   path: string;
 }
 
+export interface ConfigFile {
+  path: string;
+  content: string;
+}
+
 export interface ResolvedEnvVar {
   key: string;
   value: string;
@@ -74,6 +94,7 @@ export interface ResolvedService {
   command?: string;
   envVars: ResolvedEnvVar[];
   volumes: VolumeMount[];
+  configFiles: ConfigFile[];
   healthCheckPath?: string;
   healthCheckTimeout: number;
   ssl: boolean;
@@ -164,11 +185,35 @@ function randomBase64(bytes: number): string {
   ).toString("base64");
 }
 
+async function generateSupabaseJWT(
+  role: "anon" | "service_role",
+  secret: string,
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const secretKey = encoder.encode(secret);
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 10 * 365 * 24 * 60 * 60;
+
+  return new jose.SignJWT({ role, iss: "supabase", iat: now, exp })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .sign(secretKey);
+}
+
 export function generateCredential(
-  type: "password" | "base64_32" | "base64_64" = "password",
+  type:
+    | "password"
+    | "base64_32"
+    | "base64_64"
+    | "jwt_secret"
+    | "jwt_anon"
+    | "jwt_service_role" = "password",
 ): string {
   if (type === "base64_32") return randomBase64(32);
   if (type === "base64_64") return randomBase64(64);
+  if (type === "jwt_secret") return nanoid(64);
+  if (type === "jwt_anon" || type === "jwt_service_role") {
+    throw new Error("JWT tokens require async generation with secret");
+  }
   return nanoid(32);
 }
 
@@ -176,7 +221,9 @@ export function isGeneratedValue(value: EnvValue): value is GeneratedValue {
   return typeof value === "object" && "generated" in value;
 }
 
-export function resolveTemplateServices(template: Template): ResolvedService[] {
+export async function resolveTemplateServices(
+  template: Template,
+): Promise<ResolvedService[]> {
   const generatedValues: Record<string, Record<string, string>> = {};
 
   for (const [serviceName, service] of Object.entries(template.services)) {
@@ -184,9 +231,42 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
     if (service.environment) {
       for (const [key, value] of Object.entries(service.environment)) {
         if (isGeneratedValue(value)) {
-          generatedValues[serviceName][key] = generateCredential(
-            value.generated,
-          );
+          const genType = value.generated;
+          if (
+            genType === "password" ||
+            genType === "base64_32" ||
+            genType === "base64_64" ||
+            genType === "jwt_secret"
+          ) {
+            generatedValues[serviceName][key] = generateCredential(genType);
+          }
+        }
+      }
+    }
+  }
+
+  for (const [serviceName, service] of Object.entries(template.services)) {
+    if (service.environment) {
+      for (const [key, value] of Object.entries(service.environment)) {
+        if (isGeneratedValue(value)) {
+          const genType = value.generated;
+          if (genType === "jwt_anon" || genType === "jwt_service_role") {
+            const jwtSecret = findJwtSecret(
+              serviceName,
+              service.environment,
+              generatedValues,
+            );
+            if (!jwtSecret) {
+              throw new Error(
+                `jwt_secret not found for ${genType} in service ${serviceName}`,
+              );
+            }
+            const role = genType === "jwt_anon" ? "anon" : "service_role";
+            generatedValues[serviceName][key] = await generateSupabaseJWT(
+              role,
+              jwtSecret,
+            );
+          }
         }
       }
     }
@@ -223,6 +303,21 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
 
     const volumes = service.volumes?.map(parseVolumeString) ?? [];
 
+    const configFiles: ConfigFile[] =
+      service.config_files?.map((cf) => {
+        let content = cf.content;
+        const refPattern = /\$\{([^.]+)\.([^}]+)\}/g;
+        const matches = content.matchAll(refPattern);
+        for (const match of matches) {
+          const [fullMatch, refService, refKey] = match;
+          const refValue = generatedValues[refService]?.[refKey];
+          if (refValue) {
+            content = content.replace(fullMatch, refValue);
+          }
+        }
+        return { path: cf.path, content };
+      }) ?? [];
+
     resolved.push({
       name: serviceName,
       image: service.image,
@@ -233,6 +328,7 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
       command: service.command,
       envVars,
       volumes,
+      configFiles,
       healthCheckPath: service.health_check?.path,
       healthCheckTimeout: service.health_check?.timeout ?? 60,
       ssl: service.ssl ?? false,
@@ -245,6 +341,34 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
   }
 
   return resolved;
+}
+
+function findJwtSecret(
+  serviceName: string,
+  environment: Record<string, EnvValue>,
+  generatedValues: Record<string, Record<string, string>>,
+): string | null {
+  for (const [key, value] of Object.entries(environment)) {
+    if (isGeneratedValue(value) && value.generated === "jwt_secret") {
+      return generatedValues[serviceName][key];
+    }
+  }
+
+  for (const [, value] of Object.entries(environment)) {
+    if (typeof value === "string") {
+      const refPattern = /\$\{([^.]+)\.([^}]+)\}/;
+      const match = value.match(refPattern);
+      if (match) {
+        const [, refService, refKey] = match;
+        const refValue = generatedValues[refService]?.[refKey];
+        if (refValue && refKey.toLowerCase().includes("jwt")) {
+          return refValue;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 export function clearTemplateCache(): void {

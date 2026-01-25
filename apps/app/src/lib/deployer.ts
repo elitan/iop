@@ -5,6 +5,11 @@ import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
+import {
+  type ConfigFile,
+  getConfigFileMounts,
+  writeConfigFiles,
+} from "./config-files";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
@@ -598,6 +603,19 @@ async function runServiceDeployment(
       await appendLog(deploymentId, `Created ${volumes.length} volume(s)\n`);
     }
 
+    let configFileMounts: FileMount[] = [];
+    if (service.configFiles && service.configFiles !== "[]") {
+      const configFiles: ConfigFile[] = JSON.parse(service.configFiles);
+      if (configFiles.length > 0) {
+        writeConfigFiles(service.id, configFiles);
+        configFileMounts = getConfigFileMounts(service.id, configFiles);
+        await appendLog(
+          deploymentId,
+          `Wrote ${configFiles.length} config file(s)\n`,
+        );
+      }
+    }
+
     let fileMounts: FileMount[] | undefined;
     let command: string[] | undefined;
 
@@ -672,6 +690,8 @@ async function runServiceDeployment(
     );
     const runtimeEnvVars = { ...frostEnvVars, ...envVars };
 
+    const allFileMounts = [...configFileMounts, ...(fileMounts ?? [])];
+
     const { containerId, hostPort } = await runContainerWithPortRetry(
       {
         imageName,
@@ -686,7 +706,7 @@ async function runServiceDeployment(
           "frost.deployment.id": deploymentId,
         },
         volumes,
-        fileMounts,
+        fileMounts: allFileMounts.length > 0 ? allFileMounts : undefined,
         command,
         memoryLimit: service.memoryLimit ?? undefined,
         cpuLimit: service.cpuLimit ?? undefined,

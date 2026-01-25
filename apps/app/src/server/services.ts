@@ -122,7 +122,7 @@ export const services = {
 
     if (input.deployType === "database") {
       const template = getTemplate(input.templateId!)!;
-      const resolved = resolveTemplateServices(template);
+      const resolved = await resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 
       service = await createService({
@@ -148,7 +148,7 @@ export const services = {
           message: "Unknown service template",
         });
       }
-      const resolved = resolveTemplateServices(template);
+      const resolved = await resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 
       service = await createService({
