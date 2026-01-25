@@ -1,0 +1,7 @@
+port: 4000
+health_check:
+  path: /health
+  timeout: 30
+resources:
+  memory: 512m
+  cpu: 0.5
