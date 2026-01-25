@@ -1,0 +1,21 @@
+name: Clawdbot
+description: Personal AI assistant with multi-channel support
+category: ai
+docs: https://docs.clawd.bot/
+
+services:
+  clawdbot:
+    image: clawdbot/clawdbot:v2026.1.23
+    port: 18789
+    icon: clawdbot
+    command: node dist/index.js gateway --bind 0.0.0.0 --port 18789
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      CLAWDBOT_GATEWAY_TOKEN:
+        generated: password
+    volumes:
+      - config:/home/node/.clawdbot
+      - workspace:/home/node/clawd
+    health_check:
+      timeout: 60
