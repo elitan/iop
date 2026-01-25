@@ -206,6 +206,8 @@ export const services = {
           shutdownTimeout: input.shutdownTimeout ?? null,
           registryId:
             input.deployType === "image" ? (input.registryId ?? null) : null,
+          frostFilePath:
+            input.deployType === "repo" ? (input.frostFilePath ?? null) : null,
           createdAt: now,
         })
         .execute();
@@ -306,6 +308,9 @@ export const services = {
       updates.volumes = JSON.stringify(input.volumes);
     if (input.registryId !== undefined) updates.registryId = input.registryId;
     if (input.command !== undefined) updates.command = input.command;
+    if (service.deployType === "repo" && input.frostFilePath !== undefined) {
+      updates.frostFilePath = input.frostFilePath;
+    }
 
     if (Object.keys(updates).length > 0) {
       await db

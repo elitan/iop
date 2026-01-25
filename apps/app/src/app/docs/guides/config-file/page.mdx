@@ -1,0 +1,49 @@
+# Config File (frost.yaml)
+
+Configure service builds and deployments with a `frost.yaml` file in your repo.
+
+## Location
+
+Set **Config File Path** in service settings (defaults to `frost.yaml` at repo root).
+
+For monorepos, point to your service's config:
+
+- Service A: `services/api/frost.yaml`
+- Service B: `services/web/frost.yaml`
+
+## Format
+
+```yaml
+# frost.yaml
+dockerfile: Dockerfile
+port: 3000
+health_check:
+  path: /health
+  timeout: 30
+resources:
+  memory: 512m
+  cpu: 0.5
+```
+
+## Fields
+
+| Field | Description |
+|-------|-------------|
+| `dockerfile` | Path to Dockerfile (relative to repo root) |
+| `port` | Container port the app listens on |
+| `health_check.path` | HTTP health check endpoint |
+| `health_check.timeout` | Startup timeout in seconds |
+| `resources.memory` | Memory limit (e.g., `256m`, `1g`) |
+| `resources.cpu` | CPU limit (e.g., `0.5`, `2`) |
+
+## Override Behavior
+
+Config file overrides UI settings at deploy time. UI settings remain unchanged.
+
+## IDE Support
+
+Add schema for autocomplete:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/elitan/frost/main/apps/app/frost.schema.json
+```

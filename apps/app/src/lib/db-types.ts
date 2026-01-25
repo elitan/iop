@@ -81,9 +81,9 @@ export interface Environments {
   'type': Generated<'production' | 'preview' | 'manual'>;
   prNumber: number | null;
   prBranch: string | null;
-  prCommentId: number | null;
   isEphemeral: Generated<boolean | null>;
   createdAt: number;
+  prCommentId: number | null;
 }
 
 export interface GithubInstallations {
@@ -153,9 +153,10 @@ export interface Services {
   shutdownTimeout: number | null;
   requestTimeout: number | null;
   command: string | null;
-  icon: string | null;
   currentDeploymentId: string | null;
   createdAt: number;
+  icon: string | null;
+  frostFilePath: Generated<string | null>;
 }
 
 export interface Settings {

@@ -37,6 +37,7 @@ const navigation: NavSection[] = [
     items: [
       { title: "Environment Variables", href: "/docs/guides/env-vars" },
       { title: "Custom Domains", href: "/docs/guides/custom-domains" },
+      { title: "Config File", href: "/docs/guides/config-file" },
     ],
   },
   {

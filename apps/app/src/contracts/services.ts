@@ -53,6 +53,7 @@ export const servicesContract = {
         cpuLimit: z.number().min(0.1).max(64).optional(),
         shutdownTimeout: z.number().min(1).max(300).optional(),
         registryId: z.string().optional(),
+        frostFilePath: z.string().optional(),
       }),
     )
     .output(servicesSchema),
@@ -88,6 +89,7 @@ export const servicesContract = {
         volumes: z.array(volumeConfigSchema).optional(),
         registryId: z.string().nullable().optional(),
         command: z.string().nullable().optional(),
+        frostFilePath: z.string().nullable().optional(),
       }),
     )
     .output(servicesSchema),

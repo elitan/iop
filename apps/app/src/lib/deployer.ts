@@ -26,6 +26,7 @@ import {
   waitForHealthy,
 } from "./docker";
 import { syncCaddyConfig } from "./domains";
+import { loadFrostConfig, mergeConfigWithService } from "./frost-config";
 import {
   createCommitStatus,
   generateInstallationToken,
@@ -389,6 +390,7 @@ async function runServiceDeployment(
 
   try {
     let imageName: string;
+    let effectiveService = service;
 
     if (service.deployType === "image") {
       if (!service.imageUrl) {
@@ -487,9 +489,26 @@ async function runServiceDeployment(
       );
       await appendLog(deploymentId, cloneResult || "Cloned successfully\n");
 
+      const frostConfigResult = loadFrostConfig(
+        repoPath,
+        service.frostFilePath ?? "frost.yaml",
+      );
+
+      if (frostConfigResult.error) {
+        throw new Error(`frost.yaml: ${frostConfigResult.error}`);
+      }
+
+      if (frostConfigResult.config) {
+        await appendLog(deploymentId, `Using ${frostConfigResult.filename}\n`);
+        effectiveService = mergeConfigWithService(
+          service,
+          frostConfigResult.config,
+        );
+      }
+
       const detectedIcon = detectIcon(
         repoPath,
-        service.dockerfilePath ?? undefined,
+        effectiveService.dockerfilePath ?? undefined,
       );
       if (detectedIcon && !service.icon) {
         await db
@@ -541,7 +560,7 @@ async function runServiceDeployment(
       const buildResult = await buildImage({
         repoPath,
         imageName,
-        dockerfilePath: service.dockerfilePath,
+        dockerfilePath: effectiveService.dockerfilePath ?? undefined,
         buildContext: service.buildContext ?? undefined,
         envVars,
         labels: baseLabels,
@@ -634,9 +653,9 @@ async function runServiceDeployment(
       .updateTable("deployments")
       .set({
         envVarsSnapshot: JSON.stringify(envVarsList),
-        containerPort: service.containerPort,
-        healthCheckPath: service.healthCheckPath,
-        healthCheckTimeout: service.healthCheckTimeout,
+        containerPort: effectiveService.containerPort,
+        healthCheckPath: effectiveService.healthCheckPath,
+        healthCheckTimeout: effectiveService.healthCheckTimeout,
         volumes: service.volumes,
       })
       .where("id", "=", deploymentId)
@@ -668,7 +687,7 @@ async function runServiceDeployment(
     const { containerId, hostPort } = await runContainerWithPortRetry(
       {
         imageName,
-        containerPort: service.containerPort ?? undefined,
+        containerPort: effectiveService.containerPort ?? undefined,
         name: containerName,
         envVars: runtimeEnvVars,
         network: networkName,
@@ -681,8 +700,8 @@ async function runServiceDeployment(
         volumes,
         fileMounts,
         command,
-        memoryLimit: service.memoryLimit ?? undefined,
-        cpuLimit: service.cpuLimit ?? undefined,
+        memoryLimit: effectiveService.memoryLimit ?? undefined,
+        cpuLimit: effectiveService.cpuLimit ?? undefined,
         shutdownTimeout: service.shutdownTimeout ?? undefined,
       },
       async (port, attempt) => {
@@ -697,8 +716,8 @@ async function runServiceDeployment(
       deploymentId,
       `Container started: ${containerId.substring(0, 12)}\n`,
     );
-    const healthCheckType = service.healthCheckPath
-      ? `HTTP ${service.healthCheckPath}`
+    const healthCheckType = effectiveService.healthCheckPath
+      ? `HTTP ${effectiveService.healthCheckPath}`
       : "TCP";
     await appendLog(
       deploymentId,
@@ -708,8 +727,8 @@ async function runServiceDeployment(
     const isHealthy = await waitForHealthy({
       containerId,
       port: hostPort,
-      path: service.healthCheckPath,
-      timeoutSeconds: service.healthCheckTimeout ?? 60,
+      path: effectiveService.healthCheckPath,
+      timeoutSeconds: effectiveService.healthCheckTimeout ?? 60,
     });
     if (!isHealthy) {
       const containerStatus = await getContainerStatus(containerId);

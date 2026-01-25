@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Frost Configuration",
+  "description": "Configuration file for Frost service deployments",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "dockerfile": {
+      "type": "string",
+      "description": "Path to Dockerfile (relative to repo root)"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Container port the app listens on"
+    },
+    "health_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Health check configuration",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "HTTP health check endpoint (e.g., /health)"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "description": "Startup timeout in seconds"
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Resource limits",
+      "properties": {
+        "memory": {
+          "type": "string",
+          "pattern": "^\\d+[kmgKMG]$",
+          "description": "Memory limit (e.g., 256m, 1g)"
+        },
+        "cpu": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 64,
+          "description": "CPU limit (e.g., 0.5, 2)"
+        }
+      }
+    }
+  }
+}
