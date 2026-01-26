@@ -4,7 +4,7 @@ interface TableProps {
 
 export function Table({ children }: TableProps) {
   return (
-    <div className="not-prose my-6 overflow-hidden rounded-xl bg-[#060d1a] border border-white/[0.06] relative">
+    <div className="not-prose my-6 overflow-hidden rounded-xl bg-[#141414] border border-white/[0.06] relative">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       <div className="overflow-x-auto">
         <table className="w-full text-sm">{children}</table>

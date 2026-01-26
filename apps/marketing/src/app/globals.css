@@ -48,18 +48,17 @@
 
 :root {
   --color-accent-rgb: 255, 255, 255;
-  --color-glow-rgb: 30, 64, 120;
 }
 
 @theme {
-  --color-background: #030712;
-  --color-foreground: #f8fafc;
-  --color-card: #0a1628;
-  --color-card-hover: #0f1f36;
-  --color-border: #1e3a5f;
-  --color-border-subtle: #0f2744;
-  --color-muted-foreground: #94a3b8;
-  --color-muted: #64748b;
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  --color-card: #171717;
+  --color-card-hover: #1f1f1f;
+  --color-border: #262626;
+  --color-border-subtle: #171717;
+  --color-muted-foreground: #a3a3a3;
+  --color-muted: #737373;
   --color-accent: #ffffff;
 }
 
@@ -67,14 +66,6 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: "Geist", system-ui, -apple-system, sans-serif;
-}
-
-.blue-glow {
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 0%,
-    rgba(var(--color-glow-rgb), 0.4),
-    transparent 70%
-  );
 }
 
 ::selection {
@@ -165,7 +156,7 @@ body {
 
 .animated-border {
   position: relative;
-  background: #060d1a;
+  background: #141414;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }

@@ -9,7 +9,7 @@ export default function DocsLayout({
   return (
     <div className="relative pt-24">
       <div className="absolute inset-0 grid-pattern grid-pattern-fade pointer-events-none" />
-      <div className="absolute inset-0 blue-glow pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
 
       <div className="relative max-w-7xl mx-auto px-6">
         <div className="flex gap-8 py-8">

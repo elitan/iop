@@ -15,21 +15,12 @@ export function Hero() {
         className="relative z-10 flex flex-col items-center text-center"
       >
         <motion.div
-          className="relative mb-10"
+          className="mb-10"
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <div className="absolute inset-0 blur-2xl opacity-60 animate-pulse-glow">
-            <div
-              className="w-full h-full rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle, rgba(var(--color-accent-rgb),0.4), transparent 60%)",
-              }}
-            />
-          </div>
-          <FrostLogo size={100} className="relative z-10" />
+          <FrostLogo size={100} />
         </motion.div>
 
         <motion.div

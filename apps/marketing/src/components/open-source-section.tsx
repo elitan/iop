@@ -16,9 +16,9 @@ export function OpenSourceSection() {
           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] via-transparent to-transparent" />
           <div className="absolute inset-0 rounded-2xl border border-white/[0.06]" />
 
-          <div className="relative rounded-2xl bg-[#040a14] p-8 md:p-12">
+          <div className="relative rounded-2xl bg-[#141414] p-8 md:p-12">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-b from-blue-500/[0.03] to-transparent rounded-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent rounded-2xl" />
 
             <div className="relative text-center">
               <div className="flex justify-center gap-3 mb-8">
@@ -62,7 +62,7 @@ export function OpenSourceSection() {
                 </a>
                 <a
                   href="#install"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium bg-white text-[#030712] hover:bg-white/90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium bg-white text-[#0a0a0a] hover:bg-white/90 transition-colors"
                 >
                   Get Started
                 </a>

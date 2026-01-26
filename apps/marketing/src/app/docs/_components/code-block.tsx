@@ -23,7 +23,7 @@ export function CodeBlock({ children, className }: CodeBlockProps) {
   }
 
   return (
-    <div className="not-prose group relative my-6 rounded-xl overflow-hidden bg-[#060d1a] border border-white/[0.06]">
+    <div className="not-prose group relative my-6 rounded-xl overflow-hidden bg-[#141414] border border-white/[0.06]">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2">
@@ -55,7 +55,7 @@ export function CodeBlock({ children, className }: CodeBlockProps) {
       </div>
       <pre
         className={cn(
-          "overflow-x-auto p-4 text-[13px] leading-relaxed bg-[#030712]",
+          "overflow-x-auto p-4 text-[13px] leading-relaxed bg-[#0a0a0a]",
           "[&::-webkit-scrollbar]:h-1.5",
           "[&::-webkit-scrollbar-track]:bg-transparent",
           "[&::-webkit-scrollbar-thumb]:rounded-full",

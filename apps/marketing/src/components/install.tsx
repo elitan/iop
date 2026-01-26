@@ -52,7 +52,7 @@ function InstallCard({
 
       <div className="p-5">
         <p className="text-sm text-white/50 mb-4">{description}</p>
-        <div className="relative bg-[#030712] rounded-lg p-4 overflow-x-auto border border-white/[0.04]">
+        <div className="relative bg-[#0a0a0a] rounded-lg p-4 overflow-x-auto border border-white/[0.04]">
           <div className="flex items-start gap-3 pr-10 whitespace-nowrap">
             <span className="text-white/40 font-mono">{prompt}</span>
             <code className="font-mono text-sm text-white/80">{command}</code>
@@ -94,7 +94,7 @@ export function Install(): React.ReactElement {
 
   return (
     <section id="install" className="py-32 px-6 relative">
-      <div className="absolute inset-0 blue-glow opacity-50 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-radial from-white/[0.02] to-transparent opacity-50 pointer-events-none" />
 
       <div className="max-w-2xl mx-auto relative">
         <motion.div {...fadeInUp} className="text-center mb-16">

@@ -14,7 +14,7 @@ export default async function Image() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#050508",
+        backgroundColor: "#0a0a0a",
         position: "relative",
       }}
     >
@@ -42,7 +42,7 @@ export default async function Image() {
           height: "600px",
           display: "flex",
           background:
-            "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(249,115,22,0.15) 0%, transparent 70%)",
+            "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255,255,255,0.06) 0%, transparent 70%)",
         }}
       />
 
@@ -110,8 +110,8 @@ export default async function Image() {
           gap: "8px",
           padding: "8px 16px",
           borderRadius: "9999px",
-          border: "1px solid #1e1e2a",
-          backgroundColor: "rgba(13,13,18,0.8)",
+          border: "1px solid #262626",
+          backgroundColor: "rgba(23,23,23,0.8)",
           marginBottom: "32px",
         }}
       >
@@ -120,11 +120,11 @@ export default async function Image() {
             width: "8px",
             height: "8px",
             borderRadius: "50%",
-            backgroundColor: "#f97316",
+            backgroundColor: "#fafafa",
             display: "flex",
           }}
         />
-        <span style={{ fontSize: "16px", color: "#71717a" }}>
+        <span style={{ fontSize: "16px", color: "#a3a3a3" }}>
           Open Source · Self-Hosted
         </span>
       </div>
@@ -145,7 +145,6 @@ export default async function Image() {
             letterSpacing: "-0.03em",
             lineHeight: 1.1,
             display: "flex",
-            textShadow: "0 0 1px #fafafa, 0 0 1px #fafafa",
           }}
         >
           Get your app online,
@@ -154,11 +153,10 @@ export default async function Image() {
           style={{
             fontSize: "76px",
             fontWeight: 900,
-            color: "#f97316",
+            color: "#a3a3a3",
             letterSpacing: "-0.03em",
             lineHeight: 1.1,
             display: "flex",
-            textShadow: "0 0 1px #f97316, 0 0 1px #f97316",
           }}
         >
           for the AI coding era
@@ -184,10 +182,10 @@ export default async function Image() {
           bottom: "0",
           left: "0",
           right: "0",
-          height: "4px",
+          height: "2px",
           display: "flex",
           background:
-            "linear-gradient(90deg, transparent 0%, #f97316 50%, transparent 100%)",
+            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)",
         }}
       />
     </div>,
