@@ -2,6 +2,7 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 FROM base AS deps
+RUN apt-get update && apt-get install -y python3 build-essential && rm -rf /var/lib/apt/lists/*
 COPY package.json bun.lock ./
 COPY apps/app/package.json ./apps/app/
 COPY apps/marketing/package.json ./apps/marketing/
