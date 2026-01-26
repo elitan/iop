@@ -42,24 +42,20 @@ export function Header() {
         </a>
 
         <nav className="hidden md:flex items-center gap-8 select-none">
-          <a
-            href="#features"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Features
-          </a>
-          <a
-            href="#how-it-works"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            How it works
-          </a>
-          <a
-            href="#install"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Install
-          </a>
+          {[
+            { href: "/docs", label: "Docs" },
+            { href: "/api-reference", label: "API" },
+            { href: "/#features", label: "Features" },
+            { href: "/#install", label: "Install" },
+          ].map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {link.label}
+            </a>
+          ))}
         </nav>
 
         <a

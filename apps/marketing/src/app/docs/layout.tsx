@@ -1,5 +1,3 @@
-import { BreadcrumbHeader } from "@/components/breadcrumb-header";
-import { Header } from "@/components/header";
 import { DocsNav } from "./_components/docs-nav";
 import { DocsToc } from "./_components/docs-toc";
 
@@ -9,14 +7,11 @@ export default function DocsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
-      <Header>
-        <BreadcrumbHeader pageName="Docs" />
-      </Header>
-      <div className="container mx-auto px-4">
+    <div className="pt-24">
+      <div className="max-w-6xl mx-auto px-6">
         <div className="flex gap-8 py-8">
-          <aside className="w-56 shrink-0">
-            <div className="sticky top-8">
+          <aside className="w-56 shrink-0 hidden md:block">
+            <div className="sticky top-24">
               <DocsNav />
             </div>
           </aside>
@@ -28,12 +23,12 @@ export default function DocsLayout({
           </main>
 
           <aside className="w-56 shrink-0 hidden lg:block">
-            <div className="sticky top-8">
+            <div className="sticky top-24">
               <DocsToc />
             </div>
           </aside>
         </div>
       </div>
-    </>
+    </div>
   );
 }

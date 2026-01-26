@@ -25,7 +25,8 @@
       "!**/data",
       "!**/repos",
       "!**/*.css",
-      "!**/db-types.ts"
+      "!**/db-types.ts",
+      "!**/openapi.json"
     ]
   }
 }

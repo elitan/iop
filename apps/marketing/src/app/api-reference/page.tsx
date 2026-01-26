@@ -8,11 +8,11 @@ const ApiReferenceReact = dynamic(
   { ssr: false },
 );
 
-export default function DocsPage() {
+export default function ApiReferencePage() {
   return (
     <ApiReferenceReact
       configuration={{
-        url: "/api/openapi.json",
+        url: "/openapi.json",
         theme: "kepler",
         hideModels: false,
         hideDownloadButton: false,

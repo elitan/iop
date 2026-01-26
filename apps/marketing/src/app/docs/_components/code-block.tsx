@@ -65,17 +65,13 @@ export function CodeBlock({ children, className }: CodeBlockProps) {
   );
 }
 
-interface NodeWithProps {
-  props?: { children?: React.ReactNode };
-}
-
 function extractText(node: React.ReactNode): string {
   if (typeof node === "string") return node;
   if (typeof node === "number") return String(node);
   if (!node) return "";
   if (Array.isArray(node)) return node.map(extractText).join("");
   if (typeof node === "object" && "props" in node) {
-    const n = node as NodeWithProps;
+    const n = node as { props?: { children?: React.ReactNode } };
     return extractText(n.props?.children);
   }
   return "";

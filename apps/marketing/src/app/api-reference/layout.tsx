@@ -1,6 +1,6 @@
 import "@scalar/api-reference-react/style.css";
 
-export default function DocsLayout({
+export default function ApiReferenceLayout({
   children,
 }: {
   children: React.ReactNode;
