@@ -36,40 +36,40 @@ function InstallCard({
   delay,
 }: InstallCardProps): React.ReactElement {
   return (
-    <motion.div {...fadeInUp} transition={{ delay }} className="relative group">
-      <div className="absolute -inset-1 bg-gradient-to-r from-accent/20 via-secondary/20 to-accent/20 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+    <motion.div
+      {...fadeInUp}
+      transition={{ delay }}
+      className="group animated-border rounded-xl"
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-      <div className="relative bg-card border border-border rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card-hover">
-          <Icon size={14} className="text-muted-foreground" />
-          <span className="text-xs text-muted-foreground font-mono">
-            {label}
-          </span>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+        <div className="w-6 h-6 rounded-md bg-gradient-to-b from-white/[0.1] to-transparent border border-white/[0.08] flex items-center justify-center">
+          <Icon size={12} className="text-white/70" />
         </div>
+        <span className="text-xs text-white/50 font-mono">{label}</span>
+      </div>
 
-        <div className="p-6">
-          <p className="text-sm text-muted-foreground mb-4">{description}</p>
-          <div className="relative bg-background/50 rounded-lg p-4 overflow-x-auto">
-            <div className="flex items-start gap-3 pr-10 whitespace-nowrap">
-              <span className="text-accent font-mono">{prompt}</span>
-              <code className="font-mono text-sm text-foreground/90">
-                {command}
-              </code>
-            </div>
-
-            <button
-              type="button"
-              onClick={onCopy}
-              className="absolute right-3 top-3 p-2 bg-card-hover hover:bg-border rounded-lg transition-all hover:scale-105 border border-transparent hover:border-border"
-              aria-label="Copy to clipboard"
-            >
-              {copied ? (
-                <Check size={16} className="text-emerald-400" />
-              ) : (
-                <Copy size={16} className="text-muted-foreground" />
-              )}
-            </button>
+      <div className="p-5">
+        <p className="text-sm text-white/50 mb-4">{description}</p>
+        <div className="relative bg-[#030712] rounded-lg p-4 overflow-x-auto border border-white/[0.04]">
+          <div className="flex items-start gap-3 pr-10 whitespace-nowrap">
+            <span className="text-white/40 font-mono">{prompt}</span>
+            <code className="font-mono text-sm text-white/80">{command}</code>
           </div>
+
+          <button
+            type="button"
+            onClick={onCopy}
+            className="absolute right-3 top-3 p-2 bg-white/[0.05] hover:bg-white/[0.1] rounded-lg transition-all hover:scale-105 border border-white/[0.08]"
+            aria-label="Copy to clipboard"
+          >
+            {copied ? (
+              <Check size={14} className="text-emerald-400" />
+            ) : (
+              <Copy size={14} className="text-white/50" />
+            )}
+          </button>
         </div>
       </div>
     </motion.div>
@@ -94,17 +94,11 @@ export function Install(): React.ReactElement {
 
   return (
     <section id="install" className="py-32 px-6 relative">
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 50% at 50% 100%, rgba(var(--color-accent-rgb),0.08), transparent)",
-        }}
-      />
+      <div className="absolute inset-0 blue-glow opacity-50 pointer-events-none" />
 
       <div className="max-w-2xl mx-auto relative">
         <motion.div {...fadeInUp} className="text-center mb-16">
-          <span className="text-sm uppercase tracking-widest text-accent mb-4 block">
+          <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 block">
             Get Started
           </span>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -131,11 +125,11 @@ export function Install(): React.ReactElement {
             transition={{ delay: 0.15 }}
             className="flex items-center gap-4 py-2"
           >
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-            <span className="text-xs text-muted uppercase tracking-widest">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            <span className="text-xs text-white/30 uppercase tracking-widest">
               or
             </span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           </motion.div>
 
           <InstallCard

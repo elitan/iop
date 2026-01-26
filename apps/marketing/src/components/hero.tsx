@@ -7,15 +7,6 @@ import { FrostLogo } from "./frost-logo";
 export function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden pt-16">
-      <div className="absolute inset-0 grid-pattern grid-pattern-fade" />
-
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(var(--color-accent-rgb),0.12), transparent)",
-        }}
-      />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -61,7 +52,7 @@ export function Hero() {
         >
           Get your app online,
           <br />
-          <span className="text-accent">for the AI coding era.</span>
+          <span className="text-foreground">for the AI coding era.</span>
         </motion.h1>
 
         <motion.p
@@ -80,12 +71,7 @@ export function Hero() {
         >
           <a
             href="#install"
-            className="group inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg font-medium transition-all hover:opacity-90"
-            style={{
-              backgroundColor: "var(--color-accent)",
-              color: "#000",
-              boxShadow: "0 0 30px -5px rgba(var(--color-accent-rgb), 0.4)",
-            }}
+            className="group inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg font-medium transition-all bg-white text-background hover:bg-white/90"
           >
             Get Started
             <ArrowRight

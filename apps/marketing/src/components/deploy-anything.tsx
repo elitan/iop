@@ -9,6 +9,7 @@ import {
   Lock,
   Server,
 } from "lucide-react";
+import { IconBox } from "./icon-box";
 
 const deployables = [
   {
@@ -82,9 +83,7 @@ export function DeployAnything() {
               transition={{ delay: i * 0.05 }}
               className="flex items-start gap-4"
             >
-              <div className="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center shrink-0">
-                <item.icon className="text-accent" size={18} />
-              </div>
+              <IconBox icon={item.icon} size="md" className="shrink-0" />
               <div>
                 <h3 className="font-medium mb-1">{item.title}</h3>
                 <p className="text-sm text-muted-foreground">

@@ -72,16 +72,15 @@ export function ComingSoon() {
           viewport={{ once: true }}
           className="text-center mt-8 text-xs text-muted-foreground"
         >
-          Follow{" "}
           <a
             href="https://github.com/elitan/frost"
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent hover:underline"
           >
-            @elitan/frost
+            Star on GitHub
           </a>{" "}
-          on GitHub to stay updated
+          to stay updated
         </motion.p>
       </div>
     </section>

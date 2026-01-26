@@ -23,28 +23,31 @@ export function CodeBlock({ children, className }: CodeBlockProps) {
   }
 
   return (
-    <div className="not-prose group relative my-6 overflow-hidden rounded-lg border border-neutral-800 bg-[#0a0a0a]">
-      <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/50 px-4 py-2">
-        <span className="text-xs text-neutral-500">
+    <div className="not-prose group relative my-6 rounded-xl overflow-hidden bg-[#060d1a] border border-white/[0.06]">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2">
+        <span className="text-xs text-white/40 font-mono">
           {isTerminal ? "terminal" : language || "code"}
         </span>
         <button
           type="button"
           onClick={handleCopy}
           className={cn(
-            "flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors",
-            "text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300",
-            copied && "text-green-500",
+            "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-all",
+            "bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06]",
+            "text-white/50 hover:text-white/80",
+            copied && "text-emerald-400",
           )}
         >
           {copied ? (
             <>
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-3 w-3" />
               <span>Copied</span>
             </>
           ) : (
             <>
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-3 w-3" />
               <span>Copy</span>
             </>
           )}
@@ -52,14 +55,14 @@ export function CodeBlock({ children, className }: CodeBlockProps) {
       </div>
       <pre
         className={cn(
-          "overflow-x-auto p-4 text-[13px] leading-relaxed",
+          "overflow-x-auto p-4 text-[13px] leading-relaxed bg-[#030712]",
           "[&::-webkit-scrollbar]:h-1.5",
           "[&::-webkit-scrollbar-track]:bg-transparent",
           "[&::-webkit-scrollbar-thumb]:rounded-full",
-          "[&::-webkit-scrollbar-thumb]:bg-neutral-800",
+          "[&::-webkit-scrollbar-thumb]:bg-white/10",
         )}
       >
-        <code className="text-neutral-300">{children}</code>
+        <code className="text-white/80">{children}</code>
       </pre>
     </div>
   );
@@ -79,7 +82,7 @@ function extractText(node: React.ReactNode): string {
 
 export function InlineCode({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded bg-neutral-800 px-1.5 py-0.5 text-[13px] font-medium text-neutral-200">
+    <code className="rounded-md bg-white/[0.08] border border-white/[0.06] px-1.5 py-0.5 text-[13px] font-medium text-white/80">
       {children}
     </code>
   );

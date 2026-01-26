@@ -44,6 +44,14 @@ const navigation: NavSection[] = [
     title: "Help",
     items: [{ title: "Troubleshooting", href: "/docs/troubleshooting" }],
   },
+  ...(process.env.NODE_ENV === "development"
+    ? [
+        {
+          title: "Dev",
+          items: [{ title: "Test Page", href: "/docs/test" }],
+        },
+      ]
+    : []),
 ];
 
 export function DocsNav() {
@@ -68,7 +76,7 @@ export function DocsNav() {
                   {isActive && (
                     <motion.div
                       layoutId="docs-nav-indicator"
-                      className="absolute inset-0 rounded-md bg-neutral-800"
+                      className="absolute inset-0 rounded-md bg-white/5 border border-white/10"
                       transition={{
                         type: "spring",
                         bounce: 0.15,
@@ -80,8 +88,8 @@ export function DocsNav() {
                     className={cn(
                       "relative z-10 transition-colors",
                       isActive
-                        ? "text-neutral-100"
-                        : "text-neutral-400 hover:text-neutral-200",
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {item.title}

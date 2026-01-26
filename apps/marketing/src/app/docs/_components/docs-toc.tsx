@@ -95,8 +95,8 @@ export function DocsToc() {
               "block text-sm py-1 transition-colors border-l-2 -ml-px pl-3",
               heading.level === 3 && "pl-6",
               activeId === heading.id
-                ? "text-neutral-100 border-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300 border-transparent",
+                ? "text-foreground border-foreground"
+                : "text-muted-foreground hover:text-foreground/80 border-transparent",
             )}
           >
             {heading.text}

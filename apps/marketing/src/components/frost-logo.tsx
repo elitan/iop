@@ -14,8 +14,8 @@ export function FrostLogo({ className, size = 32 }: FrostLogoProps) {
     >
       <defs>
         <radialGradient id="frost-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(56,189,248,0.3)" />
-          <stop offset="100%" stopColor="rgba(56,189,248,0)" />
+          <stop offset="0%" stopColor="rgba(96,165,250,0.3)" />
+          <stop offset="100%" stopColor="rgba(96,165,250,0)" />
         </radialGradient>
         <radialGradient id="frost-inner" cx="50%" cy="30%" r="60%">
           <stop offset="0%" stopColor="#ffffff" />

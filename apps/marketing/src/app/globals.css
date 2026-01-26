@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @font-face {
   font-family: "Geist";
@@ -46,25 +47,34 @@
 }
 
 :root {
-  --color-accent-rgb: 249, 115, 22;
+  --color-accent-rgb: 255, 255, 255;
+  --color-glow-rgb: 30, 64, 120;
 }
 
 @theme {
-  --color-background: #050508;
-  --color-foreground: #fafafa;
-  --color-card: #0d0d12;
-  --color-card-hover: #12121a;
-  --color-border: #1e1e2a;
-  --color-border-subtle: #14141c;
-  --color-muted-foreground: #71717a;
-  --color-muted: #52525b;
-  --color-accent: #f97316;
+  --color-background: #030712;
+  --color-foreground: #f8fafc;
+  --color-card: #0a1628;
+  --color-card-hover: #0f1f36;
+  --color-border: #1e3a5f;
+  --color-border-subtle: #0f2744;
+  --color-muted-foreground: #94a3b8;
+  --color-muted: #64748b;
+  --color-accent: #ffffff;
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: "Geist", system-ui, -apple-system, sans-serif;
+}
+
+.blue-glow {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    rgba(var(--color-glow-rgb), 0.4),
+    transparent 70%
+  );
 }
 
 ::selection {
@@ -155,8 +165,9 @@ body {
 
 .animated-border {
   position: relative;
-  background: var(--color-card);
+  background: #060d1a;
   border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .animated-border::before {
@@ -167,19 +178,25 @@ body {
   padding: 1px;
   background: linear-gradient(
     var(--angle),
-    transparent 40%,
-    var(--color-accent) 50%,
-    transparent 60%
+    transparent 30%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 70%
   );
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  animation: border-spin 4s linear infinite;
+  -webkit-mask-composite: xor;
+  animation: border-spin 3.6s linear infinite;
   opacity: 0;
   transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .animated-border:hover::before {
   opacity: 1;
+}
+
+.animated-border:hover {
+  border-color: transparent;
 }
 
 @keyframes scan-line {

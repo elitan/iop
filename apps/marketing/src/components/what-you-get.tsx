@@ -11,6 +11,7 @@ import {
   Settings,
   Zap,
 } from "lucide-react";
+import { IconBox } from "./icon-box";
 
 const features = [
   {
@@ -65,7 +66,7 @@ export function WhatYouGet() {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-sm uppercase tracking-widest text-accent mb-4 block">
+          <span className="text-sm uppercase tracking-widest text-muted-foreground mb-4 block">
             Included
           </span>
           <h2 className="text-3xl md:text-4xl font-bold">
@@ -73,7 +74,7 @@ export function WhatYouGet() {
           </h2>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
           {features.map((feature, i) => (
             <motion.div
               key={feature.title}
@@ -81,13 +82,13 @@ export function WhatYouGet() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
-              className="animated-border p-5"
+              className="group animated-border p-5"
             >
-              <div className="w-9 h-9 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center mb-3">
-                <feature.icon className="text-accent" size={18} />
-              </div>
-              <h3 className="font-semibold mb-1 text-sm">{feature.title}</h3>
-              <p className="text-xs text-muted-foreground">
+              <IconBox icon={feature.icon} className="mb-4" />
+              <h3 className="font-semibold mb-1.5 text-sm text-white/90">
+                {feature.title}
+              </h3>
+              <p className="text-xs text-white/50 leading-relaxed">
                 {feature.description}
               </p>
             </motion.div>

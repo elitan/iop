@@ -1,10 +1,14 @@
 "use client";
 
 import { Github } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { FrostLogo } from "./frost-logo";
 
 export function Header() {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [stars, setStars] = useState<number | null>(null);
 
@@ -36,26 +40,37 @@ export function Header() {
       }`}
     >
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <FrostLogo size={28} />
           <span className="font-semibold text-lg">Frost</span>
-        </a>
+        </Link>
 
         <nav className="hidden md:flex items-center gap-8 select-none">
           {[
-            { href: "/docs", label: "Docs" },
-            { href: "/api-reference", label: "API" },
-            { href: "/#features", label: "Features" },
-            { href: "/#install", label: "Install" },
-          ].map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {link.label}
-            </a>
-          ))}
+            { href: "/docs", label: "Docs", match: "/docs" },
+            { href: "/api-reference", label: "API", match: "/api-reference" },
+            { href: "/#features", label: "Features", match: null },
+            { href: "/#install", label: "Install", match: null },
+          ].map((link) => {
+            const isActive = link.match && pathname.startsWith(link.match);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "text-sm transition-colors relative",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {link.label}
+                {isActive && (
+                  <span className="absolute -bottom-1 left-0 right-0 h-px bg-foreground" />
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         <a

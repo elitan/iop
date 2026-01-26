@@ -4,36 +4,41 @@ interface TableProps {
 
 export function Table({ children }: TableProps) {
   return (
-    <div className="not-prose my-6 overflow-x-auto rounded-lg border border-neutral-800">
-      <table className="w-full text-sm">{children}</table>
+    <div className="not-prose my-6 overflow-hidden rounded-xl bg-[#060d1a] border border-white/[0.06] relative">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">{children}</table>
+      </div>
     </div>
   );
 }
 
 export function Thead({ children }: TableProps) {
   return (
-    <thead className="border-b border-neutral-800 bg-neutral-900/50">
+    <thead className="border-b border-white/[0.06] bg-white/[0.02]">
       {children}
     </thead>
   );
 }
 
 export function Tbody({ children }: TableProps) {
-  return <tbody className="divide-y divide-neutral-800">{children}</tbody>;
+  return <tbody className="divide-y divide-white/[0.04]">{children}</tbody>;
 }
 
 export function Tr({ children }: TableProps) {
-  return <tr>{children}</tr>;
+  return (
+    <tr className="transition-colors hover:bg-white/[0.02]">{children}</tr>
+  );
 }
 
 export function Th({ children }: TableProps) {
   return (
-    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-400">
+    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-white/50">
       {children}
     </th>
   );
 }
 
 export function Td({ children }: TableProps) {
-  return <td className="px-4 py-3 text-neutral-300">{children}</td>;
+  return <td className="px-4 py-3 text-white/70">{children}</td>;
 }

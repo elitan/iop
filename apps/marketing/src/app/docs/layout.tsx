@@ -7,8 +7,11 @@ export default function DocsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="pt-24">
-      <div className="max-w-6xl mx-auto px-6">
+    <div className="relative pt-24">
+      <div className="absolute inset-0 grid-pattern grid-pattern-fade pointer-events-none" />
+      <div className="absolute inset-0 blue-glow pointer-events-none" />
+
+      <div className="relative max-w-7xl mx-auto px-6">
         <div className="flex gap-8 py-8">
           <aside className="w-56 shrink-0 hidden md:block">
             <div className="sticky top-24">
