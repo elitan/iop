@@ -1,13 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Infinity, X } from "lucide-react";
+import { Check, Infinity as InfinityIcon, X } from "lucide-react";
 
-const unlimited = [
-  "Projects",
-  "Requests",
-  "Builds",
-];
+const unlimited = ["Projects", "Requests", "Builds"];
 
 export function PricingSection() {
   return (
@@ -37,7 +33,7 @@ export function PricingSection() {
               transition={{ delay: i * 0.05 }}
               className="flex items-center gap-2"
             >
-              <Infinity className="text-white/40" size={18} />
+              <InfinityIcon className="text-white/40" size={18} />
               <span className="text-white/80">{item}</span>
             </motion.div>
           ))}
@@ -54,7 +50,8 @@ export function PricingSection() {
               Usage-based platforms
             </div>
             <div className="text-3xl font-bold text-white/60 mb-4">
-              $50–200+<span className="text-lg font-normal text-white/30">/mo</span>
+              $50–200+
+              <span className="text-lg font-normal text-white/30">/mo</span>
             </div>
             <ul className="space-y-2 text-sm text-white/40">
               <li className="flex items-center gap-2">
@@ -103,8 +100,8 @@ export function PricingSection() {
                 20 TB bandwidth included
               </li>
               <li className="flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />
-                2 vCPU · 4 GB RAM · 40 GB SSD
+                <Check size={14} className="text-emerald-400" />2 vCPU · 4 GB
+                RAM · 40 GB SSD
               </li>
             </ul>
           </motion.div>

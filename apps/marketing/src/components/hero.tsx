@@ -7,7 +7,6 @@ import { FrostLogo } from "./frost-logo";
 export function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden pt-16">
-
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
