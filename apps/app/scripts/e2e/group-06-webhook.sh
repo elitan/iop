@@ -72,7 +72,7 @@ log "Waiting for initial deployment: $DEPLOY_INITIAL"
 wait_for_deployment "$DEPLOY_INITIAL" 90 || fail "Initial deployment failed"
 
 COMMIT_SHA="e2etest$(date +%s)"
-WEBHOOK_PAYLOAD="{\"ref\":\"refs/heads/$TEST_BRANCH\",\"after\":\"$COMMIT_SHA\",\"repository\":{\"default_branch\":\"$TEST_BRANCH\",\"clone_url\":\"https://github.com/elitan/frost.git\",\"html_url\":\"https://github.com/elitan/frost\"},\"head_commit\":{\"message\":\"e2e test commit\"}}"
+WEBHOOK_PAYLOAD="{\"ref\":\"refs/heads/$TEST_BRANCH\",\"after\":\"$COMMIT_SHA\",\"repository\":{\"default_branch\":\"$TEST_BRANCH\",\"clone_url\":\"https://github.com/elitan/frost.git\",\"html_url\":\"https://github.com/elitan/frost\"},\"head_commit\":{\"message\":\"e2e test commit\"},\"sender\":{\"login\":\"e2e-test\",\"avatar_url\":\"https://example.com/avatar.png\"}}"
 WEBHOOK_SIGNATURE="sha256=$(echo -n "$WEBHOOK_PAYLOAD" | openssl dgst -sha256 -hmac "$TEST_WEBHOOK_SECRET" | awk '{print $2}')"
 
 log "Sending webhook..."

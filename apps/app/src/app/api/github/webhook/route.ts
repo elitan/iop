@@ -138,10 +138,9 @@ async function handleProductionPush(payload: PushPayload) {
         commitSha,
         commitMessage: commitMessage || undefined,
         trigger: "git",
-        triggeredBy: {
-          username: sender.login,
-          avatarUrl: sender.avatar_url,
-        },
+        triggeredBy: sender
+          ? { username: sender.login, avatarUrl: sender.avatar_url }
+          : undefined,
       });
       deploymentIds.push(deploymentId);
     } catch (err) {
@@ -245,10 +244,9 @@ async function handlePullRequest(rawBody: string) {
         commitSha,
         commitMessage: `PR #${prNumber}: ${prTitle}`,
         trigger: "git",
-        triggeredBy: {
-          username: sender.login,
-          avatarUrl: sender.avatar_url,
-        },
+        triggeredBy: sender
+          ? { username: sender.login, avatarUrl: sender.avatar_url }
+          : undefined,
       });
       deploymentIds.push(deploymentId);
       serviceStatuses.push({
