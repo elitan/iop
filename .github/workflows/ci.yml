@@ -10,6 +10,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+
 env:
   SSH_KEY_NAME: frost-e2e-ci
 
