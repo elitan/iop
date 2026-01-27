@@ -235,7 +235,20 @@ if [ "$GIT_MODE" = true ]; then
   bun install 2>&1
 
   log "Building..."
-  NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1
+  BUILD_OK=false
+  for attempt in 1 2 3; do
+    if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then
+      BUILD_OK=true
+      break
+    fi
+    log "Build failed (attempt $attempt/3), retrying..."
+    rm -rf apps/app/.next
+    sleep 2
+  done
+  if [ "$BUILD_OK" = false ]; then
+    error "Build failed after 3 attempts"
+    exit 1
+  fi
 
   log "Running migrations..."
   bun run migrate 2>&1

@@ -164,7 +164,15 @@ jobs:
         run: bun install
 
       - name: Build
-        run: NEXT_TELEMETRY_DISABLED=1 bun run build
+        run: |
+          for attempt in 1 2 3; do
+            if NEXT_TELEMETRY_DISABLED=1 bun run build; then exit 0; fi
+            echo "Build failed (attempt $attempt/3), retrying..."
+            rm -rf apps/app/.next
+            sleep 2
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
 
       - name: Create release tarball
         run: |

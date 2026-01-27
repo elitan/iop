@@ -58,7 +58,16 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - run: bun run build
+      - name: Build
+        run: |
+          for attempt in 1 2 3; do
+            if bun run build; then exit 0; fi
+            echo "Build failed (attempt $attempt/3), retrying..."
+            rm -rf apps/app/.next
+            sleep 2
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
 
   e2e-vps:
     needs: [build]
@@ -532,7 +541,7 @@ jobs:
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             bun install 2>&1 && \
-            bun run build 2>&1 && \
+            (for attempt in 1 2 3; do if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then exit 0; fi; echo \"Build failed (attempt \$attempt/3), retrying...\"; rm -rf apps/app/.next; sleep 2; done; exit 1) && \
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \
@@ -605,7 +614,7 @@ jobs:
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
             bun install 2>&1 && \
-            bun run build 2>&1 && \
+            (for attempt in 1 2 3; do if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then exit 0; fi; echo \"Build failed (attempt \$attempt/3), retrying...\"; rm -rf apps/app/.next; sleep 2; done; exit 1) && \
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \
             systemctl daemon-reload && \

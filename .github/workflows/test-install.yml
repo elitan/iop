@@ -27,7 +27,15 @@ jobs:
         run: bun run migrate
 
       - name: Build Frost
-        run: bun run build
+        run: |
+          for attempt in 1 2 3; do
+            if bun run build; then exit 0; fi
+            echo "Build failed (attempt $attempt/3), retrying..."
+            rm -rf apps/app/.next
+            sleep 2
+          done
+          echo "Build failed after 3 attempts"
+          exit 1
 
       - name: Prepare standalone
         run: |

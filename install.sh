@@ -258,7 +258,20 @@ else
   rm -rf .next node_modules/.cache
 
   timer "Building (bun run build)..."
-  NEXT_TELEMETRY_DISABLED=1 bun run build
+  BUILD_OK=false
+  for attempt in 1 2 3; do
+    if NEXT_TELEMETRY_DISABLED=1 bun run build; then
+      BUILD_OK=true
+      break
+    fi
+    timer "Build failed (attempt $attempt/3), retrying..."
+    rm -rf apps/app/.next
+    sleep 2
+  done
+  if [ "$BUILD_OK" = false ]; then
+    echo -e "${RED}Build failed after 3 attempts${NC}"
+    exit 1
+  fi
 fi
 
 # Create data directory
