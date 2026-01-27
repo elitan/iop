@@ -9,18 +9,7 @@ DEFAULT_BRANCH="main"
 PR_BRANCH="main"
 TEST_WEBHOOK_SECRET="e2e-preview-secret-$(date +%s)"
 
-if [ "${E2E_LOCAL:-}" != "1" ]; then
-  remote "which sqlite3 || (apt-get update && apt-get install -y sqlite3)"
-fi
-remote "sqlite3 $FROST_DATA_DIR/frost.db \"
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_slug', 'test-app');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_name', 'Test App');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_private_key', 'test-private-key');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_webhook_secret', '$TEST_WEBHOOK_SECRET');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_id', 'test-client-id');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_secret', 'test-client-secret');
-\"" || fail "Failed to insert GitHub app settings"
+insert_github_app_settings "$TEST_WEBHOOK_SECRET" || fail "Failed to insert GitHub app settings"
 
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-preview-test"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
@@ -110,6 +99,6 @@ log "Environment correctly removed"
 
 log "Cleanup..."
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
-remote "sqlite3 $FROST_DATA_DIR/frost.db \"DELETE FROM settings WHERE key LIKE 'github_app_%';\"" || log "Warning: cleanup of settings failed"
+cleanup_github_app_settings
 
 pass
