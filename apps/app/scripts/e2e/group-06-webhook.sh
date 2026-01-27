@@ -41,7 +41,10 @@ TEST_WEBHOOK_SECRET="e2e-test-webhook-secret-$(date +%s)"
 if [ "${E2E_LOCAL:-}" != "1" ]; then
   remote "which sqlite3 || (apt-get update && apt-get install -y sqlite3)"
 fi
-remote "sqlite3 $FROST_DATA_DIR/frost.db \"
+SQLITE_OK=false
+for attempt in 1 2 3; do
+  if remote "sqlite3 $FROST_DATA_DIR/frost.db \"
+BEGIN;
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_slug', 'test-app');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_name', 'Test App');
@@ -49,7 +52,15 @@ INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_private_key', '
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_webhook_secret', '$TEST_WEBHOOK_SECRET');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_id', 'test-client-id');
 INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_secret', 'test-client-secret');
-\"" || fail "Failed to insert GitHub app settings"
+COMMIT;
+\""; then
+    SQLITE_OK=true
+    break
+  fi
+  log "SQLite insert failed (attempt $attempt/3), retrying..."
+  sleep 2
+done
+[ "$SQLITE_OK" = false ] && fail "Failed to insert GitHub app settings after 3 attempts"
 
 SETTING_CHECK=$(remote "sqlite3 $FROST_DATA_DIR/frost.db \"SELECT COUNT(*) FROM settings WHERE key = 'github_app_webhook_secret';\"")
 [ "$SETTING_CHECK" != "1" ] && fail "Webhook secret not written to database"
