@@ -26,8 +26,20 @@ export async function ensureDockerNetworkConfig(): Promise<boolean> {
   const config = readDaemonConfig();
   if (config["default-address-pools"]) return false;
 
+  const { stdout: runningIds } = await execAsync(
+    "docker ps -q 2>/dev/null || true",
+  );
+  const containerIds = runningIds.trim();
+
   config["default-address-pools"] = DEFAULT_ADDRESS_POOLS;
   writeFileSync(DAEMON_JSON, JSON.stringify(config, null, 2));
   await execAsync("systemctl restart docker");
+
+  if (containerIds) {
+    await execAsync(
+      `echo "${containerIds}" | xargs -r docker start 2>/dev/null || true`,
+    );
+  }
+
   return true;
 }

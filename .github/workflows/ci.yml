@@ -498,6 +498,7 @@ jobs:
       - name: Verify pre-upgrade data survived
         if: steps.release.outputs.skip != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-upgrade-verify.sh
           ./apps/app/scripts/e2e-upgrade-verify.sh \
             "${{ steps.server.outputs.ip }}" \

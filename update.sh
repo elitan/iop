@@ -142,8 +142,13 @@ elif command -v jq &> /dev/null; then
   else
     echo "{\"default-address-pools\": $DOCKER_POOLS}" | jq '.' > "$DAEMON_JSON"
   fi
+  RUNNING_CONTAINERS=$(docker ps -q 2>/dev/null || true)
   log "Restarting Docker to apply network config..."
   systemctl restart docker
+  if [ -n "$RUNNING_CONTAINERS" ]; then
+    log "Restarting containers stopped by Docker restart..."
+    echo "$RUNNING_CONTAINERS" | xargs -r docker start 2>/dev/null || true
+  fi
 fi
 
 if [ -f "$BUN_INSTALL/bin/bun" ]; then
