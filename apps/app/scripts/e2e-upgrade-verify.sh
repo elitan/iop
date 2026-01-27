@@ -114,11 +114,42 @@ fi
 echo ""
 echo "=== Verifying container responds ==="
 HOST_PORT=$(echo "$DEPLOYMENT" | jq -r '.hostPort')
+CONTAINER_ID=$(echo "$DEPLOYMENT" | jq -r '.containerId // empty')
 
+echo "  HOST_PORT=$HOST_PORT"
+echo "  CONTAINER_ID=$CONTAINER_ID"
+
+echo ""
+echo "=== Debug: Docker state ==="
+ssh -o StrictHostKeyChecking=no root@$SERVER_IP "
+echo '--- docker ps (all) ---'
+docker ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}'
+echo ''
+echo '--- daemon.json ---'
+cat /etc/docker/daemon.json 2>/dev/null || echo '(no daemon.json)'
+echo ''
+echo '--- dockerd uptime ---'
+systemctl show docker --property=ActiveEnterTimestamp
+echo ''
+echo '--- frost uptime ---'
+systemctl show frost --property=ActiveEnterTimestamp
+echo ''
+echo '--- update log (docker related) ---'
+grep -i -E '(docker|restart|network|pool|daemon)' /opt/frost/data/.update-log 2>/dev/null || echo '(no docker-related lines in update log)'
+echo ''
+if [ -n '$CONTAINER_ID' ]; then
+  echo '--- container inspect (State) ---'
+  docker inspect $CONTAINER_ID --format '{{json .State}}' 2>/dev/null | jq . || echo '(container not found)'
+fi
+" 2>&1 || echo "(debug SSH failed)"
+
+echo ""
 if curl -sf "http://$SERVER_IP:$HOST_PORT" > /dev/null; then
   echo "PASS: Container responding on port $HOST_PORT"
 else
   echo "FAIL: Container not responding on port $HOST_PORT"
+  echo "  curl exit code: $?"
+  curl -v "http://$SERVER_IP:$HOST_PORT" 2>&1 || true
   FAILED=1
 fi
 
