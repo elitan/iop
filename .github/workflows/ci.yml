@@ -69,10 +69,10 @@ jobs:
         include:
           - arch: arm64
             server_type: cax21
-            snapshot_id: "349804713"
+            snapshot_id: "353027283"
           - arch: amd64
             server_type: cx23
-            snapshot_id: "349804999"
+            snapshot_id: "353027282"
 
     name: e2e-vps (${{ matrix.arch }})
 
@@ -216,6 +216,7 @@ jobs:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
+          set -o pipefail
           ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
 
       - name: Collect logs on failure
@@ -276,10 +277,10 @@ jobs:
         include:
           - arch: arm64
             server_type: cax21
-            snapshot_id: "349804713"
+            snapshot_id: "353027283"
           - arch: amd64
             server_type: cx23
-            snapshot_id: "349804999"
+            snapshot_id: "353027282"
 
     name: e2e-upgrade (${{ matrix.arch }})
 
@@ -508,6 +509,7 @@ jobs:
         if: steps.release.outputs.skip != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
+          set -o pipefail
           ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
