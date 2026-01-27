@@ -75,6 +75,21 @@ export const settingsContract = {
     disconnect: oc
       .route({ method: "POST", path: "/settings/github/disconnect" })
       .output(z.object({ success: z.boolean() })),
+
+    testCredentials: oc
+      .route({ method: "PUT", path: "/settings/github/test-credentials" })
+      .input(
+        z.object({
+          appId: z.string(),
+          slug: z.string(),
+          name: z.string(),
+          privateKey: z.string(),
+          webhookSecret: z.string(),
+          clientId: z.string(),
+          clientSecret: z.string(),
+        }),
+      )
+      .output(z.object({ success: z.boolean() })),
   },
 
   wildcard: {

@@ -145,40 +145,15 @@ get_container_name() {
   sanitize_name "frost-${SERVICE_ID}-${DEPLOY_ID}"
 }
 
-ensure_sqlite3() {
-  if [ "${E2E_LOCAL:-}" != "1" ]; then
-    remote "which sqlite3 || (apt-get update && apt-get install -y sqlite3)"
-  fi
-}
-
-insert_github_app_settings() {
+setup_github_app_settings() {
   local WEBHOOK_SECRET=$1
-  ensure_sqlite3
-  local OK=false
-  for attempt in 1 2 3; do
-    if remote "sqlite3 $FROST_DATA_DIR/frost.db \"
-BEGIN;
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_id', 'test-app-id');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_slug', 'test-app');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_name', 'Test App');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_private_key', 'test-private-key');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_webhook_secret', '$WEBHOOK_SECRET');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_id', 'test-client-id');
-INSERT OR REPLACE INTO settings (key, value) VALUES ('github_app_client_secret', 'test-client-secret');
-COMMIT;
-\""; then
-      OK=true
-      break
-    fi
-    echo "SQLite insert failed (attempt $attempt/3), retrying..." >&2
-    sleep 2
-  done
-  [ "$OK" = false ] && return 1
-  return 0
+  api -X PUT "$BASE_URL/api/settings/github/test-credentials" \
+    -d "{\"appId\":\"test-app-id\",\"slug\":\"test-app\",\"name\":\"Test App\",\"privateKey\":\"test-private-key\",\"webhookSecret\":\"$WEBHOOK_SECRET\",\"clientId\":\"test-client-id\",\"clientSecret\":\"test-client-secret\"}" > /dev/null \
+    || return 1
 }
 
 cleanup_github_app_settings() {
-  remote "sqlite3 $FROST_DATA_DIR/frost.db \"DELETE FROM settings WHERE key LIKE 'github_app_%';\"" || echo "Warning: cleanup of settings failed" >&2
+  api -X POST "$BASE_URL/api/settings/github/disconnect" > /dev/null || true
 }
 
 log() {

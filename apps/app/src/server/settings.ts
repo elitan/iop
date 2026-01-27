@@ -13,6 +13,7 @@ import {
   clearGitHubAppCredentials,
   getGitHubAppCredentials,
   getInstallations,
+  saveGitHubAppCredentials,
 } from "@/lib/github";
 import { os } from "./orpc";
 
@@ -226,6 +227,13 @@ export const settings = {
       await clearGitHubAppCredentials();
       return { success: true };
     }),
+
+    testCredentials: os.settings.github.testCredentials.handler(
+      async ({ input }) => {
+        await saveGitHubAppCredentials(input);
+        return { success: true };
+      },
+    ),
   },
 
   wildcard: {

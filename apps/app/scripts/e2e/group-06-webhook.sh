@@ -38,10 +38,7 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 
 log "Testing webhook triggers deployment..."
 TEST_WEBHOOK_SECRET="e2e-test-webhook-secret-$(date +%s)"
-insert_github_app_settings "$TEST_WEBHOOK_SECRET" || fail "Failed to insert GitHub app settings after 3 attempts"
-
-SETTING_CHECK=$(remote "sqlite3 $FROST_DATA_DIR/frost.db \"SELECT COUNT(*) FROM settings WHERE key = 'github_app_webhook_secret';\"")
-[ "$SETTING_CHECK" != "1" ] && fail "Webhook secret not written to database"
+setup_github_app_settings "$TEST_WEBHOOK_SECRET" || fail "Failed to set GitHub app settings"
 
 PROJECT2=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-webhook-deploy"}')
 PROJECT2_ID=$(require_field "$PROJECT2" '.id' "create project2") || fail "Failed to create project2: $PROJECT2"

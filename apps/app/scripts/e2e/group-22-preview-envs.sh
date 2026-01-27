@@ -9,7 +9,7 @@ DEFAULT_BRANCH="main"
 PR_BRANCH="main"
 TEST_WEBHOOK_SECRET="e2e-preview-secret-$(date +%s)"
 
-insert_github_app_settings "$TEST_WEBHOOK_SECRET" || fail "Failed to insert GitHub app settings"
+setup_github_app_settings "$TEST_WEBHOOK_SECRET" || fail "Failed to set GitHub app settings"
 
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-preview-test"}')
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to create project: $PROJECT"
