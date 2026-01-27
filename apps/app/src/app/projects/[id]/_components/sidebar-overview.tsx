@@ -33,6 +33,46 @@ function getGitHubRepoFromUrl(url: string | null): string | null {
   return match ? match[1] : null;
 }
 
+function InternalConnectionString({ service }: { service: Service }) {
+  const internalHost = `${service.hostname ?? service.name}.frost.internal`;
+  const envMap = JSON.parse(service.envVars || "[]").reduce(
+    (acc: Record<string, string>, v: EnvVar) => {
+      acc[v.key] = v.value;
+      return acc;
+    },
+    {},
+  );
+  const connStr = buildConnectionString(
+    service.imageUrl?.split(":")[0] ?? "",
+    internalHost,
+    service.containerPort ?? 5432,
+    envMap,
+  );
+
+  return (
+    <div>
+      <p className="mb-1 text-xs text-neutral-500">
+        Internal Connection (within project)
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
+          {connStr}
+        </code>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard.writeText(connStr);
+            toast.success("Copied to clipboard");
+          }}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface SidebarOverviewProps {
   service: Service;
 }
@@ -237,50 +277,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="mb-1 text-xs text-neutral-500">
-                Internal Connection (within project)
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
-                  {buildConnectionString(
-                    service.imageUrl?.split(":")[0] ?? "",
-                    `${service.hostname ?? service.name}.frost.internal`,
-                    service.containerPort ?? 5432,
-                    JSON.parse(service.envVars || "[]").reduce(
-                      (acc: Record<string, string>, v: EnvVar) => {
-                        acc[v.key] = v.value;
-                        return acc;
-                      },
-                      {},
-                    ),
-                  )}
-                </code>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      buildConnectionString(
-                        service.imageUrl?.split(":")[0] ?? "",
-                        `${service.hostname ?? service.name}.frost.internal`,
-                        service.containerPort ?? 5432,
-                        JSON.parse(service.envVars || "[]").reduce(
-                          (acc: Record<string, string>, v: EnvVar) => {
-                            acc[v.key] = v.value;
-                            return acc;
-                          },
-                          {},
-                        ),
-                      ),
-                    );
-                    toast.success("Copied to clipboard");
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            <InternalConnectionString service={service} />
 
             <div className="border-t border-neutral-700 pt-4">
               <div className="flex items-center justify-between">

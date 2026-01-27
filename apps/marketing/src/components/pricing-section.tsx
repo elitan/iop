@@ -5,6 +5,20 @@ import { Check, Infinity as InfinityIcon, X } from "lucide-react";
 
 const unlimited = ["Projects", "Requests", "Builds"];
 
+const usageBasedDownsides = [
+  "Request limits",
+  "Build minute caps",
+  "Bandwidth overage fees",
+  "Per-seat pricing",
+];
+
+const frostBenefits = [
+  "Unlimited requests",
+  "Unlimited builds",
+  "20 TB bandwidth included",
+  "2 vCPU \u00B7 4 GB RAM \u00B7 40 GB SSD",
+];
+
 export function PricingSection() {
   return (
     <section className="py-24 px-6">
@@ -54,22 +68,12 @@ export function PricingSection() {
               <span className="text-lg font-normal text-white/30">/mo</span>
             </div>
             <ul className="space-y-2 text-sm text-white/40">
-              <li className="flex items-center gap-2">
-                <X size={14} className="text-red-400/50" />
-                Request limits
-              </li>
-              <li className="flex items-center gap-2">
-                <X size={14} className="text-red-400/50" />
-                Build minute caps
-              </li>
-              <li className="flex items-center gap-2">
-                <X size={14} className="text-red-400/50" />
-                Bandwidth overage fees
-              </li>
-              <li className="flex items-center gap-2">
-                <X size={14} className="text-red-400/50" />
-                Per-seat pricing
-              </li>
+              {usageBasedDownsides.map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <X size={14} className="text-red-400/50" />
+                  {item}
+                </li>
+              ))}
             </ul>
           </motion.div>
 
@@ -87,22 +91,12 @@ export function PricingSection() {
               $4<span className="text-lg font-normal text-white/50">/mo</span>
             </div>
             <ul className="space-y-2 text-sm text-white/70">
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />
-                Unlimited requests
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />
-                Unlimited builds
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />
-                20 TB bandwidth included
-              </li>
-              <li className="flex items-center gap-2">
-                <Check size={14} className="text-emerald-400" />2 vCPU · 4 GB
-                RAM · 40 GB SSD
-              </li>
+              {frostBenefits.map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <Check size={14} className="text-emerald-400" />
+                  {item}
+                </li>
+              ))}
             </ul>
           </motion.div>
         </div>

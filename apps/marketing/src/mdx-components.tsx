@@ -33,32 +33,38 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 
       return <CodeBlock>{children}</CodeBlock>;
     },
-    code: ({
+    code({
       children,
       className,
     }: {
       children?: ReactNode;
       className?: string;
-    }) => {
+    }) {
       if (className) {
         return <code className={className}>{children}</code>;
       }
       return <InlineCode>{children}</InlineCode>;
     },
-    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
-      <DocsLink href={href}>{children}</DocsLink>
-    ),
-    table: ({ children }: { children?: ReactNode }) => (
-      <Table>{children}</Table>
-    ),
-    thead: ({ children }: { children?: ReactNode }) => (
-      <Thead>{children}</Thead>
-    ),
-    tbody: ({ children }: { children?: ReactNode }) => (
-      <Tbody>{children}</Tbody>
-    ),
-    tr: ({ children }: { children?: ReactNode }) => <Tr>{children}</Tr>,
-    th: ({ children }: { children?: ReactNode }) => <Th>{children}</Th>,
-    td: ({ children }: { children?: ReactNode }) => <Td>{children}</Td>,
+    a({ href, children }: { href?: string; children?: ReactNode }) {
+      return <DocsLink href={href}>{children}</DocsLink>;
+    },
+    table({ children }: { children?: ReactNode }) {
+      return <Table>{children}</Table>;
+    },
+    thead({ children }: { children?: ReactNode }) {
+      return <Thead>{children}</Thead>;
+    },
+    tbody({ children }: { children?: ReactNode }) {
+      return <Tbody>{children}</Tbody>;
+    },
+    tr({ children }: { children?: ReactNode }) {
+      return <Tr>{children}</Tr>;
+    },
+    th({ children }: { children?: ReactNode }) {
+      return <Th>{children}</Th>;
+    },
+    td({ children }: { children?: ReactNode }) {
+      return <Td>{children}</Td>;
+    },
   };
 }

@@ -22,7 +22,7 @@ export function DocsToc() {
     setHeadings([]);
     setActiveId("");
 
-    const scanHeadings = () => {
+    function scanHeadings() {
       const article = document.querySelector("article");
       if (!article) return;
 
@@ -57,10 +57,10 @@ export function DocsToc() {
         { rootMargin: "-80px 0px -60% 0px" },
       );
 
-      elements.forEach((el) => {
+      for (const el of elements) {
         if (el.id) observerRef.current?.observe(el);
-      });
-    };
+      }
+    }
 
     const timeout = setTimeout(scanHeadings, 50);
 

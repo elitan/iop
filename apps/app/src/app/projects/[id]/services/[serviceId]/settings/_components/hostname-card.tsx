@@ -64,6 +64,9 @@ export function HostnameCard({ serviceId }: HostnameCardProps) {
 
   if (!service) return null;
 
+  const SUFFIX = ".frost.internal";
+  const fullAddress = `${hostname || "<hostname>"}${SUFFIX}:${service.containerPort ?? 8080}`;
+
   return (
     <SettingCard
       title="Hostname"
@@ -92,13 +95,12 @@ export function HostnameCard({ serviceId }: HostnameCardProps) {
               size={Math.max(hostname.length, 10) + 1}
               className="bg-transparent text-neutral-100 placeholder:text-neutral-500 focus:outline-none border-b border-dashed border-neutral-600 focus:border-neutral-400"
             />
-            <span className="text-neutral-500">.frost.internal</span>
+            <span className="text-neutral-500">{SUFFIX}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <code className="text-sm text-neutral-500 font-mono">
-            {hostname || "<hostname>"}.frost.internal:
-            {service.containerPort ?? 8080}
+            {fullAddress}
           </code>
           <Button
             type="button"
@@ -107,7 +109,7 @@ export function HostnameCard({ serviceId }: HostnameCardProps) {
             className="h-6 w-6 text-neutral-500 hover:text-neutral-300"
             onClick={() => {
               navigator.clipboard.writeText(
-                `${hostname}.frost.internal:${service.containerPort ?? 8080}`,
+                `${hostname}${SUFFIX}:${service.containerPort ?? 8080}`,
               );
               toast.success("Copied to clipboard");
             }}

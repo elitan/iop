@@ -187,18 +187,14 @@ export function buildWildcardSlug(
   environmentName?: string,
 ): string {
   if (!environmentName) {
-    const slug = `${serviceHostname}-${projectHostname}`;
-    return slug.length > DNS_LABEL_MAX
-      ? slug.substring(0, DNS_LABEL_MAX)
-      : slug;
+    return `${serviceHostname}-${projectHostname}`.substring(0, DNS_LABEL_MAX);
   }
 
   const fixedParts = serviceHostname.length + projectHostname.length + 2;
   const availableForEnv = DNS_LABEL_MAX - fixedParts;
 
   if (availableForEnv <= 0) {
-    const slug = `${serviceHostname}-${projectHostname}`;
-    return slug.substring(0, DNS_LABEL_MAX);
+    return `${serviceHostname}-${projectHostname}`.substring(0, DNS_LABEL_MAX);
   }
 
   const truncatedEnv = environmentName
