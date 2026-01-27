@@ -245,7 +245,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
                 <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
                   {buildConnectionString(
                     service.imageUrl?.split(":")[0] ?? "",
-                    service.name,
+                    `${service.hostname ?? service.name}.frost.internal`,
                     service.containerPort ?? 5432,
                     JSON.parse(service.envVars || "[]").reduce(
                       (acc: Record<string, string>, v: EnvVar) => {
@@ -263,7 +263,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
                     navigator.clipboard.writeText(
                       buildConnectionString(
                         service.imageUrl?.split(":")[0] ?? "",
-                        service.name,
+                        `${service.hostname ?? service.name}.frost.internal`,
                         service.containerPort ?? 5432,
                         JSON.parse(service.envVars || "[]").reduce(
                           (acc: Record<string, string>, v: EnvVar) => {

@@ -3,13 +3,12 @@ import type { Selectable } from "kysely";
 import { addLatestDeployment, addLatestDeployments, db } from "@/lib/db";
 import type { Services } from "@/lib/db-types";
 import { deployService } from "@/lib/deployer";
-import { stopContainer } from "@/lib/docker";
 import { syncCaddyConfig } from "@/lib/domains";
+import { cleanupService } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
-import { removeSSLCerts } from "@/lib/ssl";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
-import { buildVolumeName, getVolumeSize, removeVolume } from "@/lib/volumes";
+import { buildVolumeName, getVolumeSize } from "@/lib/volumes";
 import { os } from "./orpc";
 
 export const services = {
@@ -287,37 +286,7 @@ export const services = {
   }),
 
   delete: os.services.delete.handler(async ({ input }) => {
-    const service = await db
-      .selectFrom("services")
-      .select(["serviceType", "volumes"])
-      .where("id", "=", input.id)
-      .executeTakeFirst();
-
-    const deployments = await db
-      .selectFrom("deployments")
-      .select("containerId")
-      .where("serviceId", "=", input.id)
-      .execute();
-
-    for (const deployment of deployments) {
-      if (deployment.containerId) {
-        await stopContainer(deployment.containerId);
-      }
-    }
-
-    if (service?.volumes && service.volumes !== "[]") {
-      const volumeConfig = JSON.parse(service.volumes) as {
-        name: string;
-        path: string;
-      }[];
-      for (const v of volumeConfig) {
-        await removeVolume(buildVolumeName(input.id, v.name));
-      }
-    }
-    if (service?.serviceType === "database") {
-      await removeSSLCerts(input.id);
-    }
-
+    await cleanupService(input.id);
     await db.deleteFrom("services").where("id", "=", input.id).execute();
 
     try {

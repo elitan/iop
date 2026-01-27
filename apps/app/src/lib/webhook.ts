@@ -2,9 +2,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
 import { db } from "./db";
-import { removeNetwork, stopContainer } from "./docker";
 import { getDomainsForService } from "./domains";
 import { normalizeGitHubUrl, updatePRComment } from "./github";
+import { cleanupEnvironment } from "./lifecycle";
 import { getPreferredDomain } from "./service-url";
 import { createService } from "./services";
 import { slugify } from "./slugify";
@@ -211,31 +211,6 @@ export async function cloneServiceToEnvironment(
   });
 
   return service.id;
-}
-
-export async function cleanupEnvironment(environment: {
-  id: string;
-  projectId: string;
-}): Promise<void> {
-  const deployments = await db
-    .selectFrom("deployments")
-    .select(["id", "containerId"])
-    .where("environmentId", "=", environment.id)
-    .execute();
-
-  for (const deployment of deployments) {
-    if (deployment.containerId) {
-      await stopContainer(deployment.containerId);
-    }
-  }
-
-  await removeNetwork(
-    `frost-net-${environment.projectId}-${environment.id}`.toLowerCase(),
-  );
-  await db
-    .deleteFrom("environments")
-    .where("id", "=", environment.id)
-    .execute();
 }
 
 export async function deletePreviewEnvironment(

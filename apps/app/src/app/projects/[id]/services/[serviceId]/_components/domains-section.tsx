@@ -444,20 +444,23 @@ export function DomainsSection({
 
         {domains && domains.length === 0 && !showAddForm && (
           <div className="text-sm text-neutral-500">
-            <p>No domains configured.</p>
-            {!wildcardConfigured && (
-              <p className="mt-2">
-                Configure a{" "}
-                <a
-                  href="/settings/domain"
-                  className="text-blue-400 hover:underline"
-                >
-                  wildcard domain
-                </a>{" "}
-                in settings for auto-generated URLs, or add a custom domain
-                below.
-              </p>
-            )}
+            <p>No external domains configured.</p>
+            <p className="mt-2">
+              Add a domain above to make this service publicly accessible.
+              {!wildcardConfigured && (
+                <>
+                  {" "}
+                  Or configure a{" "}
+                  <a
+                    href="/settings/domain"
+                    className="text-blue-400 hover:underline"
+                  >
+                    wildcard domain
+                  </a>{" "}
+                  for auto-generated URLs.
+                </>
+              )}
+            </p>
           </div>
         )}
       </CardContent>

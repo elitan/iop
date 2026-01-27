@@ -2,9 +2,9 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
+import { cleanupEnvironment } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
-import { cleanupEnvironment } from "@/lib/webhook";
 import { os } from "./orpc";
 
 export const environments = {

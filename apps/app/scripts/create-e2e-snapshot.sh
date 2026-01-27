@@ -3,6 +3,7 @@ set -e
 
 HETZNER_TOKEN="${HETZNER_API_KEY:?HETZNER_API_KEY required}"
 SSH_KEY_NAME="${SSH_KEY_NAME:-frost-e2e-ci}"
+SSH_KEY_FILE="${SSH_KEY_FILE:-$HOME/.ssh/frost-e2e-ci}"
 
 usage() {
   echo "Usage: $0 <arch>"
@@ -43,13 +44,15 @@ echo "Waiting for server to be ready..."
 sleep 60
 
 echo "Setting up server..."
-ssh -o StrictHostKeyChecking=no root@$SERVER_IP bash << 'SETUP'
+ssh -i "$SSH_KEY_FILE" -o StrictHostKeyChecking=no root@$SERVER_IP bash << 'SETUP'
 set -e
 apt-get update
 apt-get install -y docker.io git curl unzip
 
 systemctl enable docker
 systemctl start docker
+
+systemctl disable --now apt-daily.service apt-daily-upgrade.service unattended-upgrades.service
 
 echo "Installing Bun..."
 curl -fsSL https://bun.sh/install | bash

@@ -5,6 +5,7 @@ import { acmeIssuer, type DnsConfig, dnsAcmeIssuer } from "./caddy";
 import { db } from "./db";
 
 const CADDY_ADMIN = "http://localhost:2019";
+const DNS_LABEL_MAX = 63;
 
 export interface DomainInput {
   domain: string;
@@ -180,6 +181,32 @@ export async function backfillWildcardDomains(): Promise<number> {
   return count;
 }
 
+export function buildWildcardSlug(
+  serviceHostname: string,
+  projectHostname: string,
+  environmentName?: string,
+): string {
+  if (!environmentName) {
+    const slug = `${serviceHostname}-${projectHostname}`;
+    return slug.length > DNS_LABEL_MAX
+      ? slug.substring(0, DNS_LABEL_MAX)
+      : slug;
+  }
+
+  const fixedParts = serviceHostname.length + projectHostname.length + 2;
+  const availableForEnv = DNS_LABEL_MAX - fixedParts;
+
+  if (availableForEnv <= 0) {
+    const slug = `${serviceHostname}-${projectHostname}`;
+    return slug.substring(0, DNS_LABEL_MAX);
+  }
+
+  const truncatedEnv = environmentName
+    .substring(0, availableForEnv)
+    .replace(/-+$/, "");
+  return `${serviceHostname}-${truncatedEnv}-${projectHostname}`;
+}
+
 export async function createWildcardDomain(
   serviceId: string,
   environmentId: string,
@@ -192,9 +219,11 @@ export async function createWildcardDomain(
   const wildcardBase = await getSetting("wildcard_domain");
   if (!wildcardBase) return;
 
-  const slug = environmentName
-    ? `${serviceHostname}-${environmentName}-${projectHostname}`
-    : `${serviceHostname}-${projectHostname}`;
+  const slug = buildWildcardSlug(
+    serviceHostname,
+    projectHostname,
+    environmentName,
+  );
   let domain: string | null = null;
 
   for (let i = 0; i < 10; i++) {
