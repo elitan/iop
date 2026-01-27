@@ -245,6 +245,18 @@ jobs:
           echo "=== Docker containers ==="
           ssh root@${{ steps.server.outputs.ip }} "docker ps -a" || true
 
+          echo ""
+          echo "=== System resources ==="
+          ssh root@${{ steps.server.outputs.ip }} "free -h; echo '---'; df -h /; echo '---'; uname -a" || true
+
+          echo ""
+          echo "=== Bun version ==="
+          ssh root@${{ steps.server.outputs.ip }} "bun --version" || true
+
+          echo ""
+          echo "=== Git state ==="
+          ssh root@${{ steps.server.outputs.ip }} "cd /opt/frost && git log --oneline -5 && echo '---' && git status --short" || true
+
       - name: Delete server
         if: always() && steps.server.outputs.server_id
         run: |
@@ -662,6 +674,22 @@ jobs:
           echo ""
           echo "=== Update result (if exists) ==="
           ssh root@${{ steps.server.outputs.ip }} "cat /opt/frost/data/.update-result 2>/dev/null" || echo "(no update result)"
+
+          echo ""
+          echo "=== System resources ==="
+          ssh root@${{ steps.server.outputs.ip }} "free -h; echo '---'; df -h /; echo '---'; uname -a" || true
+
+          echo ""
+          echo "=== Bun version ==="
+          ssh root@${{ steps.server.outputs.ip }} "bun --version" || true
+
+          echo ""
+          echo "=== Git state ==="
+          ssh root@${{ steps.server.outputs.ip }} "cd /opt/frost && git log --oneline -5 && echo '---' && git status --short" || true
+
+          echo ""
+          echo "=== .next cache state ==="
+          ssh root@${{ steps.server.outputs.ip }} "ls -la /opt/frost/apps/app/.next/ 2>/dev/null | head -20" || echo "(no .next dir)"
 
       - name: Delete server
         if: always() && steps.server.outputs.server_id
