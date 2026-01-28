@@ -110,7 +110,7 @@ else
   systemctl restart docker
 fi
 
-# Install Caddy with DNS modules if missing
+# Install Caddy with DNS modules if missing (pinned; update when upgrading Caddy)
 CADDY_VERSION="v2.10.2"
 
 if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
