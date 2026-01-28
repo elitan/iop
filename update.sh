@@ -109,7 +109,7 @@ curl -fsSL https://bun.sh/install 2>/dev/null | bash > /dev/null 2>&1 || true
 
 mkdir -p /usr/local/bin
 
-# Rebuild Caddy if DNS modules missing (fixes apt-installed Caddy)
+# Install Caddy with DNS modules if missing (pinned; update when upgrading Caddy)
 CADDY_VERSION="v2.10.2"
 
 if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
