@@ -110,42 +110,24 @@ else
   systemctl restart docker
 fi
 
-# Install Go if not present (needed for xcaddy)
-if ! command -v go &> /dev/null; then
-  timer "Installing Go..."
-  GO_VERSION="1.25.6"
-  ARCH=$(uname -m)
-  case $ARCH in
-    x86_64) GO_ARCH="amd64" ;;
-    aarch64|arm64) GO_ARCH="arm64" ;;
-    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-  esac
-  curl -4 -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tar.gz
-  rm -rf /usr/local/go
-  tar -C /usr/local -xzf /tmp/go.tar.gz
-  rm /tmp/go.tar.gz
-  export PATH="/usr/local/go/bin:$PATH"
-else
-  timer "Go already installed"
-fi
-export PATH="/usr/local/go/bin:$PATH"
+# Install Caddy with DNS modules if missing
+CADDY_VERSION="v2.10.2"
 
-# Install/rebuild Caddy with DNS modules if missing
 if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
-  timer "Building Caddy with DNS modules..."
+  timer "Downloading Caddy ${CADDY_VERSION} with DNS modules..."
 
   systemctl stop caddy 2>/dev/null || true
   rm -f /usr/bin/caddy
 
-  timer "Installing xcaddy..."
-  GOPROXY=direct go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
-  export PATH="$HOME/go/bin:$PATH"
+  ARCH=$(uname -m)
+  case $ARCH in
+    x86_64) CADDY_ARCH="amd64" ;;
+    aarch64|arm64) CADDY_ARCH="arm64" ;;
+    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+  esac
 
-  cd /tmp
-  GOPROXY=direct xcaddy build --with github.com/caddy-dns/cloudflare
-  mv caddy /usr/bin/caddy
+  curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}&p=github.com/caddy-dns/cloudflare&version=${CADDY_VERSION}" -o /usr/bin/caddy
   chmod +x /usr/bin/caddy
-  cd -
 
   timer "Configuring Caddy service..."
   groupadd --system caddy 2>/dev/null || true

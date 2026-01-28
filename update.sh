@@ -110,20 +110,22 @@ curl -fsSL https://bun.sh/install 2>/dev/null | bash > /dev/null 2>&1 || true
 mkdir -p /usr/local/bin
 
 # Rebuild Caddy if DNS modules missing (fixes apt-installed Caddy)
+CADDY_VERSION="v2.10.2"
+
 if ! caddy list-modules 2>/dev/null | grep -q "dns.providers.cloudflare"; then
-  log "Rebuilding Caddy with DNS modules..."
+  log "Downloading Caddy ${CADDY_VERSION} with DNS modules..."
   systemctl stop caddy 2>/dev/null || true
   rm -f /usr/bin/caddy
 
-  export PATH="/usr/local/go/bin:$PATH"
-  go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest 2>/dev/null || true
-  export PATH="$HOME/go/bin:$PATH"
+  ARCH=$(uname -m)
+  case $ARCH in
+    x86_64) CADDY_ARCH="amd64" ;;
+    aarch64|arm64) CADDY_ARCH="arm64" ;;
+    *) log "Unsupported architecture: $ARCH"; exit 1 ;;
+  esac
 
-  cd /tmp
-  xcaddy build --with github.com/caddy-dns/cloudflare
-  mv caddy /usr/bin/caddy
+  curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${CADDY_ARCH}&p=github.com/caddy-dns/cloudflare&version=${CADDY_VERSION}" -o /usr/bin/caddy
   chmod +x /usr/bin/caddy
-  cd - > /dev/null
 
   systemctl start caddy 2>/dev/null || true
 fi
