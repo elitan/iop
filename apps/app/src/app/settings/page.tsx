@@ -1,3 +1,4 @@
+import { AutoUpdateCard } from "./_components/auto-update-card";
 import { GeneralSection } from "./_components/general-section";
 import { SessionSection } from "./_components/session-section";
 import { SystemSection } from "./_components/system-section";
@@ -7,6 +8,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <GeneralSection />
       <SystemSection />
+      <AutoUpdateCard />
       <SessionSection />
     </div>
   );

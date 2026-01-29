@@ -33,4 +33,18 @@ export const updatesContract = {
   clearResult: oc
     .route({ method: "DELETE", path: "/updates/result" })
     .output(z.object({ success: z.boolean() })),
+
+  getAutoUpdate: oc
+    .route({ method: "GET", path: "/updates/auto" })
+    .output(z.object({ enabled: z.boolean(), hour: z.number() })),
+
+  updateAutoUpdate: oc
+    .route({ method: "POST", path: "/updates/auto" })
+    .input(
+      z.object({
+        enabled: z.boolean().optional(),
+        hour: z.number().min(0).max(23).optional(),
+      }),
+    )
+    .output(z.object({ enabled: z.boolean(), hour: z.number() })),
 };

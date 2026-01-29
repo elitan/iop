@@ -26,6 +26,10 @@ export async function register() {
     startCleanupScheduler();
     console.log("[startup] cleanup scheduler: started");
 
+    const { startUpdateScheduler } = await import("./lib/update-scheduler");
+    startUpdateScheduler();
+    console.log("[startup] update scheduler: started");
+
     const { syncCaddyConfig } = await import("./lib/domains");
     try {
       const result = await syncCaddyConfig();

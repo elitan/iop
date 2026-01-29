@@ -1,3 +1,4 @@
+import { getSetting, setSetting } from "@/lib/auth";
 import {
   applyUpdate,
   checkForUpdate,
@@ -16,6 +17,20 @@ function formatUpdateInfo(info: Awaited<ReturnType<typeof getUpdateStatus>>) {
     lastCheck: info.lastCheck ? new Date(info.lastCheck).toISOString() : null,
     restarting: false,
     changelog: info.releaseNotes,
+  };
+}
+
+const DEFAULT_AUTO_UPDATE_HOUR = 4;
+
+async function getAutoUpdateSettings(): Promise<{
+  enabled: boolean;
+  hour: number;
+}> {
+  const enabled = await getSetting("auto_update_enabled");
+  const hourStr = await getSetting("auto_update_hour");
+  return {
+    enabled: enabled !== "false",
+    hour: hourStr ? Number.parseInt(hourStr, 10) : DEFAULT_AUTO_UPDATE_HOUR,
   };
 }
 
@@ -68,5 +83,17 @@ export const updates = {
   clearResult: os.updates.clearResult.handler(async () => {
     await clearPersistedUpdateResult();
     return { success: true };
+  }),
+
+  getAutoUpdate: os.updates.getAutoUpdate.handler(getAutoUpdateSettings),
+
+  updateAutoUpdate: os.updates.updateAutoUpdate.handler(async ({ input }) => {
+    if (input.enabled !== undefined) {
+      await setSetting("auto_update_enabled", input.enabled ? "true" : "false");
+    }
+    if (input.hour !== undefined) {
+      await setSetting("auto_update_hour", input.hour.toString());
+    }
+    return getAutoUpdateSettings();
   }),
 };
