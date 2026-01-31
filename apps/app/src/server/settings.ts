@@ -1,6 +1,13 @@
 import { promises as dns } from "node:dns";
 import https from "node:https";
-import { getSetting, setSetting } from "@/lib/auth";
+import {
+  getAdminPasswordHash,
+  getSetting,
+  hashPassword,
+  setAdminPasswordHash,
+  setSetting,
+  verifyPassword,
+} from "@/lib/auth";
 import { configureDomain, isCaddyRunning, lockToDomain } from "@/lib/caddy";
 import { createWildcardARecord } from "@/lib/cloudflare";
 import {
@@ -183,6 +190,25 @@ export const settings = {
     await setSetting("ssl_staging", staging ? "true" : "false");
 
     return { success: true, status: "pending" };
+  }),
+
+  changePassword: os.settings.changePassword.handler(async ({ input }) => {
+    const { currentPassword, newPassword } = input;
+
+    const storedHash = await getAdminPasswordHash();
+    if (!storedHash) {
+      throw new Error("No password configured");
+    }
+
+    const valid = await verifyPassword(currentPassword, storedHash);
+    if (!valid) {
+      throw new Error("Current password is incorrect");
+    }
+
+    const newHash = await hashPassword(newPassword);
+    await setAdminPasswordHash(newHash);
+
+    return { success: true };
   }),
 
   github: {

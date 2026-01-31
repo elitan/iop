@@ -92,6 +92,16 @@ export const settingsContract = {
       .output(z.object({ success: z.boolean() })),
   },
 
+  changePassword: oc
+    .route({ method: "PUT", path: "/settings/password" })
+    .input(
+      z.object({
+        currentPassword: z.string(),
+        newPassword: z.string().min(4),
+      }),
+    )
+    .output(z.object({ success: z.boolean() })),
+
   wildcard: {
     get: oc.route({ method: "GET", path: "/settings/wildcard" }).output(
       z.object({
