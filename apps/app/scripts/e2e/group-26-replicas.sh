@@ -16,7 +16,7 @@ ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environme
 log "Test 1: Default single replica"
 
 SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
-  -d '{"name":"replica-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+  -d '{"name":"replica-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"drainTimeout":0}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 
 sleep 1
@@ -68,7 +68,7 @@ for i in 0 1 2; do
 done
 
 SANITIZED_PREFIX=$(sanitize_name "frost-${SERVICE_ID}")
-sleep 3
+sleep 5
 DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
 [ "$DOCKER_COUNT" = "3" ] || fail "Expected 3 docker containers, got $DOCKER_COUNT"
 log "Test 2 passed: 3 replicas running"
