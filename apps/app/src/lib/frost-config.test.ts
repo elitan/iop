@@ -113,6 +113,27 @@ resources:
   test("throws on unknown keys (strict mode)", () => {
     expect(() => parseFrostConfig("unknown_key: value")).toThrow();
   });
+
+  test("parses deploy.replicas", () => {
+    const config = parseFrostConfig("deploy:\n  replicas: 3");
+    expect(config.deploy?.replicas).toBe(3);
+  });
+
+  test("throws on replicas < 1", () => {
+    expect(() => parseFrostConfig("deploy:\n  replicas: 0")).toThrow();
+  });
+
+  test("throws on replicas > 10", () => {
+    expect(() => parseFrostConfig("deploy:\n  replicas: 11")).toThrow();
+  });
+
+  test("parses deploy with replicas + drain_timeout", () => {
+    const config = parseFrostConfig(
+      "deploy:\n  replicas: 3\n  drain_timeout: 30",
+    );
+    expect(config.deploy?.replicas).toBe(3);
+    expect(config.deploy?.drain_timeout).toBe(30);
+  });
 });
 
 function makeService(overrides: Record<string, unknown> = {}) {
@@ -168,5 +189,19 @@ describe("mergeConfigWithService", () => {
     expect(result.healthCheckTimeout).toBe(60);
     expect(result.memoryLimit).toBe("1g");
     expect(result.cpuLimit).toBe(2);
+  });
+
+  test("config.deploy.replicas overrides service replicaCount", () => {
+    const service = makeService({ replicaCount: 1 });
+    const config: FrostConfig = { deploy: { replicas: 3 } };
+    const result = mergeConfigWithService(service, config);
+    expect(result.replicaCount).toBe(3);
+  });
+
+  test("service replicaCount preserved when config omits replicas", () => {
+    const service = makeService({ replicaCount: 1 });
+    const config: FrostConfig = { port: 3000 };
+    const result = mergeConfigWithService(service, config);
+    expect(result.replicaCount).toBe(1);
   });
 });
