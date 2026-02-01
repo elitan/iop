@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { exec } from "node:child_process";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   buildImage,
@@ -193,7 +194,7 @@ describe("volume integration", () => {
 });
 
 const GRACEFUL_IMAGE = "frost-test-graceful-app:latest";
-const GRACEFUL_DOCKERFILE = "test/fixtures/graceful-app/Dockerfile";
+const GRACEFUL_BUILD_DIR = join(REPO_ROOT, "test/fixtures/graceful-app");
 
 describe("graceful stop", () => {
   const CONTAINER_A = "frost-test-graceful-a";
@@ -205,9 +206,8 @@ describe("graceful stop", () => {
     await stopContainer(CONTAINER_A);
     await stopContainer(CONTAINER_B);
     const result = await buildImage({
-      repoPath: REPO_ROOT,
+      repoPath: GRACEFUL_BUILD_DIR,
       imageName: GRACEFUL_IMAGE,
-      dockerfilePath: GRACEFUL_DOCKERFILE,
     });
     if (!result.success) {
       throw new Error(
