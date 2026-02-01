@@ -13,7 +13,7 @@ ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environme
 log "Using environment: $ENV_ID"
 
 SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
-  -d '{"name":"race-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
+  -d '{"name":"race-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"drainTimeout":0}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 log "Created service: $SERVICE_ID"
 
@@ -39,6 +39,7 @@ STATUS_A=$(json_get "$DEPLOY_A_DATA" '.status')
 [ "$STATUS_A" != "cancelled" ] && fail "First deployment should be cancelled, got: $STATUS_A"
 log "First deployment correctly cancelled"
 
+sleep 5
 log "Verifying only one container running..."
 CONTAINER_COUNT=$(remote "docker ps --filter 'label=frost.service.id=$SERVICE_ID' --format '{{.Names}}' | wc -l")
 CONTAINER_COUNT=$(echo "$CONTAINER_COUNT" | tr -d ' ')

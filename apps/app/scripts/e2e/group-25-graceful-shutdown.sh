@@ -38,13 +38,14 @@ DEPLOY2=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
 DEPLOY2_ID=$(require_field "$DEPLOY2" '.deploymentId' "trigger v2 deploy") || fail "Failed: $DEPLOY2"
 wait_for_deployment "$DEPLOY2_ID" 120 || fail "v2 deployment failed"
 
-log "Checking old container logs for SIGTERM..."
-sleep 2
-LOGS=$(remote "docker logs $CONTAINER1_ID 2>&1" 2>/dev/null || echo "")
-if echo "$LOGS" | grep -q "SIGTERM received"; then
-  log "Found 'SIGTERM received' in old container logs"
+log "Checking v2 deploy log for graceful stop messages..."
+sleep 3
+DEPLOY2_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY2_ID")
+BUILD_LOG=$(json_get "$DEPLOY2_DATA" '.buildLog')
+if echo "$BUILD_LOG" | grep -q "Stopping old container (SIGTERM"; then
+  log "Found graceful stop message in deploy log"
 else
-  fail "Expected 'SIGTERM received' in container logs, got: $LOGS"
+  fail "Expected 'Stopping old container (SIGTERM' in deploy log, got: $BUILD_LOG"
 fi
 
 log "Cleanup..."
