@@ -68,6 +68,7 @@ for i in 0 1 2; do
 done
 
 SANITIZED_PREFIX=$(sanitize_name "frost-${SERVICE_ID}")
+sleep 3
 DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
 [ "$DOCKER_COUNT" = "3" ] || fail "Expected 3 docker containers, got $DOCKER_COUNT"
 log "Test 2 passed: 3 replicas running"
