@@ -238,12 +238,19 @@ describe("graceful stop", () => {
     });
     expect(healthy).toBe(true);
 
-    await gracefulStopContainer(CONTAINER_A, 10);
+    const { stdout: logsBefore } = await execAsync(
+      `docker logs ${run.containerId} 2>&1`,
+    ).catch(() => ({ stdout: "" }));
+    expect(logsBefore).toContain("Graceful app running on port");
+
+    await execAsync(`docker stop --time 10 ${CONTAINER_A}`);
 
     const { stdout: logs } = await execAsync(
       `docker logs ${run.containerId} 2>&1`,
     ).catch(() => ({ stdout: "" }));
     expect(logs).toContain("SIGTERM received");
+
+    await execAsync(`docker rm ${CONTAINER_A}`).catch(() => {});
   }, 60000);
 
   test("two containers with same alias both resolve", async () => {

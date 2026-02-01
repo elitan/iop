@@ -256,6 +256,8 @@ describe("zero-downtime deploy", () => {
     ]);
     expect(status2).toBe("running");
 
+    await sleep(5000);
+
     const v1After = await db
       .selectFrom("deployments")
       .select("status")
