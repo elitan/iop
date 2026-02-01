@@ -285,6 +285,11 @@ interface StartReplicasOptions {
 async function startReplicas(
   opts: StartReplicasOptions,
 ): Promise<StartedReplica[]> {
+  await db
+    .deleteFrom("replicas")
+    .where("deploymentId", "=", opts.deploymentId)
+    .execute();
+
   for (let i = 0; i < opts.replicaCount; i++) {
     await db
       .insertInto("replicas")
@@ -482,6 +487,11 @@ async function drainPreviousDeployments(
   }
 
   if (await isDeploymentCancelled(deploymentId)) return;
+
+  await appendLog(
+    deploymentId,
+    `Stopping old container (SIGTERM, ${shutdownTimeout}s timeout)...\n`,
+  );
 
   for (const prev of previousDeployments) {
     const oldReplicas = await db
