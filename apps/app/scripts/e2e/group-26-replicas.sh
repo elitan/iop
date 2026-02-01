@@ -67,7 +67,8 @@ for i in 0 1 2; do
   curl -sf "http://$SERVER_IP:$PORT" > /dev/null || fail "Replica $i not responding on port $PORT"
 done
 
-DOCKER_COUNT=$(remote "docker ps --filter name=frost-${SERVICE_ID} --format '{{.Names}}' | wc -l" | tr -d ' ')
+SANITIZED_PREFIX=$(sanitize_name "frost-${SERVICE_ID}")
+DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
 [ "$DOCKER_COUNT" = "3" ] || fail "Expected 3 docker containers, got $DOCKER_COUNT"
 log "Test 2 passed: 3 replicas running"
 
@@ -89,7 +90,7 @@ for i in 0 1 2; do
 done
 
 sleep 2
-DOCKER_COUNT=$(remote "docker ps --filter name=frost-${SERVICE_ID} --format '{{.Names}}' | wc -l" | tr -d ' ')
+DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
 [ "$DOCKER_COUNT" = "3" ] || fail "Expected 3 containers after redeploy (not 6), got $DOCKER_COUNT"
 log "Test 3 passed: redeploy preserved 3 replicas, old ones stopped"
 
@@ -106,7 +107,7 @@ REPLICA_COUNT4=$(echo "$REPLICAS4" | jq 'length')
 [ "$REPLICA_COUNT4" = "1" ] || fail "Expected 1 replica after scale-down, got $REPLICA_COUNT4"
 
 sleep 2
-DOCKER_COUNT=$(remote "docker ps --filter name=frost-${SERVICE_ID} --format '{{.Names}}' | wc -l" | tr -d ' ')
+DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
 [ "$DOCKER_COUNT" = "1" ] || fail "Expected 1 container after scale-down, got $DOCKER_COUNT"
 log "Test 4 passed: scaled down to 1 replica"
 

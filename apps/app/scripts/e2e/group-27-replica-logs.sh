@@ -12,18 +12,22 @@ PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed to
 log "Getting default environment..."
 ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
 
-log "Creating service with 2 replicas..."
+log "Creating service..."
 SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
-  -d '{"name":"log-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80,"replicaCount":2}')
+  -d '{"name":"log-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 
 sleep 1
 DEPLOYMENTS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
-DEPLOY_ID=$(json_get "$DEPLOYMENTS" '.[0].id // empty')
-if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
-  DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
-  DEPLOY_ID=$(require_field "$DEPLOY" '.deploymentId' "trigger deploy") || fail "Failed: $DEPLOY"
+DEPLOY_INIT_ID=$(json_get "$DEPLOYMENTS" '.[0].id // empty')
+if [ -n "$DEPLOY_INIT_ID" ] && [ "$DEPLOY_INIT_ID" != "null" ]; then
+  wait_for_deployment "$DEPLOY_INIT_ID" || fail "Initial deployment failed"
 fi
+
+log "Setting replicaCount=2 and redeploying..."
+api -X PATCH "$BASE_URL/api/services/$SERVICE_ID" -d '{"replicaCount":2}' > /dev/null
+DEPLOY=$(api -X POST "$BASE_URL/api/services/$SERVICE_ID/deploy")
+DEPLOY_ID=$(require_field "$DEPLOY" '.deploymentId' "trigger deploy") || fail "Failed: $DEPLOY"
 wait_for_deployment "$DEPLOY_ID" || fail "Deployment failed"
 
 REPLICAS=$(api "$BASE_URL/api/deployments/$DEPLOY_ID/replicas")
