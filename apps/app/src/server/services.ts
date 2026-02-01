@@ -266,6 +266,17 @@ export const services = {
     if (service.deployType === "repo" && input.frostFilePath !== undefined) {
       updates.frostFilePath = input.frostFilePath;
     }
+    if (input.replicaCount !== undefined) {
+      if (input.replicaCount > 1) {
+        const volumes = service.volumes;
+        if (volumes && volumes !== "[]") {
+          throw new ORPCError("BAD_REQUEST", {
+            message: "Cannot use replicas with volumes",
+          });
+        }
+      }
+      updates.replicaCount = input.replicaCount;
+    }
 
     if (Object.keys(updates).length > 0) {
       await db

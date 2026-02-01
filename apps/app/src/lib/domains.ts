@@ -305,7 +305,7 @@ export async function verifyDomainDns(domain: string): Promise<DnsStatus> {
 interface DomainRoute {
   domain: string;
   type: "proxy" | "redirect" | "frost-admin";
-  hostPort?: number;
+  hostPorts: number[];
   redirectTarget?: string;
   redirectCode?: number;
   requestTimeout?: number;
@@ -334,15 +334,21 @@ function buildCaddyConfig(
     }
 
     if (route.type === "frost-admin" || route.type === "proxy") {
-      const dial =
+      const upstreams =
         route.type === "frost-admin"
-          ? "localhost:3000"
-          : `localhost:${route.hostPort}`;
+          ? [{ dial: "localhost:3000" }]
+          : route.hostPorts.map((p) => ({ dial: `localhost:${p}` }));
 
       const reverseProxyHandler: Record<string, unknown> = {
         handler: "reverse_proxy",
-        upstreams: [{ dial }],
+        upstreams,
       };
+
+      if (upstreams.length > 1) {
+        reverseProxyHandler.load_balancing = {
+          selection_policy: { policy: "round_robin" },
+        };
+      }
 
       if (route.requestTimeout) {
         reverseProxyHandler.transport = {
@@ -465,46 +471,68 @@ export async function syncCaddyConfig(): Promise<SyncResult> {
     .innerJoin("services", "services.id", "domains.serviceId")
     .innerJoin("deployments", (join) =>
       join
-        .onRef("deployments.serviceId", "=", "services.id")
+        .onRef("deployments.id", "=", "services.currentDeploymentId")
         .on("deployments.status", "=", "running"),
+    )
+    .leftJoin("replicas", (join) =>
+      join
+        .onRef("replicas.deploymentId", "=", "deployments.id")
+        .on("replicas.status", "=", "running"),
     )
     .select([
       "domains.domain",
       "domains.type",
       "domains.redirectTarget",
       "domains.redirectCode",
-      "deployments.hostPort",
+      "deployments.hostPort as deploymentHostPort",
+      "replicas.hostPort as replicaHostPort",
       "services.requestTimeout",
     ])
     .where("domains.dnsVerified", "=", true)
     .execute();
 
-  const routes: DomainRoute[] = [];
+  const routeMap = new Map<string, DomainRoute>();
 
   if (frostDomain) {
-    routes.push({
+    routeMap.set(frostDomain, {
       domain: frostDomain,
       type: "frost-admin",
+      hostPorts: [],
     });
   }
 
   for (const d of verifiedDomains) {
-    if (d.type === "proxy" && d.hostPort) {
-      routes.push({
-        domain: d.domain,
-        type: "proxy",
-        hostPort: d.hostPort,
-        requestTimeout: d.requestTimeout ?? undefined,
-      });
+    if (d.type === "proxy") {
+      const port = d.replicaHostPort ?? d.deploymentHostPort;
+      if (!port) continue;
+
+      const existing = routeMap.get(d.domain);
+      if (existing && existing.type === "proxy") {
+        if (!existing.hostPorts.includes(port)) {
+          existing.hostPorts.push(port);
+        }
+      } else {
+        routeMap.set(d.domain, {
+          domain: d.domain,
+          type: "proxy",
+          hostPorts: [port],
+          requestTimeout: d.requestTimeout ?? undefined,
+        });
+      }
     } else if (d.type === "redirect" && d.redirectTarget) {
-      routes.push({
-        domain: d.domain,
-        type: "redirect",
-        redirectTarget: d.redirectTarget,
-        redirectCode: d.redirectCode || 301,
-      });
+      if (!routeMap.has(d.domain)) {
+        routeMap.set(d.domain, {
+          domain: d.domain,
+          type: "redirect",
+          hostPorts: [],
+          redirectTarget: d.redirectTarget,
+          redirectCode: d.redirectCode || 301,
+        });
+      }
     }
   }
+
+  const routes = Array.from(routeMap.values());
 
   if (routes.length === 0) {
     return { synced: false, serviceDomains: 0, staging };

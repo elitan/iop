@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseRuntimeLogsOptions {
   deploymentId: string;
+  replica?: number;
 }
 
 interface UseRuntimeLogsResult {
@@ -17,6 +18,7 @@ const RECONNECT_DELAY = 2000;
 
 export function useRuntimeLogs({
   deploymentId,
+  replica,
 }: UseRuntimeLogsOptions): UseRuntimeLogsResult {
   const [logs, setLogs] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -46,8 +48,9 @@ export function useRuntimeLogs({
       shouldReconnectRef.current = true;
       setError(null);
 
+      const replicaParam = replica !== undefined ? `&replica=${replica}` : "";
       const es = new EventSource(
-        `/api/deployments/${deploymentId}/logs?tail=100`,
+        `/api/deployments/${deploymentId}/logs?tail=100${replicaParam}`,
       );
       eventSourceRef.current = es;
 
@@ -93,7 +96,7 @@ export function useRuntimeLogs({
         }
       };
     },
-    [deploymentId, disconnect],
+    [deploymentId, disconnect, replica],
   );
 
   useEffect(() => {

@@ -131,6 +131,16 @@ export interface Registries {
   createdAt: number;
 }
 
+export interface Replicas {
+  id: string;
+  deploymentId: string;
+  replicaIndex: number;
+  containerId: string | null;
+  hostPort: number | null;
+  status: Generated<string>;
+  createdAt: Generated<string>;
+}
+
 export interface Services {
   id: string;
   environmentId: string;
@@ -161,6 +171,7 @@ export interface Services {
   icon: string | null;
   frostFilePath: Generated<string | null>;
   drainTimeout: number | null;
+  replicaCount: Generated<number>;
 }
 
 export interface Settings {
@@ -178,6 +189,7 @@ export interface DB {
   metrics: Metrics;
   projects: Projects;
   registries: Registries;
+  replicas: Replicas;
   services: Services;
   settings: Settings;
 }

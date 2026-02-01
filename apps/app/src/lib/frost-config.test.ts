@@ -125,6 +125,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
     cpuLimit: null as number | null,
     shutdownTimeout: null as number | null,
     drainTimeout: null as number | null,
+    replicaCount: 1,
     ...overrides,
   };
 }

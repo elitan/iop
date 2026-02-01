@@ -31,6 +31,15 @@ export const deployments = {
     },
   ),
 
+  getReplicas: os.deployments.getReplicas.handler(async ({ input }) => {
+    return db
+      .selectFrom("replicas")
+      .selectAll()
+      .where("deploymentId", "=", input.id)
+      .orderBy("replicaIndex", "asc")
+      .execute();
+  }),
+
   rollback: os.deployments.rollback.handler(async ({ input }) => {
     const deployment = await db
       .selectFrom("deployments")

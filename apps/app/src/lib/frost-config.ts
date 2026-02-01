@@ -28,6 +28,7 @@ export const frostConfigSchema = z
       .object({
         drain_timeout: z.number().min(0).max(300).optional(),
         shutdown_timeout: z.number().min(1).max(300).optional(),
+        replicas: z.number().min(1).max(10).optional(),
       })
       .optional(),
   })
@@ -118,6 +119,7 @@ type EffectiveService = Pick<
   | "cpuLimit"
   | "drainTimeout"
   | "shutdownTimeout"
+  | "replicaCount"
 >;
 
 export function mergeConfigWithService<T extends EffectiveService>(
@@ -135,5 +137,6 @@ export function mergeConfigWithService<T extends EffectiveService>(
     cpuLimit: config.resources?.cpu ?? service.cpuLimit,
     drainTimeout: config.deploy?.drain_timeout ?? service.drainTimeout,
     shutdownTimeout: config.deploy?.shutdown_timeout ?? service.shutdownTimeout,
+    replicaCount: config.deploy?.replicas ?? service.replicaCount,
   };
 }

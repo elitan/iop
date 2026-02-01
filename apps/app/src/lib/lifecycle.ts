@@ -31,11 +31,24 @@ async function cleanupServiceResources(
 async function stopServiceContainers(serviceId: string): Promise<void> {
   const deployments = await db
     .selectFrom("deployments")
-    .select("containerId")
+    .select(["id", "containerId"])
     .where("serviceId", "=", serviceId)
     .execute();
 
   for (const deployment of deployments) {
+    const replicas = await db
+      .selectFrom("replicas")
+      .select("containerId")
+      .where("deploymentId", "=", deployment.id)
+      .where("containerId", "is not", null)
+      .execute();
+
+    for (const r of replicas) {
+      if (r.containerId) {
+        await stopContainer(r.containerId);
+      }
+    }
+
     if (deployment.containerId) {
       await stopContainer(deployment.containerId);
     }

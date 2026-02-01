@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useMemo } from "react";
 import { LogViewer } from "@/components/log-viewer";
@@ -7,11 +8,58 @@ import { SideDrawer } from "@/components/side-drawer";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import type { Deployment } from "@/lib/api";
+import { orpc } from "@/lib/orpc-client";
 
 interface DeploymentLogsDrawerProps {
   deployment: Deployment | null;
   isOpen: boolean;
   onClose: () => void;
+}
+
+function replicaStatusToDotStatus(
+  status: string,
+): "running" | "failed" | "pending" {
+  if (status === "running") return "running";
+  if (status === "failed") return "failed";
+  return "pending";
+}
+
+function ReplicaStatus({ deploymentId }: { deploymentId: string }) {
+  const { data: replicas } = useQuery({
+    ...orpc.deployments.getReplicas.queryOptions({
+      input: { id: deploymentId },
+    }),
+    refetchInterval: 3000,
+  });
+
+  if (!replicas || replicas.length <= 1) return null;
+
+  const running = replicas.filter((r) => r.status === "running").length;
+
+  return (
+    <div className="mx-4 mt-4 rounded border border-neutral-800 bg-neutral-900/50 p-3">
+      <p className="mb-2 text-xs font-medium text-neutral-400">
+        Replicas ({running}/{replicas.length} running)
+      </p>
+      <div className="space-y-1">
+        {replicas.map((r) => (
+          <div
+            key={r.id}
+            className="flex items-center gap-3 text-xs text-neutral-500"
+          >
+            <span className="w-4 text-neutral-400">{r.replicaIndex}</span>
+            <StatusDot status={replicaStatusToDotStatus(r.status)} />
+            {r.hostPort && <span className="font-mono">:{r.hostPort}</span>}
+            {r.containerId && (
+              <span className="font-mono text-neutral-600">
+                {r.containerId.slice(0, 12)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function DeploymentLogsDrawer({
@@ -62,6 +110,7 @@ export function DeploymentLogsDrawer({
                 {deployment.errorMessage}
               </div>
             )}
+            <ReplicaStatus deploymentId={deployment.id} />
             <LogViewer logs={buildLogLines} emptyMessage="No logs yet..." />
           </div>
         </>

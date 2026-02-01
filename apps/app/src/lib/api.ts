@@ -4,6 +4,7 @@ export type Project = ContractOutputs["projects"]["get"];
 export type ProjectListItem = ContractOutputs["projects"]["list"][number];
 export type Service = ContractOutputs["services"]["get"];
 export type Deployment = ContractOutputs["deployments"]["get"];
+export type Replica = ContractOutputs["deployments"]["getReplicas"][number];
 export type Domain = ContractOutputs["domains"]["get"];
 
 export type ProjectLatestDeployment = NonNullable<

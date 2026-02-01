@@ -55,6 +55,7 @@ export const servicesContract = {
         drainTimeout: z.number().min(0).max(300).optional(),
         registryId: z.string().optional(),
         frostFilePath: z.string().optional(),
+        replicaCount: z.number().min(1).max(10).optional(),
       }),
     )
     .output(servicesSchema),
@@ -92,6 +93,7 @@ export const servicesContract = {
         registryId: z.string().nullable().optional(),
         command: z.string().nullable().optional(),
         frostFilePath: z.string().nullable().optional(),
+        replicaCount: z.number().min(1).max(10).optional(),
       }),
     )
     .output(servicesSchema),

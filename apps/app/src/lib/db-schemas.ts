@@ -444,6 +444,7 @@ export const servicesSchema = z.object({
   hostname: z.string().nullable(),
   currentDeploymentId: z.string().nullable(),
   frostFilePath: z.string().nullable(),
+  replicaCount: z.number(),
   createdAt: z.number(),
 });
 
@@ -476,6 +477,7 @@ export const newServicesSchema = z.object({
   hostname: z.string().nullable(),
   currentDeploymentId: z.string().nullable(),
   frostFilePath: z.string().nullable().optional(),
+  replicaCount: z.number().optional(),
   createdAt: z.number(),
 });
 
@@ -508,6 +510,7 @@ export const servicesUpdateSchema = z.object({
   hostname: z.string().nullable().optional(),
   currentDeploymentId: z.string().nullable().optional(),
   frostFilePath: z.string().nullable().optional(),
+  replicaCount: z.number().optional(),
   createdAt: z.number().optional(),
 });
 
@@ -516,6 +519,47 @@ export type Services = z.infer<typeof servicesSchema>;
 export type NewServices = z.infer<typeof newServicesSchema>;
 
 export type ServicesUpdate = z.infer<typeof servicesUpdateSchema>;
+
+export const replicaStatusSchema = z.enum([
+  "pending",
+  "running",
+  "failed",
+  "stopped",
+]);
+
+export const replicasSchema = z.object({
+  id: z.string(),
+  deploymentId: z.string(),
+  replicaIndex: z.number(),
+  containerId: z.string().nullable(),
+  hostPort: z.number().nullable(),
+  status: z.string(),
+  createdAt: z.string(),
+});
+
+export const newReplicasSchema = z.object({
+  id: z.string(),
+  deploymentId: z.string(),
+  replicaIndex: z.number(),
+  containerId: z.string().nullable(),
+  hostPort: z.number().nullable(),
+  status: z.string().optional(),
+  createdAt: z.string().optional(),
+});
+
+export const replicasUpdateSchema = z.object({
+  id: z.string().optional(),
+  deploymentId: z.string().optional(),
+  replicaIndex: z.number().optional(),
+  containerId: z.string().nullable().optional(),
+  hostPort: z.number().nullable().optional(),
+  status: z.string().optional(),
+  createdAt: z.string().optional(),
+});
+
+export type Replicas = z.infer<typeof replicasSchema>;
+export type NewReplicas = z.infer<typeof newReplicasSchema>;
+export type ReplicasUpdate = z.infer<typeof replicasUpdateSchema>;
 
 export const settingsSchema = z.object({
   key: z.string(),

@@ -212,6 +212,307 @@ function buildFrostEnvVars(
   return vars;
 }
 
+async function cancelActiveDeployments(
+  serviceId: string,
+  excludeDeploymentId?: string,
+): Promise<void> {
+  const inProgressStatuses = [
+    "pending",
+    "cloning",
+    "pulling",
+    "building",
+    "deploying",
+  ] as const;
+
+  let query = db
+    .selectFrom("deployments")
+    .select(["id", "containerId"])
+    .where("serviceId", "=", serviceId)
+    .where("status", "in", [...inProgressStatuses]);
+
+  if (excludeDeploymentId) {
+    query = query.where("id", "!=", excludeDeploymentId);
+  }
+
+  const activeDeployments = await query.execute();
+
+  for (const dep of activeDeployments) {
+    if (dep.containerId) {
+      await stopContainer(dep.containerId);
+    }
+    const depReplicas = await db
+      .selectFrom("replicas")
+      .select("containerId")
+      .where("deploymentId", "=", dep.id)
+      .where("containerId", "is not", null)
+      .execute();
+    for (const r of depReplicas) {
+      if (r.containerId) await stopContainer(r.containerId);
+    }
+    await db
+      .updateTable("deployments")
+      .set({ status: "cancelled", finishedAt: Date.now() })
+      .where("id", "=", dep.id)
+      .execute();
+  }
+}
+
+interface StartedReplica {
+  id: string;
+  containerId: string;
+  hostPort: number;
+  index: number;
+}
+
+interface StartReplicasOptions {
+  deploymentId: string;
+  replicaCount: number;
+  containerName: string;
+  imageName: string;
+  containerPort?: number;
+  runtimeEnvVars: Record<string, string>;
+  networkName: string;
+  internalHostname: string;
+  baseLabels: Record<string, string>;
+  volumes?: VolumeMount[];
+  fileMounts?: FileMount[];
+  command?: string[];
+  memoryLimit?: string;
+  cpuLimit?: number;
+  shutdownTimeout?: number;
+}
+
+async function startReplicas(
+  opts: StartReplicasOptions,
+): Promise<StartedReplica[]> {
+  for (let i = 0; i < opts.replicaCount; i++) {
+    await db
+      .insertInto("replicas")
+      .values({
+        id: nanoid(),
+        deploymentId: opts.deploymentId,
+        replicaIndex: i,
+        containerId: null,
+        hostPort: null,
+        status: "pending",
+      })
+      .execute();
+  }
+
+  const replicaRows = await db
+    .selectFrom("replicas")
+    .selectAll()
+    .where("deploymentId", "=", opts.deploymentId)
+    .orderBy("replicaIndex", "asc")
+    .execute();
+
+  const startedReplicas: StartedReplica[] = [];
+
+  try {
+    for (const replica of replicaRows) {
+      const replicaContainerName =
+        opts.replicaCount > 1
+          ? sanitizeDockerName(`${opts.containerName}-${replica.replicaIndex}`)
+          : opts.containerName;
+
+      const replicaEnvVars =
+        opts.replicaCount > 1
+          ? {
+              ...opts.runtimeEnvVars,
+              FROST_REPLICA_INDEX: String(replica.replicaIndex),
+            }
+          : opts.runtimeEnvVars;
+
+      const { containerId: cId, hostPort: hPort } =
+        await runContainerWithPortRetry(
+          {
+            imageName: opts.imageName,
+            containerPort: opts.containerPort,
+            name: replicaContainerName,
+            envVars: replicaEnvVars,
+            network: opts.networkName,
+            hostname: opts.internalHostname,
+            networkAlias: `${opts.internalHostname}.frost.internal`,
+            labels: {
+              ...opts.baseLabels,
+              "frost.deployment.id": opts.deploymentId,
+              "frost.replica.index": String(replica.replicaIndex),
+            },
+            volumes: opts.volumes,
+            fileMounts: opts.fileMounts,
+            command: opts.command,
+            memoryLimit: opts.memoryLimit,
+            cpuLimit: opts.cpuLimit,
+            shutdownTimeout: opts.shutdownTimeout,
+          },
+          async (port, attempt) => {
+            await appendLog(
+              opts.deploymentId,
+              `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+            );
+          },
+        );
+
+      startedReplicas.push({
+        id: replica.id,
+        containerId: cId,
+        hostPort: hPort,
+        index: replica.replicaIndex,
+      });
+
+      await db
+        .updateTable("replicas")
+        .set({ containerId: cId, hostPort: hPort, status: "running" })
+        .where("id", "=", replica.id)
+        .execute();
+
+      if (opts.replicaCount > 1) {
+        await appendLog(
+          opts.deploymentId,
+          `Replica ${replica.replicaIndex} started: ${cId.substring(0, 12)} on port ${hPort}\n`,
+        );
+      } else {
+        await appendLog(
+          opts.deploymentId,
+          `Container started: ${cId.substring(0, 12)}\n`,
+        );
+      }
+    }
+  } catch (err) {
+    for (const r of startedReplicas) {
+      await stopContainer(r.containerId);
+      await db
+        .updateTable("replicas")
+        .set({ status: "failed" })
+        .where("id", "=", r.id)
+        .execute();
+    }
+    throw err;
+  }
+
+  return startedReplicas;
+}
+
+async function healthCheckReplicas(
+  deploymentId: string,
+  replicas: StartedReplica[],
+  replicaCount: number,
+  healthCheckPath: string | null,
+  healthCheckTimeout: number | null,
+): Promise<void> {
+  const healthCheckType = healthCheckPath ? `HTTP ${healthCheckPath}` : "TCP";
+
+  if (replicaCount > 1) {
+    await appendLog(
+      deploymentId,
+      `Health check (${healthCheckType}) on ${replicaCount} replicas...\n`,
+    );
+  } else {
+    await appendLog(
+      deploymentId,
+      `Health check (${healthCheckType}) on port ${replicas[0].hostPort}...\n`,
+    );
+  }
+
+  const healthResults = await Promise.all(
+    replicas.map(async (r) => {
+      const isHealthy = await waitForHealthy({
+        containerId: r.containerId,
+        port: r.hostPort,
+        path: healthCheckPath,
+        timeoutSeconds: healthCheckTimeout ?? 60,
+      });
+      return { ...r, isHealthy };
+    }),
+  );
+
+  const failedReplicas = healthResults.filter((r) => !r.isHealthy);
+  if (failedReplicas.length > 0) {
+    for (const failed of failedReplicas) {
+      const containerStatus = await getContainerStatus(failed.containerId);
+      await appendLog(
+        deploymentId,
+        `Replica ${failed.index} status: ${containerStatus}\n`,
+      );
+      try {
+        const { stdout: logs } = await execAsync(
+          `docker logs ${failed.containerId} 2>&1 | tail -50`,
+        );
+        await appendLog(
+          deploymentId,
+          `Replica ${failed.index} logs:\n${logs}\n`,
+        );
+      } catch {
+        await appendLog(
+          deploymentId,
+          `Could not get logs for replica ${failed.index}\n`,
+        );
+      }
+    }
+    throw new Error(
+      `${failedReplicas.length}/${replicaCount} replica(s) failed health check`,
+    );
+  }
+}
+
+async function drainPreviousDeployments(
+  deploymentId: string,
+  serviceId: string,
+  drainTimeout: number,
+  shutdownTimeout: number,
+): Promise<void> {
+  const previousDeployments = await db
+    .selectFrom("deployments")
+    .select(["id", "containerId"])
+    .where("serviceId", "=", serviceId)
+    .where("id", "!=", deploymentId)
+    .where("status", "=", "running")
+    .execute();
+
+  if (previousDeployments.length === 0) return;
+
+  if (await isDeploymentCancelled(deploymentId)) return;
+
+  if (drainTimeout > 0) {
+    await appendLog(
+      deploymentId,
+      `Draining old container (${drainTimeout}s)...\n`,
+    );
+    await new Promise((r) => setTimeout(r, drainTimeout * 1000));
+  }
+
+  if (await isDeploymentCancelled(deploymentId)) return;
+
+  for (const prev of previousDeployments) {
+    const oldReplicas = await db
+      .selectFrom("replicas")
+      .select("containerId")
+      .where("deploymentId", "=", prev.id)
+      .where("containerId", "is not", null)
+      .execute();
+
+    if (oldReplicas.length > 0) {
+      for (const r of oldReplicas) {
+        if (r.containerId) {
+          await gracefulStopContainer(r.containerId, shutdownTimeout);
+        }
+      }
+      await db
+        .updateTable("replicas")
+        .set({ status: "stopped" })
+        .where("deploymentId", "=", prev.id)
+        .execute();
+    } else if (prev.containerId) {
+      await gracefulStopContainer(prev.containerId, shutdownTimeout);
+    }
+    await db
+      .updateTable("deployments")
+      .set({ status: "stopped", finishedAt: Date.now() })
+      .where("id", "=", prev.id)
+      .execute();
+  }
+}
+
 async function updateCommitStatusIfGitHub(
   repoUrl: string | null,
   commitSha: string,
@@ -340,30 +641,7 @@ export async function deployService(
     throw new Error("Project not found");
   }
 
-  const inProgressStatuses = [
-    "pending",
-    "cloning",
-    "pulling",
-    "building",
-    "deploying",
-  ] as const;
-  const activeDeployments = await db
-    .selectFrom("deployments")
-    .select(["id", "containerId"])
-    .where("serviceId", "=", serviceId)
-    .where("status", "in", [...inProgressStatuses])
-    .execute();
-
-  for (const dep of activeDeployments) {
-    if (dep.containerId) {
-      await stopContainer(dep.containerId);
-    }
-    await db
-      .updateTable("deployments")
-      .set({ status: "cancelled", finishedAt: Date.now() })
-      .where("id", "=", dep.id)
-      .execute();
-  }
+  await cancelActiveDeployments(serviceId);
 
   const deploymentId = nanoid();
   const now = Date.now();
@@ -704,11 +982,7 @@ async function runServiceDeployment(
       return;
     }
 
-    const oldContainerName = service.currentDeploymentId
-      ? sanitizeDockerName(`frost-${service.id}-${service.currentDeploymentId}`)
-      : null;
-
-    if (oldContainerName) {
+    if (service.currentDeploymentId) {
       await appendLog(
         deploymentId,
         "Starting new container (zero-downtime)...\n",
@@ -728,70 +1002,39 @@ async function runServiceDeployment(
     const runtimeEnvVars = { ...frostEnvVars, ...envVars };
 
     const internalHostname = service.hostname ?? slugify(service.name);
-    const { containerId, hostPort } = await runContainerWithPortRetry(
-      {
-        imageName,
-        containerPort: effectiveService.containerPort ?? undefined,
-        name: containerName,
-        envVars: runtimeEnvVars,
-        network: networkName,
-        hostname: internalHostname,
-        networkAlias: `${internalHostname}.frost.internal`,
-        labels: {
-          ...baseLabels,
-          "frost.deployment.id": deploymentId,
-        },
-        volumes,
-        fileMounts,
-        command,
-        memoryLimit: effectiveService.memoryLimit ?? undefined,
-        cpuLimit: effectiveService.cpuLimit ?? undefined,
-        shutdownTimeout: service.shutdownTimeout ?? undefined,
-      },
-      async (port, attempt) => {
-        await appendLog(
-          deploymentId,
-          `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
-        );
-      },
-    );
+    const replicaCount = effectiveService.replicaCount ?? 1;
 
-    await appendLog(
+    const startedReplicas = await startReplicas({
       deploymentId,
-      `Container started: ${containerId.substring(0, 12)}\n`,
-    );
-    const healthCheckType = effectiveService.healthCheckPath
-      ? `HTTP ${effectiveService.healthCheckPath}`
-      : "TCP";
-    await appendLog(
-      deploymentId,
-      `Health check (${healthCheckType}) on port ${hostPort}...\n`,
-    );
-
-    const isHealthy = await waitForHealthy({
-      containerId,
-      port: hostPort,
-      path: effectiveService.healthCheckPath,
-      timeoutSeconds: effectiveService.healthCheckTimeout ?? 60,
+      replicaCount,
+      containerName,
+      imageName,
+      containerPort: effectiveService.containerPort ?? undefined,
+      runtimeEnvVars,
+      networkName,
+      internalHostname,
+      baseLabels,
+      volumes,
+      fileMounts,
+      command,
+      memoryLimit: effectiveService.memoryLimit ?? undefined,
+      cpuLimit: effectiveService.cpuLimit ?? undefined,
+      shutdownTimeout: service.shutdownTimeout ?? undefined,
     });
-    if (!isHealthy) {
-      const containerStatus = await getContainerStatus(containerId);
-      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
-      try {
-        const { stdout: logs } = await execAsync(
-          `docker logs ${containerId} 2>&1 | tail -50`,
-        );
-        await appendLog(deploymentId, `Container logs:\n${logs}\n`);
-      } catch {
-        await appendLog(deploymentId, `Could not get container logs\n`);
-      }
-      throw new Error("Container failed health check");
-    }
 
+    await healthCheckReplicas(
+      deploymentId,
+      startedReplicas,
+      replicaCount,
+      effectiveService.healthCheckPath,
+      effectiveService.healthCheckTimeout,
+    );
+
+    const firstReplica = startedReplicas[0];
     await updateDeployment(deploymentId, {
       status: "running",
-      containerId,
-      hostPort,
+      containerId: firstReplica.containerId,
+      hostPort: firstReplica.hostPort,
       finishedAt: Date.now(),
     });
 
@@ -803,7 +1046,7 @@ async function runServiceDeployment(
 
     await appendLog(
       deploymentId,
-      `\nDeployment successful! App available at http://localhost:${hostPort}\n`,
+      `\nDeployment successful! App available at http://localhost:${firstReplica.hostPort}\n`,
     );
     await updateCommitStatusIfGitHub(
       service.repoUrl,
@@ -834,55 +1077,17 @@ async function runServiceDeployment(
       );
     }
 
-    const drainTimeout = effectiveService.drainTimeout ?? 30;
-
-    const previousDeployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
-      .where("serviceId", "=", service.id)
-      .where("id", "!=", deploymentId)
-      .where("status", "=", "running")
-      .execute();
-
-    if (previousDeployments.length > 0 || oldContainerName) {
-      if (await isDeploymentCancelled(deploymentId)) return;
-
-      if (drainTimeout > 0) {
-        await appendLog(
-          deploymentId,
-          `Draining old container (${drainTimeout}s)...\n`,
-        );
-        await new Promise((r) => setTimeout(r, drainTimeout * 1000));
-      }
-
-      if (await isDeploymentCancelled(deploymentId)) return;
-
-      const shutdownTimeout = effectiveService.shutdownTimeout ?? 30;
-
-      if (oldContainerName) {
-        await appendLog(
-          deploymentId,
-          `Stopping old container (SIGTERM, ${shutdownTimeout}s grace)...\n`,
-        );
-        await gracefulStopContainer(oldContainerName, shutdownTimeout);
-      }
-
-      for (const prev of previousDeployments) {
-        if (prev.containerId) {
-          await gracefulStopContainer(prev.containerId, shutdownTimeout);
-        }
-        await db
-          .updateTable("deployments")
-          .set({ status: "stopped", finishedAt: Date.now() })
-          .where("id", "=", prev.id)
-          .execute();
-      }
-    }
+    await drainPreviousDeployments(
+      deploymentId,
+      service.id,
+      effectiveService.drainTimeout ?? 30,
+      effectiveService.shutdownTimeout ?? 30,
+    );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
     await updateDeployment(deploymentId, {
       status: "failed",
-      errorMessage: errorMessage,
+      errorMessage,
       finishedAt: Date.now(),
     });
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
@@ -1005,31 +1210,7 @@ export async function rollbackDeployment(
     throw new Error("Image no longer available");
   }
 
-  const inProgressStatuses = [
-    "pending",
-    "cloning",
-    "pulling",
-    "building",
-    "deploying",
-  ] as const;
-  const activeDeployments = await db
-    .selectFrom("deployments")
-    .select(["id", "containerId"])
-    .where("serviceId", "=", service.id)
-    .where("id", "!=", deploymentId)
-    .where("status", "in", [...inProgressStatuses])
-    .execute();
-
-  for (const dep of activeDeployments) {
-    if (dep.containerId) {
-      await stopContainer(dep.containerId);
-    }
-    await db
-      .updateTable("deployments")
-      .set({ status: "cancelled", finishedAt: Date.now() })
-      .where("id", "=", dep.id)
-      .execute();
-  }
+  await cancelActiveDeployments(service.id, deploymentId);
 
   await db
     .updateTable("deployments")
@@ -1092,10 +1273,6 @@ async function runRollbackDeployment(
 
     await createNetwork(networkName, baseLabels);
 
-    const oldContainerName = service.currentDeploymentId
-      ? sanitizeDockerName(`frost-${service.id}-${service.currentDeploymentId}`)
-      : null;
-
     const gitInfo =
       sourceDeployment.gitCommitSha && sourceDeployment.gitBranch
         ? {
@@ -1116,69 +1293,36 @@ async function runRollbackDeployment(
     }
 
     const internalHostname = service.hostname ?? slugify(service.name);
-    const { containerId, hostPort } = await runContainerWithPortRetry(
-      {
-        imageName: sourceDeployment.imageName,
-        containerPort: sourceDeployment.containerPort ?? undefined,
-        name: containerName,
-        envVars: runtimeEnvVars,
-        network: networkName,
-        hostname: internalHostname,
-        networkAlias: `${internalHostname}.frost.internal`,
-        labels: {
-          ...baseLabels,
-          "frost.deployment.id": deploymentId,
-        },
-        memoryLimit: service.memoryLimit ?? undefined,
-        cpuLimit: service.cpuLimit ?? undefined,
-        shutdownTimeout: service.shutdownTimeout ?? undefined,
-      },
-      async (port, attempt) => {
-        await appendLog(
-          deploymentId,
-          `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
-        );
-      },
-    );
+    const replicaCount = service.replicaCount ?? 1;
 
-    await appendLog(
+    const startedReplicas = await startReplicas({
       deploymentId,
-      `Container started: ${containerId.substring(0, 12)}\n`,
-    );
-
-    const healthCheckType = sourceDeployment.healthCheckPath
-      ? `HTTP ${sourceDeployment.healthCheckPath}`
-      : "TCP";
-    await appendLog(
-      deploymentId,
-      `Health check (${healthCheckType}) on port ${hostPort}...\n`,
-    );
-
-    const isHealthy = await waitForHealthy({
-      containerId,
-      port: hostPort,
-      path: sourceDeployment.healthCheckPath,
-      timeoutSeconds: sourceDeployment.healthCheckTimeout ?? 60,
+      replicaCount,
+      containerName,
+      imageName: sourceDeployment.imageName,
+      containerPort: sourceDeployment.containerPort ?? undefined,
+      runtimeEnvVars,
+      networkName,
+      internalHostname,
+      baseLabels,
+      memoryLimit: service.memoryLimit ?? undefined,
+      cpuLimit: service.cpuLimit ?? undefined,
+      shutdownTimeout: service.shutdownTimeout ?? undefined,
     });
 
-    if (!isHealthy) {
-      const containerStatus = await getContainerStatus(containerId);
-      await appendLog(deploymentId, `Container status: ${containerStatus}\n`);
-      try {
-        const { stdout: logs } = await execAsync(
-          `docker logs ${containerId} 2>&1 | tail -50`,
-        );
-        await appendLog(deploymentId, `Container logs:\n${logs}\n`);
-      } catch {
-        await appendLog(deploymentId, `Could not get container logs\n`);
-      }
-      throw new Error("Container failed health check");
-    }
+    await healthCheckReplicas(
+      deploymentId,
+      startedReplicas,
+      replicaCount,
+      sourceDeployment.healthCheckPath,
+      sourceDeployment.healthCheckTimeout,
+    );
 
+    const firstReplica = startedReplicas[0];
     await updateDeployment(deploymentId, {
       status: "running",
-      containerId,
-      hostPort,
+      containerId: firstReplica.containerId,
+      hostPort: firstReplica.hostPort,
       finishedAt: Date.now(),
     });
 
@@ -1190,7 +1334,7 @@ async function runRollbackDeployment(
 
     await appendLog(
       deploymentId,
-      `\nRollback successful! App available at http://localhost:${hostPort}\n`,
+      `\nRollback successful! App available at http://localhost:${firstReplica.hostPort}\n`,
     );
 
     await updateRollbackEligible(service.id);
@@ -1207,47 +1351,17 @@ async function runRollbackDeployment(
       );
     }
 
-    const drainTimeout = service.drainTimeout ?? 30;
-
-    const previousDeployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
-      .where("serviceId", "=", service.id)
-      .where("id", "!=", deploymentId)
-      .where("status", "=", "running")
-      .execute();
-
-    if (previousDeployments.length > 0 || oldContainerName) {
-      if (drainTimeout > 0) {
-        await appendLog(
-          deploymentId,
-          `Draining old container (${drainTimeout}s)...\n`,
-        );
-        await new Promise((r) => setTimeout(r, drainTimeout * 1000));
-      }
-
-      const shutdownTimeout = service.shutdownTimeout ?? 30;
-
-      if (oldContainerName) {
-        await gracefulStopContainer(oldContainerName, shutdownTimeout);
-      }
-
-      for (const prev of previousDeployments) {
-        if (prev.containerId) {
-          await gracefulStopContainer(prev.containerId, shutdownTimeout);
-        }
-        await db
-          .updateTable("deployments")
-          .set({ status: "stopped", finishedAt: Date.now() })
-          .where("id", "=", prev.id)
-          .execute();
-      }
-    }
+    await drainPreviousDeployments(
+      deploymentId,
+      service.id,
+      service.drainTimeout ?? 30,
+      service.shutdownTimeout ?? 30,
+    );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
     await updateDeployment(deploymentId, {
       status: "failed",
-      errorMessage: errorMessage,
+      errorMessage,
       finishedAt: Date.now(),
     });
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);

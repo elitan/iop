@@ -22,6 +22,7 @@ import { HealthCheckCard } from "../services/[serviceId]/settings/_components/he
 import { HostnameCard } from "../services/[serviceId]/settings/_components/hostname-card";
 import { ImageConfigCard } from "../services/[serviceId]/settings/_components/image-config-card";
 import { MemoryLimitCard } from "../services/[serviceId]/settings/_components/memory-limit-card";
+import { ReplicaCountCard } from "../services/[serviceId]/settings/_components/replica-count-card";
 import { RequestTimeoutCard } from "../services/[serviceId]/settings/_components/request-timeout-card";
 import { ServiceNameCard } from "../services/[serviceId]/settings/_components/service-name-card";
 import { ShutdownTimeoutCard } from "../services/[serviceId]/settings/_components/shutdown-timeout-card";
@@ -329,6 +330,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
         {activeTab === "runtime" && (
           <>
             <ContainerPortCard serviceId={service.id} />
+            <ReplicaCountCard serviceId={service.id} />
             <HealthCheckCard serviceId={service.id} />
             <RequestTimeoutCard serviceId={service.id} />
             <DrainTimeoutCard serviceId={service.id} />

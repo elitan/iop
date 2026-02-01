@@ -31,7 +31,14 @@ export function ServiceContent({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <p className="font-medium text-neutral-200">{service.name}</p>
-            <StatusDot status={deployment?.status || "pending"} />
+            <div className="flex items-center gap-1.5">
+              <StatusDot status={deployment?.status || "pending"} />
+              {(service.replicaCount ?? 1) > 1 && (
+                <span className="text-[10px] font-medium text-neutral-500">
+                  ×{service.replicaCount}
+                </span>
+              )}
+            </div>
           </div>
           {url && service.serviceType !== "database" && (
             <p className="text-xs text-neutral-500 truncate">{url}</p>

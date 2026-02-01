@@ -1,6 +1,6 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { deploymentsSchema } from "@/lib/db-schemas";
+import { deploymentsSchema, replicasSchema } from "@/lib/db-schemas";
 
 export const deploymentsContract = {
   get: oc
@@ -17,4 +17,9 @@ export const deploymentsContract = {
     .route({ method: "POST", path: "/deployments/{id}/rollback" })
     .input(z.object({ id: z.string() }))
     .output(z.object({ deploymentId: z.string() })),
+
+  getReplicas: oc
+    .route({ method: "GET", path: "/deployments/{id}/replicas" })
+    .input(z.object({ id: z.string() }))
+    .output(z.array(replicasSchema)),
 };

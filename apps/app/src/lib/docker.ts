@@ -447,6 +447,22 @@ export async function getAvailablePort(
     // Ignore - db might not be ready
   }
 
+  try {
+    const replicas = await db
+      .selectFrom("replicas")
+      .select("hostPort")
+      .where("hostPort", "is not", null)
+      .where("status", "in", ["pending", "running"])
+      .execute();
+    for (const r of replicas) {
+      if (r.hostPort) {
+        usedPorts.add(r.hostPort);
+      }
+    }
+  } catch {
+    // Ignore - table might not exist yet
+  }
+
   for (let port = start; port < end; port++) {
     if (!usedPorts.has(port) && !exclude?.has(port)) {
       return port;
