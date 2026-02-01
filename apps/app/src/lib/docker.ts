@@ -297,6 +297,22 @@ export async function stopContainer(name: string): Promise<void> {
   }
 }
 
+export async function gracefulStopContainer(
+  name: string,
+  timeout: number = 30,
+): Promise<void> {
+  try {
+    await execAsync(`docker stop --time ${timeout} ${name}`);
+  } catch {
+    // Container might not exist or already stopped
+  }
+  try {
+    await execAsync(`docker rm ${name}`);
+  } catch {
+    // Container might already be removed
+  }
+}
+
 export async function getContainerStatus(containerId: string): Promise<string> {
   try {
     const { stdout } = await execAsync(

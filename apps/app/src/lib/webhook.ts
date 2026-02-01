@@ -157,6 +157,7 @@ export async function cloneServiceToEnvironment(
     memoryLimit: string | null;
     cpuLimit: number | null;
     shutdownTimeout: number | null;
+    drainTimeout: number | null;
     registryId: string | null;
     command: string | null;
     volumes: string | null;
@@ -200,6 +201,7 @@ export async function cloneServiceToEnvironment(
     memoryLimit: sourceService.memoryLimit,
     cpuLimit: sourceService.cpuLimit,
     shutdownTimeout: sourceService.shutdownTimeout,
+    drainTimeout: sourceService.drainTimeout,
     registryId: sourceService.registryId,
     command: sourceService.command,
     volumes,

@@ -160,6 +160,7 @@ export interface Services {
   createdAt: number;
   icon: string | null;
   frostFilePath: Generated<string | null>;
+  drainTimeout: number | null;
 }
 
 export interface Settings {

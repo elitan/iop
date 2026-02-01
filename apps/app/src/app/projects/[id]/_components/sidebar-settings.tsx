@@ -17,6 +17,7 @@ import { BuildConfigCard } from "../services/[serviceId]/settings/_components/bu
 import { ContainerPortCard } from "../services/[serviceId]/settings/_components/container-port-card";
 import { CpuLimitCard } from "../services/[serviceId]/settings/_components/cpu-limit-card";
 import { DangerZoneCard } from "../services/[serviceId]/settings/_components/danger-zone-card";
+import { DrainTimeoutCard } from "../services/[serviceId]/settings/_components/drain-timeout-card";
 import { HealthCheckCard } from "../services/[serviceId]/settings/_components/health-check-card";
 import { HostnameCard } from "../services/[serviceId]/settings/_components/hostname-card";
 import { ImageConfigCard } from "../services/[serviceId]/settings/_components/image-config-card";
@@ -330,6 +331,7 @@ export function SidebarSettings({ service, projectId }: SidebarSettingsProps) {
             <ContainerPortCard serviceId={service.id} />
             <HealthCheckCard serviceId={service.id} />
             <RequestTimeoutCard serviceId={service.id} />
+            <DrainTimeoutCard serviceId={service.id} />
             <ShutdownTimeoutCard serviceId={service.id} />
             <MemoryLimitCard serviceId={service.id} />
             <CpuLimitCard serviceId={service.id} />

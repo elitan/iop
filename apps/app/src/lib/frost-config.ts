@@ -24,6 +24,12 @@ export const frostConfigSchema = z
         cpu: z.number().min(0.1).max(64).optional(),
       })
       .optional(),
+    deploy: z
+      .object({
+        drain_timeout: z.number().min(0).max(300).optional(),
+        shutdown_timeout: z.number().min(1).max(300).optional(),
+      })
+      .optional(),
   })
   .strict();
 
@@ -110,6 +116,8 @@ type EffectiveService = Pick<
   | "healthCheckTimeout"
   | "memoryLimit"
   | "cpuLimit"
+  | "drainTimeout"
+  | "shutdownTimeout"
 >;
 
 export function mergeConfigWithService<T extends EffectiveService>(
@@ -125,5 +133,7 @@ export function mergeConfigWithService<T extends EffectiveService>(
       config.health_check?.timeout ?? service.healthCheckTimeout,
     memoryLimit: config.resources?.memory ?? service.memoryLimit,
     cpuLimit: config.resources?.cpu ?? service.cpuLimit,
+    drainTimeout: config.deploy?.drain_timeout ?? service.drainTimeout,
+    shutdownTimeout: config.deploy?.shutdown_timeout ?? service.shutdownTimeout,
   };
 }

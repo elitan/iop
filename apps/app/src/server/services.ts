@@ -185,6 +185,7 @@ export const services = {
         memoryLimit: input.memoryLimit,
         cpuLimit: input.cpuLimit,
         shutdownTimeout: input.shutdownTimeout,
+        drainTimeout: input.drainTimeout,
         autoDeploy: input.deployType === "repo",
         frostFilePath: input.deployType === "repo" ? input.frostFilePath : null,
         wildcardDomain: { projectHostname, environmentName: envName },
@@ -254,6 +255,8 @@ export const services = {
     if (input.cpuLimit !== undefined) updates.cpuLimit = input.cpuLimit;
     if (input.shutdownTimeout !== undefined)
       updates.shutdownTimeout = input.shutdownTimeout;
+    if (input.drainTimeout !== undefined)
+      updates.drainTimeout = input.drainTimeout;
     if (input.requestTimeout !== undefined)
       updates.requestTimeout = input.requestTimeout;
     if (input.volumes !== undefined)

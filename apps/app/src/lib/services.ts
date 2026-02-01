@@ -25,6 +25,7 @@ export interface CreateServiceInput {
   memoryLimit?: string | null;
   cpuLimit?: number | null;
   shutdownTimeout?: number | null;
+  drainTimeout?: number | null;
   requestTimeout?: number | null;
   volumes?: { name: string; path: string }[];
   command?: string | null;
@@ -66,6 +67,7 @@ export async function createService(
       memoryLimit: input.memoryLimit ?? null,
       cpuLimit: input.cpuLimit ?? null,
       shutdownTimeout: input.shutdownTimeout ?? null,
+      drainTimeout: input.drainTimeout ?? null,
       requestTimeout: input.requestTimeout ?? null,
       volumes: JSON.stringify(input.volumes ?? []),
       command: input.command ?? null,

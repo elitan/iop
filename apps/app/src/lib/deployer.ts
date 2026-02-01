@@ -16,6 +16,7 @@ import {
   getAvailablePort,
   getContainerStatus,
   getRegistryUrl,
+  gracefulStopContainer,
   imageExists,
   isContainerNameConflictError,
   isPortConflictError,
@@ -703,11 +704,15 @@ async function runServiceDeployment(
       return;
     }
 
-    if (service.currentDeploymentId) {
-      const oldContainerName = sanitizeDockerName(
-        `frost-${service.id}-${service.currentDeploymentId}`,
+    const oldContainerName = service.currentDeploymentId
+      ? sanitizeDockerName(`frost-${service.id}-${service.currentDeploymentId}`)
+      : null;
+
+    if (oldContainerName) {
+      await appendLog(
+        deploymentId,
+        "Starting new container (zero-downtime)...\n",
       );
-      await stopContainer(oldContainerName);
     }
 
     const gitInfo =
@@ -816,26 +821,8 @@ async function runServiceDeployment(
 
     await updateRollbackEligible(service.id);
 
-    const previousDeployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
-      .where("serviceId", "=", service.id)
-      .where("id", "!=", deploymentId)
-      .where("status", "=", "running")
-      .execute();
-
-    for (const prev of previousDeployments) {
-      if (prev.containerId) {
-        await stopContainer(prev.containerId);
-      }
-      await db
-        .updateTable("deployments")
-        .set({ status: "stopped", finishedAt: Date.now() })
-        .where("id", "=", prev.id)
-        .execute();
-    }
-
     try {
+      await appendLog(deploymentId, "Switching traffic to new container...\n");
       const synced = await syncCaddyConfig();
       if (synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
@@ -845,6 +832,51 @@ async function runServiceDeployment(
         deploymentId,
         `Warning: Failed to sync Caddy config: ${err.message}\n`,
       );
+    }
+
+    const drainTimeout = effectiveService.drainTimeout ?? 30;
+
+    const previousDeployments = await db
+      .selectFrom("deployments")
+      .select(["id", "containerId"])
+      .where("serviceId", "=", service.id)
+      .where("id", "!=", deploymentId)
+      .where("status", "=", "running")
+      .execute();
+
+    if (previousDeployments.length > 0 || oldContainerName) {
+      if (await isDeploymentCancelled(deploymentId)) return;
+
+      if (drainTimeout > 0) {
+        await appendLog(
+          deploymentId,
+          `Draining old container (${drainTimeout}s)...\n`,
+        );
+        await new Promise((r) => setTimeout(r, drainTimeout * 1000));
+      }
+
+      if (await isDeploymentCancelled(deploymentId)) return;
+
+      const shutdownTimeout = effectiveService.shutdownTimeout ?? 30;
+
+      if (oldContainerName) {
+        await appendLog(
+          deploymentId,
+          `Stopping old container (SIGTERM, ${shutdownTimeout}s grace)...\n`,
+        );
+        await gracefulStopContainer(oldContainerName, shutdownTimeout);
+      }
+
+      for (const prev of previousDeployments) {
+        if (prev.containerId) {
+          await gracefulStopContainer(prev.containerId, shutdownTimeout);
+        }
+        await db
+          .updateTable("deployments")
+          .set({ status: "stopped", finishedAt: Date.now() })
+          .where("id", "=", prev.id)
+          .execute();
+      }
     }
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
@@ -1060,12 +1092,9 @@ async function runRollbackDeployment(
 
     await createNetwork(networkName, baseLabels);
 
-    if (service.currentDeploymentId) {
-      const oldContainerName = sanitizeDockerName(
-        `frost-${service.id}-${service.currentDeploymentId}`,
-      );
-      await stopContainer(oldContainerName);
-    }
+    const oldContainerName = service.currentDeploymentId
+      ? sanitizeDockerName(`frost-${service.id}-${service.currentDeploymentId}`)
+      : null;
 
     const gitInfo =
       sourceDeployment.gitCommitSha && sourceDeployment.gitBranch
@@ -1166,25 +1195,6 @@ async function runRollbackDeployment(
 
     await updateRollbackEligible(service.id);
 
-    const previousDeployments = await db
-      .selectFrom("deployments")
-      .select(["id", "containerId"])
-      .where("serviceId", "=", service.id)
-      .where("id", "!=", deploymentId)
-      .where("status", "=", "running")
-      .execute();
-
-    for (const prev of previousDeployments) {
-      if (prev.containerId) {
-        await stopContainer(prev.containerId);
-      }
-      await db
-        .updateTable("deployments")
-        .set({ status: "stopped", finishedAt: Date.now() })
-        .where("id", "=", prev.id)
-        .execute();
-    }
-
     try {
       const synced = await syncCaddyConfig();
       if (synced) {
@@ -1195,6 +1205,43 @@ async function runRollbackDeployment(
         deploymentId,
         `Warning: Failed to sync Caddy config: ${err.message}\n`,
       );
+    }
+
+    const drainTimeout = service.drainTimeout ?? 30;
+
+    const previousDeployments = await db
+      .selectFrom("deployments")
+      .select(["id", "containerId"])
+      .where("serviceId", "=", service.id)
+      .where("id", "!=", deploymentId)
+      .where("status", "=", "running")
+      .execute();
+
+    if (previousDeployments.length > 0 || oldContainerName) {
+      if (drainTimeout > 0) {
+        await appendLog(
+          deploymentId,
+          `Draining old container (${drainTimeout}s)...\n`,
+        );
+        await new Promise((r) => setTimeout(r, drainTimeout * 1000));
+      }
+
+      const shutdownTimeout = service.shutdownTimeout ?? 30;
+
+      if (oldContainerName) {
+        await gracefulStopContainer(oldContainerName, shutdownTimeout);
+      }
+
+      for (const prev of previousDeployments) {
+        if (prev.containerId) {
+          await gracefulStopContainer(prev.containerId, shutdownTimeout);
+        }
+        await db
+          .updateTable("deployments")
+          .set({ status: "stopped", finishedAt: Date.now() })
+          .where("id", "=", prev.id)
+          .execute();
+      }
     }
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { deployService } from "./deployer";
-import { removeNetwork, stopContainer } from "./docker";
+import { getContainerStatus, removeNetwork, stopContainer } from "./docker";
 
 const TEST_PROJECT_ID = `test-${nanoid(8)}`;
 const TEST_ENV_ID = `test-${nanoid(8)}`;
@@ -156,4 +156,176 @@ describe("deployment race conditions", () => {
     expect(runningCount).toBe(1);
     expect(cancelledCount).toBe(2);
   }, 120000);
+});
+
+const ZD_PROJECT_ID = `test-zd-${nanoid(8)}`;
+const ZD_ENV_ID = `test-zd-${nanoid(8)}`;
+const ZD_SERVICE_ID = `test-zd-${nanoid(8)}`;
+
+describe("zero-downtime deploy", () => {
+  beforeAll(async () => {
+    const now = Date.now();
+    await db
+      .insertInto("projects")
+      .values({
+        id: ZD_PROJECT_ID,
+        name: "zd-test",
+        envVars: "[]",
+        createdAt: now,
+      })
+      .execute();
+
+    await db
+      .insertInto("environments")
+      .values({
+        id: ZD_ENV_ID,
+        projectId: ZD_PROJECT_ID,
+        name: "production",
+        type: "production",
+        isEphemeral: false,
+        createdAt: now,
+      })
+      .execute();
+
+    await db
+      .insertInto("services")
+      .values({
+        id: ZD_SERVICE_ID,
+        environmentId: ZD_ENV_ID,
+        name: "zd-test-svc",
+        deployType: "image",
+        imageUrl: "nginx:alpine",
+        containerPort: 80,
+        envVars: "[]",
+        drainTimeout: 0,
+        createdAt: now,
+      })
+      .execute();
+  }, 60000);
+
+  afterAll(async () => {
+    const deployments = await db
+      .selectFrom("deployments")
+      .select("id")
+      .where("serviceId", "=", ZD_SERVICE_ID)
+      .execute();
+
+    for (const d of deployments) {
+      const containerName = sanitizeDockerName(
+        `frost-${ZD_SERVICE_ID}-${d.id}`,
+      );
+      await stopContainer(containerName);
+    }
+
+    await removeNetwork(
+      sanitizeDockerName(`frost-net-${ZD_PROJECT_ID}-${ZD_ENV_ID}`),
+    );
+
+    await db
+      .updateTable("services")
+      .set({ currentDeploymentId: null })
+      .where("id", "=", ZD_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", ZD_SERVICE_ID)
+      .execute();
+    await db.deleteFrom("services").where("id", "=", ZD_SERVICE_ID).execute();
+    await db.deleteFrom("environments").where("id", "=", ZD_ENV_ID).execute();
+    await db.deleteFrom("projects").where("id", "=", ZD_PROJECT_ID).execute();
+  });
+
+  test("old container stays alive until after traffic switch", async () => {
+    const deploy1Id = await deployService(ZD_SERVICE_ID);
+    const status1 = await waitForDeploymentStatus(deploy1Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status1).toBe("running");
+
+    const v1 = await db
+      .selectFrom("deployments")
+      .select("containerId")
+      .where("id", "=", deploy1Id)
+      .executeTakeFirst();
+
+    const deploy2Id = await deployService(ZD_SERVICE_ID);
+    const status2 = await waitForDeploymentStatus(deploy2Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status2).toBe("running");
+
+    const v1After = await db
+      .selectFrom("deployments")
+      .select("status")
+      .where("id", "=", deploy1Id)
+      .executeTakeFirst();
+    expect(v1After?.status).toBe("stopped");
+
+    if (v1?.containerId) {
+      const containerStatus = await getContainerStatus(v1.containerId);
+      expect(["exited", "unknown"]).toContain(containerStatus);
+    }
+  }, 180000);
+
+  test("failed health check keeps old container running", async () => {
+    await db
+      .updateTable("services")
+      .set({ imageUrl: "nginx:alpine", currentDeploymentId: null })
+      .where("id", "=", ZD_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", ZD_SERVICE_ID)
+      .execute();
+
+    const deploy1Id = await deployService(ZD_SERVICE_ID);
+    const status1 = await waitForDeploymentStatus(deploy1Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status1).toBe("running");
+
+    const v1 = await db
+      .selectFrom("deployments")
+      .select("containerId")
+      .where("id", "=", deploy1Id)
+      .executeTakeFirst();
+
+    await db
+      .updateTable("services")
+      .set({
+        imageUrl: "nginx:alpine",
+        healthCheckPath: "/nonexistent-path-that-will-fail",
+        healthCheckTimeout: 5,
+      })
+      .where("id", "=", ZD_SERVICE_ID)
+      .execute();
+
+    const deploy2Id = await deployService(ZD_SERVICE_ID);
+    const status2 = await waitForDeploymentStatus(deploy2Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status2).toBe("failed");
+
+    if (v1?.containerId) {
+      const containerStatus = await getContainerStatus(v1.containerId);
+      expect(containerStatus).toBe("running");
+    }
+
+    const service = await db
+      .selectFrom("services")
+      .select("currentDeploymentId")
+      .where("id", "=", ZD_SERVICE_ID)
+      .executeTakeFirst();
+    expect(service?.currentDeploymentId).toBe(deploy1Id);
+
+    await db
+      .updateTable("services")
+      .set({ healthCheckPath: null, healthCheckTimeout: null })
+      .where("id", "=", ZD_SERVICE_ID)
+      .execute();
+  }, 180000);
 });

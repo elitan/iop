@@ -123,6 +123,8 @@ function makeService(overrides: Record<string, unknown> = {}) {
     healthCheckTimeout: null as number | null,
     memoryLimit: null as string | null,
     cpuLimit: null as number | null,
+    shutdownTimeout: null as number | null,
+    drainTimeout: null as number | null,
     ...overrides,
   };
 }
