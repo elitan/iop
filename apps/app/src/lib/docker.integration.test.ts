@@ -328,7 +328,7 @@ describe("shutdownTimeout propagation", () => {
     expect(run.success).toBe(true);
 
     const { stdout } = await execAsync(
-      `docker inspect --format '{{.HostConfig.StopTimeout}}' ${CONTAINER_NAME}`,
+      `docker inspect --format '{{.Config.StopTimeout}}' ${CONTAINER_NAME}`,
     );
     expect(stdout.trim()).toBe("15");
 
