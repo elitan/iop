@@ -331,3 +331,206 @@ describe("zero-downtime deploy", () => {
       .execute();
   }, 180000);
 });
+
+const DRAIN_PROJECT_ID = `test-drain-${nanoid(8)}`;
+const DRAIN_ENV_ID = `test-drain-${nanoid(8)}`;
+const DRAIN_SERVICE_ID = `test-drain-${nanoid(8)}`;
+
+describe("drain and replica cleanup", () => {
+  beforeAll(async () => {
+    const now = Date.now();
+    await db
+      .insertInto("projects")
+      .values({
+        id: DRAIN_PROJECT_ID,
+        name: "drain-test",
+        envVars: "[]",
+        createdAt: now,
+      })
+      .execute();
+
+    await db
+      .insertInto("environments")
+      .values({
+        id: DRAIN_ENV_ID,
+        projectId: DRAIN_PROJECT_ID,
+        name: "production",
+        type: "production",
+        isEphemeral: false,
+        createdAt: now,
+      })
+      .execute();
+
+    await db
+      .insertInto("services")
+      .values({
+        id: DRAIN_SERVICE_ID,
+        environmentId: DRAIN_ENV_ID,
+        name: "drain-test-svc",
+        deployType: "image",
+        imageUrl: "nginx:alpine",
+        containerPort: 80,
+        envVars: "[]",
+        drainTimeout: 0,
+        createdAt: now,
+      })
+      .execute();
+  }, 60000);
+
+  afterAll(async () => {
+    const deployments = await db
+      .selectFrom("deployments")
+      .select("id")
+      .where("serviceId", "=", DRAIN_SERVICE_ID)
+      .execute();
+
+    for (const d of deployments) {
+      const replicas = await db
+        .selectFrom("replicas")
+        .select("containerId")
+        .where("deploymentId", "=", d.id)
+        .execute();
+
+      for (const r of replicas) {
+        if (r.containerId) {
+          await stopContainer(r.containerId).catch(() => {});
+        }
+      }
+
+      const containerName = sanitizeDockerName(
+        `frost-${DRAIN_SERVICE_ID}-${d.id}`,
+      );
+      await stopContainer(containerName).catch(() => {});
+    }
+
+    await removeNetwork(
+      sanitizeDockerName(`frost-net-${DRAIN_PROJECT_ID}-${DRAIN_ENV_ID}`),
+    );
+
+    await db
+      .updateTable("services")
+      .set({ currentDeploymentId: null })
+      .where("id", "=", DRAIN_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", DRAIN_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("services")
+      .where("id", "=", DRAIN_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("environments")
+      .where("id", "=", DRAIN_ENV_ID)
+      .execute();
+    await db
+      .deleteFrom("projects")
+      .where("id", "=", DRAIN_PROJECT_ID)
+      .execute();
+  });
+
+  test("cancelling during drain keeps old container alive", async () => {
+    await db
+      .updateTable("services")
+      .set({
+        drainTimeout: 3,
+        replicaCount: 1,
+        currentDeploymentId: null,
+      })
+      .where("id", "=", DRAIN_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", DRAIN_SERVICE_ID)
+      .execute();
+
+    const deploy1Id = await deployService(DRAIN_SERVICE_ID);
+    const status1 = await waitForDeploymentStatus(deploy1Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status1).toBe("running");
+
+    const v1 = await db
+      .selectFrom("deployments")
+      .select("containerId")
+      .where("id", "=", deploy1Id)
+      .executeTakeFirst();
+
+    const deploy2Id = await deployService(DRAIN_SERVICE_ID);
+    const status2 = await waitForDeploymentStatus(deploy2Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status2).toBe("running");
+
+    await db
+      .updateTable("deployments")
+      .set({ status: "cancelled" })
+      .where("id", "=", deploy2Id)
+      .execute();
+
+    await sleep(5000);
+
+    if (v1?.containerId) {
+      const containerStatus = await getContainerStatus(v1.containerId);
+      expect(containerStatus).toBe("running");
+    }
+  }, 180000);
+
+  test("multi-replica drain stops all old replicas", async () => {
+    await db
+      .updateTable("services")
+      .set({
+        replicaCount: 2,
+        drainTimeout: 0,
+        currentDeploymentId: null,
+        imageUrl: "nginx:alpine",
+      })
+      .where("id", "=", DRAIN_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", DRAIN_SERVICE_ID)
+      .execute();
+
+    const deploy1Id = await deployService(DRAIN_SERVICE_ID);
+    const status1 = await waitForDeploymentStatus(deploy1Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status1).toBe("running");
+
+    const v1Replicas = await db
+      .selectFrom("replicas")
+      .selectAll()
+      .where("deploymentId", "=", deploy1Id)
+      .execute();
+    expect(v1Replicas).toHaveLength(2);
+    expect(v1Replicas.every((r) => r.status === "running")).toBe(true);
+
+    const deploy2Id = await deployService(DRAIN_SERVICE_ID);
+    const status2 = await waitForDeploymentStatus(deploy2Id, [
+      "running",
+      "failed",
+    ]);
+    expect(status2).toBe("running");
+
+    await sleep(5000);
+
+    const v1ReplicasAfter = await db
+      .selectFrom("replicas")
+      .selectAll()
+      .where("deploymentId", "=", deploy1Id)
+      .execute();
+    expect(v1ReplicasAfter.every((r) => r.status === "stopped")).toBe(true);
+
+    for (const r of v1ReplicasAfter) {
+      if (r.containerId) {
+        const containerStatus = await getContainerStatus(r.containerId);
+        expect(["exited", "unknown"]).toContain(containerStatus);
+      }
+    }
+  }, 180000);
+});

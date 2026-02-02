@@ -305,6 +305,37 @@ describe("graceful stop", () => {
   }, 60000);
 });
 
+describe("shutdownTimeout propagation", () => {
+  const CONTAINER_NAME = "frost-test-shutdown-timeout";
+  const PORT = 19995;
+
+  beforeAll(async () => {
+    await stopContainer(CONTAINER_NAME);
+  }, 30000);
+
+  afterAll(async () => {
+    await stopContainer(CONTAINER_NAME);
+  });
+
+  test("shutdownTimeout sets Docker StopTimeout", async () => {
+    const run = await runContainer({
+      imageName: GRACEFUL_IMAGE,
+      hostPort: PORT,
+      containerPort: 8080,
+      name: CONTAINER_NAME,
+      shutdownTimeout: 15,
+    });
+    expect(run.success).toBe(true);
+
+    const { stdout } = await execAsync(
+      `docker inspect --format '{{.HostConfig.StopTimeout}}' ${CONTAINER_NAME}`,
+    );
+    expect(stdout.trim()).toBe("15");
+
+    await stopContainer(CONTAINER_NAME);
+  }, 60000);
+});
+
 describe("network alias integration", () => {
   const NETWORK_NAME = "frost-test-network-alias";
   const CONTAINER_NAME = "frost-test-alias-container";
