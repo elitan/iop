@@ -279,8 +279,10 @@ export async function getServerIp(): Promise<string> {
 }
 
 async function resolveDomain(domain: string): Promise<string[]> {
+  const resolver = new dns.Resolver();
+  resolver.setServers(["1.1.1.1", "8.8.8.8"]);
   try {
-    return await dns.resolve4(domain);
+    return await resolver.resolve4(domain);
   } catch {
     return [];
   }
