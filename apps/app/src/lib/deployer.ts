@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { exec, spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -37,6 +37,7 @@ import {
   isGitHubRepo,
 } from "./github";
 import { detectIcon, detectIconFromImage } from "./icon-detector";
+import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
 import type { EnvVar } from "./types";
@@ -441,7 +442,7 @@ async function healthCheckReplicas(
       );
       try {
         const { stdout: logs } = await execAsync(
-          `docker logs ${failed.containerId} 2>&1 | tail -50`,
+          `docker logs ${shellEscape(failed.containerId)} 2>&1 | tail -50`,
         );
         await appendLog(
           deploymentId,
@@ -778,6 +779,7 @@ async function runServiceDeployment(
         throw new Error("Repo URL, branch, and Dockerfile path are required");
       }
 
+      const branch = service.branch;
       const repoPath = join(REPOS_PATH, deploymentId);
 
       await updateDeployment(deploymentId, { status: "cloning" });
@@ -811,9 +813,30 @@ async function runServiceDeployment(
         }
       }
 
-      const { stdout: cloneResult } = await execAsync(
-        `git clone --depth 1 --branch ${service.branch} ${cloneUrl} ${repoPath}`,
-      );
+      const cloneResult = await new Promise<string>((resolve, reject) => {
+        let output = "";
+        const proc = spawn("git", [
+          "clone",
+          "--depth",
+          "1",
+          "--branch",
+          branch,
+          cloneUrl,
+          repoPath,
+        ]);
+        proc.stdout.on("data", (data) => {
+          output += data.toString();
+        });
+        proc.stderr.on("data", (data) => {
+          output += data.toString();
+        });
+        proc.on("close", (code) => {
+          if (code === 0) resolve(output);
+          else
+            reject(new Error(output || `git clone exited with code ${code}`));
+        });
+        proc.on("error", reject);
+      });
       await appendLog(deploymentId, cloneResult || "Cloned successfully\n");
 
       const frostConfigResult = loadFrostConfig(
@@ -846,7 +869,7 @@ async function runServiceDeployment(
       }
 
       const { stdout: commitResult } = await execAsync(
-        `git -C ${repoPath} rev-parse HEAD`,
+        `git -C ${shellEscape(repoPath)} rev-parse HEAD`,
       );
       const commitSha = commitResult.trim().substring(0, 7);
       const fullCommitSha = commitResult.trim();

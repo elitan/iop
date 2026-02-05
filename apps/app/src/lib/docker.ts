@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { db } from "./db";
+import { buildDockerRunArgs, shellEscape } from "./shell-escape";
 
 const execAsync = promisify(exec);
 
@@ -191,8 +192,6 @@ export async function dockerLogin(
   });
 }
 
-const DEFAULT_PORT = 8080;
-
 export interface VolumeMount {
   name: string;
   path: string;
@@ -224,74 +223,40 @@ export interface RunContainerOptions {
 export async function runContainer(
   options: RunContainerOptions,
 ): Promise<RunResult> {
-  const {
-    imageName,
-    hostPort,
-    containerPort = DEFAULT_PORT,
-    name,
-    envVars,
-    network,
-    hostname,
-    networkAlias,
-    labels,
-    volumes,
-    fileMounts,
-    command,
-    memoryLimit,
-    cpuLimit,
-    shutdownTimeout,
-  } = options;
-  try {
-    const allEnvVars = { PORT: String(containerPort), ...envVars };
-    const envFlags = Object.entries(allEnvVars)
-      .map(([k, v]) => `-e ${k}=${JSON.stringify(v)}`)
-      .join(" ");
-    const networkFlag = network ? `--network ${network}` : "";
-    const networkAliasFlag =
-      network && networkAlias ? `--network-alias ${networkAlias}` : "";
-    const hostnameFlag = hostname ? `--hostname ${hostname}` : "";
-    const labelFlags = labels
-      ? Object.entries(labels)
-          .map(([k, v]) => `--label ${k}=${JSON.stringify(v)}`)
-          .join(" ")
-      : "";
-    const volumeFlags = volumes
-      ? volumes.map((v) => `-v ${v.name}:${v.path}`).join(" ")
-      : "";
-    const fileMountFlags = fileMounts
-      ? fileMounts
-          .map((f) => `-v ${f.hostPath}:${f.containerPath}:ro`)
-          .join(" ")
-      : "";
-    const commandPart = command
-      ? command.map((c) => JSON.stringify(c)).join(" ")
-      : "";
-    const logOpts = "--log-opt max-size=10m --log-opt max-file=3";
-    const memoryFlag = memoryLimit ? `--memory ${memoryLimit}` : "";
-    const cpuFlag = cpuLimit ? `--cpus ${cpuLimit}` : "";
-    const stopTimeoutFlag = shutdownTimeout
-      ? `--stop-timeout ${shutdownTimeout}`
-      : "";
-    const { stdout } = await execAsync(
-      `docker run -d --restart on-failure:5 ${logOpts} ${memoryFlag} ${cpuFlag} ${stopTimeoutFlag} --name ${name} -p ${hostPort}:${containerPort} ${networkFlag} ${networkAliasFlag} ${hostnameFlag} ${labelFlags} ${volumeFlags} ${fileMountFlags} ${envFlags} ${imageName} ${commandPart}`.replace(
-        /\s+/g,
-        " ",
-      ),
-    );
-    const containerId = stdout.trim();
-    return { success: true, containerId };
-  } catch (err: any) {
-    return {
-      success: false,
-      containerId: "",
-      error: err.stderr || err.message,
-    };
-  }
+  const args = buildDockerRunArgs(options);
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    const proc = spawn("docker", args);
+
+    proc.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve({ success: true, containerId: stdout.trim() });
+      } else {
+        resolve({
+          success: false,
+          containerId: "",
+          error: stderr || `docker run exited with code ${code}`,
+        });
+      }
+    });
+
+    proc.on("error", (err) => {
+      resolve({ success: false, containerId: "", error: err.message });
+    });
+  });
 }
 
 export async function stopContainer(name: string): Promise<void> {
   try {
-    await execAsync(`docker rm -f ${name}`);
+    await execAsync(`docker rm -f ${shellEscape(name)}`);
   } catch {
     // Container might not exist
   }
@@ -302,12 +267,14 @@ export async function gracefulStopContainer(
   timeout: number = 30,
 ): Promise<void> {
   try {
-    await execAsync(`docker stop --time ${timeout} ${name}`);
+    await execAsync(
+      `docker stop --time ${Number(timeout)} ${shellEscape(name)}`,
+    );
   } catch {
     // Container might not exist or already stopped
   }
   try {
-    await execAsync(`docker rm ${name}`);
+    await execAsync(`docker rm ${shellEscape(name)}`);
   } catch {
     // Container might already be removed
   }
@@ -316,7 +283,7 @@ export async function gracefulStopContainer(
 export async function getContainerStatus(containerId: string): Promise<string> {
   try {
     const { stdout } = await execAsync(
-      `docker inspect --format='{{.State.Status}}' ${containerId}`,
+      `docker inspect --format='{{.State.Status}}' ${shellEscape(containerId)}`,
     );
     return stdout.trim().replace(/'/g, "");
   } catch {
@@ -474,7 +441,7 @@ export async function getAvailablePort(
 
 export async function networkExists(name: string): Promise<boolean> {
   try {
-    await execAsync(`docker network inspect ${name}`);
+    await execAsync(`docker network inspect ${shellEscape(name)}`);
     return true;
   } catch {
     return false;
@@ -487,13 +454,15 @@ export async function createNetwork(
 ): Promise<void> {
   const exists = await networkExists(name);
   if (!exists) {
-    const labelFlags = labels
-      ? Object.entries(labels)
-          .map(([k, v]) => `--label ${k}=${JSON.stringify(v)}`)
-          .join(" ")
-      : "";
+    const args = ["network", "create"];
+    if (labels) {
+      for (const [k, v] of Object.entries(labels)) {
+        args.push("--label", `${k}=${v}`);
+      }
+    }
+    args.push(name);
     try {
-      await execAsync(`docker network create ${labelFlags} ${name}`.trim());
+      await execAsync(`docker ${args.map(shellEscape).join(" ")}`);
     } catch (err) {
       if (!(err instanceof Error && err.message.includes("already exists"))) {
         throw err;
@@ -504,7 +473,7 @@ export async function createNetwork(
 
 export async function removeNetwork(name: string): Promise<void> {
   try {
-    await execAsync(`docker network rm ${name}`);
+    await execAsync(`docker network rm ${shellEscape(name)}`);
   } catch {
     // Network might not exist or have containers attached
   }
@@ -573,7 +542,7 @@ export async function listFrostImages(): Promise<string[]> {
 
 export async function getImageCreatedAt(image: string): Promise<Date> {
   const { stdout } = await execAsync(
-    `docker inspect --format '{{.Created}}' ${image}`,
+    `docker inspect --format '{{.Created}}' ${shellEscape(image)}`,
   );
   return new Date(stdout.trim());
 }
@@ -581,7 +550,7 @@ export async function getImageCreatedAt(image: string): Promise<Date> {
 export async function getImageSize(image: string): Promise<number> {
   try {
     const { stdout } = await execAsync(
-      `docker inspect --format '{{.Size}}' ${image}`,
+      `docker inspect --format '{{.Size}}' ${shellEscape(image)}`,
     );
     return parseInt(stdout.trim(), 10);
   } catch {
@@ -591,7 +560,7 @@ export async function getImageSize(image: string): Promise<number> {
 
 export async function removeImage(image: string): Promise<boolean> {
   try {
-    await execAsync(`docker rmi ${image}`);
+    await execAsync(`docker rmi ${shellEscape(image)}`);
     return true;
   } catch {
     return false;
@@ -600,7 +569,7 @@ export async function removeImage(image: string): Promise<boolean> {
 
 export async function imageExists(imageName: string): Promise<boolean> {
   try {
-    await execAsync(`docker image inspect ${imageName}`);
+    await execAsync(`docker image inspect ${shellEscape(imageName)}`);
     return true;
   } catch {
     return false;
@@ -648,7 +617,7 @@ export async function listFrostNetworks(): Promise<string[]> {
 export async function isNetworkInUse(name: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync(
-      `docker network inspect ${name} --format '{{json .Containers}}'`,
+      `docker network inspect ${shellEscape(name)} --format '{{json .Containers}}'`,
     );
     const containers = JSON.parse(stdout.trim());
     return Object.keys(containers).length > 0;
@@ -664,7 +633,7 @@ export async function pruneStoppedContainers(): Promise<number> {
     );
     const containers = stdout.trim().split("\n").filter(Boolean);
     for (const name of containers) {
-      await execAsync(`docker rm ${name}`).catch(() => {});
+      await execAsync(`docker rm ${shellEscape(name)}`).catch(() => {});
     }
     return containers.length;
   } catch {
