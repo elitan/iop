@@ -58,6 +58,12 @@ export function WildcardSection() {
             duration: 10000,
           });
         }
+        if (data.caddyWarning) {
+          toast.warning("Caddy config sync failed", {
+            description: data.caddyWarning,
+            duration: 10000,
+          });
+        }
         setSuccess(true);
         setApiToken("");
         await queryClient.refetchQueries({
@@ -74,7 +80,13 @@ export function WildcardSection() {
 
   const removeMutation = useMutation(
     orpc.settings.wildcard.delete.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (data) => {
+        if (data.caddyWarning) {
+          toast.warning("Caddy config sync failed", {
+            description: data.caddyWarning,
+            duration: 10000,
+          });
+        }
         setDomain("");
         setApiToken("");
         setTokenValid(null);

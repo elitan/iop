@@ -306,9 +306,16 @@ export const settings = {
 
       const backfilledCount = await backfillWildcardDomains();
 
-      await syncCaddyConfig().catch(() => {});
+      let caddyWarning: string | undefined;
+      try {
+        await syncCaddyConfig();
+      } catch (error) {
+        console.error("Failed to sync Caddy config:", error);
+        caddyWarning =
+          error instanceof Error ? error.message : "Caddy config sync failed";
+      }
 
-      return { success: true, dnsWarning, backfilledCount };
+      return { success: true, dnsWarning, caddyWarning, backfilledCount };
     }),
 
     delete: os.settings.wildcard.delete.handler(async () => {
@@ -316,9 +323,16 @@ export const settings = {
       await setSetting("dns_provider", "");
       await setSetting("dns_api_token", "");
 
-      await syncCaddyConfig().catch(() => {});
+      let caddyWarning: string | undefined;
+      try {
+        await syncCaddyConfig();
+      } catch (error) {
+        console.error("Failed to sync Caddy config:", error);
+        caddyWarning =
+          error instanceof Error ? error.message : "Caddy config sync failed";
+      }
 
-      return { success: true };
+      return { success: true, caddyWarning };
     }),
 
     test: os.settings.wildcard.test.handler(async ({ input }) => {

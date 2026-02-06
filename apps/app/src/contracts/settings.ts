@@ -125,13 +125,17 @@ export const settingsContract = {
         z.object({
           success: z.boolean(),
           dnsWarning: z.string().optional(),
+          caddyWarning: z.string().optional(),
           backfilledCount: z.number(),
         }),
       ),
 
-    delete: oc
-      .route({ method: "DELETE", path: "/settings/wildcard" })
-      .output(z.object({ success: z.boolean() })),
+    delete: oc.route({ method: "DELETE", path: "/settings/wildcard" }).output(
+      z.object({
+        success: z.boolean(),
+        caddyWarning: z.string().optional(),
+      }),
+    ),
 
     test: oc
       .route({ method: "POST", path: "/settings/wildcard/test" })
