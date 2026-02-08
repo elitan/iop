@@ -72,6 +72,33 @@ docker rm -f $(docker ps -aq --filter "label=frost.managed=true") 2>/dev/null ||
 docker network prune -f > /dev/null 2>&1
 echo "✓ Docker cleanup done"
 
+if [ "${E2E_SKIP_PREPULL:-0}" != "1" ]; then
+  if [ -n "${E2E_PREPULL_IMAGES:-}" ]; then
+    read -r -a PREPULL_IMAGES <<< "$E2E_PREPULL_IMAGES"
+  else
+    PREPULL_IMAGES=("nginx:alpine" "httpd:alpine" "postgres:17" "node:20-alpine" "mariadb:11")
+  fi
+
+  if [ "${#PREPULL_IMAGES[@]}" -gt 0 ]; then
+    echo "Pre-pulling common images..."
+    for image in "${PREPULL_IMAGES[@]}"; do
+      pulled=0
+      for attempt in 1 2 3; do
+        if docker pull "$image" > /dev/null 2>&1; then
+          pulled=1
+          break
+        fi
+        sleep 2
+      done
+      if [ "$pulled" -ne 1 ]; then
+        echo "Error: failed to pull image '$image' after 3 attempts"
+        exit 1
+      fi
+    done
+    echo "✓ Image pre-pull complete"
+  fi
+fi
+
 export SERVER_IP="localhost"
 export API_KEY
 export E2E_LOCAL=1
