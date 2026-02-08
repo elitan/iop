@@ -10,6 +10,7 @@ BATCH_SIZE="${1:-2}"
 DEV_LOG="${E2E_DEV_LOG:-/tmp/frost-dev.log}"
 JWT_SECRET="${FROST_JWT_SECRET:-frost-e2e-$(openssl rand -hex 24)}"
 KEEP_DATA="${E2E_KEEP_DATA:-0}"
+KEEP_REPOS="${E2E_KEEP_REPOS:-0}"
 
 TEMP_DATA_DIR=0
 if [ -n "${FROST_DATA_DIR:-}" ]; then
@@ -29,6 +30,10 @@ cleanup() {
 
   if [ "$TEMP_DATA_DIR" -eq 1 ] && [ "$KEEP_DATA" != "1" ] && [ -d "$DATA_DIR" ]; then
     rm -rf "$DATA_DIR"
+  fi
+
+  if [ "$KEEP_REPOS" != "1" ] && [ -d "$APP_DIR/repos" ]; then
+    rm -rf "$APP_DIR/repos"
   fi
 
   exit "$STATUS"
