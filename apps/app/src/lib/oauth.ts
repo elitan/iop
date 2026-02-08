@@ -1,8 +1,8 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { db } from "./db";
+import { getRequiredJwtSecret } from "./jwt-secret";
 
-const DEFAULT_SECRET = "frost-default-secret-change-me";
-const JWT_SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
+const JWT_SECRET = getRequiredJwtSecret();
 
 const AUTH_CODE_EXPIRY_MS = 10 * 60 * 1000;
 

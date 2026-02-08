@@ -1,11 +1,11 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { db } from "./db";
+import { getRequiredJwtSecret } from "./jwt-secret";
 
 const scryptAsync = promisify(scrypt);
 
-const DEFAULT_SECRET = "frost-default-secret-change-me";
-const JWT_SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
+const JWT_SECRET = getRequiredJwtSecret();
 const SESSION_EXPIRY_DAYS = 7;
 const DEV_PASSWORD = "dev";
 

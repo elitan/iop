@@ -4,9 +4,9 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
+import { getRequiredJwtSecret } from "./jwt-secret";
 
-const DEFAULT_SECRET = "frost-default-secret-change-me";
-const SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
+const SECRET = getRequiredJwtSecret();
 const KEY = scryptSync(SECRET, "frost-encryption-salt", 32);
 
 export function encrypt(text: string): string {

@@ -1,29 +1,11 @@
-import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { isSetupComplete, verifyApiToken } from "./lib/auth";
+import {
+  isSetupComplete,
+  verifyApiToken,
+  verifySessionToken,
+} from "./lib/auth";
 import { verifyOAuthToken } from "./lib/oauth";
-
-const DEFAULT_SECRET = "frost-default-secret-change-me";
-const JWT_SECRET = process.env.FROST_JWT_SECRET || DEFAULT_SECRET;
-
-function verifySessionToken(token: string): boolean {
-  const [data, signature] = token.split(".");
-  if (!data || !signature) return false;
-
-  const expectedSignature = createHmac("sha256", JWT_SECRET)
-    .update(data)
-    .digest("base64url");
-
-  if (signature !== expectedSignature) return false;
-
-  try {
-    const payload = JSON.parse(Buffer.from(data, "base64url").toString());
-    return payload.exp > Date.now();
-  } catch {
-    return false;
-  }
-}
 
 const PUBLIC_PATHS = [
   "/login",

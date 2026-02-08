@@ -123,7 +123,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const redirect = new URL(redirectUri);
+  if (codeChallengeMethod !== "S256") {
+    return NextResponse.json(
+      {
+        error: "invalid_request",
+        error_description: "Only S256 code_challenge_method supported",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (action !== "approve" && action !== "deny") {
+    return NextResponse.json(
+      {
+        error: "invalid_request",
+        error_description: "Invalid action",
+      },
+      { status: 400 },
+    );
+  }
+
+  const client = await db
+    .selectFrom("oauthClients")
+    .selectAll()
+    .where("clientId", "=", clientId)
+    .executeTakeFirst();
+
+  if (!client) {
+    return NextResponse.json({ error: "invalid_client" }, { status: 400 });
+  }
+
+  const registeredUris: string[] = JSON.parse(client.redirectUris);
+  if (!registeredUris.includes(redirectUri)) {
+    return NextResponse.json(
+      {
+        error: "invalid_request",
+        error_description: "redirect_uri not registered",
+      },
+      { status: 400 },
+    );
+  }
+
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    return NextResponse.json(
+      {
+        error: "invalid_request",
+        error_description: "Invalid redirect URI",
+      },
+      { status: 400 },
+    );
+  }
 
   if (action === "deny") {
     redirect.searchParams.set("error", "access_denied");
