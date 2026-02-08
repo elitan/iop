@@ -44,7 +44,7 @@ sleep 2
 # --- Test 1: Runtime logs stream from all replicas ---
 log "Test 1: Runtime logs from all replicas"
 
-LOG_OUTPUT=$(curl -sf --max-time 5 "http://$SERVER_IP:3000/api/deployments/$DEPLOY_ID/logs?tail=20" \
+LOG_OUTPUT=$(curl -sf --max-time 5 "$BASE_URL/api/deployments/$DEPLOY_ID/logs?tail=20" \
   -H "X-Frost-Token: $API_KEY" 2>/dev/null || true)
 
 HAS_R0=$(echo "$LOG_OUTPUT" | grep -c '\[replica-0\]' || true)
@@ -57,7 +57,7 @@ log "Test 1 passed: logs contain both [replica-0] and [replica-1]"
 # --- Test 2: Runtime logs filter by replica ---
 log "Test 2: Runtime logs filter by replica"
 
-LOG_FILTERED=$(curl -sf --max-time 5 "http://$SERVER_IP:3000/api/deployments/$DEPLOY_ID/logs?tail=20&replica=0" \
+LOG_FILTERED=$(curl -sf --max-time 5 "$BASE_URL/api/deployments/$DEPLOY_ID/logs?tail=20&replica=0" \
   -H "X-Frost-Token: $API_KEY" 2>/dev/null || true)
 
 HAS_R1_FILTERED=$(echo "$LOG_FILTERED" | grep -c '\[replica-1\]' || true)

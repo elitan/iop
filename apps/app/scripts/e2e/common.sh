@@ -2,7 +2,8 @@
 
 export SERVER_IP="${SERVER_IP:?SERVER_IP required}"
 export API_KEY="${API_KEY:?API_KEY required}"
-export BASE_URL="http://$SERVER_IP:3000"
+E2E_PORT="${FROST_PORT:-3000}"
+export BASE_URL="http://$SERVER_IP:$E2E_PORT"
 
 if [ -z "${FROST_DATA_DIR:-}" ]; then
   if [ "${E2E_LOCAL:-}" = "1" ]; then

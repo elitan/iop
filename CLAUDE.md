@@ -38,10 +38,17 @@ bun run db:gen       # regenerate db types (run after schema changes)
 
 ## E2E Tests
 
-Run locally (start `bun run dev` first):
+Run locally (fully managed, recommended):
 ```bash
-./apps/app/scripts/e2e-local.sh <api-key>           # run all tests
-./apps/app/scripts/e2e-local.sh <api-key> 2         # batch size 2 (fewer parallel tests)
+bun run e2e:local                       # boots isolated local Frost + runs all groups
+E2E_GROUP_GLOB='group-0[1-4]*.sh' bun run e2e:local  # run subset
+```
+
+Run against an existing local Frost instance (start `bun run dev` first):
+```bash
+bun run e2e:local:existing <api-key>          # run all tests
+bun run e2e:local:existing <api-key> 2        # custom batch size
+FROST_PORT=3301 bun run e2e:local:existing <api-key> # custom port
 
 # run single test
 SERVER_IP=localhost API_KEY=<key> E2E_LOCAL=1 FROST_DATA_DIR=./apps/app/data \

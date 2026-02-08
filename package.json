@@ -19,6 +19,8 @@
     "format": "biome format --write .",
     "db:gen": "bun --cwd apps/app db:gen",
     "test": "bun --cwd apps/app test",
+    "e2e:local": "bash ./apps/app/scripts/e2e-local-managed.sh",
+    "e2e:local:existing": "bash ./apps/app/scripts/e2e-local.sh",
     "dev:marketing": "bun --cwd apps/marketing dev",
     "build:marketing": "bun --cwd apps/marketing build"
   },
