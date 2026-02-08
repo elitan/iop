@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 PORT="${FROST_PORT:-3301}"
 BATCH_SIZE="${1:-2}"
-DEV_LOG="${E2E_DEV_LOG:-/tmp/frost-e2e-dev.log}"
+DEV_LOG="${E2E_DEV_LOG:-/tmp/frost-dev.log}"
 JWT_SECRET="${FROST_JWT_SECRET:-frost-e2e-$(openssl rand -hex 24)}"
 KEEP_DATA="${E2E_KEEP_DATA:-0}"
 
@@ -94,16 +94,23 @@ fi
 echo "✓ Frost dev server is healthy"
 
 echo "Creating API key for test run..."
-API_KEY="$(
-  cd "$APP_DIR"
-  FROST_JWT_SECRET="$JWT_SECRET" \
-    FROST_DATA_DIR="$DATA_DIR" \
-    bun scripts/create-api-key.ts "e2e-local-$(date +%s)"
-)"
-API_KEY="$(echo "$API_KEY" | tr -d '\r\n')"
+API_KEY=""
+for i in $(seq 1 30); do
+  API_KEY="$(
+    cd "$APP_DIR"
+    FROST_JWT_SECRET="$JWT_SECRET" \
+      FROST_DATA_DIR="$DATA_DIR" \
+      bun scripts/create-api-key.ts "e2e-local-$(date +%s)" 2>/dev/null || true
+  )"
+  API_KEY="$(echo "$API_KEY" | tr -d '\r\n')"
+  if [ -n "$API_KEY" ]; then
+    break
+  fi
+  sleep 1
+done
 
 if [ -z "$API_KEY" ]; then
-  echo "Failed to create API key"
+  echo "Failed to create API key (db may not be ready)"
   exit 1
 fi
 

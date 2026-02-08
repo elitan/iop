@@ -107,8 +107,14 @@ REPLICAS4=$(api "$BASE_URL/api/deployments/$DEPLOY4_ID/replicas")
 REPLICA_COUNT4=$(echo "$REPLICAS4" | jq 'length')
 [ "$REPLICA_COUNT4" = "1" ] || fail "Expected 1 replica after scale-down, got $REPLICA_COUNT4"
 
-sleep 2
-DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
+DOCKER_COUNT=""
+for i in $(seq 1 20); do
+  DOCKER_COUNT=$(remote "docker ps --filter name=${SANITIZED_PREFIX} --format '{{.Names}}' | wc -l" | tr -d ' ')
+  if [ "$DOCKER_COUNT" = "1" ]; then
+    break
+  fi
+  sleep 1
+done
 [ "$DOCKER_COUNT" = "1" ] || fail "Expected 1 container after scale-down, got $DOCKER_COUNT"
 log "Test 4 passed: scaled down to 1 replica"
 
