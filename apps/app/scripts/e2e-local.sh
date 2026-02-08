@@ -9,6 +9,7 @@ E2E_DIR="$SCRIPT_DIR/e2e"
 BATCH_SIZE=${2:-2}
 PORT=${FROST_PORT:-3000}
 GROUP_GLOB="${E2E_GROUP_GLOB:-group-*.sh}"
+GROUP_LIST="${E2E_GROUPS:-}"
 
 echo "========================================"
 echo "Local E2E Tests"
@@ -108,12 +109,55 @@ export FROST_PORT="$PORT"
 chmod +x "$E2E_DIR"/*.sh
 
 FAILED=0
-shopt -s nullglob
-ALL_GROUPS=("$E2E_DIR"/$GROUP_GLOB)
-shopt -u nullglob
+ALL_GROUPS=()
+GROUP_KEYS="|"
+
+add_group_path() {
+  local path="$1"
+  [ -f "$path" ] || return 1
+  local key
+  key="$(basename "$path")"
+  case "$GROUP_KEYS" in
+    *"|$key|"*) return 0 ;;
+  esac
+  ALL_GROUPS+=("$path")
+  GROUP_KEYS="${GROUP_KEYS}${key}|"
+  return 0
+}
+
+if [ -n "$GROUP_LIST" ]; then
+  MISSING_GROUP=0
+  GROUP_LIST_NORMALIZED=$(echo "$GROUP_LIST" | tr ',\n\t' '   ')
+  for group in $GROUP_LIST_NORMALIZED; do
+    group="${group%.sh}"
+    case "$group" in
+      */*) GROUP_PATH="$group" ;;
+      group-*) GROUP_PATH="$E2E_DIR/$group.sh" ;;
+      *) GROUP_PATH="$E2E_DIR/group-$group.sh" ;;
+    esac
+
+    if ! add_group_path "$GROUP_PATH"; then
+      echo "Error: requested E2E group not found: $group"
+      MISSING_GROUP=1
+    fi
+  done
+  [ "$MISSING_GROUP" -eq 0 ] || exit 1
+else
+  shopt -s nullglob
+  MATCHED_GROUPS=("$E2E_DIR"/$GROUP_GLOB)
+  shopt -u nullglob
+
+  for group in "${MATCHED_GROUPS[@]}"; do
+    add_group_path "$group" || true
+  done
+fi
 
 if [ "${#ALL_GROUPS[@]}" -eq 0 ]; then
-  echo "No E2E groups matched E2E_GROUP_GLOB='$GROUP_GLOB'"
+  if [ -n "$GROUP_LIST" ]; then
+    echo "No E2E groups selected from E2E_GROUPS='$GROUP_LIST'"
+  else
+    echo "No E2E groups matched E2E_GROUP_GLOB='$GROUP_GLOB'"
+  fi
   exit 1
 fi
 
@@ -121,7 +165,11 @@ TOTAL=${#ALL_GROUPS[@]}
 BATCH=0
 
 echo ""
-echo "Running $TOTAL test groups (batch size: $BATCH_SIZE, glob: $GROUP_GLOB)"
+if [ -n "$GROUP_LIST" ]; then
+  echo "Running $TOTAL test groups (batch size: $BATCH_SIZE, groups: $GROUP_LIST)"
+else
+  echo "Running $TOTAL test groups (batch size: $BATCH_SIZE, glob: $GROUP_GLOB)"
+fi
 echo "Data dir: $FROST_DATA_DIR"
 echo ""
 

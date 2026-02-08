@@ -42,6 +42,9 @@ Run locally (fully managed, recommended):
 ```bash
 bun run e2e:local                       # boots isolated local Frost + runs all groups
 E2E_GROUP_GLOB='group-0[1-4]*.sh' bun run e2e:local  # run subset
+bun run e2e:smoke                       # fast high-signal subset
+bun run e2e:changed                     # auto-select groups based on git changes
+bun run e2e:changed:print               # print selected groups only
 ```
 
 Run against an existing local Frost instance (start `bun run dev` first):
@@ -49,6 +52,7 @@ Run against an existing local Frost instance (start `bun run dev` first):
 bun run e2e:local:existing <api-key>          # run all tests
 bun run e2e:local:existing <api-key> 2        # custom batch size
 FROST_PORT=3301 bun run e2e:local:existing <api-key> # custom port
+E2E_GROUPS='01-basic,23-change-password' bun run e2e:local:existing <api-key>  # explicit groups
 
 # run single test
 SERVER_IP=localhost API_KEY=<key> E2E_LOCAL=1 FROST_DATA_DIR=./apps/app/data \

@@ -73,6 +73,8 @@ Docker-native. If it has a Dockerfile, Frost runs it.
 bun install
 bun run dev
 bun run e2e:local
+bun run e2e:smoke
+bun run e2e:changed
 ```
 
 Open http://localhost:3000
