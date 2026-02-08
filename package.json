@@ -20,9 +20,13 @@
     "db:gen": "bun --cwd apps/app db:gen",
     "test": "bun --cwd apps/app test",
     "e2e:local": "bash ./apps/app/scripts/e2e-local-managed.sh",
+    "e2e:local:retry": "E2E_RETRY_FAILED=1 bash ./apps/app/scripts/e2e-local-managed.sh",
+    "e2e:local:report": "E2E_REPORT_PATH=/tmp/frost-e2e-report.json bash ./apps/app/scripts/e2e-local-managed.sh",
     "e2e:local:existing": "bash ./apps/app/scripts/e2e-local.sh",
     "e2e:smoke": "E2E_GROUPS='01-basic,04-update,10-race,20-setup,28-oauth,29-mcp' bash ./apps/app/scripts/e2e-local-managed.sh 1",
+    "e2e:smoke:retry": "E2E_RETRY_FAILED=1 E2E_GROUPS='01-basic,04-update,10-race,20-setup,28-oauth,29-mcp' bash ./apps/app/scripts/e2e-local-managed.sh 1",
     "e2e:changed": "bash ./apps/app/scripts/e2e-changed.sh",
+    "e2e:changed:retry": "E2E_RETRY_FAILED=1 bash ./apps/app/scripts/e2e-changed.sh",
     "e2e:changed:print": "E2E_CHANGED_DRY_RUN=1 bash ./apps/app/scripts/e2e-changed.sh",
     "dev:marketing": "bun --cwd apps/marketing dev",
     "build:marketing": "bun --cwd apps/marketing build"

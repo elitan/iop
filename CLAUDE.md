@@ -42,8 +42,12 @@ Run locally (fully managed, recommended):
 ```bash
 bun run e2e:local                       # boots isolated local Frost + runs all groups
 E2E_GROUP_GLOB='group-0[1-4]*.sh' bun run e2e:local  # run subset
+E2E_RETRY_FAILED=1 bun run e2e:local    # auto-retry failed groups once
+E2E_REPORT_PATH=/tmp/frost-e2e.json bun run e2e:local # write JSON report
 bun run e2e:smoke                       # fast high-signal subset
+bun run e2e:smoke:retry                 # smoke subset + retry failed groups
 bun run e2e:changed                     # auto-select groups based on git changes
+bun run e2e:changed:retry               # changed groups + retry failed groups
 bun run e2e:changed:print               # print selected groups only
 ```
 

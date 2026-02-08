@@ -10,6 +10,20 @@ BATCH_SIZE=${2:-2}
 PORT=${FROST_PORT:-3000}
 GROUP_GLOB="${E2E_GROUP_GLOB:-group-*.sh}"
 GROUP_LIST="${E2E_GROUPS:-}"
+RETRY_FAILED="${E2E_RETRY_FAILED:-0}"
+REPORT_PATH="${E2E_REPORT_PATH:-}"
+REPORT_TMP=""
+
+cleanup_report() {
+  if [ -n "${REPORT_TMP:-}" ] && [ -f "$REPORT_TMP" ]; then
+    rm -f "$REPORT_TMP"
+  fi
+}
+trap cleanup_report EXIT
+
+if [ -n "$REPORT_PATH" ]; then
+  REPORT_TMP="$(mktemp /tmp/frost-e2e-report.XXXXXX)"
+fi
 
 echo "========================================"
 echo "Local E2E Tests"
@@ -125,6 +139,24 @@ add_group_path() {
   return 0
 }
 
+record_result() {
+  local group="$1"
+  local status="$2"
+  local duration="$3"
+  local attempt="$4"
+
+  if [ -z "$REPORT_PATH" ]; then
+    return 0
+  fi
+
+  jq -nc \
+    --arg group "$group" \
+    --arg status "$status" \
+    --argjson durationSec "$duration" \
+    --argjson attempt "$attempt" \
+    '{group: $group, status: $status, durationSec: $durationSec, attempt: $attempt}' >> "$REPORT_TMP"
+}
+
 if [ -n "$GROUP_LIST" ]; then
   MISSING_GROUP=0
   GROUP_LIST_NORMALIZED=$(echo "$GROUP_LIST" | tr ',\n\t' '   ')
@@ -163,6 +195,8 @@ fi
 
 TOTAL=${#ALL_GROUPS[@]}
 BATCH=0
+FAILED_GROUP_PATHS=()
+FAILED_GROUP_NAMES=()
 
 echo ""
 if [ -n "$GROUP_LIST" ]; then
@@ -176,7 +210,9 @@ echo ""
 for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
   BATCH=$((BATCH+1))
   PIDS=()
+  GROUP_PATHS=()
   GROUP_NAMES=()
+  START_TIMES=()
 
   END=$((i + BATCH_SIZE))
   [ $END -gt $TOTAL ] && END=$TOTAL
@@ -186,7 +222,9 @@ for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
   for ((j=i; j<END; j++)); do
     group="${ALL_GROUPS[$j]}"
     GROUP_NAME=$(basename "$group" .sh)
+    GROUP_PATHS+=("$group")
     GROUP_NAMES+=("$GROUP_NAME")
+    START_TIMES+=("$(date +%s)")
     "$group" &
     PIDS+=($!)
     sleep 2
@@ -194,16 +232,84 @@ for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
 
   for k in "${!PIDS[@]}"; do
     PID=${PIDS[$k]}
+    GROUP_PATH=${GROUP_PATHS[$k]}
     GROUP=${GROUP_NAMES[$k]}
+    START_TS=${START_TIMES[$k]}
+    END_TS=$(date +%s)
+    DURATION=$((END_TS - START_TS))
     if wait "$PID"; then
       echo "✓ $GROUP passed"
+      record_result "$GROUP" "passed" "$DURATION" 1
     else
       echo "✗ $GROUP FAILED"
+      record_result "$GROUP" "failed" "$DURATION" 1
       FAILED=1
+      FAILED_GROUP_PATHS+=("$GROUP_PATH")
+      FAILED_GROUP_NAMES+=("$GROUP")
     fi
   done
   echo ""
 done
+
+if [ "$FAILED" -ne 0 ] && [ "$RETRY_FAILED" = "1" ] && [ "${#FAILED_GROUP_PATHS[@]}" -gt 0 ]; then
+  echo "Retrying failed groups once..."
+  RETRY_UNIQUE_KEYS="|"
+  RETRY_REMAINING_PATHS=()
+  RETRY_REMAINING_NAMES=()
+
+  for idx in "${!FAILED_GROUP_PATHS[@]}"; do
+    GROUP_PATH="${FAILED_GROUP_PATHS[$idx]}"
+    GROUP="${FAILED_GROUP_NAMES[$idx]}"
+    GROUP_KEY="$(basename "$GROUP_PATH")"
+
+    case "$RETRY_UNIQUE_KEYS" in
+      *"|$GROUP_KEY|"*) continue ;;
+    esac
+    RETRY_UNIQUE_KEYS="${RETRY_UNIQUE_KEYS}${GROUP_KEY}|"
+
+    echo "--- Retry: $GROUP ---"
+    START_TS=$(date +%s)
+    if "$GROUP_PATH"; then
+      END_TS=$(date +%s)
+      DURATION=$((END_TS - START_TS))
+      echo "✓ $GROUP passed on retry"
+      record_result "$GROUP" "passed" "$DURATION" 2
+    else
+      END_TS=$(date +%s)
+      DURATION=$((END_TS - START_TS))
+      echo "✗ $GROUP FAILED on retry"
+      record_result "$GROUP" "failed" "$DURATION" 2
+      RETRY_REMAINING_PATHS+=("$GROUP_PATH")
+      RETRY_REMAINING_NAMES+=("$GROUP")
+    fi
+    echo ""
+  done
+
+  if [ "${#RETRY_REMAINING_PATHS[@]}" -eq 0 ]; then
+    FAILED=0
+    FAILED_GROUP_PATHS=()
+    FAILED_GROUP_NAMES=()
+  else
+    FAILED=1
+    FAILED_GROUP_PATHS=("${RETRY_REMAINING_PATHS[@]}")
+    FAILED_GROUP_NAMES=("${RETRY_REMAINING_NAMES[@]}")
+  fi
+fi
+
+FINAL_FAILED_COUNT=${#FAILED_GROUP_NAMES[@]}
+FINAL_PASSED_COUNT=$((TOTAL - FINAL_FAILED_COUNT))
+
+if [ "$FINAL_FAILED_COUNT" -gt 0 ]; then
+  echo "Failed groups: ${FAILED_GROUP_NAMES[*]}"
+fi
+
+echo "Summary: $FINAL_PASSED_COUNT passed, $FINAL_FAILED_COUNT failed"
+
+if [ -n "$REPORT_PATH" ]; then
+  mkdir -p "$(dirname "$REPORT_PATH")"
+  jq -s '.' "$REPORT_TMP" > "$REPORT_PATH"
+  echo "Wrote E2E report: $REPORT_PATH"
+fi
 
 if [ "$FAILED" -eq 0 ]; then
   echo "========================================"

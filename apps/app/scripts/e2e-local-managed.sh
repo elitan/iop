@@ -61,10 +61,14 @@ echo "========================================"
 echo "Port: $PORT"
 echo "Data dir: $DATA_DIR"
 echo "Batch size: $BATCH_SIZE"
+echo "Retry failed groups: ${E2E_RETRY_FAILED:-0}"
 if [ -n "${E2E_GROUPS:-}" ]; then
   echo "Groups: $E2E_GROUPS"
 else
   echo "Group glob: ${E2E_GROUP_GLOB:-group-*.sh}"
+fi
+if [ -n "${E2E_REPORT_PATH:-}" ]; then
+  echo "Report path: $E2E_REPORT_PATH"
 fi
 echo ""
 
