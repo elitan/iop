@@ -8,9 +8,17 @@ log "=== Domain & SSL ==="
 log "Enabling SSL with staging certs..."
 FROST_DOMAIN="frost.$SERVER_IP.sslip.io"
 SSL_RESULT=$(api -X POST "$BASE_URL/api/settings/enable-ssl" \
-  -d "{\"domain\":\"$FROST_DOMAIN\",\"email\":\"frost-e2e@j4labs.se\",\"staging\":true}")
-SSL_SUCCESS=$(json_get "$SSL_RESULT" '.success // .error')
-log "SSL enable result: $SSL_SUCCESS"
+  -d "{\"domain\":\"$FROST_DOMAIN\",\"email\":\"frost-e2e@j4labs.se\",\"staging\":true}" || true)
+SSL_SUCCESS=$(json_get "$SSL_RESULT" '.success // empty')
+SSL_ERROR=$(json_get "$SSL_RESULT" '.message // .error // empty')
+
+if [ "$SSL_SUCCESS" = "true" ]; then
+  log "SSL enable result: success"
+elif [ "${E2E_LOCAL:-}" = "1" ] && echo "$SSL_ERROR" | grep -qi "caddy is not running"; then
+  log "SSL enable skipped locally (no caddy): $SSL_ERROR"
+else
+  fail "SSL enable failed: $SSL_RESULT"
+fi
 
 log "Creating service to test custom domain..."
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-domain"}')

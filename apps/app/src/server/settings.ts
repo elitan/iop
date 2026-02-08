@@ -1,5 +1,6 @@
 import { promises as dns } from "node:dns";
 import https from "node:https";
+import { ORPCError } from "@orpc/server";
 import {
   getAdminPasswordHash,
   getSetting,
@@ -170,16 +171,16 @@ export const settings = {
 
     const caddyRunning = await isCaddyRunning();
     if (!caddyRunning) {
-      throw new Error(
-        "Caddy is not running. Please ensure Caddy is installed.",
-      );
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Caddy is not running. Please ensure Caddy is installed.",
+      });
     }
 
     const dnsValid = await verifyDns(domain);
     if (!dnsValid) {
-      throw new Error(
-        "DNS not configured correctly. Domain must point to this server.",
-      );
+      throw new ORPCError("BAD_REQUEST", {
+        message: "DNS not configured correctly. Domain must point to this server.",
+      });
     }
 
     await configureDomain(domain, email, staging);
@@ -197,12 +198,14 @@ export const settings = {
 
     const storedHash = await getAdminPasswordHash();
     if (!storedHash) {
-      throw new Error("No password configured");
+      throw new ORPCError("BAD_REQUEST", { message: "No password configured" });
     }
 
     const valid = await verifyPassword(currentPassword, storedHash);
     if (!valid) {
-      throw new Error("Current password is incorrect");
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Current password is incorrect",
+      });
     }
 
     const newHash = await hashPassword(newPassword);
@@ -242,7 +245,9 @@ export const settings = {
       const sslEnabled = await getSetting("ssl_enabled");
 
       if (!domain || sslEnabled !== "true") {
-        throw new Error("Domain with SSL must be configured first");
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Domain with SSL must be configured first",
+        });
       }
 
       const manifest = buildManifest(domain) as Record<string, unknown>;
@@ -282,7 +287,9 @@ export const settings = {
       const { wildcardDomain, dnsProvider, dnsApiToken } = input;
 
       if (dnsProvider !== "cloudflare") {
-        throw new Error("Only cloudflare is supported as DNS provider");
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Only cloudflare is supported as DNS provider",
+        });
       }
 
       const domainWithoutWildcard = wildcardDomain.replace(/^\*\./, "");
@@ -339,7 +346,9 @@ export const settings = {
       const { dnsProvider, dnsApiToken } = input;
 
       if (dnsProvider !== "cloudflare") {
-        throw new Error("Only cloudflare is supported");
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Only cloudflare is supported",
+        });
       }
 
       try {

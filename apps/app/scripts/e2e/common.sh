@@ -4,6 +4,7 @@ export SERVER_IP="${SERVER_IP:?SERVER_IP required}"
 export API_KEY="${API_KEY:?API_KEY required}"
 E2E_PORT="${FROST_PORT:-3000}"
 export BASE_URL="http://$SERVER_IP:$E2E_PORT"
+export E2E_FAIL_ON_5XX="${E2E_FAIL_ON_5XX:-1}"
 
 if [ -z "${FROST_DATA_DIR:-}" ]; then
   if [ "${E2E_LOCAL:-}" = "1" ]; then
@@ -52,6 +53,10 @@ api() {
     fi
   fi
   echo "$RESPONSE"
+
+  if [ "$HTTP_CODE" -ge 500 ] 2>/dev/null && [ "$E2E_FAIL_ON_5XX" = "1" ]; then
+    return 1
+  fi
 }
 
 json_get() {

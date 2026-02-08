@@ -8,13 +8,24 @@ NEW_PASSWORD="newE2ePassword456"
 
 log "=== Change password ==="
 
+SETUP_STATUS=$(curl -s "$BASE_URL/api/setup" 2>/dev/null || echo '{}')
+SETUP_COMPLETE=$(echo "$SETUP_STATUS" | jq -r '.setupComplete // empty')
+if [ "$SETUP_COMPLETE" != "true" ]; then
+  log "Setup not complete, creating admin password for isolated run..."
+  SETUP_RESULT=$(curl -s -X POST "$BASE_URL/api/setup" \
+    -H "Content-Type: application/json" \
+    -d "{\"password\":\"$ADMIN_PASSWORD\"}")
+  SETUP_OK=$(echo "$SETUP_RESULT" | jq -r '.success // empty')
+  [ "$SETUP_OK" = "true" ] || fail "Failed to initialize setup: $SETUP_RESULT"
+fi
+
 # wrong current password → error
 log "Attempting change with wrong password..."
 RESULT=$(api -X PUT "$BASE_URL/api/settings/password" \
   -d '{"currentPassword":"wrong-password-here","newPassword":"something"}')
 ERROR=$(json_get "$RESULT" '.message // .error // empty')
-if [ -z "$ERROR" ]; then
-  fail "Expected error for wrong current password, got: $RESULT"
+if ! echo "$ERROR" | grep -qi "current password is incorrect"; then
+  fail "Expected 'Current password is incorrect', got: $RESULT"
 fi
 log "Wrong password correctly rejected"
 
@@ -23,8 +34,9 @@ log "Attempting change with too-short new password..."
 RESULT=$(api -X PUT "$BASE_URL/api/settings/password" \
   -d "{\"currentPassword\":\"$ADMIN_PASSWORD\",\"newPassword\":\"ab\"}")
 ERROR=$(json_get "$RESULT" '.message // .error // empty')
-if [ -z "$ERROR" ]; then
-  fail "Expected error for short password, got: $RESULT"
+ISSUE_CODE=$(json_get "$RESULT" '.data.issues[0].code // empty')
+if [ "$ISSUE_CODE" != "too_small" ] || ! echo "$ERROR" | grep -qi "validation"; then
+  fail "Expected validation error (too_small), got: $RESULT"
 fi
 log "Short password correctly rejected"
 
