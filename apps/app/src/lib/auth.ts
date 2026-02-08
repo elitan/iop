@@ -5,7 +5,6 @@ import { getRequiredJwtSecret } from "./jwt-secret";
 
 const scryptAsync = promisify(scrypt);
 
-const JWT_SECRET = getRequiredJwtSecret();
 const SESSION_EXPIRY_DAYS = 7;
 const DEV_PASSWORD = "dev";
 
@@ -75,7 +74,9 @@ export function verifySessionToken(token: string): boolean {
 }
 
 function createSignature(data: string): string {
-  return createHmac("sha256", JWT_SECRET).update(data).digest("base64url");
+  return createHmac("sha256", getRequiredJwtSecret())
+    .update(data)
+    .digest("base64url");
 }
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -113,7 +114,7 @@ export function generateApiKey(): string {
 }
 
 export function hashApiKey(key: string): string {
-  return createHmac("sha256", JWT_SECRET).update(key).digest("hex");
+  return createHmac("sha256", getRequiredJwtSecret()).update(key).digest("hex");
 }
 
 export async function verifyApiToken(token: string): Promise<boolean> {

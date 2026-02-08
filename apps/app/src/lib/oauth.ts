@@ -2,8 +2,6 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import { db } from "./db";
 import { getRequiredJwtSecret } from "./jwt-secret";
 
-const JWT_SECRET = getRequiredJwtSecret();
-
 const AUTH_CODE_EXPIRY_MS = 10 * 60 * 1000;
 
 export function generateCode(): string {
@@ -19,7 +17,9 @@ export function generateRefreshToken(): string {
 }
 
 export function hashOAuthToken(token: string): string {
-  return createHmac("sha256", JWT_SECRET).update(token).digest("hex");
+  return createHmac("sha256", getRequiredJwtSecret())
+    .update(token)
+    .digest("hex");
 }
 
 export function verifyPKCE(
