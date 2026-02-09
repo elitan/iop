@@ -17,9 +17,7 @@ SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
   -d '{"name":"log-test","deployType":"image","imageUrl":"nginx:alpine","containerPort":80}')
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create service") || fail "Failed to create service: $SERVICE"
 
-sleep 1
-DEPLOYMENTS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
-DEPLOY_INIT_ID=$(json_get "$DEPLOYMENTS" '.[0].id // empty')
+DEPLOY_INIT_ID=$(wait_for_service_deployment_id "$SERVICE_ID" 30 1 || true)
 if [ -n "$DEPLOY_INIT_ID" ] && [ "$DEPLOY_INIT_ID" != "null" ]; then
   wait_for_deployment "$DEPLOY_INIT_ID" || fail "Initial deployment failed"
 fi
@@ -39,14 +37,21 @@ for i in 0 1; do
   PORT=$(json_get "$REPLICAS" ".[$i].hostPort")
   curl -sf "http://$SERVER_IP:$PORT/replica-log-test" > /dev/null 2>&1 || true
 done
-sleep 2
+
+LOG_OUTPUT=""
+for _ in $(seq 1 8); do
+  LOG_OUTPUT=$(curl -sf --max-time 5 "$BASE_URL/api/deployments/$DEPLOY_ID/logs?tail=20" \
+    -H "X-Frost-Token: $API_KEY" 2>/dev/null || true)
+  HAS_R0=$(echo "$LOG_OUTPUT" | grep -c '\[replica-0\]' || true)
+  HAS_R1=$(echo "$LOG_OUTPUT" | grep -c '\[replica-1\]' || true)
+  if [ "$HAS_R0" -gt 0 ] && [ "$HAS_R1" -gt 0 ]; then
+    break
+  fi
+  sleep 1
+done
 
 # --- Test 1: Runtime logs stream from all replicas ---
 log "Test 1: Runtime logs from all replicas"
-
-LOG_OUTPUT=$(curl -sf --max-time 5 "$BASE_URL/api/deployments/$DEPLOY_ID/logs?tail=20" \
-  -H "X-Frost-Token: $API_KEY" 2>/dev/null || true)
-
 HAS_R0=$(echo "$LOG_OUTPUT" | grep -c '\[replica-0\]' || true)
 HAS_R1=$(echo "$LOG_OUTPUT" | grep -c '\[replica-1\]' || true)
 

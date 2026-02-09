@@ -753,7 +753,22 @@ async function runServiceDeployment(
       await appendLog(deploymentId, pullResult.log);
 
       if (!pullResult.success) {
-        throw new Error(pullResult.error || "Pull failed");
+        const failureClass = pullResult.failureClass || "unknown";
+        const attemptCount = pullResult.attempts || 1;
+        const failureType = failureClass.startsWith("infra/")
+          ? "transient infrastructure issue"
+          : "deterministic pull failure";
+
+        await appendLog(
+          deploymentId,
+          `Image pull failed after ${attemptCount} attempt(s). class=${failureClass} (${failureType})\n`,
+        );
+
+        throw new Error(
+          pullResult.error
+            ? `${pullResult.error} [class=${failureClass}]`
+            : `Pull failed [class=${failureClass}]`,
+        );
       }
 
       if (await isDeploymentCancelled(deploymentId)) {

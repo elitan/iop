@@ -56,9 +56,7 @@ SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
 SERVICE_ID=$(require_field "$SERVICE" '.id' "create nginx") || fail "Failed: $SERVICE"
 
 log "Waiting for nginx deployment..."
-sleep 2
-DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
-DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get deploy") || fail "No deployment: $DEPLOYS"
+DEPLOY_ID=$(wait_for_service_deployment_id "$SERVICE_ID" 30 1) || fail "No deployment found for nginx service"
 wait_for_deployment "$DEPLOY_ID" 60 || fail "nginx deployment failed"
 
 log "Verifying nginx responds..."
@@ -94,9 +92,7 @@ PG_DB=$(echo "$DB_ENVVARS" | jq -r '.[] | select(.key == "POSTGRES_DB") | .value
 log "Credentials generated (pw length: ${#PG_PASS})"
 
 log "Waiting for postgres..."
-sleep 2
-DB_DEPLOYS=$(api "$BASE_URL/api/services/$DB_SERVICE_ID/deployments")
-DB_DEPLOY_ID=$(require_field "$DB_DEPLOYS" '.[0].id' "get db deploy") || fail "No deploy: $DB_DEPLOYS"
+DB_DEPLOY_ID=$(wait_for_service_deployment_id "$DB_SERVICE_ID" 45 1) || fail "No deployment found for postgres service"
 wait_for_deployment "$DB_DEPLOY_ID" 90 || fail "postgres deployment failed"
 
 log "Verifying postgres is ready..."
@@ -125,9 +121,7 @@ APP_SERVICE=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
 APP_SERVICE_ID=$(require_field "$APP_SERVICE" '.id' "create app") || fail "Failed: $APP_SERVICE"
 
 log "Waiting for app deployment..."
-sleep 2
-APP_DEPLOYS=$(api "$BASE_URL/api/services/$APP_SERVICE_ID/deployments")
-APP_DEPLOY_ID=$(require_field "$APP_DEPLOYS" '.[0].id' "get app deploy") || fail "No deploy: $APP_DEPLOYS"
+APP_DEPLOY_ID=$(wait_for_service_deployment_id "$APP_SERVICE_ID" 45 1) || fail "No deployment found for app service"
 wait_for_deployment "$APP_DEPLOY_ID" 120 || fail "app deployment failed"
 
 log "Verifying app can connect to database..."
@@ -135,8 +129,6 @@ APP_DEPLOY=$(api "$BASE_URL/api/deployments/$APP_DEPLOY_ID")
 APP_HOST_PORT=$(require_field "$APP_DEPLOY" '.hostPort' "get app hostPort") || fail "No hostPort"
 APP_CONTAINER_ID=$(json_get "$APP_DEPLOY" '.containerId')
 log "App container: $APP_CONTAINER_ID on port $APP_HOST_PORT"
-
-sleep 3
 
 CONTAINER_STATUS=$(remote "docker inspect $APP_CONTAINER_ID --format '{{.State.Status}}'" 2>&1 || echo "unknown")
 log "Container status: $CONTAINER_STATUS"
@@ -152,8 +144,16 @@ ROOT_RESP=$(remote "curl -sf --max-time 5 http://localhost:$APP_HOST_PORT/" 2>&1
 log "Root response: $ROOT_RESP"
 
 log "Checking health endpoint..."
-HEALTH_RESP=$(remote "curl -sf --max-time 10 http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
-HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error")
+HEALTH_RESP="{}"
+HEALTH_STATUS="error"
+for _ in $(seq 1 12); do
+  HEALTH_RESP=$(remote "curl -sf --max-time 5 http://localhost:$APP_HOST_PORT/health" 2>&1 || echo "{}")
+  HEALTH_STATUS=$(echo "$HEALTH_RESP" | jq -r '.status' 2>/dev/null || echo "error")
+  if [ "$HEALTH_STATUS" = "ok" ]; then
+    break
+  fi
+  sleep 1
+done
 if [ "$HEALTH_STATUS" != "ok" ]; then
   log "Health check failed, container logs:"
   remote "docker logs $APP_CONTAINER_ID 2>&1 | tail -30" || true

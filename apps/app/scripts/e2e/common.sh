@@ -127,6 +127,26 @@ wait_for_deployment() {
   return 1
 }
 
+wait_for_service_deployment_id() {
+  local SERVICE_ID=$1
+  local MAX=${2:-30}
+  local INTERVAL=${3:-1}
+  local DEPLOYS
+  local DEPLOY_ID
+
+  for _ in $(seq 1 "$MAX"); do
+    DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments" 2>/dev/null || echo "[]")
+    DEPLOY_ID=$(echo "$DEPLOYS" | jq -r '.[0].id // empty' 2>/dev/null || echo "")
+    if [ -n "$DEPLOY_ID" ] && [ "$DEPLOY_ID" != "null" ]; then
+      echo "$DEPLOY_ID"
+      return 0
+    fi
+    sleep "$INTERVAL"
+  done
+
+  return 1
+}
+
 remote() {
   if [ "${E2E_LOCAL:-}" = "1" ]; then
     bash -c "$@"

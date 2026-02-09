@@ -6,7 +6,7 @@ APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 PORT="${FROST_PORT:-3301}"
-BATCH_SIZE="${1:-2}"
+BATCH_SIZE="${1:-${E2E_BATCH_SIZE:-2}}"
 DEV_LOG="${E2E_DEV_LOG:-/tmp/frost-dev.log}"
 JWT_SECRET="${FROST_JWT_SECRET:-frost-e2e-$(openssl rand -hex 24)}"
 KEEP_DATA="${E2E_KEEP_DATA:-0}"

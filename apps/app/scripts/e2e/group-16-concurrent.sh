@@ -28,9 +28,7 @@ done
 log "Waiting for initial deployments..."
 for i in $(seq 0 $((NUM_SERVICES - 1))); do
   SERVICE_ID=${SERVICE_IDS[$i]}
-  sleep 1
-  DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_ID/deployments")
-  DEPLOY_ID=$(require_field "$DEPLOYS" '.[0].id' "get initial deploy $i") || fail "No initial deployment for service $i: $DEPLOYS"
+  DEPLOY_ID=$(wait_for_service_deployment_id "$SERVICE_ID" 30 1) || fail "No initial deployment for service $i"
   wait_for_deployment "$DEPLOY_ID" || fail "Initial deployment for service $i failed"
   log "Service $i initial deployment complete"
 done

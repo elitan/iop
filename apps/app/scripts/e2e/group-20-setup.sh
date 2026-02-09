@@ -14,8 +14,9 @@ if [ "$SETUP_COMPLETE" = "true" ]; then
   exit 0
 fi
 
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/")
-LOCATION=$(curl -s -D - -o /dev/null "$BASE_URL/" 2>/dev/null | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2 || echo "")
+ROOT_HEADERS=$(curl -s -D - -o /dev/null "$BASE_URL/" 2>/dev/null || true)
+ROOT_STATUS=$(echo "$ROOT_HEADERS" | head -n1 | awk '{print $2}')
+LOCATION=$(echo "$ROOT_HEADERS" | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2 || echo "")
 if [[ "$LOCATION" == *"/login"* ]]; then
   log "Redirects to /login (setup already complete), skipping test"
   pass
@@ -31,12 +32,13 @@ fi
 log "API key auth works before setup"
 
 log "Verifying session access redirects to /setup..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/")
+REDIRECT_HEADERS=$(curl -s -D - -o /dev/null "$BASE_URL/" 2>/dev/null || true)
+HTTP_CODE=$(echo "$REDIRECT_HEADERS" | head -n1 | awk '{print $2}')
 if [ "$HTTP_CODE" != "302" ] && [ "$HTTP_CODE" != "307" ]; then
   fail "Expected redirect (302/307), got $HTTP_CODE"
 fi
 
-LOCATION=$(curl -s -D - -o /dev/null "$BASE_URL/" | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2)
+LOCATION=$(echo "$REDIRECT_HEADERS" | grep -i "^location:" | tr -d '\r' | cut -d' ' -f2)
 if [[ "$LOCATION" != *"/setup"* ]]; then
   fail "Expected redirect to /setup, got $LOCATION"
 fi
@@ -99,4 +101,3 @@ log "Session-based access works"
 rm -f /tmp/frost-cookies.txt
 
 pass
-

@@ -28,7 +28,21 @@ echo "========================================"
 echo ""
 
 echo "Pre-pulling base images to avoid concurrent pull contention..."
-ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" "docker pull nginx:alpine & docker pull postgres:17 & docker pull node:20-alpine & wait" 2>&1 | grep -v "already exists" || true
+PREPULL_RETRIES="${E2E_PREPULL_RETRIES:-3}"
+PREPULL_BACKOFF_SEC="${E2E_PREPULL_BACKOFF_SEC:-2}"
+if [ -n "${E2E_PREPULL_IMAGES:-}" ]; then
+  read -r -a PREPULL_IMAGES <<< "${E2E_PREPULL_IMAGES}"
+else
+  PREPULL_IMAGES=("nginx:alpine" "httpd:alpine" "postgres:17" "node:20-alpine" "mariadb:11")
+fi
+
+for image in "${PREPULL_IMAGES[@]}"; do
+  if ! ssh -o StrictHostKeyChecking=no root@"$SERVER_IP" \
+    "for attempt in \$(seq 1 $PREPULL_RETRIES); do docker pull '$image' >/dev/null 2>&1 && exit 0; sleep $PREPULL_BACKOFF_SEC; done; exit 1"
+  then
+    echo "Warning: failed to pre-pull $image after $PREPULL_RETRIES attempts (continuing)"
+  fi
+done
 echo "Base images ready"
 echo ""
 

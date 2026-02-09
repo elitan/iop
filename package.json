@@ -27,7 +27,11 @@
     "e2e:smoke:retry": "E2E_RETRY_FAILED=1 E2E_GROUPS='01-basic,04-update,10-race,20-setup,28-oauth,29-mcp' bash ./apps/app/scripts/e2e-local-managed.sh 1",
     "e2e:changed": "bash ./apps/app/scripts/e2e-changed.sh",
     "e2e:changed:retry": "E2E_RETRY_FAILED=1 bash ./apps/app/scripts/e2e-changed.sh",
+    "e2e:changed:fast": "E2E_RETRY_FAILED=1 E2E_REPORT_PATH=/tmp/frost-e2e-changed-report.json bash ./apps/app/scripts/e2e-changed.sh",
     "e2e:changed:print": "E2E_CHANGED_DRY_RUN=1 bash ./apps/app/scripts/e2e-changed.sh",
+    "e2e:ci:durations": "bash ./apps/app/scripts/e2e-ci-step-durations.sh",
+    "e2e:profile:week1": "bash ./apps/app/scripts/e2e-profile-week1.sh",
+    "e2e:soak:week1": "bash ./apps/app/scripts/e2e-soak-week1.sh",
     "dev:marketing": "bun --cwd apps/marketing dev",
     "build:marketing": "bun --cwd apps/marketing build"
   },

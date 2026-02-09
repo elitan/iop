@@ -13,6 +13,8 @@ export interface BuildResult {
   imageName: string;
   log: string;
   error?: string;
+  failureClass?: string;
+  attempts?: number;
 }
 
 export interface RunResult {
@@ -109,6 +111,74 @@ export async function buildImage(
 }
 
 export async function pullImage(imageName: string): Promise<BuildResult> {
+  const retryCount = parseEnvInt("FROST_IMAGE_PULL_RETRIES", 3, 1);
+  const backoffMs = parseEnvInt("FROST_IMAGE_PULL_BACKOFF_MS", 2000, 0);
+  const maxBackoffMs = parseEnvInt(
+    "FROST_IMAGE_PULL_MAX_BACKOFF_MS",
+    10000,
+    backoffMs,
+  );
+
+  let combinedLog = "";
+  let lastError = "Pull failed";
+  let lastFailureClass = "unknown";
+
+  for (let attempt = 1; attempt <= retryCount; attempt++) {
+    combinedLog += `\n[pull-attempt ${attempt}/${retryCount}] docker pull ${imageName}\n`;
+    const attemptResult = await runDockerPull(imageName);
+    const failureClass = classifyPullFailure(
+      attemptResult.log,
+      attemptResult.error,
+    );
+
+    combinedLog += attemptResult.log;
+
+    if (attemptResult.success) {
+      return {
+        success: true,
+        imageName,
+        log: combinedLog,
+        attempts: attempt,
+      };
+    }
+
+    lastError =
+      attemptResult.error || `Pull exited with code ${attemptResult.code}`;
+    lastFailureClass = failureClass;
+    combinedLog += `[pull-attempt ${attempt}/${retryCount}] failed class=${failureClass} error=${lastError}\n`;
+
+    const retryable =
+      failureClass === "infra/transient-network" ||
+      failureClass === "infra/rate-limit" ||
+      failureClass === "unknown";
+
+    if (!retryable) {
+      combinedLog += `[pull-attempt ${attempt}/${retryCount}] not retryable; aborting retries\n`;
+      break;
+    }
+
+    if (attempt < retryCount) {
+      const delayMs = Math.min(backoffMs * 2 ** (attempt - 1), maxBackoffMs);
+      combinedLog += `[pull-attempt ${attempt}/${retryCount}] retrying in ${delayMs}ms\n`;
+      if (delayMs > 0) {
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  return {
+    success: false,
+    imageName,
+    log: combinedLog,
+    error: lastError,
+    failureClass: lastFailureClass,
+    attempts: retryCount,
+  };
+}
+
+function runDockerPull(
+  imageName: string,
+): Promise<{ success: boolean; log: string; error?: string; code?: number }> {
   return new Promise((resolve) => {
     let log = "";
     const proc = spawn("docker", ["pull", imageName]);
@@ -123,20 +193,80 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
 
     proc.on("close", (code) => {
       if (code === 0) {
-        resolve({ success: true, imageName, log });
+        resolve({ success: true, log });
       } else {
         resolve({
           success: false,
-          imageName,
           log,
           error: `Pull exited with code ${code}`,
+          code: code ?? undefined,
         });
       }
     });
 
     proc.on("error", (err) => {
-      resolve({ success: false, imageName, log, error: err.message });
+      resolve({ success: false, log, error: err.message });
     });
+  });
+}
+
+function classifyPullFailure(log: string, error?: string): string {
+  const full = `${log}\n${error ?? ""}`.toLowerCase();
+
+  if (
+    full.includes("context deadline exceeded") ||
+    full.includes("i/o timeout") ||
+    full.includes("tls handshake timeout") ||
+    full.includes("proxyconnect tcp") ||
+    full.includes("dial tcp")
+  ) {
+    return "infra/transient-network";
+  }
+
+  if (
+    full.includes("toomanyrequests") ||
+    full.includes("rate limit") ||
+    full.includes("429")
+  ) {
+    return "infra/rate-limit";
+  }
+
+  if (
+    full.includes("unauthorized") ||
+    full.includes("authentication required") ||
+    full.includes("denied")
+  ) {
+    return "registry/auth";
+  }
+
+  if (
+    full.includes("manifest unknown") ||
+    full.includes("not found") ||
+    full.includes("name unknown")
+  ) {
+    return "image/not-found";
+  }
+
+  return "unknown";
+}
+
+function parseEnvInt(name: string, fallback: number, minimum: number): number {
+  const raw = process.env[name];
+  if (!raw) {
+    return fallback;
+  }
+
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.max(value, minimum);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
 }
 

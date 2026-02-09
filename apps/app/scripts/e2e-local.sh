@@ -6,7 +6,7 @@ APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 E2E_DIR="$SCRIPT_DIR/e2e"
 
-BATCH_SIZE=${2:-2}
+BATCH_SIZE="${2:-${E2E_BATCH_SIZE:-2}}"
 PORT=${FROST_PORT:-3000}
 GROUP_GLOB="${E2E_GROUP_GLOB:-group-*.sh}"
 GROUP_LIST="${E2E_GROUPS:-}"
