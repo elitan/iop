@@ -182,6 +182,99 @@ cleanup_github_app_settings() {
   api -X POST "$BASE_URL/api/settings/github/disconnect" > /dev/null || true
 }
 
+sign_github_webhook_payload() {
+  local PAYLOAD=$1
+  local WEBHOOK_SECRET=$2
+  local HASH
+  local OPENSSL_OUT
+
+  OPENSSL_OUT=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" 2>/dev/null || true)
+  HASH=$(echo "$OPENSSL_OUT" | awk '{print $NF}' | tr -d '\r\n')
+
+  if [ -z "$HASH" ] && command -v bun > /dev/null 2>&1; then
+    HASH=$(
+      PAYLOAD="$PAYLOAD" WEBHOOK_SECRET="$WEBHOOK_SECRET" \
+        bun -e "const crypto=require('node:crypto'); const p=process.env.PAYLOAD||''; const s=process.env.WEBHOOK_SECRET||''; process.stdout.write(crypto.createHmac('sha256', s).update(p).digest('hex'));" 2>/dev/null || true
+    )
+    HASH=$(echo "$HASH" | tr -d '\r\n')
+  fi
+
+  if [ "${E2E_DEBUG_WEBHOOK:-0}" = "1" ]; then
+    echo "[webhook-debug] openssl_out=$OPENSSL_OUT" >&2
+    if [ -z "$HASH" ]; then
+      echo "[webhook-debug] WARNING: empty webhook signature hash" >&2
+    fi
+  fi
+
+  printf 'sha256=%s' "$HASH"
+}
+
+send_signed_github_webhook() {
+  local EVENT=$1
+  local PAYLOAD=$2
+  local WEBHOOK_SECRET=$3
+  local RETRIES=${4:-3}
+  local BACKOFF_SEC=${5:-1}
+  local ATTEMPT
+  local SIGNATURE
+  local RESULT
+
+  for ATTEMPT in $(seq 1 "$RETRIES"); do
+    SIGNATURE=$(sign_github_webhook_payload "$PAYLOAD" "$WEBHOOK_SECRET")
+    if [ "${E2E_DEBUG_WEBHOOK:-0}" = "1" ]; then
+      echo "[webhook-debug] attempt=$ATTEMPT event=$EVENT payload_len=${#PAYLOAD} secret_len=${#WEBHOOK_SECRET} signature=$SIGNATURE" >&2
+    fi
+    RESULT=$(curl -sS -X POST "$BASE_URL/api/github/webhook" \
+      -H "Content-Type: application/json" \
+      -H "X-Hub-Signature-256: $SIGNATURE" \
+      -H "X-GitHub-Event: $EVENT" \
+      --data-raw "$PAYLOAD" 2>&1 || true)
+    if [ "${E2E_DEBUG_WEBHOOK:-0}" = "1" ]; then
+      echo "[webhook-debug] attempt=$ATTEMPT response=$RESULT" >&2
+    fi
+
+    if echo "$RESULT" | grep -q '"error":"Invalid signature"'; then
+      if [ "$ATTEMPT" -lt "$RETRIES" ]; then
+        setup_github_app_settings "$WEBHOOK_SECRET" > /dev/null || true
+        sleep "$BACKOFF_SEC"
+        continue
+      fi
+    fi
+
+    echo "$RESULT"
+    return 0
+  done
+
+  echo "$RESULT"
+  return 0
+}
+
+acquire_e2e_lock() {
+  local LOCK_NAME=$1
+  local MAX_WAIT_SEC=${2:-120}
+  local LOCK_DIR="/tmp/frost-e2e-lock-${LOCK_NAME}"
+  local ATTEMPT
+
+  for ATTEMPT in $(seq 1 "$MAX_WAIT_SEC"); do
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+      echo "$$" > "$LOCK_DIR/pid"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Failed to acquire E2E lock '$LOCK_NAME' within ${MAX_WAIT_SEC}s" >&2
+  return 1
+}
+
+release_e2e_lock() {
+  local LOCK_NAME=$1
+  local LOCK_DIR="/tmp/frost-e2e-lock-${LOCK_NAME}"
+  if [ -d "$LOCK_DIR" ]; then
+    rm -rf "$LOCK_DIR"
+  fi
+}
+
 log() {
   local GROUP=$(basename "$0" .sh | sed 's/group-/G/')
   echo "[$GROUP] $*"

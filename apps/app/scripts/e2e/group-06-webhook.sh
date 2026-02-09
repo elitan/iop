@@ -3,6 +3,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+SETTINGS_LOCK="settings"
+acquire_e2e_lock "$SETTINGS_LOCK" || fail "Could not acquire settings lock"
+trap 'release_e2e_lock "$SETTINGS_LOCK"' EXIT
+
 log "=== GitHub Webhook ==="
 
 TEST_BRANCH="${E2E_BRANCH:-main}"
@@ -59,14 +63,9 @@ wait_for_deployment "$DEPLOY_INITIAL" 90 || fail "Initial deployment failed"
 
 COMMIT_SHA="e2etest$(date +%s)"
 WEBHOOK_PAYLOAD="{\"ref\":\"refs/heads/$TEST_BRANCH\",\"after\":\"$COMMIT_SHA\",\"repository\":{\"default_branch\":\"$TEST_BRANCH\",\"clone_url\":\"https://github.com/elitan/frost.git\",\"html_url\":\"https://github.com/elitan/frost\"},\"head_commit\":{\"message\":\"e2e test commit\"},\"sender\":{\"login\":\"e2e-test\",\"avatar_url\":\"https://example.com/avatar.png\"}}"
-WEBHOOK_SIGNATURE="sha256=$(echo -n "$WEBHOOK_PAYLOAD" | openssl dgst -sha256 -hmac "$TEST_WEBHOOK_SECRET" | awk '{print $2}')"
 
 log "Sending webhook..."
-WEBHOOK_RESULT=$(curl -sS -X POST "$BASE_URL/api/github/webhook" \
-  -H "Content-Type: application/json" \
-  -H "X-Hub-Signature-256: $WEBHOOK_SIGNATURE" \
-  -H "X-GitHub-Event: push" \
-  -d "$WEBHOOK_PAYLOAD")
+WEBHOOK_RESULT=$(send_signed_github_webhook "push" "$WEBHOOK_PAYLOAD" "$TEST_WEBHOOK_SECRET")
 
 log "Webhook response: $WEBHOOK_RESULT"
 ERROR=$(json_get "$WEBHOOK_RESULT" '.error // empty')

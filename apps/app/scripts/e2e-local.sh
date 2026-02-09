@@ -89,6 +89,10 @@ docker network prune -f > /dev/null 2>&1
 echo "✓ Docker cleanup done"
 
 if [ "${E2E_SKIP_PREPULL:-0}" != "1" ]; then
+  PREPULL_RETRIES="${E2E_PREPULL_RETRIES:-3}"
+  PREPULL_BACKOFF_SEC="${E2E_PREPULL_BACKOFF_SEC:-2}"
+  PREPULL_STRICT="${E2E_PREPULL_STRICT:-0}"
+
   if [ -n "${E2E_PREPULL_IMAGES:-}" ]; then
     read -r -a PREPULL_IMAGES <<< "$E2E_PREPULL_IMAGES"
   else
@@ -97,20 +101,27 @@ if [ "${E2E_SKIP_PREPULL:-0}" != "1" ]; then
 
   if [ "${#PREPULL_IMAGES[@]}" -gt 0 ]; then
     echo "Pre-pulling common images..."
+    PREPULL_FAILED=0
     for image in "${PREPULL_IMAGES[@]}"; do
       pulled=0
-      for attempt in 1 2 3; do
+      for attempt in $(seq 1 "$PREPULL_RETRIES"); do
         if docker pull "$image" > /dev/null 2>&1; then
           pulled=1
           break
         fi
-        sleep 2
+        sleep "$PREPULL_BACKOFF_SEC"
       done
       if [ "$pulled" -ne 1 ]; then
-        echo "Error: failed to pull image '$image' after 3 attempts"
-        exit 1
+        echo "Warning: failed to pre-pull image '$image' after $PREPULL_RETRIES attempts"
+        PREPULL_FAILED=1
       fi
     done
+
+    if [ "$PREPULL_FAILED" -eq 1 ] && [ "$PREPULL_STRICT" = "1" ]; then
+      echo "Error: pre-pull failed and E2E_PREPULL_STRICT=1"
+      exit 1
+    fi
+
     echo "✓ Image pre-pull complete"
   fi
 fi

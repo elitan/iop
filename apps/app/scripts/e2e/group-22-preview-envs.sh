@@ -3,6 +3,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+SETTINGS_LOCK="settings"
+acquire_e2e_lock "$SETTINGS_LOCK" || fail "Could not acquire settings lock"
+trap 'release_e2e_lock "$SETTINGS_LOCK"' EXIT
+
 log "=== Preview Environments (PR-only) ==="
 
 DEFAULT_BRANCH="main"
@@ -29,20 +33,10 @@ DEPLOY_INITIAL=$(require_field "$DEPLOYS" '.[0].id' "get initial deploy") || fai
 log "Waiting for initial deployment: $DEPLOY_INITIAL"
 wait_for_deployment "$DEPLOY_INITIAL" 90 || fail "Initial deployment failed"
 
-sign_webhook() {
-  local PAYLOAD="$1"
-  echo "sha256=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$TEST_WEBHOOK_SECRET" | awk '{print $2}')"
-}
-
 send_webhook() {
   local EVENT="$1"
   local PAYLOAD="$2"
-  local SIGNATURE=$(sign_webhook "$PAYLOAD")
-  curl -sS -X POST "$BASE_URL/api/github/webhook" \
-    -H "Content-Type: application/json" \
-    -H "X-Hub-Signature-256: $SIGNATURE" \
-    -H "X-GitHub-Event: $EVENT" \
-    -d "$PAYLOAD"
+  send_signed_github_webhook "$EVENT" "$PAYLOAD" "$TEST_WEBHOOK_SECRET"
 }
 
 log "Testing branch push to non-default branch returns no-op..."

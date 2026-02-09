@@ -3,6 +3,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+SETTINGS_LOCK="settings"
+acquire_e2e_lock "$SETTINGS_LOCK" || fail "Could not acquire settings lock"
+trap 'release_e2e_lock "$SETTINGS_LOCK"' EXIT
+
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-e2eTestPassword123}"
 NEW_PASSWORD="newE2ePassword456"
 
