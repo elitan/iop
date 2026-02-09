@@ -179,7 +179,8 @@ export const settings = {
     const dnsValid = await verifyDns(domain);
     if (!dnsValid) {
       throw new ORPCError("BAD_REQUEST", {
-        message: "DNS not configured correctly. Domain must point to this server.",
+        message:
+          "DNS not configured correctly. Domain must point to this server.",
       });
     }
 
