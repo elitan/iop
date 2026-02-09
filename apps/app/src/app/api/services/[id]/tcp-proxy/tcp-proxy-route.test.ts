@@ -110,7 +110,10 @@ mock.module("@/lib/tcp-proxy", function () {
     removeTcpProxy: async function removeTcpProxy(serviceId: string) {
       removeCalls.push(serviceId);
     },
-    setupTcpProxy: async function setupTcpProxy(serviceId: string, port: number) {
+    setupTcpProxy: async function setupTcpProxy(
+      serviceId: string,
+      port: number,
+    ) {
       setupCalls.push({ serviceId, port });
     },
   };
