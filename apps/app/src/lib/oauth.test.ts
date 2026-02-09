@@ -4,6 +4,8 @@ import {
   generateAccessToken,
   generateCode,
   generateRefreshToken,
+  getAccessTokenExpiry,
+  getAccessTokenTtlSeconds,
   hashOAuthToken,
   verifyPKCE,
 } from "./oauth";
@@ -39,6 +41,18 @@ describe("oauth", () => {
     test("has frost_rt_ prefix", () => {
       const token = generateRefreshToken();
       expect(token.startsWith("frost_rt_")).toBe(true);
+    });
+  });
+
+  describe("access token ttl", () => {
+    test("returns positive ttl seconds", () => {
+      const ttlSeconds = getAccessTokenTtlSeconds();
+      expect(ttlSeconds).toBeGreaterThan(0);
+    });
+
+    test("expiry is in the future", () => {
+      const expiryMs = new Date(getAccessTokenExpiry()).getTime();
+      expect(expiryMs).toBeGreaterThan(Date.now());
     });
   });
 

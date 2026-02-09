@@ -80,7 +80,7 @@ Frost uses OAuth 2.1 with PKCE for MCP authentication:
 5. Agent gets an access token, stores it locally
 6. All subsequent requests include the Bearer token
 
-Tokens don't expire. You can view and revoke active tokens in **Settings → MCP Tokens**.
+Access tokens expire (default: 30 days). You can view and revoke active tokens in **Settings → MCP Tokens**.
 
 For programmatic/CI access, you can also use `x-frost-token` header with an API key from Settings.
 

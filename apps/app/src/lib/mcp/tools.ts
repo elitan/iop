@@ -337,6 +337,24 @@ export function registerTools(server: McpServer) {
 
       if (!service) return errorResult("Service not found");
 
+      let currentVolumes: Array<{ name: string; path: string }> = [];
+      try {
+        currentVolumes = service.volumes
+          ? (JSON.parse(service.volumes) as Array<{
+              name: string;
+              path: string;
+            }>)
+          : [];
+      } catch {
+        currentVolumes = [];
+      }
+
+      const nextReplicaCount = input.replicaCount ?? service.replicaCount ?? 1;
+      const nextVolumes = volumes ?? currentVolumes;
+      if (nextReplicaCount > 1 && nextVolumes.length > 0) {
+        return errorResult("Cannot use replicas with volumes");
+      }
+
       const updates: Record<string, unknown> = {};
       if (input.name !== undefined) updates.name = input.name;
       if (input.containerPort !== undefined)
@@ -372,15 +390,8 @@ export function registerTools(server: McpServer) {
         updates.autoDeploy = input.autoDeployEnabled;
       if (input.registryId !== undefined) updates.registryId = input.registryId;
       if (volumes !== undefined) updates.volumes = JSON.stringify(volumes);
-      if (input.replicaCount !== undefined) {
-        if (input.replicaCount > 1) {
-          const currentVolumes = service.volumes;
-          if (currentVolumes && currentVolumes !== "[]") {
-            return errorResult("Cannot use replicas with volumes");
-          }
-        }
+      if (input.replicaCount !== undefined)
         updates.replicaCount = input.replicaCount;
-      }
 
       if (Object.keys(updates).length > 0) {
         await db

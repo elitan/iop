@@ -5,6 +5,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
   getAccessTokenExpiry,
+  getAccessTokenTtlSeconds,
   hashOAuthToken,
   parseOAuthBody,
   verifyPKCE,
@@ -140,6 +141,17 @@ async function handleRefreshToken(body: Record<string, string>) {
     );
   }
 
+  if (new Date(tokenRecord.expiresAt).getTime() <= Date.now()) {
+    await db
+      .deleteFrom("oauthTokens")
+      .where("id", "=", tokenRecord.id)
+      .execute();
+    return NextResponse.json(
+      { error: "invalid_grant", error_description: "Refresh token expired" },
+      { status: 400 },
+    );
+  }
+
   await db.deleteFrom("oauthTokens").where("id", "=", tokenRecord.id).execute();
 
   return issueTokenPair(client_id);
@@ -148,6 +160,8 @@ async function handleRefreshToken(body: Record<string, string>) {
 async function issueTokenPair(clientId: string) {
   const accessToken = generateAccessToken();
   const refreshToken = generateRefreshToken();
+  const expiresAt = getAccessTokenExpiry();
+  const expiresIn = getAccessTokenTtlSeconds();
 
   await db
     .insertInto("oauthTokens")
@@ -156,7 +170,7 @@ async function issueTokenPair(clientId: string) {
       accessTokenHash: hashOAuthToken(accessToken),
       refreshTokenHash: hashOAuthToken(refreshToken),
       clientId,
-      expiresAt: getAccessTokenExpiry(),
+      expiresAt,
     })
     .execute();
 
@@ -164,5 +178,6 @@ async function issueTokenPair(clientId: string) {
     access_token: accessToken,
     token_type: "Bearer",
     refresh_token: refreshToken,
+    expires_in: expiresIn,
   });
 }

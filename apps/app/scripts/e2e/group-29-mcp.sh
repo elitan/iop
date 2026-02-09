@@ -78,10 +78,12 @@ MCP_VIA_KEY=$(curl -s -X POST "$BASE_URL/api/mcp" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"e2e-test","version":"1.0.0"}}}')
 
-if echo "$MCP_VIA_KEY" | grep -q '"error"' && ! echo "$MCP_VIA_KEY" | grep -q '"serverInfo"'; then
-  log "Note: MCP via API key returned error (expected if session issue), but auth passed"
-else
+if echo "$MCP_VIA_KEY" | grep -q '"serverInfo"'; then
   log "MCP via x-frost-token works"
+elif echo "$MCP_VIA_KEY" | grep -q '"result"'; then
+  log "MCP via x-frost-token works"
+else
+  fail "MCP initialize via API key failed: $MCP_VIA_KEY"
 fi
 
 rm -f /tmp/frost-mcp-cookies.txt

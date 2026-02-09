@@ -527,6 +527,31 @@ describe("MCP service configuration completeness", () => {
     expect(result.content[0]?.text).toBe("Cannot use replicas with volumes");
   });
 
+  test("update_service rejects setting volumes on replicated service", async () => {
+    const serviceId = await insertService({ replicaCount: 2, volumes: "[]" });
+
+    const result = await callTool("update_service", {
+      serviceId,
+      volumes: [{ name: "data", path: "/data" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe("Cannot use replicas with volumes");
+  });
+
+  test("update_service rejects replicas with volumes in same request", async () => {
+    const serviceId = await insertService({ replicaCount: 1, volumes: "[]" });
+
+    const result = await callTool("update_service", {
+      serviceId,
+      replicaCount: 2,
+      volumes: [{ name: "data", path: "/data" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe("Cannot use replicas with volumes");
+  });
+
   test("update_service maps autoDeployEnabled to service autoDeploy", async () => {
     const serviceId = await insertService({
       deployType: "repo",
