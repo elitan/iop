@@ -2,6 +2,36 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { removeTcpProxy, setupTcpProxy } from "@/lib/tcp-proxy";
 
+async function getRunningDeploymentAndTargetHostPort(serviceId: string) {
+  const deployment = await db
+    .selectFrom("deployments")
+    .select(["id", "hostPort"])
+    .where("serviceId", "=", serviceId)
+    .where("status", "=", "running")
+    .orderBy("createdAt", "desc")
+    .limit(1)
+    .executeTakeFirst();
+
+  if (!deployment) {
+    return { deployment: null, hostPort: null };
+  }
+
+  const replica = await db
+    .selectFrom("replicas")
+    .select("hostPort")
+    .where("deploymentId", "=", deployment.id)
+    .where("status", "=", "running")
+    .where("hostPort", "is not", null)
+    .orderBy("replicaIndex", "asc")
+    .limit(1)
+    .executeTakeFirst();
+
+  return {
+    deployment,
+    hostPort: replica?.hostPort ?? deployment.hostPort ?? null,
+  };
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -25,19 +55,12 @@ export async function GET(
     );
   }
 
-  const deployment = await db
-    .selectFrom("deployments")
-    .select("hostPort")
-    .where("serviceId", "=", id)
-    .where("status", "=", "running")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .executeTakeFirst();
+  const { hostPort } = await getRunningDeploymentAndTargetHostPort(id);
 
   return NextResponse.json({
     enabled: service.tcpProxyPort !== null,
     port: service.tcpProxyPort,
-    hostPort: deployment?.hostPort ?? null,
+    hostPort,
   });
 }
 
@@ -71,27 +94,20 @@ export async function POST(
     );
   }
 
-  const deployment = await db
-    .selectFrom("deployments")
-    .select("hostPort")
-    .where("serviceId", "=", id)
-    .where("status", "=", "running")
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .executeTakeFirst();
+  const { hostPort } = await getRunningDeploymentAndTargetHostPort(id);
 
-  if (!deployment?.hostPort) {
+  if (!hostPort) {
     return NextResponse.json(
       { error: "Service must be deployed before enabling TCP proxy" },
       { status: 400 },
     );
   }
 
-  await setupTcpProxy(id, deployment.hostPort);
+  await setupTcpProxy(id, hostPort);
 
   return NextResponse.json({
     enabled: true,
-    port: deployment.hostPort,
+    port: hostPort,
   });
 }
 
