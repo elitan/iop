@@ -27,7 +27,7 @@ export function buildDockerRunArgs(options: RunContainerOptions): string[] {
     "run",
     "-d",
     "--restart",
-    "on-failure:5",
+    "unless-stopped",
     "--log-opt",
     "max-size=10m",
     "--log-opt",

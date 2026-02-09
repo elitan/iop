@@ -7,19 +7,25 @@ const IN_PROGRESS_STATUSES = [
   "building",
   "deploying",
 ] as const;
+const ACTIVE_STATUSES = [...IN_PROGRESS_STATUSES, "running"] as const;
 
 export function getCurrentDeployment(
   service: Service | { currentDeploymentId: string | null },
   deployments: Deployment[],
 ): Deployment | null {
   if (service.currentDeploymentId) {
-    return (
-      deployments.find((d) => d.id === service.currentDeploymentId) ?? null
-    );
+    const deployment =
+      deployments.find((d) => d.id === service.currentDeploymentId) ?? null;
+    if (!deployment) {
+      return null;
+    }
+    return (ACTIVE_STATUSES as readonly string[]).includes(deployment.status)
+      ? deployment
+      : null;
   }
   return (
     deployments.find((d) =>
-      (IN_PROGRESS_STATUSES as readonly string[]).includes(d.status),
+      (ACTIVE_STATUSES as readonly string[]).includes(d.status),
     ) ?? null
   );
 }

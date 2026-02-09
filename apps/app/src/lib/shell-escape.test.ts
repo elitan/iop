@@ -49,6 +49,7 @@ describe("buildDockerRunArgs", () => {
     });
     expect(args).toContain("run");
     expect(args).toContain("-d");
+    expect(args[args.indexOf("--restart") + 1]).toBe("unless-stopped");
     expect(args).toContain("--name");
     expect(args[args.indexOf("--name") + 1]).toBe("mycontainer");
     expect(args).toContain("-p");

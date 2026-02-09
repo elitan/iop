@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { deployProject, deployService } from "@/lib/deployer";
 import { cleanupProject } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
@@ -33,57 +34,49 @@ export const projects = {
               .execute()
           : [];
 
-        const latestDeploymentByService: Record<
-          string,
-          { status: string } | undefined
-        > = {};
-        if (productionEnv && services.length > 0) {
-          const deployments = await db
-            .selectFrom("deployments")
-            .select(["serviceId", "status", "createdAt"])
-            .where("environmentId", "=", productionEnv.id)
-            .orderBy("createdAt", "desc")
-            .execute();
+        const servicesWithDeployments =
+          await addLatestDeploymentsWithRuntimeStatus(services);
 
-          for (const d of deployments) {
-            if (!latestDeploymentByService[d.serviceId]) {
-              latestDeploymentByService[d.serviceId] = { status: d.status };
+        const latestDeploymentByService: Record<string, string | null> = {};
+        let latestDeployment:
+          | {
+              status: string;
+              commitMessage: string | null;
+              createdAt: number;
+              branch: string | null;
             }
+          | null = null;
+        let runningHostPort: number | null = null;
+
+        for (const service of servicesWithDeployments) {
+          const deployment = service.latestDeployment;
+          latestDeploymentByService[service.id] = deployment?.status ?? null;
+
+          if (deployment?.status === "running" && deployment.hostPort) {
+            runningHostPort = deployment.hostPort;
+          }
+
+          if (
+            deployment &&
+            (!latestDeployment ||
+              deployment.createdAt > latestDeployment.createdAt)
+          ) {
+            latestDeployment = {
+              status: deployment.status,
+              commitMessage: deployment.commitMessage,
+              createdAt: deployment.createdAt,
+              branch: service.branch,
+            };
           }
         }
-
-        const latestDeployment = productionEnv
-          ? await db
-              .selectFrom("deployments")
-              .innerJoin("services", "services.id", "deployments.serviceId")
-              .select([
-                "deployments.status",
-                "deployments.commitMessage",
-                "deployments.createdAt",
-                "services.branch",
-              ])
-              .where("deployments.environmentId", "=", productionEnv.id)
-              .orderBy("deployments.createdAt", "desc")
-              .executeTakeFirst()
-          : null;
-
-        const runningDeployment = productionEnv
-          ? await db
-              .selectFrom("deployments")
-              .select(["hostPort"])
-              .where("environmentId", "=", productionEnv.id)
-              .where("status", "=", "running")
-              .where("hostPort", "is not", null)
-              .executeTakeFirst()
-          : null;
 
         const repoUrl = services[0]?.repoUrl ?? null;
 
         let runningUrl: string | null = null;
-        if (runningDeployment?.hostPort) {
+        if (runningHostPort) {
           runningUrl = domain
-            ? `${domain}:${runningDeployment.hostPort}`
-            : `localhost:${runningDeployment.hostPort}`;
+            ? `${domain}:${runningHostPort}`
+            : `localhost:${runningHostPort}`;
         }
 
         return {
@@ -105,7 +98,7 @@ export const projects = {
             icon: s.icon,
             imageUrl: s.imageUrl,
             deployType: s.deployType,
-            status: latestDeploymentByService[s.id]?.status ?? null,
+            status: latestDeploymentByService[s.id] ?? null,
           })),
         };
       }),
@@ -138,19 +131,8 @@ export const projects = {
           .execute()
       : [];
 
-    const servicesWithDeployments = await Promise.all(
-      services.map(async (service) => {
-        const latestDeployment = await db
-          .selectFrom("deployments")
-          .selectAll()
-          .where("serviceId", "=", service.id)
-          .orderBy("createdAt", "desc")
-          .limit(1)
-          .executeTakeFirst();
-
-        return { ...service, latestDeployment: latestDeployment ?? null };
-      }),
-    );
+    const servicesWithDeployments =
+      await addLatestDeploymentsWithRuntimeStatus(services);
 
     return { ...project, services: servicesWithDeployments };
   }),
