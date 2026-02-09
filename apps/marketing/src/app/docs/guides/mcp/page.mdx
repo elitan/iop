@@ -60,11 +60,12 @@ Same config format. Add to your Cursor MCP settings:
 | `rollback` | `deploymentId` | Rollback to a previous deployment |
 | `list_env_vars` | `serviceId` | Get environment variables |
 | `set_env_vars` | `serviceId, vars` | Set/update environment variables |
+| `delete_env_vars` | `serviceId, keys` | Delete environment variables by key |
 | `list_domains` | `serviceId` | List domains for a service |
 | `add_domain` | `serviceId, domain` | Add a domain |
 | `remove_domain` | `domainId` | Remove a domain |
 | `get_build_log` | `deploymentId` | Get build/deploy log |
-| `get_runtime_logs` | `serviceId, tail?` | Get recent container logs |
+| `get_runtime_logs` | `serviceId, tail?, replica?` | Get recent container logs |
 
 ---
 

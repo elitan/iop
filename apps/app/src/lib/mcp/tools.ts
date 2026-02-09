@@ -239,12 +239,31 @@ export function registerTools(server: McpServer) {
       memoryLimit: z.string().optional(),
       cpuLimit: z.number().optional(),
       command: z.string().optional(),
+      shutdownTimeout: z.number().optional(),
+      drainTimeout: z.number().optional(),
+      frostFilePath: z.string().optional(),
+      autoDeployEnabled: z.boolean().optional(),
       replicaCount: z.number().optional(),
       volumes: z
         .array(z.object({ name: z.string(), path: z.string() }))
         .optional(),
     },
     async ({ projectId, name, deployType, ...opts }) => {
+      if (deployType === "repo" && !opts.repoUrl) {
+        return errorResult("repoUrl is required for repo deployments");
+      }
+
+      if (deployType === "image" && !opts.imageUrl) {
+        return errorResult("imageUrl is required for image deployments");
+      }
+
+      if ((opts.replicaCount ?? 1) > 1) {
+        const volumes = opts.volumes ?? [];
+        if (volumes.length > 0) {
+          return errorResult("Cannot use replicas with volumes");
+        }
+      }
+
       const envId = await getProductionEnvironmentId(projectId);
       const hostname = slugify(name);
 
@@ -267,7 +286,13 @@ export function registerTools(server: McpServer) {
         healthCheckTimeout: opts.healthCheckTimeout ?? null,
         memoryLimit: opts.memoryLimit ?? null,
         cpuLimit: opts.cpuLimit ?? null,
+        shutdownTimeout: opts.shutdownTimeout ?? null,
+        drainTimeout: opts.drainTimeout ?? null,
         command: opts.command ?? null,
+        autoDeploy: opts.autoDeployEnabled ?? deployType === "repo",
+        frostFilePath:
+          deployType === "repo" ? (opts.frostFilePath ?? null) : null,
+        replicaCount: opts.replicaCount,
         volumes: opts.volumes,
       });
 
@@ -298,6 +323,7 @@ export function registerTools(server: McpServer) {
       replicaCount: z.number().optional(),
       registryId: z.string().optional(),
       frostFilePath: z.string().optional(),
+      autoDeployEnabled: z.boolean().optional(),
       volumes: z
         .array(z.object({ name: z.string(), path: z.string() }))
         .optional(),
@@ -342,6 +368,8 @@ export function registerTools(server: McpServer) {
         updates.drainTimeout = input.drainTimeout;
       if (input.requestTimeout !== undefined)
         updates.requestTimeout = input.requestTimeout;
+      if (input.autoDeployEnabled !== undefined)
+        updates.autoDeploy = input.autoDeployEnabled;
       if (input.registryId !== undefined) updates.registryId = input.registryId;
       if (volumes !== undefined) updates.volumes = JSON.stringify(volumes);
       if (input.replicaCount !== undefined) {
@@ -611,6 +639,12 @@ export function registerTools(server: McpServer) {
         domain,
         type: "proxy",
       });
+
+      if (created.dnsVerified) {
+        try {
+          await syncCaddyConfig();
+        } catch {}
+      }
 
       return textResult(created);
     },

@@ -32,6 +32,7 @@ export interface CreateServiceInput {
   icon?: string | null;
   autoDeploy?: boolean;
   frostFilePath?: string | null;
+  replicaCount?: number;
   ssl?: boolean;
   wildcardDomain?: {
     projectHostname: string;
@@ -74,6 +75,7 @@ export async function createService(
       icon: input.icon ?? null,
       autoDeploy: input.autoDeploy ?? false,
       frostFilePath: input.frostFilePath ?? null,
+      replicaCount: input.replicaCount ?? 1,
       createdAt: now,
     })
     .execute();

@@ -188,6 +188,19 @@ describe("createService", () => {
     expect(service.id).toBe(customId);
   });
 
+  test("creates service with replicaCount", async () => {
+    const service = await createService({
+      environmentId: TEST_ENV_ID,
+      name: "replica-service",
+      hostname: "replica-svc",
+      deployType: "image",
+      imageUrl: "nginx:alpine",
+      replicaCount: 3,
+    });
+
+    expect(service.replicaCount).toBe(3);
+  });
+
   test("defaults empty envVars and volumes", async () => {
     const service = await createService({
       environmentId: TEST_ENV_ID,

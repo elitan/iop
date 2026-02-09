@@ -188,6 +188,7 @@ export const services = {
         drainTimeout: input.drainTimeout,
         autoDeploy: input.deployType === "repo",
         frostFilePath: input.deployType === "repo" ? input.frostFilePath : null,
+        replicaCount: input.replicaCount,
         wildcardDomain: { projectHostname, environmentName: envName },
       });
     }
