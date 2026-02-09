@@ -10,8 +10,8 @@ import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
 import {
-  buildImage,
   type BuildResult,
+  buildImage,
   createNetwork,
   dockerLogin,
   type FileMount,
@@ -118,7 +118,9 @@ function createLogChunkAppender(deploymentId: string): {
       })
       .catch(function onQueueError(err) {
         queueError =
-          err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+          err instanceof Error
+            ? err
+            : new Error(String(err ?? "Unknown error"));
       });
   }
 
