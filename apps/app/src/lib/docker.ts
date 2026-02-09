@@ -404,7 +404,7 @@ export async function gracefulStopContainer(
     // Container might not exist or already stopped
   }
   try {
-    await execAsync(`docker rm ${shellEscape(name)}`);
+    await execAsync(`docker rm -f ${shellEscape(name)}`);
   } catch {
     // Container might already be removed
   }

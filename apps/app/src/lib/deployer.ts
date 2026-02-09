@@ -467,6 +467,29 @@ async function drainPreviousDeployments(
   drainTimeout: number,
   shutdownTimeout: number,
 ): Promise<void> {
+  const isContainerLive = (status: string) =>
+    status === "running" || status === "restarting" || status === "paused";
+
+  const stopOldContainer = async (containerId: string) => {
+    await gracefulStopContainer(containerId, shutdownTimeout);
+    let status = await getContainerStatus(containerId);
+
+    if (isContainerLive(status)) {
+      await appendLog(
+        deploymentId,
+        `Graceful stop did not fully stop old container ${containerId.substring(0, 12)} (status=${status}); forcing stop...\n`,
+      );
+      await stopContainer(containerId);
+      status = await getContainerStatus(containerId);
+    }
+
+    if (isContainerLive(status)) {
+      throw new Error(
+        `Failed to stop old container ${containerId.substring(0, 12)} (status=${status})`,
+      );
+    }
+  };
+
   const previousDeployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
@@ -505,7 +528,7 @@ async function drainPreviousDeployments(
     if (oldReplicas.length > 0) {
       for (const r of oldReplicas) {
         if (r.containerId) {
-          await gracefulStopContainer(r.containerId, shutdownTimeout);
+          await stopOldContainer(r.containerId);
         }
       }
       await db
@@ -514,7 +537,7 @@ async function drainPreviousDeployments(
         .where("deploymentId", "=", prev.id)
         .execute();
     } else if (prev.containerId) {
-      await gracefulStopContainer(prev.containerId, shutdownTimeout);
+      await stopOldContainer(prev.containerId);
     }
     await db
       .updateTable("deployments")
