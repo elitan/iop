@@ -175,8 +175,7 @@ fi
 log "App connected to database successfully!"
 
 log "Verifying cross-service communication via hostname..."
-# Replicate sanitizeDockerName: lowercase, replace non-alphanumeric with -, collapse --, remove leading/trailing -
-NETWORK_NAME=$(echo "frost-net-$PROJECT_ID-$ENV_ID" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g')
+NETWORK_NAME=$(sanitize_name "frost-net-$PROJECT_ID-$ENV_ID")
 log "Looking for network: $NETWORK_NAME"
 log "All frost networks:"
 remote "docker network ls --filter name=frost-net --format '{{.Name}}'" || true

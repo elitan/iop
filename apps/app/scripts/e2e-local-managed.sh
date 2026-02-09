@@ -11,6 +11,11 @@ DEV_LOG="${E2E_DEV_LOG:-/tmp/frost-dev.log}"
 JWT_SECRET="${FROST_JWT_SECRET:-frost-e2e-$(openssl rand -hex 24)}"
 KEEP_DATA="${E2E_KEEP_DATA:-0}"
 KEEP_REPOS="${E2E_KEEP_REPOS:-0}"
+API_KEY_RETRIES="${E2E_API_KEY_RETRIES:-60}"
+API_KEY_RETRY_SEC="${E2E_API_KEY_RETRY_SEC:-1}"
+API_KEY_VERIFY_RETRIES="${E2E_API_KEY_VERIFY_RETRIES:-30}"
+API_KEY_VERIFY_RETRY_SEC="${E2E_API_KEY_VERIFY_RETRY_SEC:-1}"
+KILL_STALE_PORT="${E2E_KILL_STALE_PORT:-1}"
 
 TEMP_DATA_DIR=0
 if [ -n "${FROST_DATA_DIR:-}" ]; then
@@ -26,6 +31,13 @@ cleanup() {
   if [ -n "${DEV_PID:-}" ] && kill -0 "$DEV_PID" > /dev/null 2>&1; then
     kill "$DEV_PID" > /dev/null 2>&1 || true
     wait "$DEV_PID" > /dev/null 2>&1 || true
+  fi
+
+  if [ "$KILL_STALE_PORT" = "1" ] && command -v lsof > /dev/null 2>&1; then
+    PORT_PIDS="$(lsof -ti tcp:"$PORT" 2>/dev/null || true)"
+    if [ -n "$PORT_PIDS" ]; then
+      kill $PORT_PIDS > /dev/null 2>&1 || true
+    fi
   fi
 
   if [ "$TEMP_DATA_DIR" -eq 1 ] && [ "$KEEP_DATA" != "1" ] && [ -d "$DATA_DIR" ]; then
@@ -47,6 +59,20 @@ for cmd in curl docker git jq openssl bun; do
   fi
 done
 
+if [ "$KILL_STALE_PORT" = "1" ] && command -v lsof > /dev/null 2>&1; then
+  STALE_PIDS="$(lsof -ti tcp:"$PORT" 2>/dev/null || true)"
+  if [ -n "$STALE_PIDS" ]; then
+    echo "Port $PORT already in use; terminating stale process(es): $STALE_PIDS"
+    kill $STALE_PIDS > /dev/null 2>&1 || true
+    sleep 1
+    STALE_PIDS="$(lsof -ti tcp:"$PORT" 2>/dev/null || true)"
+    if [ -n "$STALE_PIDS" ]; then
+      kill -9 $STALE_PIDS > /dev/null 2>&1 || true
+      sleep 1
+    fi
+  fi
+fi
+
 if ! (cd "$APP_DIR" && bun --bun next --version > /dev/null 2>&1); then
   echo "Installing dependencies (bun install)..."
   (cd "$REPO_ROOT" && bun install)
@@ -54,6 +80,12 @@ fi
 
 mkdir -p "$DATA_DIR"
 rm -f "$DEV_LOG"
+
+echo "Preparing local data dir (migrations)..."
+(
+  cd "$APP_DIR"
+  FROST_DATA_DIR="$DATA_DIR" bun run migrate > /dev/null 2>&1
+)
 
 echo "========================================"
 echo "Managed Local E2E"
@@ -85,15 +117,15 @@ DEV_PID=$!
 
 READY=0
 for i in $(seq 1 90); do
-  if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
-    READY=1
-    break
-  fi
-
   if ! kill -0 "$DEV_PID" > /dev/null 2>&1; then
     echo "Dev server exited early. Logs:"
     tail -n 80 "$DEV_LOG" || true
     exit 1
+  fi
+
+  if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
+    READY=1
+    break
   fi
 
   sleep 1
@@ -108,7 +140,7 @@ echo "✓ Frost dev server is healthy"
 
 echo "Creating API key for test run..."
 API_KEY=""
-for i in $(seq 1 30); do
+for i in $(seq 1 "$API_KEY_RETRIES"); do
   API_KEY="$(
     cd "$APP_DIR"
     FROST_JWT_SECRET="$JWT_SECRET" \
@@ -119,21 +151,29 @@ for i in $(seq 1 30); do
   if [ -n "$API_KEY" ]; then
     break
   fi
-  sleep 1
+  sleep "$API_KEY_RETRY_SEC"
 done
 
 if [ -z "$API_KEY" ]; then
-  echo "Failed to create API key (db may not be ready)"
+  echo "Failed to create API key after $API_KEY_RETRIES attempts (db may not be ready)"
   exit 1
 fi
 
-AUTH_CODE="$(
-  curl -s -o /dev/null -w "%{http_code}" \
-    -H "X-Frost-Token: $API_KEY" \
-    "http://localhost:$PORT/api/projects"
-)"
+AUTH_CODE=""
+for i in $(seq 1 "$API_KEY_VERIFY_RETRIES"); do
+  AUTH_CODE="$(
+    curl -s -o /dev/null -w "%{http_code}" \
+      -H "X-Frost-Token: $API_KEY" \
+      "http://localhost:$PORT/api/projects"
+  )"
+  if [ "$AUTH_CODE" = "200" ]; then
+    break
+  fi
+  sleep "$API_KEY_VERIFY_RETRY_SEC"
+done
+
 if [ "$AUTH_CODE" != "200" ]; then
-  echo "Generated API key failed auth check (HTTP $AUTH_CODE)"
+  echo "Generated API key failed auth check after $API_KEY_VERIFY_RETRIES attempts (last HTTP $AUTH_CODE)"
   exit 1
 fi
 echo "✓ API key created and verified"
