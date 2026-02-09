@@ -2,8 +2,8 @@ import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { deployProject, deployService } from "@/lib/deployer";
+import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { cleanupProject } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
@@ -38,14 +38,12 @@ export const projects = {
           await addLatestDeploymentsWithRuntimeStatus(services);
 
         const latestDeploymentByService: Record<string, string | null> = {};
-        let latestDeployment:
-          | {
-              status: string;
-              commitMessage: string | null;
-              createdAt: number;
-              branch: string | null;
-            }
-          | null = null;
+        let latestDeployment: {
+          status: string;
+          commitMessage: string | null;
+          createdAt: number;
+          branch: string | null;
+        } | null = null;
         let runningHostPort: number | null = null;
 
         for (const service of servicesWithDeployments) {

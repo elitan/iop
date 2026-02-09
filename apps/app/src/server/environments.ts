@@ -1,8 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
-import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { deployEnvironment } from "@/lib/deployer";
+import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { cleanupEnvironment } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
