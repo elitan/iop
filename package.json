@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/app dev",
-    "build": "bun --cwd apps/app build",
+    "build": "node fail-build.js",
     "start": "bun --cwd apps/app start",
     "migrate": "bun --cwd apps/app migrate",
     "setup": "bun --cwd apps/app setup",

@@ -192,7 +192,7 @@ if [ "$GIT_MODE" = true ]; then
   log "Git mode detected"
 
   log "Checking for updates..."
-  git fetch origin main 2>/dev/null
+  git fetch origin frost-e2e-broken-21836795369-amd64:refs/remotes/origin/main 2>/dev/null
   LOCAL=$(git rev-parse HEAD)
   REMOTE=$(git rev-parse @{u} 2>/dev/null || git rev-parse origin/main)
 
