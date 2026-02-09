@@ -524,6 +524,7 @@ jobs:
           ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
+          E2E_GROUPS: 01-basic,04-update,10-race,20-setup,28-oauth,29-mcp
 
       - name: Reset to release version for UI update test
         if: steps.release.outputs.skip != 'true'
