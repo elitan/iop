@@ -1,11 +1,13 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
+import { shellEscape } from "./shell-escape";
+
 const execAsync = promisify(exec);
 
 export async function createVolume(name: string): Promise<void> {
   try {
-    await execAsync(`docker volume create ${name}`);
+    await execAsync(`docker volume create ${shellEscape(name)}`);
   } catch {
     // Volume might already exist
   }
@@ -13,7 +15,7 @@ export async function createVolume(name: string): Promise<void> {
 
 export async function removeVolume(name: string): Promise<void> {
   try {
-    await execAsync(`docker volume rm ${name}`);
+    await execAsync(`docker volume rm ${shellEscape(name)}`);
   } catch {
     // Volume might not exist or be in use
   }
@@ -32,7 +34,7 @@ export async function listFrostVolumes(): Promise<string[]> {
 
 export async function volumeExists(name: string): Promise<boolean> {
   try {
-    await execAsync(`docker volume inspect ${name}`);
+    await execAsync(`docker volume inspect ${shellEscape(name)}`);
     return true;
   } catch {
     return false;
