@@ -2,11 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { useMemo } from "react";
 import { LogViewer } from "@/components/log-viewer";
 import { SideDrawer } from "@/components/side-drawer";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { useBuildLogs } from "@/hooks/use-build-logs";
 import type { Deployment } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 
@@ -22,6 +22,19 @@ function replicaStatusToDotStatus(
   if (status === "running") return "running";
   if (status === "failed") return "failed";
   return "pending";
+}
+
+const ACTIVE_BUILD_STATUSES = new Set([
+  "pending",
+  "cloning",
+  "pulling",
+  "building",
+  "deploying",
+  "running",
+]);
+
+function shouldStreamBuildLogs(status: string): boolean {
+  return ACTIVE_BUILD_STATUSES.has(status);
 }
 
 function ReplicaStatus({ deploymentId }: { deploymentId: string }) {
@@ -67,10 +80,16 @@ export function DeploymentLogsDrawer({
   isOpen,
   onClose,
 }: DeploymentLogsDrawerProps) {
-  const buildLogLines = useMemo(() => {
-    if (!deployment?.buildLog) return [];
-    return deployment.buildLog.split("\n");
-  }, [deployment?.buildLog]);
+  const streamBuildLogs = deployment
+    ? shouldStreamBuildLogs(deployment.status)
+    : false;
+  const { logs, isConnected, error } = useBuildLogs({
+    deploymentId: deployment?.id ?? "",
+    enabled: isOpen && !!deployment,
+    shouldReconnect: streamBuildLogs,
+  });
+  const fallbackLogs = deployment?.buildLog?.split("\n") ?? [];
+  const displayLogs = logs.length > 0 ? logs : fallbackLogs;
 
   return (
     <SideDrawer
@@ -111,7 +130,13 @@ export function DeploymentLogsDrawer({
               </div>
             )}
             <ReplicaStatus deploymentId={deployment.id} />
-            <LogViewer logs={buildLogLines} emptyMessage="No logs yet..." />
+            <LogViewer
+              logs={displayLogs}
+              isStreaming={streamBuildLogs}
+              isConnected={isConnected}
+              error={error}
+              emptyMessage="No logs yet..."
+            />
           </div>
         </>
       )}

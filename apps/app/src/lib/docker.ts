@@ -30,6 +30,7 @@ export interface BuildImageOptions {
   buildContext?: string;
   envVars?: Record<string, string>;
   labels?: Record<string, string>;
+  onData?: (chunk: string) => void;
 }
 
 export async function buildImage(
@@ -55,6 +56,7 @@ export async function buildImage(
     buildContext,
     envVars,
     labels,
+    onData,
   } = options;
 
   if (await imageExists(imageName)) {
@@ -84,11 +86,15 @@ export async function buildImage(
     });
 
     proc.stdout.on("data", (data) => {
-      log += data.toString();
+      const chunk = data.toString();
+      log += chunk;
+      onData?.(chunk);
     });
 
     proc.stderr.on("data", (data) => {
-      log += data.toString();
+      const chunk = data.toString();
+      log += chunk;
+      onData?.(chunk);
     });
 
     proc.on("close", (code) => {

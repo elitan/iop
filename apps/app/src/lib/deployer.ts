@@ -5,11 +5,13 @@ import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
+import { emitBuildLogChunk } from "./build-log-stream";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
 import {
   buildImage,
+  type BuildResult,
   createNetwork,
   dockerLogin,
   type FileMount,
@@ -81,7 +83,12 @@ async function updateDeployment(
     .execute();
 }
 
-async function appendLog(id: string, log: string) {
+async function appendLog(
+  id: string,
+  log: string,
+  options?: { emit?: boolean },
+) {
+  if (!log) return;
   const deployment = await db
     .selectFrom("deployments")
     .select("buildLog")
@@ -90,6 +97,39 @@ async function appendLog(id: string, log: string) {
 
   const existingLog = deployment?.buildLog || "";
   await updateDeployment(id, { buildLog: existingLog + log });
+  if (options?.emit !== false) {
+    emitBuildLogChunk(id, log);
+  }
+}
+
+function createLogChunkAppender(deploymentId: string): {
+  append: (chunk: string) => void;
+  flush: () => Promise<void>;
+} {
+  let queue = Promise.resolve();
+  let queueError: Error | null = null;
+
+  function append(chunk: string): void {
+    if (!chunk || queueError) return;
+    emitBuildLogChunk(deploymentId, chunk);
+    queue = queue
+      .then(function writeChunk() {
+        return appendLog(deploymentId, chunk, { emit: false });
+      })
+      .catch(function onQueueError(err) {
+        queueError =
+          err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+      });
+  }
+
+  async function flush(): Promise<void> {
+    await queue;
+    if (queueError) {
+      throw queueError;
+    }
+  }
+
+  return { append, flush };
 }
 
 async function isDeploymentCancelled(deploymentId: string): Promise<boolean> {
@@ -851,31 +891,55 @@ async function runServiceDeployment(
         }
       }
 
-      const cloneResult = await new Promise<string>((resolve, reject) => {
-        let output = "";
-        const proc = spawn("git", [
-          "clone",
-          "--depth",
-          "1",
-          "--branch",
-          branch,
-          cloneUrl,
-          repoPath,
-        ]);
-        proc.stdout.on("data", (data) => {
-          output += data.toString();
+      const cloneLogAppender = createLogChunkAppender(deploymentId);
+      let cloneResult: { output: string; code: number | null } | null = null;
+      try {
+        cloneResult = await new Promise<{
+          output: string;
+          code: number | null;
+        }>((resolve, reject) => {
+          let output = "";
+          const proc = spawn("git", [
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            branch,
+            cloneUrl,
+            repoPath,
+          ]);
+          proc.stdout.on("data", (data) => {
+            const chunk = data.toString();
+            output += chunk;
+            cloneLogAppender.append(chunk);
+          });
+          proc.stderr.on("data", (data) => {
+            const chunk = data.toString();
+            output += chunk;
+            cloneLogAppender.append(chunk);
+          });
+          proc.on("close", (code) => {
+            resolve({ output, code });
+          });
+          proc.on("error", reject);
         });
-        proc.stderr.on("data", (data) => {
-          output += data.toString();
-        });
-        proc.on("close", (code) => {
-          if (code === 0) resolve(output);
-          else
-            reject(new Error(output || `git clone exited with code ${code}`));
-        });
-        proc.on("error", reject);
-      });
-      await appendLog(deploymentId, cloneResult || "Cloned successfully\n");
+      } finally {
+        await cloneLogAppender.flush();
+      }
+
+      if (!cloneResult) {
+        throw new Error("git clone failed");
+      }
+
+      if (!cloneResult.output) {
+        await appendLog(deploymentId, "Cloned successfully\n");
+      }
+      if (cloneResult.code !== 0) {
+        throw new Error(
+          cloneResult.output ||
+            `git clone exited with code ${cloneResult.code}`,
+        );
+      }
 
       const frostConfigResult = loadFrostConfig(
         repoPath,
@@ -945,19 +1009,26 @@ async function runServiceDeployment(
       );
 
       imageName = `${sanitizeDockerName(`frost-${project.id}-${service.name}`)}:${commitSha}`;
-      const buildResult = await buildImage({
-        repoPath,
-        imageName,
-        dockerfilePath: effectiveService.dockerfilePath ?? undefined,
-        buildContext: service.buildContext ?? undefined,
-        envVars,
-        labels: baseLabels,
-      });
+      const buildLogAppender = createLogChunkAppender(deploymentId);
+      let buildResult: BuildResult | null = null;
+      try {
+        buildResult = await buildImage({
+          repoPath,
+          imageName,
+          dockerfilePath: effectiveService.dockerfilePath ?? undefined,
+          buildContext: service.buildContext ?? undefined,
+          envVars,
+          labels: baseLabels,
+          onData(chunk) {
+            buildLogAppender.append(chunk);
+          },
+        });
+      } finally {
+        await buildLogAppender.flush();
+      }
 
-      await appendLog(deploymentId, buildResult.log);
-
-      if (!buildResult.success) {
-        throw new Error(buildResult.error || "Build failed");
+      if (!buildResult || !buildResult.success) {
+        throw new Error(buildResult?.error || "Build failed");
       }
 
       if (await isDeploymentCancelled(deploymentId)) {
