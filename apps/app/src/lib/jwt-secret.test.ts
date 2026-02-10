@@ -47,7 +47,9 @@ describe("getRequiredJwtSecret", function () {
 
     expect(function () {
       getRequiredJwtSecret();
-    }).toThrow("FROST_JWT_SECRET must be set and must not use the default value");
+    }).toThrow(
+      "FROST_JWT_SECRET must be set and must not use the default value",
+    );
   });
 
   test("throws in production when default secret is set", function () {
@@ -56,7 +58,9 @@ describe("getRequiredJwtSecret", function () {
 
     expect(function () {
       getRequiredJwtSecret();
-    }).toThrow("FROST_JWT_SECRET must be set and must not use the default value");
+    }).toThrow(
+      "FROST_JWT_SECRET must be set and must not use the default value",
+    );
   });
 
   test("returns secret in production when set", function () {
