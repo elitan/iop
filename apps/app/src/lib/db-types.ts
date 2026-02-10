@@ -169,7 +169,7 @@ export interface Replicas {
   containerId: string | null;
   hostPort: number | null;
   status: Generated<string>;
-  createdAt: Generated<string>;
+  createdAt: Generated<number>;
 }
 
 export interface Services {

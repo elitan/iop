@@ -534,7 +534,7 @@ export const replicasSchema = z.object({
   containerId: z.string().nullable(),
   hostPort: z.number().nullable(),
   status: z.string(),
-  createdAt: z.string(),
+  createdAt: z.number(),
 });
 
 export const newReplicasSchema = z.object({
@@ -544,7 +544,7 @@ export const newReplicasSchema = z.object({
   containerId: z.string().nullable(),
   hostPort: z.number().nullable(),
   status: z.string().optional(),
-  createdAt: z.string().optional(),
+  createdAt: z.number().optional(),
 });
 
 export const replicasUpdateSchema = z.object({
@@ -554,7 +554,7 @@ export const replicasUpdateSchema = z.object({
   containerId: z.string().nullable().optional(),
   hostPort: z.number().nullable().optional(),
   status: z.string().optional(),
-  createdAt: z.string().optional(),
+  createdAt: z.number().optional(),
 });
 
 export type Replicas = z.infer<typeof replicasSchema>;

@@ -172,6 +172,20 @@ describe("migrate integration", () => {
     expect(columnNames).toContain("is_system");
   });
 
+  test("replicas created_at column uses integer type", () => {
+    runMigrations({ dbPath: TEST_DB, schemaDir: PROD_SCHEMA_DIR });
+
+    const db = new Database(TEST_DB);
+    const column = db
+      .prepare("PRAGMA table_info(replicas)")
+      .all() as Array<{ name: string; type: string }>;
+    db.close();
+
+    const createdAt = column.find((c) => c.name === "created_at");
+    expect(createdAt).toBeDefined();
+    expect(createdAt?.type.toUpperCase()).toBe("INTEGER");
+  });
+
   test("foreign key constraints are enabled and work", () => {
     runMigrations({ dbPath: TEST_DB, schemaDir: PROD_SCHEMA_DIR });
 
