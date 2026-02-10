@@ -20,10 +20,6 @@ export async function GET(
     return new Response("Deployment not found", { status: 404 });
   }
 
-  if (deployment.status !== "running") {
-    return new Response("Container not running", { status: 400 });
-  }
-
   const replicas = await db
     .selectFrom("replicas")
     .select(["containerId", "replicaIndex"])
