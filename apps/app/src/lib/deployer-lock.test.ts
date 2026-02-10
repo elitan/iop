@@ -31,30 +31,27 @@ describe("withServiceDeploymentLock", function describeLock() {
     ]);
   });
 
-  test(
-    "allows parallel tasks for different services",
-    async function testParallel() {
-      let running = 0;
-      let peak = 0;
+  test("allows parallel tasks for different services", async function testParallel() {
+    let running = 0;
+    let peak = 0;
 
-      await Promise.all([
-        withServiceDeploymentLock("service-a", async function taskA() {
-          running += 1;
-          peak = Math.max(peak, running);
-          await sleep(40);
-          running -= 1;
-        }),
-        withServiceDeploymentLock("service-b", async function taskB() {
-          running += 1;
-          peak = Math.max(peak, running);
-          await sleep(40);
-          running -= 1;
-        }),
-      ]);
+    await Promise.all([
+      withServiceDeploymentLock("service-a", async function taskA() {
+        running += 1;
+        peak = Math.max(peak, running);
+        await sleep(40);
+        running -= 1;
+      }),
+      withServiceDeploymentLock("service-b", async function taskB() {
+        running += 1;
+        peak = Math.max(peak, running);
+        await sleep(40);
+        running -= 1;
+      }),
+    ]);
 
-      expect(peak).toBe(2);
-    },
-  );
+    expect(peak).toBe(2);
+  });
 
   test("releases lock after failure", async function testFailure() {
     await expect(
