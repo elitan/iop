@@ -21,49 +21,49 @@ function setJwtSecret(value: string | undefined) {
   env.FROST_JWT_SECRET = value;
 }
 
-afterEach(function () {
+afterEach(() => {
   setNodeEnv(originalNodeEnv);
   setJwtSecret(originalJwtSecret);
 });
 
-describe("getRequiredJwtSecret", function () {
-  test("returns default secret in development when missing", function () {
+describe("getRequiredJwtSecret", () => {
+  test("returns default secret in development when missing", () => {
     setNodeEnv("development");
     setJwtSecret(undefined);
 
     expect(getRequiredJwtSecret()).toBe("frost-default-secret-change-me");
   });
 
-  test("returns test secret in test when missing", function () {
+  test("returns test secret in test when missing", () => {
     setNodeEnv("test");
     setJwtSecret(undefined);
 
     expect(getRequiredJwtSecret()).toBe("frost-test-secret");
   });
 
-  test("throws in production when missing", function () {
+  test("throws in production when missing", () => {
     setNodeEnv("production");
     setJwtSecret(undefined);
 
-    expect(function () {
+    expect(() => {
       getRequiredJwtSecret();
     }).toThrow(
       "FROST_JWT_SECRET must be set and must not use the default value",
     );
   });
 
-  test("throws in production when default secret is set", function () {
+  test("throws in production when default secret is set", () => {
     setNodeEnv("production");
     setJwtSecret("frost-default-secret-change-me");
 
-    expect(function () {
+    expect(() => {
       getRequiredJwtSecret();
     }).toThrow(
       "FROST_JWT_SECRET must be set and must not use the default value",
     );
   });
 
-  test("returns secret in production when set", function () {
+  test("returns secret in production when set", () => {
     setNodeEnv("production");
     setJwtSecret("production-secret");
 

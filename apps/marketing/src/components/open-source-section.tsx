@@ -45,8 +45,8 @@ export function OpenSourceSection() {
               </h2>
 
               <p className="text-white/50 mb-10 max-w-2xl mx-auto leading-relaxed">
-                Your apps run on your server. Frost gives your AI coding agent
-                a clean deploy workflow.
+                Your apps run on your server. Frost gives your AI coding agent a
+                clean deploy workflow.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center">

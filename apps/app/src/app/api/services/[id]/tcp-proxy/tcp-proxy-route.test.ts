@@ -84,40 +84,31 @@ function buildSelectQuery(table: string) {
   return query;
 }
 
-mock.module("next/server", function () {
-  return {
-    NextResponse: {
-      json: function json(body: unknown, init?: { status?: number }) {
-        jsonCalls.push({ body, init });
-        return { body, init };
-      },
+mock.module("next/server", () => ({
+  NextResponse: {
+    json: function json(body: unknown, init?: { status?: number }) {
+      jsonCalls.push({ body, init });
+      return { body, init };
     },
-  };
-});
+  },
+}));
 
-mock.module("@/lib/db", function () {
-  return {
-    db: {
-      selectFrom: function selectFrom(table: string) {
-        return buildSelectQuery(table);
-      },
+mock.module("@/lib/db", () => ({
+  db: {
+    selectFrom: function selectFrom(table: string) {
+      return buildSelectQuery(table);
     },
-  };
-});
+  },
+}));
 
-mock.module("@/lib/tcp-proxy", function () {
-  return {
-    removeTcpProxy: async function removeTcpProxy(serviceId: string) {
-      removeCalls.push(serviceId);
-    },
-    setupTcpProxy: async function setupTcpProxy(
-      serviceId: string,
-      port: number,
-    ) {
-      setupCalls.push({ serviceId, port });
-    },
-  };
-});
+mock.module("@/lib/tcp-proxy", () => ({
+  removeTcpProxy: async function removeTcpProxy(serviceId: string) {
+    removeCalls.push(serviceId);
+  },
+  setupTcpProxy: async function setupTcpProxy(serviceId: string, port: number) {
+    setupCalls.push({ serviceId, port });
+  },
+}));
 
 async function callPostRoute(serviceId = "svc-1") {
   const { POST } = await import("./route");
@@ -133,12 +124,12 @@ async function callGetRoute(serviceId = "svc-1") {
   });
 }
 
-afterEach(function () {
+afterEach(() => {
   resetState();
 });
 
-describe("tcp proxy route", function () {
-  test("POST uses running replica hostPort when available", async function () {
+describe("tcp proxy route", () => {
+  test("POST uses running replica hostPort when available", async () => {
     state.service = { tcpProxyPort: null, serviceType: "database" };
     state.deployment = { id: "dep-1", hostPort: 15000 };
     state.replica = { hostPort: 16000 };
@@ -150,7 +141,7 @@ describe("tcp proxy route", function () {
     expect(jsonCalls[0]?.body).toEqual({ enabled: true, port: 16000 });
   });
 
-  test("POST falls back to deployment hostPort when no replica exists", async function () {
+  test("POST falls back to deployment hostPort when no replica exists", async () => {
     state.service = { tcpProxyPort: null, serviceType: "database" };
     state.deployment = { id: "dep-1", hostPort: 15000 };
     state.replica = undefined;
@@ -162,7 +153,7 @@ describe("tcp proxy route", function () {
     expect(jsonCalls[0]?.body).toEqual({ enabled: true, port: 15000 });
   });
 
-  test("GET returns replica hostPort when available", async function () {
+  test("GET returns replica hostPort when available", async () => {
     state.service = { tcpProxyPort: 16000, serviceType: "database" };
     state.deployment = { id: "dep-1", hostPort: 15000 };
     state.replica = { hostPort: 17000 };
