@@ -1,5 +1,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { getRequiredJwtSecret } = await import("./lib/jwt-secret");
+    getRequiredJwtSecret();
+    console.log("[startup] jwt secret: ok");
+
     const { runMigrations } = await import("./lib/migrate");
     runMigrations();
     console.log("[startup] migrations: ok");

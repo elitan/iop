@@ -1,4 +1,5 @@
 const DEFAULT_SECRET = "frost-default-secret-change-me";
+const TEST_SECRET = "frost-test-secret";
 
 const REQUIRED_SECRET_ERROR =
   "FROST_JWT_SECRET must be set and must not use the default value";
@@ -6,9 +7,12 @@ const REQUIRED_SECRET_ERROR =
 export function getRequiredJwtSecret(): string {
   const secret = process.env.FROST_JWT_SECRET;
 
-  // Keep tests deterministic without requiring per-test env setup.
   if (process.env.NODE_ENV === "test") {
-    return secret && secret !== DEFAULT_SECRET ? secret : "frost-test-secret";
+    return secret && secret !== DEFAULT_SECRET ? secret : TEST_SECRET;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return secret || DEFAULT_SECRET;
   }
 
   if (!secret || secret === DEFAULT_SECRET) {
