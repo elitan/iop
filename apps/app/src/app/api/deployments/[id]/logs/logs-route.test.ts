@@ -122,7 +122,9 @@ afterEach(function () {
 
 describe("deployment logs route", function () {
   test("returns 404 when deployment is missing", async function () {
-    const response = await callRoute("http://localhost/api/deployments/dep-1/logs");
+    const response = await callRoute(
+      "http://localhost/api/deployments/dep-1/logs",
+    );
 
     expect(response.status).toBe(404);
     expect(await response.text()).toBe("Deployment not found");
