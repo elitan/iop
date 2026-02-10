@@ -9,10 +9,14 @@ export function useServices(environmentId: string) {
   });
 }
 
-export function useService(id: string) {
+interface UseServiceOptions {
+  refetchInterval?: number | false;
+}
+
+export function useService(id: string, options?: UseServiceOptions) {
   return useQuery({
     ...orpc.services.get.queryOptions({ input: { id } }),
-    refetchInterval: 2000,
+    refetchInterval: options?.refetchInterval ?? false,
   });
 }
 
