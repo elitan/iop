@@ -157,8 +157,80 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
 }
 
 const MAX_PORT_ATTEMPTS = 10;
+const ACTIVE_PORT_DEPLOYMENT_STATUSES = [
+  "pending",
+  "cloning",
+  "pulling",
+  "building",
+  "deploying",
+  "running",
+] as const;
+
+function getUpdatedRowCount(result: unknown): number {
+  if (!result || typeof result !== "object") return 0;
+  const value = (result as { numUpdatedRows?: number | bigint }).numUpdatedRows;
+  return Number(value ?? 0);
+}
+
+async function tryReserveReplicaPort(
+  replicaId: string,
+  hostPort: number,
+): Promise<boolean> {
+  const result = await db
+    .updateTable("replicas")
+    .set({ hostPort })
+    .where("id", "=", replicaId)
+    .where("status", "=", "pending")
+    .where((eb) =>
+      eb.or([eb("hostPort", "is", null), eb("hostPort", "=", hostPort)]),
+    )
+    .where((eb) =>
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom("replicas as activeReplicas")
+            .select("activeReplicas.id")
+            .where("activeReplicas.id", "!=", replicaId)
+            .where("activeReplicas.hostPort", "=", hostPort)
+            .where("activeReplicas.status", "in", ["pending", "running"]),
+        ),
+      ),
+    )
+    .where((eb) =>
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom("deployments as activeDeployments")
+            .select("activeDeployments.id")
+            .where("activeDeployments.hostPort", "=", hostPort)
+            .where(
+              "activeDeployments.status",
+              "in",
+              ACTIVE_PORT_DEPLOYMENT_STATUSES,
+            ),
+        ),
+      ),
+    )
+    .executeTakeFirst();
+
+  return getUpdatedRowCount(result) > 0;
+}
+
+async function releaseReplicaPortReservation(
+  replicaId: string,
+  hostPort: number,
+): Promise<void> {
+  await db
+    .updateTable("replicas")
+    .set({ hostPort: null })
+    .where("id", "=", replicaId)
+    .where("status", "=", "pending")
+    .where("hostPort", "=", hostPort)
+    .execute();
+}
 
 async function runContainerWithPortRetry(
+  replicaId: string,
   options: Omit<RunContainerOptions, "hostPort">,
   onRetry?: (port: number, attempt: number) => Promise<void>,
 ): Promise<{ containerId: string; hostPort: number }> {
@@ -168,11 +240,18 @@ async function runContainerWithPortRetry(
     const hostPort = await getAvailablePort(10000, 20000, triedPorts);
     triedPorts.add(hostPort);
 
+    const reserved = await tryReserveReplicaPort(replicaId, hostPort);
+    if (!reserved) {
+      continue;
+    }
+
     const result = await runContainer({ ...options, hostPort });
 
     if (result.success) {
       return { containerId: result.containerId, hostPort };
     }
+
+    await releaseReplicaPortReservation(replicaId, hostPort);
 
     const error = result.error || "";
     const isRetryable =
@@ -373,6 +452,7 @@ async function startReplicas(
 
       const { containerId: cId, hostPort: hPort } =
         await runContainerWithPortRetry(
+          replica.id,
           {
             imageName: opts.imageName,
             containerPort: opts.containerPort,

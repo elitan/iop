@@ -510,6 +510,10 @@ export function isContainerNameConflictError(error: string): boolean {
   return error.includes("is already in use by container");
 }
 
+function isMissingTableError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("no such table");
+}
+
 export async function getAvailablePort(
   start: number = 10000,
   end: number = 20000,
@@ -546,8 +550,10 @@ export async function getAvailablePort(
         usedPorts.add(d.hostPort);
       }
     }
-  } catch {
-    // Ignore - db might not be ready
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      throw error;
+    }
   }
 
   try {
@@ -562,8 +568,10 @@ export async function getAvailablePort(
         usedPorts.add(r.hostPort);
       }
     }
-  } catch {
-    // Ignore - table might not exist yet
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      throw error;
+    }
   }
 
   for (let port = start; port < end; port++) {
