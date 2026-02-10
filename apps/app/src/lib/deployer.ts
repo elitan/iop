@@ -65,6 +65,35 @@ export type DeploymentStatus =
   | "stopped"
   | "cancelled";
 
+const serviceDeploymentLocks = new Map<string, Promise<void>>();
+
+export async function withServiceDeploymentLock<T>(
+  serviceId: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = serviceDeploymentLocks.get(serviceId) ?? Promise.resolve();
+  let release = function noop(): void {};
+  const current = new Promise<void>(function onCreate(resolve) {
+    release = function releaseCurrent(): void {
+      resolve();
+    };
+  });
+  const chain = previous.then(function onPreviousDone() {
+    return current;
+  });
+  serviceDeploymentLocks.set(serviceId, chain);
+  await previous;
+
+  try {
+    return await task();
+  } finally {
+    release();
+    if (serviceDeploymentLocks.get(serviceId) === chain) {
+      serviceDeploymentLocks.delete(serviceId);
+    }
+  }
+}
+
 async function updateDeployment(
   id: string,
   updates: {
@@ -683,7 +712,7 @@ export async function deployProject(projectId: string): Promise<string[]> {
   return results.flat();
 }
 
-export async function deployService(
+async function deployServiceUnlocked(
   serviceId: string,
   options?: DeployOptions,
 ): Promise<string> {
@@ -749,6 +778,15 @@ export async function deployService(
   });
 
   return deploymentId;
+}
+
+export async function deployService(
+  serviceId: string,
+  options?: DeployOptions,
+): Promise<string> {
+  return withServiceDeploymentLock(serviceId, function deployServiceTask() {
+    return deployServiceUnlocked(serviceId, options);
+  });
 }
 
 async function runServiceDeployment(
@@ -1354,25 +1392,27 @@ export async function rollbackDeployment(
     throw new Error("Image no longer available");
   }
 
-  await cancelActiveDeployments(service.id, deploymentId);
+  return withServiceDeploymentLock(service.id, async function rollbackTask() {
+    await cancelActiveDeployments(service.id, deploymentId);
 
-  await db
-    .updateTable("deployments")
-    .set({ status: "deploying", trigger: "rollback" })
-    .where("id", "=", deploymentId)
-    .execute();
+    await db
+      .updateTable("deployments")
+      .set({ status: "deploying", trigger: "rollback" })
+      .where("id", "=", deploymentId)
+      .execute();
 
-  runRollbackDeployment(
-    deploymentId,
-    targetDeployment,
-    service,
-    environment,
-    project,
-  ).catch((err) => {
-    console.error("Rollback deployment failed:", err);
+    runRollbackDeployment(
+      deploymentId,
+      targetDeployment,
+      service,
+      environment,
+      project,
+    ).catch((err) => {
+      console.error("Rollback deployment failed:", err);
+    });
+
+    return deploymentId;
   });
-
-  return deploymentId;
 }
 
 async function runRollbackDeployment(
