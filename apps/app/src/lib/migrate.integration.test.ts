@@ -176,9 +176,10 @@ describe("migrate integration", () => {
     runMigrations({ dbPath: TEST_DB, schemaDir: PROD_SCHEMA_DIR });
 
     const db = new Database(TEST_DB);
-    const column = db
-      .prepare("PRAGMA table_info(replicas)")
-      .all() as Array<{ name: string; type: string }>;
+    const column = db.prepare("PRAGMA table_info(replicas)").all() as Array<{
+      name: string;
+      type: string;
+    }>;
     db.close();
 
     const createdAt = column.find((c) => c.name === "created_at");
