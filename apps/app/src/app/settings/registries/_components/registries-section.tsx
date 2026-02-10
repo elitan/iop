@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,10 @@ export function RegistriesSection() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingRegistry, setDeletingRegistry] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -69,7 +75,9 @@ export function RegistriesSection() {
         });
       },
       onError: (err) => {
-        alert(err instanceof Error ? err.message : "Failed to delete registry");
+        toast.error(
+          err instanceof Error ? err.message : "Failed to delete registry",
+        );
       },
     }),
   );
@@ -98,8 +106,10 @@ export function RegistriesSection() {
     });
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this registry?")) return;
+  function handleDelete() {
+    if (!deletingRegistry) return;
+    const { id } = deletingRegistry;
+    setDeletingRegistry(null);
     deleteMutation.mutate({ id });
   }
 
@@ -167,7 +177,12 @@ export function RegistriesSection() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(registry.id)}
+                          onClick={() =>
+                            setDeletingRegistry({
+                              id: registry.id,
+                              name: registry.name,
+                            })
+                          }
                           className="text-red-400 hover:text-red-300"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -318,6 +333,18 @@ export function RegistriesSection() {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={deletingRegistry !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingRegistry(null);
+        }}
+        title="Delete registry"
+        description={`Delete "${deletingRegistry?.name}"?`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={handleDelete}
+      />
     </SettingCard>
   );
 }

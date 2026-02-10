@@ -14,6 +14,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -102,6 +103,9 @@ function CanvasViewInner({
 
   const [nodes, setNodes] = useState<ServiceNodeType[]>([]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [serviceToDeleteId, setServiceToDeleteId] = useState<string | null>(
+    null,
+  );
   const savedServiceIdsRef = useRef<Set<string>>(
     new Set(Object.keys(initialPositions)),
   );
@@ -256,22 +260,25 @@ function CanvasViewInner({
     setContextMenu({ x: event.clientX, y: event.clientY, serviceId: node.id });
   }
 
-  async function handleDeleteService(): Promise<void> {
+  function handleDeleteService(): void {
     if (!contextMenu) return;
-    if (!confirm("Delete this service? This cannot be undone.")) {
-      setContextMenu(null);
-      return;
-    }
+    setServiceToDeleteId(contextMenu.serviceId);
+    setContextMenu(null);
+  }
+
+  async function handleConfirmDeleteService(): Promise<void> {
+    if (!serviceToDeleteId) return;
+
     try {
-      await deleteMutation.mutateAsync(contextMenu.serviceId);
+      await deleteMutation.mutateAsync(serviceToDeleteId);
       toast.success("Service deleted");
-      if (selectedServiceId === contextMenu.serviceId) {
+      if (selectedServiceId === serviceToDeleteId) {
         onSelectService(null);
       }
+      setServiceToDeleteId(null);
     } catch {
       toast.error("Failed to delete service");
     }
-    setContextMenu(null);
   }
 
   useEffect(() => {
@@ -367,6 +374,18 @@ function CanvasViewInner({
           </button>
         </div>
       )}
+      <ConfirmDialog
+        open={serviceToDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setServiceToDeleteId(null);
+        }}
+        title="Delete service"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={handleConfirmDeleteService}
+      />
     </div>
   );
 }

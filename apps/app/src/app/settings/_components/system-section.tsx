@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { orpc } from "@/lib/orpc-client";
@@ -23,6 +24,7 @@ export function SystemSection() {
   const [previousVersion, setPreviousVersion] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [error, setError] = useState("");
+  const [showApplyDialog, setShowApplyDialog] = useState(false);
 
   const { data: status } = useQuery(orpc.updates.get.queryOptions());
 
@@ -110,15 +112,12 @@ export function SystemSection() {
     checkMutation.mutate({});
   }
 
-  async function handleApply() {
-    if (!confirm("This will restart Frost to apply the update. Continue?")) {
-      return;
-    }
-
+  function handleApply() {
     setPreviousVersion(status?.currentVersion || null);
     setUpdateState("preparing");
     setError("");
     setShowLog(false);
+    setShowApplyDialog(false);
 
     applyMutation.mutate({});
   }
@@ -154,7 +153,10 @@ export function SystemSection() {
             Dismiss
           </Button>
         ) : status?.updateAvailable ? (
-          <Button onClick={handleApply} disabled={isUpdating}>
+          <Button
+            onClick={() => setShowApplyDialog(true)}
+            disabled={isUpdating}
+          >
             {isUpdating ? (
               <>
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -323,6 +325,15 @@ export function SystemSection() {
           </>
         )}
       </div>
+      <ConfirmDialog
+        open={showApplyDialog}
+        onOpenChange={setShowApplyDialog}
+        title="Apply update"
+        description="This will restart Frost to apply the update. Continue?"
+        confirmLabel="Update and restart"
+        loading={applyMutation.isPending || updateState === "preparing"}
+        onConfirm={handleApply}
+      />
     </SettingCard>
   );
 }

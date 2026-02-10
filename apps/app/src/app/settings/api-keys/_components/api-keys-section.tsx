@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export function ApiKeysSection() {
     null,
   );
   const [copied, setCopied] = useState(false);
+  const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null);
 
   const { data: keys = [], isLoading: loading } = useQuery(
     orpc.apiKeys.list.queryOptions(),
@@ -43,8 +45,10 @@ export function ApiKeysSection() {
     createMutation.mutate({ name: newKeyName });
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this API key? This cannot be undone.")) return;
+  function handleDelete() {
+    if (!deletingKeyId) return;
+    const id = deletingKeyId;
+    setDeletingKeyId(null);
     deleteMutation.mutate({ id });
     if (newKey?.id === id) setNewKey(null);
   }
@@ -149,7 +153,7 @@ export function ApiKeysSection() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(key.id)}
+                          onClick={() => setDeletingKeyId(key.id)}
                           className="text-red-400 hover:text-red-300"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -190,6 +194,18 @@ export function ApiKeysSection() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={deletingKeyId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingKeyId(null);
+        }}
+        title="Delete API key"
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={handleDelete}
+      />
     </SettingCard>
   );
 }

@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { orpc } from "@/lib/orpc-client";
@@ -23,6 +24,7 @@ export function GitHubSection() {
   const formRef = useRef<HTMLFormElement>(null);
   const [manifest, setManifest] = useState<string>("");
   const [error, setError] = useState("");
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
 
   const successParam = searchParams.get("success");
   const errorParam = searchParams.get("error");
@@ -55,14 +57,8 @@ export function GitHubSection() {
     }),
   );
 
-  async function handleDisconnect() {
-    if (
-      !confirm(
-        "Disconnect GitHub? You'll need to set up a new GitHub App to reconnect.",
-      )
-    ) {
-      return;
-    }
+  function handleDisconnect() {
+    setShowDisconnectDialog(false);
     disconnectMutation.mutate({});
   }
 
@@ -94,7 +90,7 @@ export function GitHubSection() {
         status?.connected && status?.installed ? (
           <Button
             variant="destructive"
-            onClick={handleDisconnect}
+            onClick={() => setShowDisconnectDialog(true)}
             disabled={disconnectMutation.isPending}
           >
             {disconnectMutation.isPending ? (
@@ -233,6 +229,16 @@ export function GitHubSection() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={showDisconnectDialog}
+        onOpenChange={setShowDisconnectDialog}
+        title="Disconnect GitHub"
+        description="You'll need to set up a new GitHub App to reconnect."
+        confirmLabel="Disconnect"
+        variant="destructive"
+        loading={disconnectMutation.isPending}
+        onConfirm={handleDisconnect}
+      />
     </SettingCard>
   );
 }

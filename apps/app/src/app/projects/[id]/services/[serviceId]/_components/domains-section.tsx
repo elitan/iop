@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,6 +80,10 @@ export function DomainsSection({
   const [domainType, setDomainType] = useState<"proxy" | "redirect">("proxy");
   const [redirectTarget, setRedirectTarget] = useState("");
   const [redirectCode, setRedirectCode] = useState<"301" | "307">("301");
+  const [domainToDelete, setDomainToDelete] = useState<{
+    id: string;
+    domain: string;
+  } | null>(null);
   const [verificationState, setVerificationState] = useState<
     Map<string, VerificationState>
   >(new Map());
@@ -206,11 +211,17 @@ export function DomainsSection({
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remove this domain?")) return;
+  function handleDelete(domain: Domain) {
+    setDomainToDelete({ id: domain.id, domain: domain.domain });
+  }
+
+  async function handleConfirmDeleteDomain() {
+    if (!domainToDelete) return;
+
     try {
-      await deleteMutation.mutateAsync(id);
+      await deleteMutation.mutateAsync(domainToDelete.id);
       toast.success("Domain removed");
+      setDomainToDelete(null);
     } catch {
       toast.error("Failed to remove domain");
     }
@@ -405,7 +416,7 @@ export function DomainsSection({
                 domain={domain}
                 serverIp={serverIp}
                 onVerify={() => handleVerifyDns(domain.id)}
-                onDelete={() => handleDelete(domain.id)}
+                onDelete={() => handleDelete(domain)}
                 onRetrySsl={() => handleRetrySsl(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={hasOtherVerifiedDomains}
@@ -432,7 +443,7 @@ export function DomainsSection({
                 domain={domain}
                 serverIp={serverIp}
                 onVerify={() => handleVerifyDns(domain.id)}
-                onDelete={() => handleDelete(domain.id)}
+                onDelete={() => handleDelete(domain)}
                 onRetrySsl={() => handleRetrySsl(domain.id)}
                 isVerifying={verifyDnsMutation.isPending}
                 canDelete={true}
@@ -464,6 +475,18 @@ export function DomainsSection({
           </div>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={domainToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setDomainToDelete(null);
+        }}
+        title="Remove domain"
+        description={`Remove "${domainToDelete?.domain}" from this service?`}
+        confirmLabel="Remove"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={handleConfirmDeleteDomain}
+      />
     </Card>
   );
 }
