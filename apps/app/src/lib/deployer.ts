@@ -83,6 +83,33 @@ async function updateDeployment(
     .execute();
 }
 
+async function markDeploymentRunningAndSetCurrentServiceDeployment(
+  deploymentId: string,
+  serviceId: string,
+  containerId: string,
+  hostPort: number,
+): Promise<void> {
+  const finishedAt = Date.now();
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .updateTable("deployments")
+      .set({
+        status: "running",
+        containerId,
+        hostPort,
+        finishedAt,
+      })
+      .where("id", "=", deploymentId)
+      .execute();
+
+    await trx
+      .updateTable("services")
+      .set({ currentDeploymentId: deploymentId })
+      .where("id", "=", serviceId)
+      .execute();
+  });
+}
+
 async function appendLog(
   id: string,
   log: string,
@@ -1175,18 +1202,12 @@ async function runServiceDeployment(
     );
 
     const firstReplica = startedReplicas[0];
-    await updateDeployment(deploymentId, {
-      status: "running",
-      containerId: firstReplica.containerId,
-      hostPort: firstReplica.hostPort,
-      finishedAt: Date.now(),
-    });
-
-    await db
-      .updateTable("services")
-      .set({ currentDeploymentId: deploymentId })
-      .where("id", "=", service.id)
-      .execute();
+    await markDeploymentRunningAndSetCurrentServiceDeployment(
+      deploymentId,
+      service.id,
+      firstReplica.containerId,
+      firstReplica.hostPort,
+    );
 
     await appendLog(
       deploymentId,
@@ -1463,18 +1484,12 @@ async function runRollbackDeployment(
     );
 
     const firstReplica = startedReplicas[0];
-    await updateDeployment(deploymentId, {
-      status: "running",
-      containerId: firstReplica.containerId,
-      hostPort: firstReplica.hostPort,
-      finishedAt: Date.now(),
-    });
-
-    await db
-      .updateTable("services")
-      .set({ currentDeploymentId: deploymentId })
-      .where("id", "=", service.id)
-      .execute();
+    await markDeploymentRunningAndSetCurrentServiceDeployment(
+      deploymentId,
+      service.id,
+      firstReplica.containerId,
+      firstReplica.hostPort,
+    );
 
     await appendLog(
       deploymentId,
