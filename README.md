@@ -1,6 +1,6 @@
 # Frost
 
-**Vercel/Railway experience. VPS pricing.**
+**Vercel experience. VPS pricing.**
 
 Open source · Self-hosted
 

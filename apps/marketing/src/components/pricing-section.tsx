@@ -34,7 +34,7 @@ export function PricingSection() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Vercel/Railway experience. VPS pricing.
+            Vercel experience. VPS pricing.
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed max-w-lg mx-auto">
             Keep the fast deploy workflow. Drop the platform tax.

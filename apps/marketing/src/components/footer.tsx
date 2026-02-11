@@ -20,7 +20,7 @@ export function Footer() {
               <span className="font-semibold text-lg">Frost</span>
             </div>
             <p className="text-sm text-muted-foreground text-center md:text-left">
-              Vercel/Railway experience. VPS pricing.
+              Vercel experience. VPS pricing.
             </p>
           </div>
 

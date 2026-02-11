@@ -3,8 +3,8 @@ import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/header";
 
-const title = "Frost - Vercel/Railway experience. VPS pricing.";
-const description = "Vercel/Railway experience. VPS pricing.";
+const title = "Frost - Vercel experience. VPS pricing.";
+const description = "Vercel experience. VPS pricing.";
 const url = "https://frost.build";
 
 export const metadata: Metadata = {

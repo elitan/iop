@@ -1,6 +1,6 @@
 # Frost
 
-Vercel/Railway experience. VPS pricing.
+Vercel experience. VPS pricing.
 
 See also: `CLAUDE.local.md` for local/personal instructions (gitignored).
 

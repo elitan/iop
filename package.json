@@ -1,7 +1,7 @@
 {
   "name": "frost",
   "version": "0.16.0",
-  "description": "Vercel/Railway experience. VPS pricing.",
+  "description": "Vercel experience. VPS pricing.",
   "private": true,
   "workspaces": [
     "apps/*",
