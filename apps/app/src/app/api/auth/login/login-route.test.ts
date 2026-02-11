@@ -7,6 +7,15 @@ type AuthState = {
   validHash: boolean;
 };
 
+type DemoState = {
+  enabled: boolean;
+};
+
+type LoginRateLimitEntry = {
+  count: number;
+  resetAt: number;
+};
+
 type CookieCall = {
   name: string;
   options: Record<string, unknown>;
@@ -23,6 +32,9 @@ const authState: AuthState = {
   setupComplete: true,
   validDev: false,
   validHash: true,
+};
+const demoState: DemoState = {
+  enabled: false,
 };
 
 const cookieCalls: CookieCall[] = [];
@@ -43,8 +55,13 @@ function resetState() {
   authState.setupComplete = true;
   authState.validDev = false;
   authState.validHash = true;
+  demoState.enabled = false;
   cookieCalls.length = 0;
   jsonCalls.length = 0;
+  const g = globalThis as typeof globalThis & {
+    __demoLoginRateLimit?: Map<string, LoginRateLimitEntry>;
+  };
+  g.__demoLoginRateLimit?.clear();
 }
 
 mock.module("next/server", () => ({
@@ -86,6 +103,16 @@ mock.module("@/lib/auth", () => ({
   },
   verifyPassword: async function verifyPassword() {
     return authState.validHash;
+  },
+}));
+
+mock.module("@/lib/demo-mode", () => ({
+  DEMO_MODE_LIMITS: {
+    loginWindowMs: 60 * 1000,
+    loginMaxAttemptsPerWindow: 2,
+  },
+  isDemoMode: function isDemoMode() {
+    return demoState.enabled;
   },
 }));
 
@@ -211,5 +238,66 @@ describe("login route", () => {
 
     expect(cookieCalls).toHaveLength(1);
     expect(cookieCalls[0]?.options.secure).toBe(true);
+  });
+
+  test("uses x-real-ip for demo login rate limiting", async () => {
+    setNodeEnv("production");
+    demoState.enabled = true;
+    authState.validHash = false;
+
+    await callLoginRouteWithConfig({
+      body: { password: "secret" },
+      headers: {
+        "x-forwarded-for": "1.1.1.1",
+        "x-real-ip": "198.51.100.22",
+      },
+    });
+    await callLoginRouteWithConfig({
+      body: { password: "secret" },
+      headers: {
+        "x-forwarded-for": "2.2.2.2",
+        "x-real-ip": "198.51.100.22",
+      },
+    });
+    await callLoginRouteWithConfig({
+      body: { password: "secret" },
+      headers: {
+        "x-forwarded-for": "3.3.3.3",
+        "x-real-ip": "198.51.100.22",
+      },
+    });
+
+    expect(jsonCalls).toHaveLength(3);
+    expect(jsonCalls[0]?.init?.status).toBe(401);
+    expect(jsonCalls[1]?.init?.status).toBe(401);
+    expect(jsonCalls[2]?.init?.status).toBe(429);
+  });
+
+  test("evicts expired demo rate-limit entries on lookup", async () => {
+    setNodeEnv("production");
+    demoState.enabled = true;
+    authState.validHash = false;
+
+    await callLoginRouteWithConfig({
+      body: { password: "secret" },
+      headers: { "x-real-ip": "198.51.100.33" },
+    });
+
+    const g = globalThis as typeof globalThis & {
+      __demoLoginRateLimit?: Map<string, LoginRateLimitEntry>;
+    };
+    const entry = g.__demoLoginRateLimit?.get("198.51.100.33");
+    if (entry) {
+      entry.resetAt = Date.now() - 1;
+      g.__demoLoginRateLimit?.set("198.51.100.33", entry);
+    }
+
+    await callLoginRouteWithConfig({
+      body: {},
+      headers: { "x-real-ip": "198.51.100.33" },
+    });
+
+    expect(g.__demoLoginRateLimit?.has("198.51.100.33")).toBe(false);
+    expect(jsonCalls[1]?.init?.status).toBe(400);
   });
 });

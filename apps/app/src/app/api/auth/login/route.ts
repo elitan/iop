@@ -80,14 +80,18 @@ export async function POST(request: Request) {
 }
 
 function getClientAddress(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first) return first;
-  }
-
   const realIp = request.headers.get("x-real-ip");
   if (realIp) return realIp;
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const addresses = forwardedFor
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const last = addresses[addresses.length - 1];
+    if (last) return last;
+  }
 
   return "unknown";
 }
@@ -95,13 +99,23 @@ function getClientAddress(request: Request): string {
 function isRateLimited(clientAddress: string): boolean {
   const now = Date.now();
   const entry = demoLoginRateLimit.get(clientAddress);
-  if (!entry || entry.resetAt <= now) {
+  if (!entry) {
     return false;
   }
+
+  if (entry.resetAt <= now) {
+    demoLoginRateLimit.delete(clientAddress);
+    return false;
+  }
+
   return entry.count >= DEMO_MODE_LIMITS.loginMaxAttemptsPerWindow;
 }
 
 function recordRateLimitFailure(clientAddress: string): void {
+  if (demoLoginRateLimit.size >= 256) {
+    pruneExpiredRateLimitEntries();
+  }
+
   const now = Date.now();
   const entry = demoLoginRateLimit.get(clientAddress);
 
@@ -117,4 +131,13 @@ function recordRateLimitFailure(clientAddress: string): void {
     count: entry.count + 1,
     resetAt: entry.resetAt,
   });
+}
+
+function pruneExpiredRateLimitEntries(): void {
+  const now = Date.now();
+  for (const [clientAddress, entry] of demoLoginRateLimit.entries()) {
+    if (entry.resetAt <= now) {
+      demoLoginRateLimit.delete(clientAddress);
+    }
+  }
 }

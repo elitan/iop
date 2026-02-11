@@ -294,21 +294,14 @@ export const projects = {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
-    const productionEnvironment = await db
-      .selectFrom("environments")
-      .select("id")
-      .where("projectId", "=", input.id)
-      .where("type", "=", "production")
-      .executeTakeFirst();
-    if (productionEnvironment) {
-      const services = await db
-        .selectFrom("services")
-        .select("id")
-        .where("environmentId", "=", productionEnvironment.id)
-        .execute();
-      for (const service of services) {
-        await assertDemoDeployRateLimit(service.id);
-      }
+    const services = await db
+      .selectFrom("services")
+      .innerJoin("environments", "environments.id", "services.environmentId")
+      .select("services.id")
+      .where("environments.projectId", "=", input.id)
+      .execute();
+    for (const service of services) {
+      await assertDemoDeployRateLimit(service.id);
     }
 
     const deploymentIds = await deployProject(input.id);
