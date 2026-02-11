@@ -163,8 +163,45 @@ else
   timer "Caddy DNS modules present"
 fi
 
-# Get server IP for HTTPS setup (force IPv4)
-SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || curl -4 -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
+is_valid_ipv4() {
+  local ip="$1"
+  if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    return 1
+  fi
+  IFS='.' read -r o1 o2 o3 o4 <<< "$ip"
+  for octet in "$o1" "$o2" "$o3" "$o4"; do
+    if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+get_public_ipv4() {
+  local candidate=""
+  for url in \
+    "https://ifconfig.me/ip" \
+    "https://api.ipify.org" \
+    "https://ipv4.icanhazip.com" \
+    "https://checkip.amazonaws.com"
+  do
+    candidate=$(curl -4 -fsSL "$url" 2>/dev/null | tr -d '\r' | tr -d '\n' || true)
+    if is_valid_ipv4 "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+SERVER_IP=$(get_public_ipv4 || true)
+if ! is_valid_ipv4 "$SERVER_IP"; then
+  SERVER_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')
+fi
+if ! is_valid_ipv4 "$SERVER_IP"; then
+  echo -e "${RED}Failed to detect public IPv4 address${NC}"
+  exit 1
+fi
 
 # Configure Caddy with self-signed HTTPS
 timer "Configuring Caddy..."
