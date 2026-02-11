@@ -26,6 +26,8 @@ export function useRuntimeLogs({
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectRef = useRef(true);
+  const activeStreamKeyRef = useRef<string | null>(null);
+  const lineCountRef = useRef(0);
 
   const disconnect = useCallback(function disconnect() {
     shouldReconnectRef.current = false;
@@ -48,9 +50,18 @@ export function useRuntimeLogs({
       shouldReconnectRef.current = true;
       setError(null);
 
+      const streamKey = `${deploymentId}:${replica ?? "all"}`;
+      const streamChanged = activeStreamKeyRef.current !== streamKey;
+      if (streamChanged) {
+        activeStreamKeyRef.current = streamKey;
+        lineCountRef.current = 0;
+        setLogs([]);
+      }
+
       const replicaParam = replica !== undefined ? `&replica=${replica}` : "";
+      const tail = lineCountRef.current > 0 ? 0 : 100;
       const es = new EventSource(
-        `/api/deployments/${deploymentId}/logs?tail=100${replicaParam}`,
+        `/api/deployments/${deploymentId}/logs?tail=${tail}${replicaParam}`,
       );
       eventSourceRef.current = es;
 
@@ -68,18 +79,22 @@ export function useRuntimeLogs({
           }
           setLogs((prev) => {
             const newLogs = [...prev, data];
-            if (newLogs.length > MAX_LINES) {
-              return newLogs.slice(-MAX_LINES);
-            }
-            return newLogs;
+            const next =
+              newLogs.length > MAX_LINES
+                ? newLogs.slice(-MAX_LINES)
+                : newLogs;
+            lineCountRef.current = next.length;
+            return next;
           });
         } catch {
           setLogs((prev) => {
             const newLogs = [...prev, event.data];
-            if (newLogs.length > MAX_LINES) {
-              return newLogs.slice(-MAX_LINES);
-            }
-            return newLogs;
+            const next =
+              newLogs.length > MAX_LINES
+                ? newLogs.slice(-MAX_LINES)
+                : newLogs;
+            lineCountRef.current = next.length;
+            return next;
           });
         }
       };
