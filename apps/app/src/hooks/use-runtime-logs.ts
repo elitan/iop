@@ -80,9 +80,7 @@ export function useRuntimeLogs({
           setLogs((prev) => {
             const newLogs = [...prev, data];
             const next =
-              newLogs.length > MAX_LINES
-                ? newLogs.slice(-MAX_LINES)
-                : newLogs;
+              newLogs.length > MAX_LINES ? newLogs.slice(-MAX_LINES) : newLogs;
             lineCountRef.current = next.length;
             return next;
           });
@@ -90,9 +88,7 @@ export function useRuntimeLogs({
           setLogs((prev) => {
             const newLogs = [...prev, event.data];
             const next =
-              newLogs.length > MAX_LINES
-                ? newLogs.slice(-MAX_LINES)
-                : newLogs;
+              newLogs.length > MAX_LINES ? newLogs.slice(-MAX_LINES) : newLogs;
             lineCountRef.current = next.length;
             return next;
           });
