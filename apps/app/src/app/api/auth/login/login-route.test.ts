@@ -47,51 +47,47 @@ function resetState() {
   jsonCalls.length = 0;
 }
 
-mock.module("next/server", function () {
-  return {
-    NextResponse: {
-      json: function json(body: unknown, init?: { status?: number }) {
-        jsonCalls.push({ body, init });
-        return {
-          body,
-          init,
-          cookies: {
-            set: function set(
-              name: string,
-              value: string,
-              options: Record<string, unknown>,
-            ) {
-              cookieCalls.push({ name, options, value });
-            },
+mock.module("next/server", () => ({
+  NextResponse: {
+    json: function json(body: unknown, init?: { status?: number }) {
+      jsonCalls.push({ body, init });
+      return {
+        body,
+        init,
+        cookies: {
+          set: function set(
+            name: string,
+            value: string,
+            options: Record<string, unknown>,
+          ) {
+            cookieCalls.push({ name, options, value });
           },
-        };
-      },
+        },
+      };
     },
-  };
-});
+  },
+}));
 
-mock.module("@/lib/auth", function () {
-  return {
-    createSessionToken: function createSessionToken() {
-      return "session-token";
-    },
-    getAdminPasswordHash: async function getAdminPasswordHash() {
-      return authState.hash;
-    },
-    isDevMode: function isDevMode() {
-      return process.env.NODE_ENV === "development";
-    },
-    isSetupComplete: async function isSetupComplete() {
-      return authState.setupComplete;
-    },
-    verifyDevPassword: async function verifyDevPassword() {
-      return authState.validDev;
-    },
-    verifyPassword: async function verifyPassword() {
-      return authState.validHash;
-    },
-  };
-});
+mock.module("@/lib/auth", () => ({
+  createSessionToken: function createSessionToken() {
+    return "session-token";
+  },
+  getAdminPasswordHash: async function getAdminPasswordHash() {
+    return authState.hash;
+  },
+  isDevMode: function isDevMode() {
+    return process.env.NODE_ENV === "development";
+  },
+  isSetupComplete: async function isSetupComplete() {
+    return authState.setupComplete;
+  },
+  verifyDevPassword: async function verifyDevPassword() {
+    return authState.validDev;
+  },
+  verifyPassword: async function verifyPassword() {
+    return authState.validHash;
+  },
+}));
 
 async function callLoginRoute() {
   return callLoginRouteWithConfig({
@@ -118,13 +114,13 @@ async function callLoginRouteWithBody(body: Record<string, unknown>) {
   return callLoginRouteWithConfig({ body });
 }
 
-afterEach(function () {
+afterEach(() => {
   resetState();
   setNodeEnv(originalNodeEnv);
 });
 
-describe("login route", function () {
-  test("returns 400 when password missing", async function () {
+describe("login route", () => {
+  test("returns 400 when password missing", async () => {
     await callLoginRouteWithBody({});
 
     expect(jsonCalls).toHaveLength(1);
@@ -133,7 +129,7 @@ describe("login route", function () {
     expect(cookieCalls).toHaveLength(0);
   });
 
-  test("returns 503 when setup not complete", async function () {
+  test("returns 503 when setup not complete", async () => {
     authState.setupComplete = false;
 
     await callLoginRoute();
@@ -144,7 +140,7 @@ describe("login route", function () {
     expect(cookieCalls).toHaveLength(0);
   });
 
-  test("returns 401 when password invalid", async function () {
+  test("returns 401 when password invalid", async () => {
     setNodeEnv("production");
     authState.validHash = false;
     authState.validDev = false;
@@ -157,7 +153,7 @@ describe("login route", function () {
     expect(cookieCalls).toHaveLength(0);
   });
 
-  test("sets secure false in development", async function () {
+  test("sets secure false in development", async () => {
     setNodeEnv("development");
     authState.validHash = false;
     authState.validDev = true;
@@ -171,7 +167,7 @@ describe("login route", function () {
     expect(cookieCalls[0]?.options.secure).toBe(false);
   });
 
-  test("sets secure true and expected options in production", async function () {
+  test("sets secure true and expected options in production", async () => {
     setNodeEnv("production");
 
     await callLoginRouteWithConfig({
@@ -195,7 +191,7 @@ describe("login route", function () {
     });
   });
 
-  test("sets secure false in production over http", async function () {
+  test("sets secure false in production over http", async () => {
     setNodeEnv("production");
 
     await callLoginRoute();
@@ -204,7 +200,7 @@ describe("login route", function () {
     expect(cookieCalls[0]?.options.secure).toBe(false);
   });
 
-  test("sets secure true when forwarded proto is https", async function () {
+  test("sets secure true when forwarded proto is https", async () => {
     setNodeEnv("production");
 
     await callLoginRouteWithConfig({

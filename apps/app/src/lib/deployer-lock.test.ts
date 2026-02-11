@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { withServiceDeploymentLock } from "./deployer";
+import { formatEnvFileContent, withServiceDeploymentLock } from "./deployer";
 
 function sleep(ms: number): Promise<void> {
   return new Promise(function onCreate(resolve) {
@@ -66,5 +66,31 @@ describe("withServiceDeploymentLock", function describeLock() {
     });
 
     expect(ran).toBe(true);
+  });
+});
+
+describe("formatEnvFileContent", function describeEnvFileFormatting() {
+  test("escapes newline values to one line", function testEscapesNewline() {
+    const content = formatEnvFileContent([
+      { key: "SAFE", value: "line-1\nMALICIOUS=1" },
+      { key: "OTHER", value: "ok" },
+    ]);
+
+    expect(content).toBe(
+      `SAFE=${JSON.stringify("line-1\nMALICIOUS=1")}\nOTHER=${JSON.stringify("ok")}`,
+    );
+  });
+
+  test("escapes quotes and backslashes", function testEscapesSpecialChars() {
+    const value = 'x"y\\z';
+    const content = formatEnvFileContent([{ key: "SAFE", value }]);
+
+    expect(content).toBe(`SAFE=${JSON.stringify(value)}`);
+  });
+
+  test("throws on unsafe key", function testUnsafeKey() {
+    expect(() =>
+      formatEnvFileContent([{ key: "BAD\nKEY", value: "value" }]),
+    ).toThrow("Invalid environment variable key");
   });
 });

@@ -29,41 +29,39 @@ function resetState() {
   jsonCalls.length = 0;
 }
 
-mock.module("next/server", function () {
-  return {
-    NextResponse: {
-      json: function json(body: unknown, init?: { status?: number }) {
-        jsonCalls.push({ body, init });
-        return {
-          body,
-          init,
-          cookies: {
-            set: function set(
-              name: string,
-              value: string,
-              options: Record<string, unknown>,
-            ) {
-              cookieCalls.push({ name, options, value });
-            },
+mock.module("next/server", () => ({
+  NextResponse: {
+    json: function json(body: unknown, init?: { status?: number }) {
+      jsonCalls.push({ body, init });
+      return {
+        body,
+        init,
+        cookies: {
+          set: function set(
+            name: string,
+            value: string,
+            options: Record<string, unknown>,
+          ) {
+            cookieCalls.push({ name, options, value });
           },
-        };
-      },
+        },
+      };
     },
-  };
-});
+  },
+}));
 
 async function callLogoutRoute() {
   const { POST } = await import("./route");
   return POST();
 }
 
-afterEach(function () {
+afterEach(() => {
   resetState();
   setNodeEnv(originalNodeEnv);
 });
 
-describe("logout route", function () {
-  test("clears session cookie with expected options in production", async function () {
+describe("logout route", () => {
+  test("clears session cookie with expected options in production", async () => {
     setNodeEnv("production");
 
     await callLogoutRoute();
@@ -84,7 +82,7 @@ describe("logout route", function () {
     });
   });
 
-  test("sets secure false outside production", async function () {
+  test("sets secure false outside production", async () => {
     setNodeEnv("development");
 
     await callLogoutRoute();

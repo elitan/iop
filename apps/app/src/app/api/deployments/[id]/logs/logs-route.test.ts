@@ -69,45 +69,41 @@ function buildReplicaQuery() {
   return query;
 }
 
-mock.module("@/lib/db", function () {
-  return {
-    db: {
-      selectFrom: function selectFrom(table: string) {
-        if (table === "deployments") {
-          return buildDeploymentQuery();
-        }
-        if (table === "replicas") {
-          return buildReplicaQuery();
-        }
-        throw new Error(`Unexpected table: ${table}`);
-      },
+mock.module("@/lib/db", () => ({
+  db: {
+    selectFrom: function selectFrom(table: string) {
+      if (table === "deployments") {
+        return buildDeploymentQuery();
+      }
+      if (table === "replicas") {
+        return buildReplicaQuery();
+      }
+      throw new Error(`Unexpected table: ${table}`);
     },
-  };
-});
+  },
+}));
 
-mock.module("@/lib/docker", function () {
-  return {
-    streamContainerLogs: function streamContainerLogs(
-      containerId: string,
-      options: {
-        tail?: number;
-        timestamps?: boolean;
-        onData: (line: string) => void;
-        onError: (err: Error) => void;
-        onClose: () => void;
-      },
-    ) {
-      streamCalls.push({
-        containerId,
-        tail: options.tail,
-        timestamps: options.timestamps,
-      });
-      return {
-        stop: function stop() {},
-      };
+mock.module("@/lib/docker", () => ({
+  streamContainerLogs: function streamContainerLogs(
+    containerId: string,
+    options: {
+      tail?: number;
+      timestamps?: boolean;
+      onData: (line: string) => void;
+      onError: (err: Error) => void;
+      onClose: () => void;
     },
-  };
-});
+  ) {
+    streamCalls.push({
+      containerId,
+      tail: options.tail,
+      timestamps: options.timestamps,
+    });
+    return {
+      stop: function stop() {},
+    };
+  },
+}));
 
 async function callRoute(url: string) {
   const { GET } = await import("./route");
@@ -116,12 +112,12 @@ async function callRoute(url: string) {
   });
 }
 
-afterEach(function () {
+afterEach(() => {
   resetState();
 });
 
-describe("deployment logs route", function () {
-  test("returns 404 when deployment is missing", async function () {
+describe("deployment logs route", () => {
+  test("returns 404 when deployment is missing", async () => {
     const response = await callRoute(
       "http://localhost/api/deployments/dep-1/logs",
     );
@@ -131,7 +127,7 @@ describe("deployment logs route", function () {
     expect(streamCalls).toHaveLength(0);
   });
 
-  test("streams logs for failed deployment", async function () {
+  test("streams logs for failed deployment", async () => {
     state.deployment = {
       containerId: "ctr-failed-1",
       status: "failed",

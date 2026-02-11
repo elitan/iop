@@ -25,18 +25,38 @@ function isDeployment(
   return deployment !== null;
 }
 
-export async function reconcileDeploymentRuntimeStatus(
-  deployment: Selectable<Deployments> | null,
-): Promise<Selectable<Deployments> | null> {
-  if (!canReconcileDeployment(deployment)) {
-    return deployment;
+async function hasLiveReplicaContainer(
+  deploymentId: string,
+): Promise<boolean | null> {
+  const replicas = await db
+    .selectFrom("replicas")
+    .select("containerId")
+    .where("deploymentId", "=", deploymentId)
+    .where("status", "=", "running")
+    .where("containerId", "is not", null)
+    .orderBy("replicaIndex", "asc")
+    .execute();
+
+  if (replicas.length === 0) {
+    return null;
   }
 
-  const containerStatus = await getContainerStatus(deployment.containerId);
-  if (containerStatus === "unknown" || isContainerLive(containerStatus)) {
-    return deployment;
+  for (const replica of replicas) {
+    if (!replica.containerId) {
+      continue;
+    }
+    const status = await getContainerStatus(replica.containerId);
+    if (status === "unknown" || isContainerLive(status)) {
+      return true;
+    }
   }
 
+  return false;
+}
+
+async function markDeploymentStopped(
+  deployment: Selectable<Deployments> & { containerId: string },
+): Promise<Selectable<Deployments>> {
   const finishedAt = deployment.finishedAt ?? Date.now();
 
   await db
@@ -53,6 +73,29 @@ export async function reconcileDeploymentRuntimeStatus(
     .execute();
 
   return { ...deployment, status: "stopped", finishedAt };
+}
+
+export async function reconcileDeploymentRuntimeStatus(
+  deployment: Selectable<Deployments> | null,
+): Promise<Selectable<Deployments> | null> {
+  if (!canReconcileDeployment(deployment)) {
+    return deployment;
+  }
+
+  const liveReplicaContainer = await hasLiveReplicaContainer(deployment.id);
+  if (liveReplicaContainer === true) {
+    return deployment;
+  }
+  if (liveReplicaContainer === false) {
+    return markDeploymentStopped(deployment);
+  }
+
+  const containerStatus = await getContainerStatus(deployment.containerId);
+  if (containerStatus === "unknown" || isContainerLive(containerStatus)) {
+    return deployment;
+  }
+
+  return markDeploymentStopped(deployment);
 }
 
 export async function getLatestDeploymentWithRuntimeStatus(

@@ -212,6 +212,26 @@ function parseEnvVars(envVarsJson: string): Record<string, string> {
   return Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
 }
 
+function isSafeEnvFileKey(key: string): boolean {
+  return key.trim().length > 0 && !/[\r\n=]/.test(key);
+}
+
+function formatEnvFileLine(envVar: EnvVar): string {
+  const key = envVar.key.trim();
+  if (!isSafeEnvFileKey(key)) {
+    throw new Error(`Invalid environment variable key: ${envVar.key}`);
+  }
+  return `${key}=${JSON.stringify(envVar.value)}`;
+}
+
+export function formatEnvFileContent(envVarsList: EnvVar[]): string {
+  return envVarsList
+    .map(function mapEnvVar(envVar) {
+      return formatEnvFileLine(envVar);
+    })
+    .join("\n");
+}
+
 const MAX_PORT_ATTEMPTS = 10;
 const ACTIVE_PORT_DEPLOYMENT_STATUSES = [
   "pending",
@@ -1135,9 +1155,7 @@ async function runServiceDeployment(
         .execute();
 
       if (envVarsList.length > 0) {
-        const envFileContent = envVarsList
-          .map((e) => `${e.key}=${e.value}`)
-          .join("\n");
+        const envFileContent = formatEnvFileContent(envVarsList);
         writeFileSync(join(repoPath, ".env"), envFileContent);
         await appendLog(
           deploymentId,

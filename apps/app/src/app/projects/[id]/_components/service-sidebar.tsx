@@ -23,10 +23,12 @@ export function ServiceSidebar({
   serviceId,
   onClose,
 }: ServiceSidebarProps) {
-  const { data: service } = useService(serviceId || "");
   const [activeTab, setActiveTab] = useState<
     "overview" | "deployments" | "logs" | "settings"
   >("overview");
+  const { data: service } = useService(serviceId || "", {
+    refetchInterval: activeTab === "settings" ? false : 2000,
+  });
   const [hasNestedDrawer, setHasNestedDrawer] = useState(false);
 
   const handleNestedDrawerChange = useCallback((hasDrawer: boolean) => {
