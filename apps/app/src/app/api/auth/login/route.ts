@@ -99,11 +99,7 @@ function getClientAddress(request: Request): string {
 function isRateLimited(clientAddress: string): boolean {
   const now = Date.now();
   const entry = demoLoginRateLimit.get(clientAddress);
-  if (!entry) {
-    return false;
-  }
-
-  if (entry.resetAt <= now) {
+  if (!entry || entry.resetAt <= now) {
     demoLoginRateLimit.delete(clientAddress);
     return false;
   }
@@ -118,18 +114,14 @@ function recordRateLimitFailure(clientAddress: string): void {
 
   const now = Date.now();
   const entry = demoLoginRateLimit.get(clientAddress);
-
-  if (!entry || entry.resetAt <= now) {
-    demoLoginRateLimit.set(clientAddress, {
-      count: 1,
-      resetAt: now + DEMO_MODE_LIMITS.loginWindowMs,
-    });
-    return;
-  }
-
+  const isNewWindow = !entry || entry.resetAt <= now;
+  const count = isNewWindow ? 1 : entry.count + 1;
+  const resetAt = isNewWindow
+    ? now + DEMO_MODE_LIMITS.loginWindowMs
+    : entry.resetAt;
   demoLoginRateLimit.set(clientAddress, {
-    count: entry.count + 1,
-    resetAt: entry.resetAt,
+    count,
+    resetAt,
   });
 }
 

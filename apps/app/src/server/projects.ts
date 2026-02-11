@@ -143,8 +143,10 @@ export const projects = {
   create: os.projects.create.handler(async ({ input }) => {
     await assertDemoProjectCreateAllowed();
 
+    let template: ReturnType<typeof getTemplate> | null = null;
+
     if (input.templateId) {
-      const template = getTemplate(input.templateId);
+      template = getTemplate(input.templateId);
       if (!template) {
         throw new ORPCError("BAD_REQUEST", {
           message: "Unknown template",
@@ -197,8 +199,7 @@ export const projects = {
       });
     }
 
-    if (input.templateId) {
-      const template = getTemplate(input.templateId)!;
+    if (template) {
       const resolved = resolveTemplateServices(template);
 
       await assertDemoServiceCreateAllowed(envId, resolved.length);

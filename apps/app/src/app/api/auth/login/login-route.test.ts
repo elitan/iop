@@ -141,6 +141,16 @@ async function callLoginRouteWithBody(body: Record<string, unknown>) {
   return callLoginRouteWithConfig({ body });
 }
 
+async function callLoginRouteWithIp(
+  realIp: string,
+  forwardedFor: string,
+): Promise<void> {
+  await callLoginRouteWithConfig({
+    body: { password: "secret" },
+    headers: { "x-forwarded-for": forwardedFor, "x-real-ip": realIp },
+  });
+}
+
 afterEach(() => {
   resetState();
   setNodeEnv(originalNodeEnv);
@@ -245,27 +255,9 @@ describe("login route", () => {
     demoState.enabled = true;
     authState.validHash = false;
 
-    await callLoginRouteWithConfig({
-      body: { password: "secret" },
-      headers: {
-        "x-forwarded-for": "1.1.1.1",
-        "x-real-ip": "198.51.100.22",
-      },
-    });
-    await callLoginRouteWithConfig({
-      body: { password: "secret" },
-      headers: {
-        "x-forwarded-for": "2.2.2.2",
-        "x-real-ip": "198.51.100.22",
-      },
-    });
-    await callLoginRouteWithConfig({
-      body: { password: "secret" },
-      headers: {
-        "x-forwarded-for": "3.3.3.3",
-        "x-real-ip": "198.51.100.22",
-      },
-    });
+    await callLoginRouteWithIp("198.51.100.22", "1.1.1.1");
+    await callLoginRouteWithIp("198.51.100.22", "2.2.2.2");
+    await callLoginRouteWithIp("198.51.100.22", "3.3.3.3");
 
     expect(jsonCalls).toHaveLength(3);
     expect(jsonCalls[0]?.init?.status).toBe(401);
