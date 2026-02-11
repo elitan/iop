@@ -10,10 +10,11 @@ const unlimited = [
 ];
 
 const usageBasedDownsides = [
-  "Per-seat fees",
-  "Usage overage risk",
-  "More spend as traffic grows",
-  "Hard-to-predict monthly bill",
+  "Seat-based pricing",
+  "Overage fees on bandwidth and builds",
+  "Costs climb fast as traffic grows",
+  "Surprise bill swings month to month",
+  "Extra spend for team growth",
 ];
 
 const frostBenefits = [
@@ -62,19 +63,22 @@ export function PricingSection() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-xl bg-neutral-900/50 border border-red-500/20 p-6"
+            className="rounded-xl bg-red-950/25 border border-red-500/40 p-6"
           >
             <div className="text-sm text-red-400/70 uppercase tracking-wide mb-4">
               Vercel / Railway style billing
             </div>
-            <div className="text-3xl font-bold text-white/60 mb-4">
-              $20+
-              <span className="text-lg font-normal text-white/30">/mo</span>
+            <div className="text-3xl font-bold text-red-200 mb-1">
+              $49+
+              <span className="text-lg font-normal text-red-200/70">/mo</span>
             </div>
-            <ul className="space-y-2 text-sm text-white/40">
+            <div className="text-xs text-red-200/60 mb-4">
+              before team and usage overages
+            </div>
+            <ul className="space-y-2 text-sm text-red-100/70">
               {usageBasedDownsides.map((item) => (
                 <li key={item} className="flex items-center gap-2">
-                  <X size={14} className="text-red-400/50" />
+                  <X size={14} className="text-red-300/80" />
                   {item}
                 </li>
               ))}
