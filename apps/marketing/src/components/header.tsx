@@ -11,6 +11,7 @@ export function Header() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [stars, setStars] = useState<number | null>(null);
+  const demoUrl = process.env.NEXT_PUBLIC_DEMO_URL;
 
   useEffect(() => {
     function handleScroll() {
@@ -73,19 +74,31 @@ export function Header() {
           })}
         </nav>
 
-        <a
-          href="https://github.com/elitan/frost"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border/50 hover:border-border bg-card/30 hover:bg-card/50 transition-all text-sm select-none"
-        >
-          <Github size={16} className="text-muted-foreground" />
-          {stars !== null && (
-            <span className="text-muted-foreground font-mono text-xs">
-              {stars}
-            </span>
+        <div className="flex items-center gap-2">
+          {demoUrl && (
+            <a
+              href={demoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg border border-border/50 hover:border-border bg-card/30 hover:bg-card/50 transition-all text-sm"
+            >
+              Live Demo
+            </a>
           )}
-        </a>
+          <a
+            href="https://github.com/elitan/frost"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-border/50 hover:border-border bg-card/30 hover:bg-card/50 transition-all text-sm select-none"
+          >
+            <Github size={16} className="text-muted-foreground" />
+            {stars !== null && (
+              <span className="text-muted-foreground font-mono text-xs">
+                {stars}
+              </span>
+            )}
+          </a>
+        </div>
       </div>
     </header>
   );

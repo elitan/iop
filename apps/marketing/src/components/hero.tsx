@@ -5,6 +5,9 @@ import { ArrowRight } from "lucide-react";
 import { FrostLogo } from "./frost-logo";
 
 export function Hero() {
+  const demoUrl = process.env.NEXT_PUBLIC_DEMO_URL;
+  const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
+
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden pt-16">
       <motion.div
@@ -46,17 +49,35 @@ export function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.6 }}
+          className="space-y-4"
         >
-          <a
-            href="#install"
-            className="group inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg font-medium transition-all bg-white text-background hover:bg-white/90"
-          >
-            Get Started
-            <ArrowRight
-              size={18}
-              className="transition-transform group-hover:translate-x-1"
-            />
-          </a>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a
+              href="#install"
+              className="group inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg font-medium transition-all bg-white text-background hover:bg-white/90"
+            >
+              Get Started
+              <ArrowRight
+                size={18}
+                className="transition-transform group-hover:translate-x-1"
+              />
+            </a>
+            {demoUrl && (
+              <a
+                href={demoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg font-medium transition-all border border-border text-foreground hover:bg-card/50"
+              >
+                Try Live Demo
+              </a>
+            )}
+          </div>
+          {demoUrl && demoPassword && (
+            <p className="text-sm text-muted-foreground">
+              Demo password: {demoPassword} · resets every hour
+            </p>
+          )}
         </motion.div>
       </motion.div>
 
