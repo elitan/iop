@@ -11,13 +11,16 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 export function WildcardSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -103,6 +106,7 @@ export function WildcardSection() {
   );
 
   async function handleTestToken() {
+    if (demoMode) return;
     if (!apiToken) return;
     setError("");
     setTokenValid(null);
@@ -110,6 +114,7 @@ export function WildcardSection() {
   }
 
   async function handleSave() {
+    if (demoMode) return;
     if (!domain || !apiToken) return;
     setError("");
     setSuccess(false);
@@ -121,6 +126,7 @@ export function WildcardSection() {
   }
 
   async function handleRemove() {
+    if (demoMode) return;
     setError("");
     removeMutation.mutate({});
   }
@@ -139,14 +145,14 @@ export function WildcardSection() {
           <Button
             variant="destructive"
             onClick={handleRemove}
-            disabled={saving}
+            disabled={demoMode || saving}
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
           </Button>
         ) : (
           <Button
             onClick={handleSave}
-            disabled={!domain || !apiToken || saving}
+            disabled={demoMode || !domain || !apiToken || saving}
           >
             {saving ? (
               <>
@@ -161,6 +167,10 @@ export function WildcardSection() {
       }
     >
       <div className="space-y-4">
+        {demoMode && (
+          <DemoModeAlert text="Wildcard settings are locked in demo mode." />
+        )}
+
         {config?.configured && config.wildcardDomain && (
           <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
             <CheckCircle2 className="h-5 w-5" />
@@ -206,7 +216,7 @@ export function WildcardSection() {
             value={domain}
             onChange={(e) => setDomain(e.target.value.replace(/^\*\./, ""))}
             placeholder="apps.example.com"
-            disabled={config?.configured}
+            disabled={demoMode || Boolean(config?.configured)}
             className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
           />
           <p className="text-xs text-neutral-500">
@@ -242,13 +252,14 @@ export function WildcardSection() {
                   setApiToken(e.target.value);
                   setTokenValid(null);
                 }}
+                disabled={demoMode}
                 placeholder="Enter your Cloudflare API token"
                 className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
               />
               <Button
                 variant="secondary"
                 onClick={handleTestToken}
-                disabled={!apiToken || testing}
+                disabled={demoMode || !apiToken || testing}
               >
                 {testing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

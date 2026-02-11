@@ -2,7 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { BreadcrumbHeader } from "@/components/breadcrumb-header";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { Header } from "@/components/header";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import {
   SettingsMobileTabs,
   SettingsSidebar,
@@ -14,6 +16,7 @@ export default function SettingsLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const demoMode = useDemoMode();
   const activeSection = pathname.split("/").pop() || "general";
 
   return (
@@ -33,7 +36,10 @@ export default function SettingsLayout({
             </div>
           </aside>
 
-          <div className="flex-1">{children}</div>
+          <div className="flex-1 space-y-6">
+            {demoMode && <DemoModeAlert />}
+            {children}
+          </div>
         </div>
       </main>
     </>

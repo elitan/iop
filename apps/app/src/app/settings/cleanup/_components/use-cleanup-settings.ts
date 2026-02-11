@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 export interface CleanupResult {
@@ -31,6 +32,7 @@ function parseResult(json: string | null): CleanupResult | null {
 }
 
 export function useCleanupSettings() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
 
   const { data, isError } = useQuery(orpc.cleanup.get.queryOptions());
@@ -71,6 +73,7 @@ export function useCleanupSettings() {
   );
 
   function updateSetting(updates: Partial<CleanupSettings>): void {
+    if (demoMode) return;
     updateMutation.mutate({
       enabled: updates.enabled,
       retentionDays: updates.keepImages,
@@ -78,10 +81,12 @@ export function useCleanupSettings() {
   }
 
   async function runCleanup(): Promise<void> {
+    if (demoMode) return;
     await runMutation.mutateAsync({});
   }
 
   return {
+    demoMode,
     settings,
     saving: updateMutation.isPending,
     error: isError ? "Failed to load cleanup settings" : "",

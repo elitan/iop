@@ -23,7 +23,8 @@ This does:
 2. Install Frost.
 3. Set DNS (`demo.frost.build` + `*.demo.frost.build`).
 4. Enable SSL + wildcard in Frost.
-5. Install hourly reset timer.
+5. Enable `FROST_DEMO_MODE=true`.
+6. Install hourly reset timer.
 
 Output includes:
 - `server_id`
@@ -84,6 +85,7 @@ Reset keeps:
 - password/login
 - domain + SSL settings
 - wildcard + dns settings
+- demo mode (`FROST_DEMO_MODE=true`)
 
 Reset clears:
 - projects/services/deployments
@@ -94,6 +96,26 @@ Reset clears:
 - metrics
 
 Then reseeds one `demo-hello` project/service.
+
+## Demo mode locks
+- password/setup changes
+- domain/ssl/wildcard changes
+- github app setup + webhooks
+- registry/api key/mcp token changes
+- oauth client/token write actions
+- update/apply + auto-update changes
+- cleanup settings/manual cleanup
+- rollback deploy
+
+Demo limits:
+- max 5 projects
+- max 3 envs/project
+- max 8 services/env
+- max 1 replica/service
+- max cpu 2
+- max memory 2g
+- max 10 deploys/service/10min
+- login rate limit: 30 failed/min per IP
 
 ## Useful checks
 

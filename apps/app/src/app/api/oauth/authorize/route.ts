@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
 import { generateCode, getAuthCodeExpiry, hashOAuthToken } from "@/lib/oauth";
 
 export async function GET(request: Request) {
@@ -107,6 +108,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (isDemoMode()) {
+    return NextResponse.json(
+      {
+        error: "invalid_request",
+        error_description: getDemoModeBlockedMessage("oauth authorization"),
+      },
+      { status: 400 },
+    );
+  }
+
   const url = new URL(request.url);
   const formData = await request.formData();
   const action = formData.get("action");

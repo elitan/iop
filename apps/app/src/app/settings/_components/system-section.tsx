@@ -12,13 +12,16 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 type UpdateState = "idle" | "preparing" | "restarting" | "success" | "failed";
 
 export function SystemSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const [previousVersion, setPreviousVersion] = useState<string | null>(null);
@@ -113,6 +116,7 @@ export function SystemSection() {
   }
 
   function handleApply() {
+    if (demoMode) return;
     setPreviousVersion(status?.currentVersion || null);
     setUpdateState("preparing");
     setError("");
@@ -155,7 +159,7 @@ export function SystemSection() {
         ) : status?.updateAvailable ? (
           <Button
             onClick={() => setShowApplyDialog(true)}
-            disabled={isUpdating}
+            disabled={demoMode || isUpdating}
           >
             {isUpdating ? (
               <>
@@ -188,6 +192,10 @@ export function SystemSection() {
       }
     >
       <div className="space-y-4">
+        {demoMode && (
+          <DemoModeAlert text="System updates are locked in demo mode." />
+        )}
+
         {updateState === "restarting" && (
           <div className="flex items-center gap-2 rounded-md bg-blue-900/20 p-3 text-blue-400">
             <Loader2 className="h-5 w-5 animate-spin" />

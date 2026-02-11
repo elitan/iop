@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { encrypt } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { dockerLogin, getRegistryUrl } from "@/lib/docker";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 type RegistryType = "ghcr" | "dockerhub" | "custom";
@@ -18,6 +19,8 @@ export const registries = {
   }),
 
   create: os.registries.create.handler(async ({ input }) => {
+    assertDemoWriteAllowed("registry changes");
+
     if (input.type === "custom" && !input.url) {
       throw new ORPCError("BAD_REQUEST", {
         message: "URL is required for custom registries",
@@ -64,6 +67,8 @@ export const registries = {
   }),
 
   update: os.registries.update.handler(async ({ input }) => {
+    assertDemoWriteAllowed("registry changes");
+
     const existing = await db
       .selectFrom("registries")
       .selectAll()
@@ -112,6 +117,8 @@ export const registries = {
   }),
 
   delete: os.registries.delete.handler(async ({ input }) => {
+    assertDemoWriteAllowed("registry changes");
+
     const servicesUsingRegistry = await db
       .selectFrom("services")
       .select("id")

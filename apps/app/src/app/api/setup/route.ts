@@ -4,6 +4,7 @@ import {
   isSetupComplete,
   setAdminPasswordHash,
 } from "@/lib/auth";
+import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
 
 export async function GET() {
   const setupComplete = await isSetupComplete();
@@ -11,6 +12,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (isDemoMode()) {
+    return NextResponse.json(
+      { error: getDemoModeBlockedMessage("setup changes") },
+      { status: 400 },
+    );
+  }
+
   if (await isSetupComplete()) {
     return NextResponse.json(
       { error: "setup already complete" },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/auth";
+import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
 import {
   exchangeCodeForCredentials,
   saveGitHubAppCredentials,
@@ -10,6 +11,15 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const domain = await getSetting("domain");
   const baseUrl = domain ? `https://${domain}` : url.origin;
+
+  if (isDemoMode()) {
+    return NextResponse.redirect(
+      new URL(
+        `/settings/github?error=${encodeURIComponent(getDemoModeBlockedMessage("github setup"))}`,
+        baseUrl,
+      ),
+    );
+  }
 
   if (!code) {
     return NextResponse.redirect(

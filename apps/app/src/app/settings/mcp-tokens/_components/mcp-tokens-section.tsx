@@ -4,11 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 export function McpTokensSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -49,6 +52,10 @@ export function McpTokensSection() {
         </div>
       ) : (
         <>
+          {demoMode && (
+            <DemoModeAlert text="MCP token changes are locked in demo mode." />
+          )}
+
           {tokens.length === 0 && (
             <p className="text-sm text-neutral-500">No active tokens.</p>
           )}
@@ -83,6 +90,7 @@ export function McpTokensSection() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          disabled={demoMode}
                           onClick={() => setDeleteId(token.id)}
                           className="text-red-400 hover:text-red-300"
                         >
@@ -109,6 +117,7 @@ export function McpTokensSection() {
         variant="destructive"
         loading={deleteMutation.isPending}
         onConfirm={() => {
+          if (demoMode) return;
           if (deleteId) deleteMutation.mutate({ id: deleteId });
         }}
       />

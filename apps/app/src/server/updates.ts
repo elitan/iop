@@ -7,6 +7,7 @@ import {
   getPersistedUpdateResult,
   getUpdateStatus,
 } from "@/lib/updater";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 function formatUpdateInfo(info: Awaited<ReturnType<typeof getUpdateStatus>>) {
@@ -56,6 +57,8 @@ export const updates = {
   }),
 
   apply: os.updates.apply.handler(async () => {
+    assertDemoWriteAllowed("system updates");
+
     const result = await applyUpdate();
 
     if (!result.success) {
@@ -88,6 +91,8 @@ export const updates = {
   getAutoUpdate: os.updates.getAutoUpdate.handler(getAutoUpdateSettings),
 
   updateAutoUpdate: os.updates.updateAutoUpdate.handler(async ({ input }) => {
+    assertDemoWriteAllowed("auto update changes");
+
     if (input.enabled !== undefined) {
       await setSetting("auto_update_enabled", input.enabled ? "true" : "false");
     }

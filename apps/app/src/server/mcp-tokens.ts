@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 export const mcpTokens = {
@@ -21,6 +22,8 @@ export const mcpTokens = {
   ),
 
   delete: os.mcpTokens.delete.handler(async ({ input }) => {
+    assertDemoWriteAllowed("mcp token changes");
+
     const token = await db
       .selectFrom("oauthTokens")
       .select("clientId")

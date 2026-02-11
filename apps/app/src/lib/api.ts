@@ -120,6 +120,7 @@ export interface Settings {
   email: string | null;
   sslEnabled: string | null;
   serverIp: string | null;
+  demoMode: boolean;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {

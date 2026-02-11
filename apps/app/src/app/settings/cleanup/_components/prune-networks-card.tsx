@@ -8,12 +8,14 @@ import type { CleanupSettings } from "./use-cleanup-settings";
 interface PruneNetworksCardProps {
   settings: CleanupSettings;
   saving: boolean;
+  demoMode?: boolean;
   onUpdate: (updates: Partial<CleanupSettings>) => void;
 }
 
 export function PruneNetworksCard({
   settings,
   saving,
+  demoMode = false,
   onUpdate,
 }: PruneNetworksCardProps) {
   return (
@@ -28,7 +30,7 @@ export function PruneNetworksCard({
           id="prune-networks"
           checked={settings.pruneNetworks}
           onCheckedChange={(checked) => onUpdate({ pruneNetworks: checked })}
-          disabled={saving}
+          disabled={saving || demoMode}
         />
         <Label htmlFor="prune-networks" className="text-neutral-300">
           Enable unused network cleanup

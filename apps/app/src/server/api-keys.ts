@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { generateApiKey, hashApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 export const apiKeys = {
@@ -13,6 +14,8 @@ export const apiKeys = {
   ),
 
   create: os.apiKeys.create.handler(async ({ input }) => {
+    assertDemoWriteAllowed("api key changes");
+
     const id = nanoid();
     const key = generateApiKey();
     const keyHash = hashApiKey(key);
@@ -32,6 +35,8 @@ export const apiKeys = {
   }),
 
   delete: os.apiKeys.delete.handler(async ({ input }) => {
+    assertDemoWriteAllowed("api key changes");
+
     await db.deleteFrom("apiKeys").where("id", "=", input.id).execute();
     return { success: true };
   }),

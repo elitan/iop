@@ -12,6 +12,7 @@ import {
   updateDomain,
   verifyDomainDns,
 } from "@/lib/domains";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 function checkHttps(
@@ -88,6 +89,8 @@ export const domains = {
   }),
 
   create: os.domains.create.handler(async ({ input }) => {
+    assertDemoWriteAllowed("domain changes");
+
     const service = await db
       .selectFrom("services")
       .select(["id", "environmentId"])
@@ -118,6 +121,8 @@ export const domains = {
   }),
 
   update: os.domains.update.handler(async ({ input }) => {
+    assertDemoWriteAllowed("domain changes");
+
     const domain = await getDomain(input.id);
     if (!domain) {
       throw new ORPCError("NOT_FOUND", { message: "Domain not found" });
@@ -142,6 +147,8 @@ export const domains = {
   }),
 
   delete: os.domains.delete.handler(async ({ input }) => {
+    assertDemoWriteAllowed("domain changes");
+
     const domain = await getDomain(input.id);
     if (!domain) {
       throw new ORPCError("NOT_FOUND", { message: "Domain not found" });

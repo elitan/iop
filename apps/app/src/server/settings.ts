@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth";
 import { configureDomain, isCaddyRunning, lockToDomain } from "@/lib/caddy";
 import { createWildcardARecord } from "@/lib/cloudflare";
+import { isDemoMode } from "@/lib/demo-mode";
 import {
   backfillWildcardDomains,
   getServerIp,
@@ -23,6 +24,7 @@ import {
   getInstallations,
   saveGitHubAppCredentials,
 } from "@/lib/github";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 async function resolveDomain(domain: string): Promise<string[]> {
@@ -106,6 +108,7 @@ async function verifyCloudflareToken(apiToken: string): Promise<boolean> {
 export const settings = {
   get: os.settings.get.handler(async () => {
     const isDev = process.env.NODE_ENV === "development";
+    const demoMode = isDemoMode();
 
     const [domain, email, sslEnabled, serverIp] = await Promise.all([
       getSetting("domain"),
@@ -121,6 +124,7 @@ export const settings = {
       email,
       sslEnabled,
       serverIp,
+      demoMode,
     };
   }),
 
@@ -167,6 +171,8 @@ export const settings = {
   }),
 
   enableSsl: os.settings.enableSsl.handler(async ({ input }) => {
+    assertDemoWriteAllowed("domain and ssl changes");
+
     const { domain, email, staging = false } = input;
 
     const caddyRunning = await isCaddyRunning();
@@ -195,6 +201,8 @@ export const settings = {
   }),
 
   changePassword: os.settings.changePassword.handler(async ({ input }) => {
+    assertDemoWriteAllowed("password changes");
+
     const { currentPassword, newPassword } = input;
 
     const storedHash = await getAdminPasswordHash();
@@ -256,12 +264,16 @@ export const settings = {
     }),
 
     disconnect: os.settings.github.disconnect.handler(async () => {
+      assertDemoWriteAllowed("github changes");
+
       await clearGitHubAppCredentials();
       return { success: true };
     }),
 
     testCredentials: os.settings.github.testCredentials.handler(
       async ({ input }) => {
+        assertDemoWriteAllowed("github changes");
+
         await saveGitHubAppCredentials(input);
         return { success: true };
       },
@@ -285,6 +297,8 @@ export const settings = {
     }),
 
     set: os.settings.wildcard.set.handler(async ({ input }) => {
+      assertDemoWriteAllowed("wildcard changes");
+
       const { wildcardDomain, dnsProvider, dnsApiToken } = input;
 
       if (dnsProvider !== "cloudflare") {
@@ -327,6 +341,8 @@ export const settings = {
     }),
 
     delete: os.settings.wildcard.delete.handler(async () => {
+      assertDemoWriteAllowed("wildcard changes");
+
       await setSetting("wildcard_domain", "");
       await setSetting("dns_provider", "");
       await setSetting("dns_api_token", "");

@@ -4,12 +4,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 export function ApiKeysSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [newKeyName, setNewKeyName] = useState("");
   const [newKey, setNewKey] = useState<{ id: string; key: string } | null>(
@@ -41,11 +44,13 @@ export function ApiKeysSection() {
   );
 
   async function handleCreate() {
+    if (demoMode) return;
     if (!newKeyName.trim()) return;
     createMutation.mutate({ name: newKeyName });
   }
 
   function handleDelete() {
+    if (demoMode) return;
     if (!deletingKeyId) return;
     const id = deletingKeyId;
     setDeletingKeyId(null);
@@ -82,6 +87,10 @@ export function ApiKeysSection() {
         </div>
       ) : (
         <div className="space-y-4">
+          {demoMode && (
+            <DemoModeAlert text="API key changes are locked in demo mode." />
+          )}
+
           {newKey && (
             <div className="rounded-md bg-green-900/20 p-4">
               <div className="flex items-start gap-2">
@@ -153,6 +162,7 @@ export function ApiKeysSection() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          disabled={demoMode}
                           onClick={() => setDeletingKeyId(key.id)}
                           className="text-red-400 hover:text-red-300"
                         >
@@ -178,11 +188,12 @@ export function ApiKeysSection() {
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               className="max-w-xs"
+              disabled={demoMode}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <Button
               onClick={handleCreate}
-              disabled={createMutation.isPending || !newKeyName}
+              disabled={demoMode || createMutation.isPending || !newKeyName}
             >
               {createMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

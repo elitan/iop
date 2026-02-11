@@ -14,6 +14,11 @@ import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
 import { buildVolumeName, getVolumeSize } from "@/lib/volumes";
+import {
+  assertDemoDeployRateLimit,
+  assertDemoResourceLimits,
+  assertDemoServiceCreateAllowed,
+} from "./demo-guards";
 import { os } from "./orpc";
 
 export const services = {
@@ -90,6 +95,13 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
+    await assertDemoServiceCreateAllowed(input.environmentId);
+    assertDemoResourceLimits({
+      cpuLimit: input.cpuLimit,
+      memoryLimit: input.memoryLimit,
+      replicaCount: input.replicaCount,
+    });
+
     const existing = await db
       .selectFrom("services")
       .select("id")
@@ -129,6 +141,8 @@ export const services = {
       const resolved = resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 
+      assertDemoResourceLimits({ replicaCount: 1 });
+
       service = await createService({
         environmentId: input.environmentId,
         name: input.name,
@@ -154,6 +168,8 @@ export const services = {
       }
       const resolved = resolveTemplateServices(template);
       const serviceConfig = resolved[0];
+
+      assertDemoResourceLimits({ replicaCount: 1 });
 
       service = await createService({
         environmentId: input.environmentId,
@@ -215,6 +231,12 @@ export const services = {
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
+
+    assertDemoResourceLimits({
+      cpuLimit: input.cpuLimit,
+      memoryLimit: input.memoryLimit,
+      replicaCount: input.replicaCount,
+    });
 
     if (input.hostname !== undefined) {
       const existingHostname = await db
@@ -327,6 +349,8 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
 
+    await assertDemoDeployRateLimit(input.id);
+
     const deploymentId = await deployService(input.id);
     return { deploymentId };
   }),
@@ -393,6 +417,11 @@ export const services = {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
     }
 
+    await assertDemoServiceCreateAllowed(
+      input.environmentId,
+      input.services.length,
+    );
+
     const existingServices = await db
       .selectFrom("services")
       .select(["name", "hostname"])
@@ -427,6 +456,12 @@ export const services = {
     const errors: { name: string; error: string }[] = [];
 
     for (const svc of input.services) {
+      assertDemoResourceLimits({
+        cpuLimit: svc.cpuLimit,
+        memoryLimit: svc.memoryLimit,
+        replicaCount: 1,
+      });
+
       const uniqueName = generateUniqueName(svc.name, usedNames);
       const hostname = slugify(uniqueName);
       const uniqueHostname = generateUniqueName(hostname, usedHostnames);

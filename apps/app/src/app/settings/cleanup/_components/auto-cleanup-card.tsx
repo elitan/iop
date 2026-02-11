@@ -8,12 +8,14 @@ import type { CleanupSettings } from "./use-cleanup-settings";
 interface AutoCleanupCardProps {
   settings: CleanupSettings;
   saving: boolean;
+  demoMode?: boolean;
   onUpdate: (updates: Partial<CleanupSettings>) => void;
 }
 
 export function AutoCleanupCard({
   settings,
   saving,
+  demoMode = false,
   onUpdate,
 }: AutoCleanupCardProps) {
   return (
@@ -26,7 +28,7 @@ export function AutoCleanupCard({
           id="cleanup-enabled"
           checked={settings.enabled}
           onCheckedChange={(checked) => onUpdate({ enabled: checked })}
-          disabled={saving}
+          disabled={saving || demoMode}
         />
         <Label htmlFor="cleanup-enabled" className="text-neutral-300">
           Enable automatic cleanup

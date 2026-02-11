@@ -14,11 +14,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 export function GitHubSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const formRef = useRef<HTMLFormElement>(null);
@@ -58,11 +61,13 @@ export function GitHubSection() {
   );
 
   function handleDisconnect() {
+    if (demoMode) return;
     setShowDisconnectDialog(false);
     disconnectMutation.mutate({});
   }
 
   function handleConnect() {
+    if (demoMode) return;
     formRef.current?.submit();
   }
 
@@ -91,7 +96,7 @@ export function GitHubSection() {
           <Button
             variant="destructive"
             onClick={() => setShowDisconnectDialog(true)}
-            disabled={disconnectMutation.isPending}
+            disabled={demoMode || disconnectMutation.isPending}
           >
             {disconnectMutation.isPending ? (
               <>
@@ -103,7 +108,7 @@ export function GitHubSection() {
             )}
           </Button>
         ) : status?.hasDomain && !status?.connected ? (
-          <Button onClick={handleConnect}>
+          <Button onClick={handleConnect} disabled={demoMode}>
             <Github className="mr-1.5 h-4 w-4" />
             Connect GitHub
           </Button>
@@ -111,6 +116,10 @@ export function GitHubSection() {
       }
     >
       <div className="space-y-4">
+        {demoMode && (
+          <DemoModeAlert text="GitHub setup is locked in demo mode." />
+        )}
+
         {successParam === "true" && (
           <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
             <CheckCircle2 className="h-5 w-5" />

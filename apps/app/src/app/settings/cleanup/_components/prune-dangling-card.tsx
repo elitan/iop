@@ -8,12 +8,14 @@ import type { CleanupSettings } from "./use-cleanup-settings";
 interface PruneDanglingCardProps {
   settings: CleanupSettings;
   saving: boolean;
+  demoMode?: boolean;
   onUpdate: (updates: Partial<CleanupSettings>) => void;
 }
 
 export function PruneDanglingCard({
   settings,
   saving,
+  demoMode = false,
   onUpdate,
 }: PruneDanglingCardProps) {
   return (
@@ -28,7 +30,7 @@ export function PruneDanglingCard({
           id="prune-dangling"
           checked={settings.pruneDangling}
           onCheckedChange={(checked) => onUpdate({ pruneDangling: checked })}
-          disabled={saving}
+          disabled={saving || demoMode}
         />
         <Label htmlFor="prune-dangling" className="text-neutral-300">
           Enable dangling image cleanup

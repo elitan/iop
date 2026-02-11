@@ -93,8 +93,14 @@ install -m 755 /tmp/demo-hourly-reset.sh /opt/frost/scripts/demo-hourly-reset.sh
 install -m 600 /tmp/frost-demo.env /etc/frost-demo.env
 install -m 644 /tmp/frost-demo-reset.service /etc/systemd/system/frost-demo-reset.service
 install -m 644 /tmp/frost-demo-reset.timer /etc/systemd/system/frost-demo-reset.timer
+if grep -q '^FROST_DEMO_MODE=' /opt/frost/.env; then
+  sed -i 's/^FROST_DEMO_MODE=.*/FROST_DEMO_MODE=true/' /opt/frost/.env
+else
+  printf '\nFROST_DEMO_MODE=true\n' >> /opt/frost/.env
+fi
 rm -f /tmp/demo-hourly-reset.sh /tmp/frost-demo.env /tmp/frost-demo-reset.service /tmp/frost-demo-reset.timer
 systemctl daemon-reload
+systemctl restart frost
 systemctl enable --now frost-demo-reset.timer
 systemctl start frost-demo-reset.service
 "

@@ -3,6 +3,7 @@ import {
   startCleanupJob,
   updateCleanupSettings,
 } from "@/lib/cleanup";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 function formatSettings(
@@ -27,6 +28,8 @@ export const cleanup = {
   }),
 
   update: os.cleanup.update.handler(async ({ input }) => {
+    assertDemoWriteAllowed("cleanup changes");
+
     await updateCleanupSettings({
       enabled: input.enabled,
       keepImages: input.retentionDays,
@@ -45,6 +48,8 @@ export const cleanup = {
   }),
 
   runStart: os.cleanup.runStart.handler(async () => {
+    assertDemoWriteAllowed("manual cleanup");
+
     const started = await startCleanupJob();
     if (!started) {
       throw new Error("Cleanup already running");

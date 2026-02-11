@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demo-mode";
 import { deployService } from "@/lib/deployer";
 import {
   createPRComment,
@@ -59,6 +60,13 @@ interface PullRequestPayload {
 }
 
 export async function POST(request: Request) {
+  if (isDemoMode()) {
+    return NextResponse.json(
+      { message: "github webhooks are disabled in demo mode" },
+      { status: 202 },
+    );
+  }
+
   const creds = await getGitHubAppCredentials();
   if (!creds) {
     return NextResponse.json(

@@ -3,10 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 interface DnsStatus {
@@ -16,6 +18,7 @@ interface DnsStatus {
 }
 
 export function SslSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState("");
   const [email, setEmail] = useState("");
@@ -108,6 +111,7 @@ export function SslSection() {
   );
 
   async function handleVerifyDns() {
+    if (demoMode) return;
     if (!domain) return;
     setError("");
     setDnsStatus(null);
@@ -115,6 +119,7 @@ export function SslSection() {
   }
 
   async function handleEnableSsl() {
+    if (demoMode) return;
     if (!domain || !email || !dnsStatus?.valid) return;
     setError("");
     setPollingTimedOut(false);
@@ -134,6 +139,7 @@ export function SslSection() {
         <Button
           onClick={handleEnableSsl}
           disabled={
+            demoMode ||
             !domain ||
             !email ||
             !dnsStatus?.valid ||
@@ -153,6 +159,10 @@ export function SslSection() {
       }
     >
       <div className="space-y-4">
+        {demoMode && (
+          <DemoModeAlert text="Domain and SSL changes are locked in demo mode." />
+        )}
+
         {sslStatus === "true" && currentDomain && (
           <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
             <CheckCircle2 className="h-5 w-5" />
@@ -214,12 +224,13 @@ export function SslSection() {
                 setDnsStatus(null);
               }}
               placeholder="frost.example.com"
+              disabled={demoMode}
               className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
             />
             <Button
               variant="secondary"
               onClick={handleVerifyDns}
-              disabled={!domain || verifying}
+              disabled={demoMode || !domain || verifying}
             >
               {verifying ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -267,6 +278,7 @@ export function SslSection() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="admin@example.com"
+            disabled={demoMode}
             className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
           />
           <p className="text-xs text-neutral-500">
@@ -282,6 +294,7 @@ export function SslSection() {
                 type="checkbox"
                 checked={staging}
                 onChange={(e) => setStaging(e.target.checked)}
+                disabled={demoMode}
                 className="h-4 w-4 rounded border-neutral-700 bg-neutral-800"
               />
               <Label htmlFor="staging" className="text-neutral-300">

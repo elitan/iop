@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { db } from "@/lib/db";
 import { rollbackDeployment } from "@/lib/deployer";
 import { imageExists } from "@/lib/docker";
+import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
 export const deployments = {
@@ -41,6 +42,8 @@ export const deployments = {
   }),
 
   rollback: os.deployments.rollback.handler(async ({ input }) => {
+    assertDemoWriteAllowed("deployment rollback");
+
     const deployment = await db
       .selectFrom("deployments")
       .selectAll()

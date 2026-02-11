@@ -7,12 +7,14 @@ import type { CleanupSettings } from "./use-cleanup-settings";
 interface ImagesToKeepCardProps {
   settings: CleanupSettings;
   saving: boolean;
+  demoMode?: boolean;
   onUpdate: (updates: Partial<CleanupSettings>) => void;
 }
 
 export function ImagesToKeepCard({
   settings,
   saving,
+  demoMode = false,
   onUpdate,
 }: ImagesToKeepCardProps) {
   return (
@@ -37,7 +39,7 @@ export function ImagesToKeepCard({
               onUpdate({ keepImages: val });
             }
           }}
-          disabled={saving}
+          disabled={saving || demoMode}
           className="w-24"
         />
         <span className="text-sm text-neutral-500">images per service</span>

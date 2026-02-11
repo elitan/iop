@@ -5,6 +5,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 const REGISTRY_TYPES = [
@@ -24,6 +26,7 @@ const REGISTRY_TYPES = [
 ] as const;
 
 export function RegistriesSection() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +86,8 @@ export function RegistriesSection() {
   );
 
   async function handleCreate() {
+    if (demoMode) return;
+
     if (
       !formData.name.trim() ||
       !formData.username.trim() ||
@@ -107,6 +112,7 @@ export function RegistriesSection() {
   }
 
   function handleDelete() {
+    if (demoMode) return;
     if (!deletingRegistry) return;
     const { id } = deletingRegistry;
     setDeletingRegistry(null);
@@ -134,6 +140,10 @@ export function RegistriesSection() {
         </div>
       ) : (
         <div className="space-y-4">
+          {demoMode && (
+            <DemoModeAlert text="Registry changes are locked in demo mode." />
+          )}
+
           {registries.length > 0 && (
             <div className="overflow-hidden rounded-md border border-neutral-800">
               <table className="w-full text-sm">
@@ -183,6 +193,7 @@ export function RegistriesSection() {
                               name: registry.name,
                             })
                           }
+                          disabled={demoMode}
                           className="text-red-400 hover:text-red-300"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -219,6 +230,7 @@ export function RegistriesSection() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
+                    disabled={demoMode}
                   />
                 </div>
                 <div className="space-y-2">
@@ -233,6 +245,7 @@ export function RegistriesSection() {
                     onValueChange={(value: "ghcr" | "dockerhub" | "custom") =>
                       setFormData({ ...formData, type: value })
                     }
+                    disabled={demoMode}
                   >
                     <SelectTrigger id="reg-type">
                       <SelectValue />
@@ -260,6 +273,7 @@ export function RegistriesSection() {
                     onChange={(e) =>
                       setFormData({ ...formData, url: e.target.value })
                     }
+                    disabled={demoMode}
                   />
                 </div>
               )}
@@ -279,6 +293,7 @@ export function RegistriesSection() {
                     onChange={(e) =>
                       setFormData({ ...formData, username: e.target.value })
                     }
+                    disabled={demoMode}
                   />
                 </div>
                 <div className="space-y-2">
@@ -296,6 +311,7 @@ export function RegistriesSection() {
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
                     }
+                    disabled={demoMode}
                   />
                 </div>
               </div>
@@ -305,7 +321,7 @@ export function RegistriesSection() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleCreate}
-                  disabled={createMutation.isPending}
+                  disabled={demoMode || createMutation.isPending}
                 >
                   {createMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -326,7 +342,7 @@ export function RegistriesSection() {
               </div>
             </div>
           ) : (
-            <Button onClick={() => setShowForm(true)}>
+            <Button onClick={() => setShowForm(true)} disabled={demoMode}>
               <Plus className="mr-2 h-4 w-4" />
               Add Registry
             </Button>

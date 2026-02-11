@@ -7,6 +7,7 @@ import type { CleanupSettings } from "./use-cleanup-settings";
 
 interface RunCleanupCardProps {
   settings: CleanupSettings;
+  demoMode?: boolean;
   onRun: () => void;
   error: string;
 }
@@ -26,6 +27,7 @@ function formatDate(dateStr: string | null): string {
 
 export function RunCleanupCard({
   settings,
+  demoMode = false,
   onRun,
   error,
 }: RunCleanupCardProps) {
@@ -34,8 +36,14 @@ export function RunCleanupCard({
       title="Manual Cleanup"
       description="Run cleanup immediately instead of waiting for the scheduled time. This uses the settings configured above."
       footerRight={
-        <Button onClick={onRun} disabled={settings.running} variant="secondary">
-          {settings.running ? (
+        <Button
+          onClick={onRun}
+          disabled={demoMode || settings.running}
+          variant="secondary"
+        >
+          {demoMode ? (
+            "Run locked"
+          ) : settings.running ? (
             <>
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               Running...

@@ -6,6 +6,11 @@ import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime"
 import { cleanupEnvironment } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
+import {
+  assertDemoDeployRateLimit,
+  assertDemoEnvironmentCreateAllowed,
+  assertDemoServiceCreateAllowed,
+} from "./demo-guards";
 import { os } from "./orpc";
 
 export const environments = {
@@ -42,6 +47,8 @@ export const environments = {
   }),
 
   create: os.environments.create.handler(async ({ input }) => {
+    await assertDemoEnvironmentCreateAllowed(input.projectId);
+
     const project = await db
       .selectFrom("projects")
       .select(["id", "hostname", "name"])
@@ -96,6 +103,8 @@ export const environments = {
           .selectAll()
           .where("environmentId", "=", sourceEnv.id)
           .execute();
+
+        await assertDemoServiceCreateAllowed(id, sourceServices.length);
 
         const projectHostname = project.hostname ?? slugify(project.name);
         const envName = slugify(input.name);
@@ -239,6 +248,15 @@ export const environments = {
 
     if (!environment) {
       throw new ORPCError("NOT_FOUND", { message: "Environment not found" });
+    }
+
+    const services = await db
+      .selectFrom("services")
+      .select("id")
+      .where("environmentId", "=", input.id)
+      .execute();
+    for (const service of services) {
+      await assertDemoDeployRateLimit(service.id);
     }
 
     const deploymentIds = await deployEnvironment(input.id);

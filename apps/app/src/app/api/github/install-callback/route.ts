@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/auth";
+import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
 import { fetchInstallationInfo, saveInstallation } from "@/lib/github";
 
 export async function GET(request: Request) {
@@ -7,6 +8,15 @@ export async function GET(request: Request) {
   const installationId = url.searchParams.get("installation_id");
   const domain = await getSetting("domain");
   const baseUrl = domain ? `https://${domain}` : url.origin;
+
+  if (isDemoMode()) {
+    return NextResponse.redirect(
+      new URL(
+        `/settings/github?error=${encodeURIComponent(getDemoModeBlockedMessage("github setup"))}`,
+        baseUrl,
+      ),
+    );
+  }
 
   if (!installationId) {
     return NextResponse.redirect(

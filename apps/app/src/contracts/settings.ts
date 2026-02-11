@@ -8,6 +8,7 @@ export const settingsContract = {
       email: z.string().nullable(),
       sslEnabled: z.string().nullable(),
       serverIp: z.string(),
+      demoMode: z.boolean(),
     }),
   ),
 

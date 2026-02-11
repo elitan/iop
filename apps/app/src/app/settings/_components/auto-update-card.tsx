@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
 import {
   Select,
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
 
 function utcToLocalHour(utcHour: number): number {
@@ -33,6 +35,7 @@ function formatHour(hour: number): string {
 }
 
 export function AutoUpdateCard() {
+  const demoMode = useDemoMode();
   const queryClient = useQueryClient();
   const { data } = useQuery(orpc.updates.getAutoUpdate.queryOptions());
 
@@ -51,10 +54,12 @@ export function AutoUpdateCard() {
   const localHour = utcToLocalHour(utcHour);
 
   function handleToggle(checked: boolean) {
+    if (demoMode) return;
     mutation.mutate({ enabled: checked });
   }
 
   function handleHourChange(value: string) {
+    if (demoMode) return;
     const newLocalHour = Number.parseInt(value, 10);
     mutation.mutate({ hour: localToUtcHour(newLocalHour) });
   }
@@ -65,6 +70,9 @@ export function AutoUpdateCard() {
       description="Automatically check for and apply updates daily at a scheduled time."
     >
       <div className="space-y-4">
+        {demoMode && (
+          <DemoModeAlert text="Auto update settings are locked in demo mode." />
+        )}
         <div className="flex items-center justify-between">
           <label
             htmlFor="auto-update-toggle"
@@ -76,6 +84,7 @@ export function AutoUpdateCard() {
             id="auto-update-toggle"
             checked={enabled}
             onCheckedChange={handleToggle}
+            disabled={demoMode}
           />
         </div>
 
@@ -90,6 +99,7 @@ export function AutoUpdateCard() {
             <Select
               value={localHour.toString()}
               onValueChange={handleHourChange}
+              disabled={demoMode}
             >
               <SelectTrigger id="auto-update-hour" className="w-32">
                 <SelectValue />

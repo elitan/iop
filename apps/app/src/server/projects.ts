@@ -8,6 +8,11 @@ import { cleanupProject } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
+import {
+  assertDemoDeployRateLimit,
+  assertDemoProjectCreateAllowed,
+  assertDemoServiceCreateAllowed,
+} from "./demo-guards";
 import { os } from "./orpc";
 
 export const projects = {
@@ -136,6 +141,8 @@ export const projects = {
   }),
 
   create: os.projects.create.handler(async ({ input }) => {
+    await assertDemoProjectCreateAllowed();
+
     if (input.templateId) {
       const template = getTemplate(input.templateId);
       if (!template) {
@@ -193,6 +200,8 @@ export const projects = {
     if (input.templateId) {
       const template = getTemplate(input.templateId)!;
       const resolved = resolveTemplateServices(template);
+
+      await assertDemoServiceCreateAllowed(envId, resolved.length);
 
       for (const svc of resolved) {
         const serviceHostname = slugify(svc.name);
@@ -283,6 +292,23 @@ export const projects = {
 
     if (!project) {
       throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+    }
+
+    const productionEnvironment = await db
+      .selectFrom("environments")
+      .select("id")
+      .where("projectId", "=", input.id)
+      .where("type", "=", "production")
+      .executeTakeFirst();
+    if (productionEnvironment) {
+      const services = await db
+        .selectFrom("services")
+        .select("id")
+        .where("environmentId", "=", productionEnvironment.id)
+        .execute();
+      for (const service of services) {
+        await assertDemoDeployRateLimit(service.id);
+      }
     }
 
     const deploymentIds = await deployProject(input.id);
