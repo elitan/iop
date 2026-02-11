@@ -117,9 +117,7 @@ export function OgImageContent() {
             display: "flex",
           }}
         />
-        <span style={{ fontSize: "16px", color: "#a3a3a3" }}>
-          Open source
-        </span>
+        <span style={{ fontSize: "16px", color: "#a3a3a3" }}>Open source</span>
       </div>
 
       <div
