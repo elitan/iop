@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun --cwd apps/app dev",
+    "dev": "bash ./apps/app/scripts/dev.sh",
     "build": "bun --cwd apps/app build",
     "start": "bun --cwd apps/app start",
     "migrate": "bun --cwd apps/app migrate",
