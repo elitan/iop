@@ -1537,6 +1537,7 @@ export async function rollbackDeployment(
 async function runRollbackDeployment(
   deploymentId: string,
   sourceDeployment: {
+    id: string;
     imageName: string | null;
     envVarsSnapshot: string | null;
     containerPort: number | null;
@@ -1555,6 +1556,19 @@ async function runRollbackDeployment(
   const networkName = sanitizeDockerName(
     `frost-net-${project.id}-${environment.id}`,
   );
+  let effectiveService = service;
+  const sourceDeploymentRepoPath = join(REPOS_PATH, sourceDeployment.id);
+  const frostConfigResult = loadFrostConfig(
+    sourceDeploymentRepoPath,
+    service.frostFilePath ?? "frost.yaml",
+  );
+
+  if (frostConfigResult.config) {
+    effectiveService = mergeConfigWithService(
+      effectiveService,
+      frostConfigResult.config,
+    );
+  }
 
   const baseLabels = {
     "frost.managed": "true",
@@ -1651,8 +1665,8 @@ async function runRollbackDeployment(
     await drainPreviousDeployments(
       deploymentId,
       service.id,
-      service.drainTimeout ?? 30,
-      service.shutdownTimeout ?? 30,
+      effectiveService.drainTimeout ?? 30,
+      effectiveService.shutdownTimeout ?? 30,
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
