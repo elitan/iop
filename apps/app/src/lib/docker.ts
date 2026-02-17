@@ -274,9 +274,7 @@ export function classifyPullFailure(log: string, error?: string): string {
     return "image/platform-mismatch";
   }
 
-  if (
-    includesAny(full, ["manifest unknown", "not found", "name unknown"])
-  ) {
+  if (includesAny(full, ["manifest unknown", "not found", "name unknown"])) {
     return "image/not-found";
   }
 
