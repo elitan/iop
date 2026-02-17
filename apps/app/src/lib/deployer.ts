@@ -190,6 +190,67 @@ function createLogChunkAppender(deploymentId: string): {
   return { append, flush };
 }
 
+async function getEffectiveServiceFromRepoConfig(
+  deploymentId: string,
+  service: Selectable<Services>,
+  repoPath: string,
+): Promise<Selectable<Services>> {
+  const frostConfigResult = loadFrostConfig(
+    repoPath,
+    service.frostFilePath ?? "frost.yaml",
+  );
+
+  if (frostConfigResult.error) {
+    throw new Error(`frost.yaml: ${frostConfigResult.error}`);
+  }
+
+  if (frostConfigResult.config) {
+    await appendLog(deploymentId, `Using ${frostConfigResult.filename}\n`);
+    return mergeConfigWithService(service, frostConfigResult.config);
+  }
+
+  return service;
+}
+
+async function getEffectiveServiceForRollback(
+  deploymentId: string,
+  service: Selectable<Services>,
+  branch: string | null | undefined,
+): Promise<Selectable<Services>> {
+  if (service.deployType !== "repo" || !service.repoUrl || !branch) {
+    return service;
+  }
+
+  const repoPath = join(REPOS_PATH, `${deploymentId}-rollback`);
+  if (existsSync(repoPath)) {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+
+  let cloneUrl = service.repoUrl;
+  if (isGitHubRepo(service.repoUrl) && (await hasGitHubApp())) {
+    try {
+      const token = await generateInstallationToken(service.repoUrl);
+      cloneUrl = injectTokenIntoUrl(service.repoUrl, token);
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: GitHub App auth failed (${err.message}), trying without auth\n`,
+      );
+    }
+  }
+
+  try {
+    await execAsync(
+      `git clone --depth 1 --branch ${shellEscape(branch)} ${shellEscape(cloneUrl)} ${shellEscape(repoPath)}`,
+    );
+    return await getEffectiveServiceFromRepoConfig(deploymentId, service, repoPath);
+  } finally {
+    if (existsSync(repoPath)) {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  }
+}
+
 async function isDeploymentCancelled(deploymentId: string): Promise<boolean> {
   const deployment = await db
     .selectFrom("deployments")
@@ -1108,22 +1169,11 @@ async function runServiceDeployment(
         );
       }
 
-      const frostConfigResult = loadFrostConfig(
+      effectiveService = await getEffectiveServiceFromRepoConfig(
+        deploymentId,
+        service,
         repoPath,
-        service.frostFilePath ?? "frost.yaml",
       );
-
-      if (frostConfigResult.error) {
-        throw new Error(`frost.yaml: ${frostConfigResult.error}`);
-      }
-
-      if (frostConfigResult.config) {
-        await appendLog(deploymentId, `Using ${frostConfigResult.filename}\n`);
-        effectiveService = mergeConfigWithService(
-          service,
-          frostConfigResult.config,
-        );
-      }
 
       const detectedIcon = detectIcon(
         repoPath,
@@ -1595,6 +1645,19 @@ async function runRollbackDeployment(
       throw new Error("Source deployment has no image");
     }
 
+    let effectiveService = service;
+    try {
+      effectiveService = await getEffectiveServiceForRollback(
+        deploymentId,
+        service,
+        sourceDeployment.gitBranch ?? service.branch,
+      );
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: Failed to load rollback config: ${err.message}\n`,
+      );
+    }
     const internalHostname = service.hostname ?? slugify(service.name);
     const replicaCount = service.replicaCount ?? 1;
 
@@ -1651,8 +1714,8 @@ async function runRollbackDeployment(
     await drainPreviousDeployments(
       deploymentId,
       service.id,
-      service.drainTimeout ?? 30,
-      service.shutdownTimeout ?? 30,
+      effectiveService.drainTimeout ?? 30,
+      effectiveService.shutdownTimeout ?? 30,
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
