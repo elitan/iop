@@ -139,6 +139,32 @@ async function markDeploymentRunningAndSetCurrentServiceDeployment(
   });
 }
 
+async function markDeploymentFailedAndRestoreCurrentServiceDeployment(
+  deploymentId: string,
+  serviceId: string,
+  previousDeploymentId: string | null,
+  errorMessage: string,
+): Promise<void> {
+  const finishedAt = Date.now();
+  await db.transaction().execute(async function onFail(trx) {
+    await trx
+      .updateTable("deployments")
+      .set({
+        status: "failed",
+        errorMessage,
+        finishedAt,
+      })
+      .where("id", "=", deploymentId)
+      .execute();
+
+    await trx
+      .updateTable("services")
+      .set({ currentDeploymentId: previousDeploymentId })
+      .where("id", "=", serviceId)
+      .execute();
+  });
+}
+
 async function appendLog(
   id: string,
   log: string,
@@ -1002,6 +1028,8 @@ async function runServiceDeployment(
     "frost.service.id": service.id,
     "frost.service.name": service.name,
   };
+  const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
+  let shouldRestoreCurrentDeploymentOnFailure = false;
 
   const projectEnvVars = parseEnvVars(project.envVars);
   const serviceEnvVars = parseEnvVars(service.envVars);
@@ -1417,19 +1445,19 @@ async function runServiceDeployment(
       console.warn("Failed to update PR comment:", err);
     }
 
-    await updateRollbackEligible(service.id);
-
     try {
       await appendLog(deploymentId, "Switching traffic to new container...\n");
-      const synced = await syncCaddyConfig();
-      if (synced) {
+      const syncResult = await syncCaddyConfig();
+      if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
     } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
+      shouldRestoreCurrentDeploymentOnFailure = true;
+      const syncErrorMessage =
+        err instanceof Error
+          ? err.message
+          : String(err ?? "Unknown Caddy sync error");
+      throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
 
     await drainPreviousDeployments(
@@ -1438,13 +1466,23 @@ async function runServiceDeployment(
       effectiveService.drainTimeout ?? 30,
       effectiveService.shutdownTimeout ?? 30,
     );
+    await updateRollbackEligible(service.id);
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
-    await updateDeployment(deploymentId, {
-      status: "failed",
-      errorMessage,
-      finishedAt: Date.now(),
-    });
+    if (shouldRestoreCurrentDeploymentOnFailure) {
+      await markDeploymentFailedAndRestoreCurrentServiceDeployment(
+        deploymentId,
+        service.id,
+        previousCurrentDeploymentId,
+        errorMessage,
+      );
+    } else {
+      await updateDeployment(deploymentId, {
+        status: "failed",
+        errorMessage,
+        finishedAt: Date.now(),
+      });
+    }
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
     await updateCommitStatusIfGitHub(
       service.repoUrl,
@@ -1630,6 +1668,8 @@ async function runRollbackDeployment(
     "frost.service.id": service.id,
     "frost.service.name": service.name,
   };
+  const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
+  let shouldRestoreCurrentDeploymentOnFailure = false;
 
   const envVarsList: EnvVar[] = sourceDeployment.envVarsSnapshot
     ? JSON.parse(sourceDeployment.envVarsSnapshot)
@@ -1715,18 +1755,18 @@ async function runRollbackDeployment(
       `\nRollback successful! App available at http://localhost:${firstReplica.hostPort}\n`,
     );
 
-    await updateRollbackEligible(service.id);
-
     try {
-      const synced = await syncCaddyConfig();
-      if (synced) {
+      const syncResult = await syncCaddyConfig();
+      if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
     } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
+      shouldRestoreCurrentDeploymentOnFailure = true;
+      const syncErrorMessage =
+        err instanceof Error
+          ? err.message
+          : String(err ?? "Unknown Caddy sync error");
+      throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
 
     await drainPreviousDeployments(
@@ -1735,13 +1775,23 @@ async function runRollbackDeployment(
       effectiveService.drainTimeout ?? 30,
       effectiveService.shutdownTimeout ?? 30,
     );
+    await updateRollbackEligible(service.id);
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
-    await updateDeployment(deploymentId, {
-      status: "failed",
-      errorMessage,
-      finishedAt: Date.now(),
-    });
+    if (shouldRestoreCurrentDeploymentOnFailure) {
+      await markDeploymentFailedAndRestoreCurrentServiceDeployment(
+        deploymentId,
+        service.id,
+        previousCurrentDeploymentId,
+        errorMessage,
+      );
+    } else {
+      await updateDeployment(deploymentId, {
+        status: "failed",
+        errorMessage,
+        finishedAt: Date.now(),
+      });
+    }
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
   }
 }
