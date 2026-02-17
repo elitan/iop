@@ -243,7 +243,11 @@ async function getEffectiveServiceForRollback(
     await execAsync(
       `git clone --depth 1 --branch ${shellEscape(branch)} ${shellEscape(cloneUrl)} ${shellEscape(repoPath)}`,
     );
-    return await getEffectiveServiceFromRepoConfig(deploymentId, service, repoPath);
+    return await getEffectiveServiceFromRepoConfig(
+      deploymentId,
+      service,
+      repoPath,
+    );
   } finally {
     if (existsSync(repoPath)) {
       rmSync(repoPath, { recursive: true, force: true });
