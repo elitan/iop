@@ -398,6 +398,21 @@ export async function stopContainer(name: string): Promise<void> {
   }
 }
 
+export async function stopContainersByLabel(
+  labelName: string,
+  labelValue: string,
+): Promise<void> {
+  try {
+    const { stdout } = await execAsync(
+      `docker ps -aq --filter ${shellEscape(`label=${labelName}=${labelValue}`)} --filter status=running`,
+    );
+    const containerIds = stdout.trim().split(/\s+/).filter(Boolean);
+    for (const containerId of containerIds) {
+      await stopContainer(containerId);
+    }
+  } catch {}
+}
+
 export async function gracefulStopContainer(
   name: string,
   timeout: number = 30,
