@@ -124,14 +124,18 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
     10000,
     backoffMs,
   );
+  const hostPlatform = await getDockerHostPlatform();
 
   let combinedLog = "";
   let lastError = "Pull failed";
   let lastFailureClass = "unknown";
 
   for (let attempt = 1; attempt <= retryCount; attempt++) {
-    combinedLog += `\n[pull-attempt ${attempt}/${retryCount}] docker pull ${imageName}\n`;
-    const attemptResult = await runDockerPull(imageName);
+    const pullCmd = hostPlatform
+      ? `docker pull --platform ${hostPlatform} ${imageName}`
+      : `docker pull ${imageName}`;
+    combinedLog += `\n[pull-attempt ${attempt}/${retryCount}] ${pullCmd}\n`;
+    const attemptResult = await runDockerPull(imageName, hostPlatform);
     const failureClass = classifyPullFailure(
       attemptResult.log,
       attemptResult.error,
@@ -140,6 +144,20 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
     combinedLog += attemptResult.log;
 
     if (attemptResult.success) {
+      const imagePlatform = await getImagePlatform(imageName);
+      if (hostPlatform && imagePlatform && imagePlatform !== hostPlatform) {
+        const mismatchError = `Image platform mismatch: host=${hostPlatform} image=${imagePlatform}`;
+        combinedLog += `[pull-attempt ${attempt}/${retryCount}] failed class=image/platform-mismatch error=${mismatchError}\n`;
+        return {
+          success: false,
+          imageName,
+          log: combinedLog,
+          error: mismatchError,
+          failureClass: "image/platform-mismatch",
+          attempts: attempt,
+        };
+      }
+
       return {
         success: true,
         imageName,
@@ -184,10 +202,16 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
 
 function runDockerPull(
   imageName: string,
+  platform?: string | null,
 ): Promise<{ success: boolean; log: string; error?: string; code?: number }> {
   return new Promise((resolve) => {
     let log = "";
-    const proc = spawn("docker", ["pull", imageName]);
+    const args = ["pull"];
+    if (platform) {
+      args.push("--platform", platform);
+    }
+    args.push(imageName);
+    const proc = spawn("docker", args);
 
     proc.stdout.on("data", (data) => {
       log += data.toString();
@@ -216,44 +240,109 @@ function runDockerPull(
   });
 }
 
-function classifyPullFailure(log: string, error?: string): string {
+export function classifyPullFailure(log: string, error?: string): string {
   const full = `${log}\n${error ?? ""}`.toLowerCase();
 
   if (
-    full.includes("context deadline exceeded") ||
-    full.includes("i/o timeout") ||
-    full.includes("tls handshake timeout") ||
-    full.includes("proxyconnect tcp") ||
-    full.includes("dial tcp")
+    includesAny(full, [
+      "context deadline exceeded",
+      "i/o timeout",
+      "tls handshake timeout",
+      "proxyconnect tcp",
+      "dial tcp",
+    ])
   ) {
     return "infra/transient-network";
   }
 
-  if (
-    full.includes("toomanyrequests") ||
-    full.includes("rate limit") ||
-    full.includes("429")
-  ) {
+  if (includesAny(full, ["toomanyrequests", "rate limit", "429"])) {
     return "infra/rate-limit";
   }
 
   if (
-    full.includes("unauthorized") ||
-    full.includes("authentication required") ||
-    full.includes("denied")
+    includesAny(full, ["unauthorized", "authentication required", "denied"])
   ) {
     return "registry/auth";
   }
 
   if (
-    full.includes("manifest unknown") ||
-    full.includes("not found") ||
-    full.includes("name unknown")
+    includesAny(full, [
+      "no matching manifest for",
+      "requested image's platform",
+    ])
+  ) {
+    return "image/platform-mismatch";
+  }
+
+  if (
+    includesAny(full, ["manifest unknown", "not found", "name unknown"])
   ) {
     return "image/not-found";
   }
 
   return "unknown";
+}
+
+function includesAny(value: string, needles: string[]): boolean {
+  for (const needle of needles) {
+    if (value.includes(needle)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const DOCKER_ARCH_ALIASES: Record<string, string> = {
+  x86_64: "amd64",
+  "x86-64": "amd64",
+  x64: "amd64",
+  aarch64: "arm64",
+  "arm64/v8": "arm64",
+  armhf: "arm/v7",
+  armv7l: "arm/v7",
+  "arm/v7": "arm/v7",
+  armel: "arm/v6",
+  armv6l: "arm/v6",
+  "arm/v6": "arm/v6",
+};
+
+export function normalizeDockerArch(arch: string): string {
+  const value = arch.trim().toLowerCase();
+  return DOCKER_ARCH_ALIASES[value] ?? value;
+}
+
+export function normalizeDockerPlatform(platform: string): string {
+  const value = platform.trim().toLowerCase();
+  const [os, ...archParts] = value.split("/");
+  if (!os || archParts.length === 0) {
+    return value;
+  }
+  const arch = normalizeDockerArch(archParts.join("/"));
+  return `${os}/${arch}`;
+}
+
+async function getDockerHostPlatform(): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(
+      "docker version --format '{{.Server.Os}}/{{.Server.Arch}}'",
+    );
+    const platform = normalizeDockerPlatform(stdout.trim());
+    return platform.includes("/") ? platform : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getImagePlatform(imageName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(
+      `docker image inspect --format '{{.Os}}/{{.Architecture}}' ${shellEscape(imageName)}`,
+    );
+    const platform = normalizeDockerPlatform(stdout.trim());
+    return platform.includes("/") ? platform : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseEnvInt(name: string, fallback: number, minimum: number): number {

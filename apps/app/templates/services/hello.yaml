@@ -1,9 +1,9 @@
 name: Hello World
 description: Simple hello world
 category: testing
-docs: https://github.com/crccheck/docker-hello-world
+docs: https://hub.docker.com/r/nginxdemos/hello
 
 services:
   hello:
-    image: crccheck/hello-world
-    port: 8000
+    image: nginxdemos/hello:plain-text
+    port: 80
