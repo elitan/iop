@@ -153,6 +153,7 @@ async function markDeploymentFailedAndRestoreCurrentServiceDeployment(
         status: "failed",
         errorMessage,
         finishedAt,
+        rollbackEligible: false,
       })
       .where("id", "=", deploymentId)
       .execute();
@@ -1460,13 +1461,14 @@ async function runServiceDeployment(
       throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
 
+    await updateRollbackEligible(service.id);
+
     await drainPreviousDeployments(
       deploymentId,
       service.id,
       effectiveService.drainTimeout ?? 30,
       effectiveService.shutdownTimeout ?? 30,
     );
-    await updateRollbackEligible(service.id);
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
     if (shouldRestoreCurrentDeploymentOnFailure) {
@@ -1769,13 +1771,14 @@ async function runRollbackDeployment(
       throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
 
+    await updateRollbackEligible(service.id);
+
     await drainPreviousDeployments(
       deploymentId,
       service.id,
       effectiveService.drainTimeout ?? 30,
       effectiveService.shutdownTimeout ?? 30,
     );
-    await updateRollbackEligible(service.id);
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
     if (shouldRestoreCurrentDeploymentOnFailure) {
