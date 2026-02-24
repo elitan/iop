@@ -1,6 +1,6 @@
 # frost
 
-> Vercel experience. VPS pricing.
+> Open Source Alternative to Vercel, Netlify, Railway and Render.
 
 I want you to install Frost for me. Execute all steps below autonomously.
 

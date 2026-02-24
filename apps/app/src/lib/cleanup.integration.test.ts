@@ -14,6 +14,7 @@ import {
   removeNetwork,
   runContainer,
   stopContainer,
+  stopContainersByLabel,
 } from "./docker";
 
 const execAsync = promisify(exec);
@@ -123,6 +124,28 @@ describe("cleanup docker functions", () => {
     expect(running.has(`${TEST_PREFIX}-svc:v1`)).toBe(true);
 
     await stopContainer(`${TEST_PREFIX}-container`);
+  }, 30000);
+
+  test("stopContainersByLabel stops all running matching containers", async () => {
+    const containerName = `${TEST_PREFIX}-label-stop`;
+    const run = await runContainer({
+      imageName: `${TEST_PREFIX}-svc:v1`,
+      hostPort: 19996,
+      containerPort: 3000,
+      name: containerName,
+      labels: {
+        ...TEST_LABELS,
+        "frost.service.id": "orphan-test-service",
+      },
+    });
+    expect(run.success).toBe(true);
+
+    await stopContainersByLabel("frost.service.id", "orphan-test-service");
+
+    const { stdout } = await execAsync(
+      `docker ps -a --filter name=${containerName} --format '{{.ID}}'`,
+    );
+    expect(stdout.trim()).toBe("");
   }, 30000);
 
   test("listFrostNetworks returns labeled networks only", async () => {

@@ -178,7 +178,6 @@ async function markDeploymentFailedAndRestoreCurrentServiceDeployment(
     .set({ status: "stopped" })
     .where("deploymentId", "=", deploymentId)
     .execute();
-
   const finishedAt = Date.now();
   await db.transaction().execute(async function onFail(trx) {
     await trx

@@ -1,6 +1,6 @@
 # Frost
 
-Vercel experience. VPS pricing.
+Open Source Alternative to Vercel, Netlify, Railway and Render.
 
 See also: `CLAUDE.local.md` for local/personal instructions (gitignored).
 

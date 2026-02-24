@@ -138,7 +138,7 @@ export function OgImageContent() {
             display: "flex",
           }}
         >
-          Vercel experience.
+          Open Source Alternative to
         </div>
         <div
           style={{
@@ -150,7 +150,7 @@ export function OgImageContent() {
             display: "flex",
           }}
         >
-          VPS pricing.
+          Vercel, Netlify, Railway and Render.
         </div>
       </div>
 

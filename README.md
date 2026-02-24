@@ -1,6 +1,6 @@
 # Frost
 
-**Vercel experience. VPS pricing.**
+**Open Source Alternative to Vercel, Netlify, Railway and Render.**
 
 Open source · Self-hosted
 

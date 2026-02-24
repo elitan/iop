@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Frost",
-  description: "Vercel experience. VPS pricing.",
+  description: "Open Source Alternative to Vercel, Netlify, Railway and Render.",
 };
 
 export default function RootLayout({

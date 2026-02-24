@@ -1,7 +1,7 @@
 {
   "name": "frost",
-  "version": "0.17.0",
-  "description": "Vercel experience. VPS pricing.",
+  "version": "0.17.1",
+  "description": "Open Source Alternative to Vercel, Netlify, Railway and Render.",
   "private": true,
   "workspaces": [
     "apps/*",

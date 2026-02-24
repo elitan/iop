@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { nanoid } from "nanoid";
+import { getSetting, setSetting } from "./auth";
 import { db } from "./db";
 import { deployService } from "./deployer";
 import { getContainerStatus, removeNetwork, stopContainer } from "./docker";
@@ -329,6 +330,69 @@ describe("zero-downtime deploy", () => {
       .set({ healthCheckPath: null, healthCheckTimeout: null })
       .where("id", "=", ZD_SERVICE_ID)
       .execute();
+  }, 180000);
+
+  test("failed caddy sync keeps old container running", async () => {
+    await db
+      .updateTable("services")
+      .set({ imageUrl: "nginx:alpine", currentDeploymentId: null })
+      .where("id", "=", ZD_SERVICE_ID)
+      .execute();
+    await db
+      .deleteFrom("deployments")
+      .where("serviceId", "=", ZD_SERVICE_ID)
+      .execute();
+
+    const previousEmail = await getSetting("email");
+    const previousDomain = await getSetting("domain");
+    const originalFetch = globalThis.fetch;
+
+    try {
+      const deploy1Id = await deployService(ZD_SERVICE_ID);
+      const status1 = await waitForDeploymentStatus(deploy1Id, [
+        "running",
+        "failed",
+      ]);
+      expect(status1).toBe("running");
+
+      const v1 = await db
+        .selectFrom("deployments")
+        .select("containerId")
+        .where("id", "=", deploy1Id)
+        .executeTakeFirst();
+
+      await setSetting("email", "sync-fail@test.invalid");
+      await setSetting("domain", "frost-sync-fail.test");
+      globalThis.fetch = async function mockFetchFailure(
+        _input: Parameters<typeof fetch>[0],
+        _init?: Parameters<typeof fetch>[1],
+      ): Promise<Response> {
+        throw new Error("forced-caddy-sync-failure");
+      } as typeof fetch;
+
+      const deploy2Id = await deployService(ZD_SERVICE_ID);
+      const status2 = await waitForDeploymentStatus(deploy2Id, [
+        "running",
+        "failed",
+      ]);
+      expect(status2).toBe("failed");
+
+      const service = await db
+        .selectFrom("services")
+        .select("currentDeploymentId")
+        .where("id", "=", ZD_SERVICE_ID)
+        .executeTakeFirst();
+      expect(service?.currentDeploymentId).toBe(deploy1Id);
+
+      if (v1?.containerId) {
+        const containerStatus = await getContainerStatus(v1.containerId);
+        expect(containerStatus).toBe("running");
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+      await setSetting("email", previousEmail ?? "");
+      await setSetting("domain", previousDomain ?? "");
+    }
   }, 180000);
 });
 

@@ -21,9 +21,11 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-[1.1]"
         >
-          Vercel experience.
+          Open Source Alternative to
           <br />
-          <span className="text-foreground">VPS pricing.</span>
+          <span className="text-foreground">
+            Vercel, Netlify, Railway and Render.
+          </span>
         </motion.h1>
 
         <motion.p
