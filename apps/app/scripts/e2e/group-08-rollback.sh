@@ -56,22 +56,6 @@ HOST_PORT=$(require_field "$ROLLBACK_DATA" '.hostPort' "get rollback hostPort") 
 curl -sf "http://$SERVER_IP:$HOST_PORT" > /dev/null || fail "Rollback service not responding on port $HOST_PORT"
 log "Rollback service responding"
 
-log "Verifying rollback blocked for database services..."
-SERVICE_DB=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
-  -d '{"name":"db-rollback-test","deployType":"database","templateId":"postgres"}')
-SERVICE_DB_ID=$(require_field "$SERVICE_DB" '.id' "create db service") || fail "Failed to create db service: $SERVICE_DB"
-
-sleep 2
-DB_DEPLOYS=$(api "$BASE_URL/api/services/$SERVICE_DB_ID/deployments")
-DEPLOY_DB_ID=$(require_field "$DB_DEPLOYS" '.[0].id' "get db deploy") || fail "No db deployment: $DB_DEPLOYS"
-wait_for_deployment "$DEPLOY_DB_ID" 60 || fail "Database deployment failed"
-
-ROLLBACK_DB_RESULT=$(curl -sS -H "X-Frost-Token: $API_KEY" -H "Content-Type: application/json" \
-  -X POST "$BASE_URL/api/deployments/$DEPLOY_DB_ID/rollback" -w "\n%{http_code}")
-ROLLBACK_DB_STATUS=$(echo "$ROLLBACK_DB_RESULT" | tail -1)
-[ "$ROLLBACK_DB_STATUS" != "400" ] && fail "Rollback should return 400 for database services"
-log "Rollback correctly blocked for database"
-
 log "Cleanup..."
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 

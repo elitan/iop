@@ -67,20 +67,10 @@ done
 [ "$V1_STATUS" = "stopped" ] || fail "Expected v1 status 'stopped', got '$V1_STATUS'"
 log "v1 status: $V1_STATUS"
 
-if [ "$HOST_PORT1" = "$HOST_PORT2" ]; then
-  log "v1/v2 share host port $HOST_PORT1; skipping old-port-down check"
-else
-  log "Verifying v1 port no longer responds..."
-  V1_PORT_DOWN=0
-  for _ in $(seq 1 120); do
-    if ! curl -sf --max-time 3 "http://$SERVER_IP:$HOST_PORT1" > /dev/null 2>&1; then
-      V1_PORT_DOWN=1
-      break
-    fi
-    sleep 1
-  done
-  [ "$V1_PORT_DOWN" = "1" ] || fail "v1 port $HOST_PORT1 still responding after v1 stopped"
-  log "v1 port $HOST_PORT1 no longer responds"
+if [ -n "$CONTAINER1_ID" ] && [ "$CONTAINER1_ID" != "null" ]; then
+  CONTAINER1_RUNNING=$(remote "docker inspect $CONTAINER1_ID --format '{{.State.Running}}' 2>/dev/null || echo 'missing'" 2>&1)
+  [ "$CONTAINER1_RUNNING" = "false" ] || [ "$CONTAINER1_RUNNING" = "missing" ] || fail "v1 container still running: $CONTAINER1_RUNNING"
+  log "v1 container stopped"
 fi
 
 log "Cleanup..."
