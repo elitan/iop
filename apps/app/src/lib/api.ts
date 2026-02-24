@@ -144,13 +144,6 @@ export const api = {
       ),
   },
 
-  dbTemplates: {
-    list: (): Promise<DatabaseTemplate[]> =>
-      fetch("/api/db-templates").then((r) =>
-        handleResponse<DatabaseTemplate[]>(r),
-      ),
-  },
-
   serviceTemplates: {
     list: (): Promise<Template[]> =>
       fetch("/api/templates/services").then((r) =>

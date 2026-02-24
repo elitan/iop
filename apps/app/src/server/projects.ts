@@ -144,6 +144,7 @@ export const projects = {
     await assertDemoProjectCreateAllowed();
 
     let template: ReturnType<typeof getTemplate> | null = null;
+    let resolvedTemplateServices: ReturnType<typeof resolveTemplateServices> = [];
 
     if (input.templateId) {
       template = getTemplate(input.templateId);
@@ -155,6 +156,18 @@ export const projects = {
       if (template.type !== "project") {
         throw new ORPCError("BAD_REQUEST", {
           message: "Template is not a project template",
+        });
+      }
+
+      resolvedTemplateServices = resolveTemplateServices(template);
+      if (
+        resolvedTemplateServices.some(function hasDatabaseService(svc) {
+          return svc.isDatabase;
+        })
+      ) {
+        throw new ORPCError("BAD_REQUEST", {
+          message:
+            "Project templates with database services are not supported in this version",
         });
       }
     }
@@ -200,11 +213,9 @@ export const projects = {
     }
 
     if (template) {
-      const resolved = resolveTemplateServices(template);
+      await assertDemoServiceCreateAllowed(envId, resolvedTemplateServices.length);
 
-      await assertDemoServiceCreateAllowed(envId, resolved.length);
-
-      for (const svc of resolved) {
+      for (const svc of resolvedTemplateServices) {
         const serviceHostname = slugify(svc.name);
 
         const service = await createService({
@@ -212,7 +223,7 @@ export const projects = {
           name: svc.name,
           hostname: serviceHostname,
           deployType: "image",
-          serviceType: svc.isDatabase ? "database" : "app",
+          serviceType: "app",
           imageUrl: svc.image,
           envVars: svc.envVars,
           containerPort: svc.port,
@@ -222,9 +233,7 @@ export const projects = {
           command: svc.command,
           icon: svc.icon,
           ssl: svc.ssl,
-          wildcardDomain: svc.isDatabase
-            ? undefined
-            : { projectHostname: hostname },
+          wildcardDomain: { projectHostname: hostname },
         });
 
         deployService(service.id).catch((err) => {

@@ -17,10 +17,17 @@ export function useMonitoringHistory(range: string) {
   });
 }
 
-export function useServiceMetrics(serviceId: string, range: string = "1h") {
+export function useRuntimeMetrics(
+  runtimeServiceId: string,
+  range: string = "1h",
+) {
   return useQuery({
-    queryKey: ["monitoring", "service", serviceId, range],
-    queryFn: () => api.monitoring.getServiceHistory(serviceId, range),
+    queryKey: ["monitoring", "runtime", runtimeServiceId, range],
+    queryFn: () => api.monitoring.getServiceHistory(runtimeServiceId, range),
     refetchInterval: 15000,
   });
+}
+
+export function useServiceMetrics(serviceId: string, range: string = "1h") {
+  return useRuntimeMetrics(serviceId, range);
 }

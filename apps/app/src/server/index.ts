@@ -1,5 +1,6 @@
 import { apiKeys } from "./api-keys";
 import { cleanup } from "./cleanup";
+import { databases } from "./databases";
 import { deployments } from "./deployments";
 import { domains } from "./domains";
 import { environments } from "./environments";
@@ -11,13 +12,13 @@ import { projects } from "./projects";
 import { registries } from "./registries";
 import { services } from "./services";
 import { settings } from "./settings";
-import { dbTemplates, templates } from "./templates";
+import { templates } from "./templates";
 import { updates } from "./updates";
 
 export const router = os.router({
   apiKeys,
   cleanup,
-  dbTemplates,
+  databases,
   deployments,
   domains,
   environments,

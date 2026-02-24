@@ -45,9 +45,3 @@ export const templatesContract = {
     .route({ method: "GET", path: "/templates/databases" })
     .output(z.array(templateSchema)),
 };
-
-export const dbTemplatesContract = {
-  list: oc
-    .route({ method: "GET", path: "/db-templates" })
-    .output(z.array(templateSchema)),
-};

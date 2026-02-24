@@ -561,6 +561,188 @@ export type Replicas = z.infer<typeof replicasSchema>;
 export type NewReplicas = z.infer<typeof newReplicasSchema>;
 export type ReplicasUpdate = z.infer<typeof replicasUpdateSchema>;
 
+export const databasesSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string(),
+  engine: z.enum(["postgres", "mysql"]),
+  provider: z.enum(["velo", "mysql-docker"]),
+  createdAt: z.number(),
+});
+
+export const newDatabasesSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string(),
+  engine: z.enum(["postgres", "mysql"]),
+  provider: z.enum(["velo", "mysql-docker"]),
+  createdAt: z.number(),
+});
+
+export const databasesUpdateSchema = z.object({
+  id: z.string().optional(),
+  projectId: z.string().optional(),
+  name: z.string().optional(),
+  engine: z.enum(["postgres", "mysql"]).optional(),
+  provider: z.enum(["velo", "mysql-docker"]).optional(),
+  createdAt: z.number().optional(),
+});
+
+export type Databases = z.infer<typeof databasesSchema>;
+export type NewDatabases = z.infer<typeof newDatabasesSchema>;
+export type DatabasesUpdate = z.infer<typeof databasesUpdateSchema>;
+
+export const databaseTargetsSchema = z.object({
+  id: z.string(),
+  databaseId: z.string(),
+  name: z.string(),
+  kind: z.enum(["branch", "instance"]),
+  sourceTargetId: z.string().nullable(),
+  runtimeServiceId: z.string(),
+  lifecycleStatus: z.enum(["active", "stopped", "expired"]),
+  providerRefJson: z.string(),
+  createdAt: z.number(),
+});
+
+export const newDatabaseTargetsSchema = z.object({
+  id: z.string(),
+  databaseId: z.string(),
+  name: z.string(),
+  kind: z.enum(["branch", "instance"]),
+  sourceTargetId: z.string().nullable(),
+  runtimeServiceId: z.string(),
+  lifecycleStatus: z.enum(["active", "stopped", "expired"]).optional(),
+  providerRefJson: z.string().optional(),
+  createdAt: z.number(),
+});
+
+export const databaseTargetsUpdateSchema = z.object({
+  id: z.string().optional(),
+  databaseId: z.string().optional(),
+  name: z.string().optional(),
+  kind: z.enum(["branch", "instance"]).optional(),
+  sourceTargetId: z.string().nullable().optional(),
+  runtimeServiceId: z.string().optional(),
+  lifecycleStatus: z.enum(["active", "stopped", "expired"]).optional(),
+  providerRefJson: z.string().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type DatabaseTargets = z.infer<typeof databaseTargetsSchema>;
+export type NewDatabaseTargets = z.infer<typeof newDatabaseTargetsSchema>;
+export type DatabaseTargetsUpdate = z.infer<typeof databaseTargetsUpdateSchema>;
+
+export const databaseTargetDeploymentsSchema = z.object({
+  id: z.string(),
+  targetId: z.string(),
+  action: z.enum(["create", "deploy", "reset", "start", "stop"]),
+  status: z.enum(["running", "failed", "stopped"]),
+  message: z.string().nullable(),
+  createdAt: z.number(),
+  finishedAt: z.number().nullable(),
+});
+
+export const newDatabaseTargetDeploymentsSchema = z.object({
+  id: z.string(),
+  targetId: z.string(),
+  action: z.enum(["create", "deploy", "reset", "start", "stop"]),
+  status: z.enum(["running", "failed", "stopped"]),
+  message: z.string().nullable(),
+  createdAt: z.number(),
+  finishedAt: z.number().nullable(),
+});
+
+export const databaseTargetDeploymentsUpdateSchema = z.object({
+  id: z.string().optional(),
+  targetId: z.string().optional(),
+  action: z.enum(["create", "deploy", "reset", "start", "stop"]).optional(),
+  status: z.enum(["running", "failed", "stopped"]).optional(),
+  message: z.string().nullable().optional(),
+  createdAt: z.number().optional(),
+  finishedAt: z.number().nullable().optional(),
+});
+
+export type DatabaseTargetDeployments = z.infer<
+  typeof databaseTargetDeploymentsSchema
+>;
+export type NewDatabaseTargetDeployments = z.infer<
+  typeof newDatabaseTargetDeploymentsSchema
+>;
+export type DatabaseTargetDeploymentsUpdate = z.infer<
+  typeof databaseTargetDeploymentsUpdateSchema
+>;
+
+export const environmentDatabaseAttachmentsSchema = z.object({
+  id: z.string(),
+  environmentId: z.string(),
+  databaseId: z.string(),
+  targetId: z.string(),
+  mode: z.enum(["managed", "manual"]),
+  createdAt: z.number(),
+});
+
+export const newEnvironmentDatabaseAttachmentsSchema = z.object({
+  id: z.string(),
+  environmentId: z.string(),
+  databaseId: z.string(),
+  targetId: z.string(),
+  mode: z.enum(["managed", "manual"]),
+  createdAt: z.number(),
+});
+
+export const environmentDatabaseAttachmentsUpdateSchema = z.object({
+  id: z.string().optional(),
+  environmentId: z.string().optional(),
+  databaseId: z.string().optional(),
+  targetId: z.string().optional(),
+  mode: z.enum(["managed", "manual"]).optional(),
+  createdAt: z.number().optional(),
+});
+
+export type EnvironmentDatabaseAttachments = z.infer<
+  typeof environmentDatabaseAttachmentsSchema
+>;
+export type NewEnvironmentDatabaseAttachments = z.infer<
+  typeof newEnvironmentDatabaseAttachmentsSchema
+>;
+export type EnvironmentDatabaseAttachmentsUpdate = z.infer<
+  typeof environmentDatabaseAttachmentsUpdateSchema
+>;
+
+export const serviceDatabaseBindingsSchema = z.object({
+  id: z.string(),
+  serviceId: z.string(),
+  databaseId: z.string(),
+  envVarKey: z.string(),
+  createdAt: z.number(),
+});
+
+export const newServiceDatabaseBindingsSchema = z.object({
+  id: z.string(),
+  serviceId: z.string(),
+  databaseId: z.string(),
+  envVarKey: z.string(),
+  createdAt: z.number(),
+});
+
+export const serviceDatabaseBindingsUpdateSchema = z.object({
+  id: z.string().optional(),
+  serviceId: z.string().optional(),
+  databaseId: z.string().optional(),
+  envVarKey: z.string().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type ServiceDatabaseBindings = z.infer<
+  typeof serviceDatabaseBindingsSchema
+>;
+export type NewServiceDatabaseBindings = z.infer<
+  typeof newServiceDatabaseBindingsSchema
+>;
+export type ServiceDatabaseBindingsUpdate = z.infer<
+  typeof serviceDatabaseBindingsUpdateSchema
+>;
+
 export const settingsSchema = z.object({
   key: z.string(),
   value: z.string(),

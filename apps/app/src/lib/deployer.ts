@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
 import { emitBuildLogChunk } from "./build-log-stream";
 import { decrypt } from "./crypto";
+import { resolveServiceDatabaseEnvVars } from "./database-runtime";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
 import {
@@ -139,6 +140,66 @@ async function markDeploymentRunningAndSetCurrentServiceDeployment(
   });
 }
 
+async function markDeploymentFailedAndRestoreCurrentServiceDeployment(
+  deploymentId: string,
+  serviceId: string,
+  previousDeploymentId: string | null,
+  errorMessage: string,
+): Promise<void> {
+  const deployment = await db
+    .selectFrom("deployments")
+    .select("containerId")
+    .where("id", "=", deploymentId)
+    .executeTakeFirst();
+
+  const replicas = await db
+    .selectFrom("replicas")
+    .select("containerId")
+    .where("deploymentId", "=", deploymentId)
+    .where("containerId", "is not", null)
+    .execute();
+
+  const containerIds = new Set<string>();
+  if (deployment?.containerId) {
+    containerIds.add(deployment.containerId);
+  }
+  for (const replica of replicas) {
+    if (replica.containerId) {
+      containerIds.add(replica.containerId);
+    }
+  }
+
+  for (const containerId of containerIds) {
+    await stopContainer(containerId);
+  }
+
+  await db
+    .updateTable("replicas")
+    .set({ status: "stopped" })
+    .where("deploymentId", "=", deploymentId)
+    .execute();
+
+  const finishedAt = Date.now();
+  await db.transaction().execute(async function onFail(trx) {
+    await trx
+      .updateTable("deployments")
+      .set({
+        status: "failed",
+        errorMessage,
+        finishedAt,
+        rollbackEligible: false,
+      })
+      .where("id", "=", deploymentId)
+      .execute();
+
+    await trx
+      .updateTable("services")
+      .set({ currentDeploymentId: previousDeploymentId })
+      .where("id", "=", serviceId)
+      .execute();
+  });
+}
+
 async function appendLog(
   id: string,
   log: string,
@@ -188,6 +249,71 @@ function createLogChunkAppender(deploymentId: string): {
   }
 
   return { append, flush };
+}
+
+async function getEffectiveServiceFromRepoConfig(
+  deploymentId: string,
+  service: Selectable<Services>,
+  repoPath: string,
+): Promise<Selectable<Services>> {
+  const frostConfigResult = loadFrostConfig(
+    repoPath,
+    service.frostFilePath ?? "frost.yaml",
+  );
+
+  if (frostConfigResult.error) {
+    throw new Error(`frost.yaml: ${frostConfigResult.error}`);
+  }
+
+  if (frostConfigResult.config) {
+    await appendLog(deploymentId, `Using ${frostConfigResult.filename}\n`);
+    return mergeConfigWithService(service, frostConfigResult.config);
+  }
+
+  return service;
+}
+
+async function getEffectiveServiceForRollback(
+  deploymentId: string,
+  service: Selectable<Services>,
+  branch: string | null | undefined,
+): Promise<Selectable<Services>> {
+  if (service.deployType !== "repo" || !service.repoUrl || !branch) {
+    return service;
+  }
+
+  const repoPath = join(REPOS_PATH, `${deploymentId}-rollback`);
+  if (existsSync(repoPath)) {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+
+  let cloneUrl = service.repoUrl;
+  if (isGitHubRepo(service.repoUrl) && (await hasGitHubApp())) {
+    try {
+      const token = await generateInstallationToken(service.repoUrl);
+      cloneUrl = injectTokenIntoUrl(service.repoUrl, token);
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: GitHub App auth failed (${err.message}), trying without auth\n`,
+      );
+    }
+  }
+
+  try {
+    await execAsync(
+      `git clone --depth 1 --branch ${shellEscape(branch)} ${shellEscape(cloneUrl)} ${shellEscape(repoPath)}`,
+    );
+    return await getEffectiveServiceFromRepoConfig(
+      deploymentId,
+      service,
+      repoPath,
+    );
+  } finally {
+    if (existsSync(repoPath)) {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  }
 }
 
 async function isDeploymentCancelled(deploymentId: string): Promise<boolean> {
@@ -937,10 +1063,16 @@ async function runServiceDeployment(
     "frost.service.id": service.id,
     "frost.service.name": service.name,
   };
+  const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
+  let shouldRestoreCurrentDeploymentOnFailure = false;
 
   const projectEnvVars = parseEnvVars(project.envVars);
   const serviceEnvVars = parseEnvVars(service.envVars);
-  const envVars = { ...projectEnvVars, ...serviceEnvVars };
+  const bindingEnvVars = await resolveServiceDatabaseEnvVars({
+    serviceId: service.id,
+    environmentId: environment.id,
+  });
+  const envVars = { ...projectEnvVars, ...serviceEnvVars, ...bindingEnvVars };
   const envVarsList: EnvVar[] = Object.entries(envVars).map(([key, value]) => ({
     key,
     value,
@@ -1108,22 +1240,11 @@ async function runServiceDeployment(
         );
       }
 
-      const frostConfigResult = loadFrostConfig(
+      effectiveService = await getEffectiveServiceFromRepoConfig(
+        deploymentId,
+        service,
         repoPath,
-        service.frostFilePath ?? "frost.yaml",
       );
-
-      if (frostConfigResult.error) {
-        throw new Error(`frost.yaml: ${frostConfigResult.error}`);
-      }
-
-      if (frostConfigResult.config) {
-        await appendLog(deploymentId, `Using ${frostConfigResult.filename}\n`);
-        effectiveService = mergeConfigWithService(
-          service,
-          frostConfigResult.config,
-        );
-      }
 
       const detectedIcon = detectIcon(
         repoPath,
@@ -1363,20 +1484,22 @@ async function runServiceDeployment(
       console.warn("Failed to update PR comment:", err);
     }
 
-    await updateRollbackEligible(service.id);
-
     try {
       await appendLog(deploymentId, "Switching traffic to new container...\n");
-      const synced = await syncCaddyConfig();
-      if (synced) {
+      const syncResult = await syncCaddyConfig();
+      if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
     } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
+      shouldRestoreCurrentDeploymentOnFailure = true;
+      const syncErrorMessage =
+        err instanceof Error
+          ? err.message
+          : String(err ?? "Unknown Caddy sync error");
+      throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
+
+    await updateRollbackEligible(service.id);
 
     await drainPreviousDeployments(
       deploymentId,
@@ -1386,11 +1509,20 @@ async function runServiceDeployment(
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
-    await updateDeployment(deploymentId, {
-      status: "failed",
-      errorMessage,
-      finishedAt: Date.now(),
-    });
+    if (shouldRestoreCurrentDeploymentOnFailure) {
+      await markDeploymentFailedAndRestoreCurrentServiceDeployment(
+        deploymentId,
+        service.id,
+        previousCurrentDeploymentId,
+        errorMessage,
+      );
+    } else {
+      await updateDeployment(deploymentId, {
+        status: "failed",
+        errorMessage,
+        finishedAt: Date.now(),
+      });
+    }
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
     await updateCommitStatusIfGitHub(
       service.repoUrl,
@@ -1537,6 +1669,7 @@ export async function rollbackDeployment(
 async function runRollbackDeployment(
   deploymentId: string,
   sourceDeployment: {
+    id: string;
     imageName: string | null;
     envVarsSnapshot: string | null;
     containerPort: number | null;
@@ -1555,6 +1688,19 @@ async function runRollbackDeployment(
   const networkName = sanitizeDockerName(
     `frost-net-${project.id}-${environment.id}`,
   );
+  let effectiveService = service;
+  const sourceDeploymentRepoPath = join(REPOS_PATH, sourceDeployment.id);
+  const frostConfigResult = loadFrostConfig(
+    sourceDeploymentRepoPath,
+    service.frostFilePath ?? "frost.yaml",
+  );
+
+  if (frostConfigResult.config) {
+    effectiveService = mergeConfigWithService(
+      effectiveService,
+      frostConfigResult.config,
+    );
+  }
 
   const baseLabels = {
     "frost.managed": "true",
@@ -1562,11 +1708,18 @@ async function runRollbackDeployment(
     "frost.service.id": service.id,
     "frost.service.name": service.name,
   };
+  const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
+  let shouldRestoreCurrentDeploymentOnFailure = false;
 
   const envVarsList: EnvVar[] = sourceDeployment.envVarsSnapshot
     ? JSON.parse(sourceDeployment.envVarsSnapshot)
     : [];
   const envVars = Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
+  const bindingEnvVars = await resolveServiceDatabaseEnvVars({
+    serviceId: service.id,
+    environmentId: environment.id,
+  });
+  const runtimeEnvBase = { ...envVars, ...bindingEnvVars };
 
   try {
     await appendLog(
@@ -1589,12 +1742,25 @@ async function runRollbackDeployment(
       project,
       gitInfo,
     );
-    const runtimeEnvVars = { ...frostEnvVars, ...envVars };
+    const runtimeEnvVars = { ...frostEnvVars, ...runtimeEnvBase };
 
     if (!sourceDeployment.imageName) {
       throw new Error("Source deployment has no image");
     }
 
+    let effectiveService = service;
+    try {
+      effectiveService = await getEffectiveServiceForRollback(
+        deploymentId,
+        service,
+        sourceDeployment.gitBranch ?? service.branch,
+      );
+    } catch (err: any) {
+      await appendLog(
+        deploymentId,
+        `Warning: Failed to load rollback config: ${err.message}\n`,
+      );
+    }
     const internalHostname = service.hostname ?? slugify(service.name);
     const replicaCount = service.replicaCount ?? 1;
 
@@ -1634,33 +1800,44 @@ async function runRollbackDeployment(
       `\nRollback successful! App available at http://localhost:${firstReplica.hostPort}\n`,
     );
 
-    await updateRollbackEligible(service.id);
-
     try {
-      const synced = await syncCaddyConfig();
-      if (synced) {
+      const syncResult = await syncCaddyConfig();
+      if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
     } catch (err: any) {
-      await appendLog(
-        deploymentId,
-        `Warning: Failed to sync Caddy config: ${err.message}\n`,
-      );
+      shouldRestoreCurrentDeploymentOnFailure = true;
+      const syncErrorMessage =
+        err instanceof Error
+          ? err.message
+          : String(err ?? "Unknown Caddy sync error");
+      throw new Error(`Failed to sync Caddy config: ${syncErrorMessage}`);
     }
+
+    await updateRollbackEligible(service.id);
 
     await drainPreviousDeployments(
       deploymentId,
       service.id,
-      service.drainTimeout ?? 30,
-      service.shutdownTimeout ?? 30,
+      effectiveService.drainTimeout ?? 30,
+      effectiveService.shutdownTimeout ?? 30,
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
-    await updateDeployment(deploymentId, {
-      status: "failed",
-      errorMessage,
-      finishedAt: Date.now(),
-    });
+    if (shouldRestoreCurrentDeploymentOnFailure) {
+      await markDeploymentFailedAndRestoreCurrentServiceDeployment(
+        deploymentId,
+        service.id,
+        previousCurrentDeploymentId,
+        errorMessage,
+      );
+    } else {
+      await updateDeployment(deploymentId, {
+        status: "failed",
+        errorMessage,
+        finishedAt: Date.now(),
+      });
+    }
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
   }
 }

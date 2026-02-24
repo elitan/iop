@@ -34,7 +34,7 @@ export const servicesContract = {
           .string()
           .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
           .optional(),
-        deployType: z.enum(["repo", "image", "database"]).default("repo"),
+        deployType: z.enum(["repo", "image"]).default("repo"),
         repoUrl: z.string().optional(),
         branch: z.string().default("main"),
         dockerfilePath: z.string().default("Dockerfile"),
@@ -42,7 +42,6 @@ export const servicesContract = {
         imageUrl: z.string().optional(),
         envVars: z.array(envVarSchema).default([]),
         containerPort: z.number().min(1).max(65535).optional(),
-        templateId: z.string().optional(),
         serviceTemplateId: z.string().optional(),
         healthCheckPath: z.string().optional(),
         healthCheckTimeout: z.number().optional(),

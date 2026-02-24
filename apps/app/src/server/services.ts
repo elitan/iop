@@ -61,19 +61,6 @@ export const services = {
         message: "imageUrl is required for image deployments",
       });
     }
-    if (input.deployType === "database" && !input.templateId) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "templateId is required for database deployments",
-      });
-    }
-    if (input.deployType === "database") {
-      const template = getTemplate(input.templateId!);
-      if (!template) {
-        throw new ORPCError("BAD_REQUEST", {
-          message: "Unknown database template",
-        });
-      }
-    }
 
     const environment = await db
       .selectFrom("environments")
@@ -136,30 +123,7 @@ export const services = {
 
     let service: Selectable<Services>;
 
-    if (input.deployType === "database") {
-      const template = getTemplate(input.templateId!)!;
-      const resolved = resolveTemplateServices(template);
-      const serviceConfig = resolved[0];
-
-      assertDemoResourceLimits({ replicaCount: 1 });
-
-      service = await createService({
-        environmentId: input.environmentId,
-        name: input.name,
-        hostname,
-        deployType: "image",
-        serviceType: "database",
-        imageUrl: serviceConfig.image,
-        envVars: serviceConfig.envVars,
-        containerPort: serviceConfig.port,
-        healthCheckPath: serviceConfig.healthCheckPath,
-        healthCheckTimeout: serviceConfig.healthCheckTimeout,
-        volumes: serviceConfig.volumes,
-        command: serviceConfig.command,
-        icon: serviceConfig.icon,
-        ssl: serviceConfig.ssl,
-      });
-    } else if (input.serviceTemplateId) {
+    if (input.serviceTemplateId) {
       const template = getTemplate(input.serviceTemplateId);
       if (!template) {
         throw new ORPCError("BAD_REQUEST", {

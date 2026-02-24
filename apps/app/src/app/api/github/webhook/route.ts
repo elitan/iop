@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/auth";
+import {
+  cloneEnvironmentDatabaseTargets,
+  ensureEnvironmentPostgresDefaults,
+} from "@/lib/database-runtime";
 import { isDemoMode } from "@/lib/demo-mode";
 import { deployService } from "@/lib/deployer";
 import {
@@ -220,6 +224,11 @@ async function handlePullRequest(rawBody: string) {
     branch,
     prTitle,
   );
+  await cloneEnvironmentDatabaseTargets({
+    sourceEnvironmentId: productionServices[0].environmentId,
+    targetEnvironmentId: environmentId,
+  });
+  await ensureEnvironmentPostgresDefaults(environmentId);
   const envName = slugify(prTitle).substring(0, 50);
 
   const deploymentIds: string[] = [];

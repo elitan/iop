@@ -1,5 +1,6 @@
+import { cleanupEnvironmentAttachments } from "./database-runtime";
 import { db } from "./db";
-import { removeNetwork, stopContainer } from "./docker";
+import { removeNetwork, stopContainer, stopContainersByLabel } from "./docker";
 import { syncCaddyConfig } from "./domains";
 import { removeSSLCerts } from "./ssl";
 import { buildVolumeName, removeVolume } from "./volumes";
@@ -29,6 +30,8 @@ async function cleanupServiceResources(
 }
 
 async function stopServiceContainers(serviceId: string): Promise<void> {
+  await stopContainersByLabel("frost.service.id", serviceId);
+
   const deployments = await db
     .selectFrom("deployments")
     .select(["id", "containerId"])
@@ -84,6 +87,8 @@ export async function cleanupEnvironment(
     await stopServiceContainers(service.id);
     await cleanupServiceResources(service);
   }
+
+  await cleanupEnvironmentAttachments(environment.id);
 
   await removeNetwork(
     `frost-net-${environment.projectId}-${environment.id}`.toLowerCase(),

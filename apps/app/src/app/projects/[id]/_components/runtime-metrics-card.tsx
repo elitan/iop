@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -11,10 +11,10 @@ import {
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useServiceMetrics } from "@/hooks/use-monitoring";
+import { useRuntimeMetrics } from "@/hooks/use-monitoring";
 
-interface ServiceMetricsCardProps {
-  serviceId: string;
+interface RuntimeMetricsCardProps {
+  runtimeServiceId: string;
 }
 
 const RANGES = [
@@ -36,9 +36,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
 }
 
-export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
+function getGradientId(prefix: string, runtimeServiceId: string): string {
+  const safeId = runtimeServiceId.replace(/[^a-zA-Z0-9_-]/g, "");
+  return `${prefix}-${safeId}`;
+}
+
+export function RuntimeMetricsCard({
+  runtimeServiceId,
+}: RuntimeMetricsCardProps) {
   const [range, setRange] = useState("1h");
-  const { data: history } = useServiceMetrics(serviceId, range);
+  const { data: history } = useRuntimeMetrics(runtimeServiceId, range);
 
   const containerHistory = history?.containers
     ? Object.values(history.containers)[0] || []
@@ -54,6 +61,19 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
     value: p.memoryPercent,
     bytes: p.memoryBytes,
   }));
+
+  const cpuGradientId = useMemo(
+    function getCpuGradientId() {
+      return getGradientId("gradient-cpu-runtime", runtimeServiceId);
+    },
+    [runtimeServiceId],
+  );
+  const memoryGradientId = useMemo(
+    function getMemoryGradientId() {
+      return getGradientId("gradient-memory-runtime", runtimeServiceId);
+    },
+    [runtimeServiceId],
+  );
 
   return (
     <Card className="bg-neutral-900 border-neutral-800">
@@ -94,7 +114,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                   >
                     <defs>
                       <linearGradient
-                        id="gradient-cpu-service"
+                        id={cpuGradientId}
                         x1="0"
                         y1="0"
                         x2="0"
@@ -147,7 +167,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                       dataKey="value"
                       stroke="#3b82f6"
                       strokeWidth={1.5}
-                      fill="url(#gradient-cpu-service)"
+                      fill={`url(#${cpuGradientId})`}
                       isAnimationActive={false}
                     />
                   </AreaChart>
@@ -172,7 +192,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                   >
                     <defs>
                       <linearGradient
-                        id="gradient-memory-service"
+                        id={memoryGradientId}
                         x1="0"
                         y1="0"
                         x2="0"
@@ -229,7 +249,7 @@ export function ServiceMetricsCard({ serviceId }: ServiceMetricsCardProps) {
                       dataKey="value"
                       stroke="#a855f7"
                       strokeWidth={1.5}
-                      fill="url(#gradient-memory-service)"
+                      fill={`url(#${memoryGradientId})`}
                       isAnimationActive={false}
                     />
                   </AreaChart>

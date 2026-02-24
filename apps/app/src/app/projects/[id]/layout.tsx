@@ -136,7 +136,7 @@ export default function ProjectLayout({
       onClick={() => setCreateServiceModalOpen(true)}
     >
       <Plus className="mr-1.5 h-4 w-4" />
-      Create
+      Create Service
     </Button>
   );
 
@@ -186,6 +186,11 @@ export default function ProjectLayout({
           onServiceCreated={(serviceId) => {
             router.push(
               `/projects/${projectId}/environments/${currentEnvId}?service=${serviceId}`,
+            );
+          }}
+          onDatabaseCreated={(databaseId) => {
+            router.push(
+              `/projects/${projectId}/environments/${currentEnvId}?database=${databaseId}`,
             );
           }}
         />

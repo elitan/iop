@@ -35,6 +35,37 @@ export interface ApiKeys {
   lastUsedAt: string | null;
 }
 
+export interface DatabaseTargetDeployments {
+  id: string;
+  targetId: string;
+  action: 'create' | 'deploy' | 'reset' | 'start' | 'stop';
+  status: 'running' | 'failed' | 'stopped';
+  message: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
+export interface DatabaseTargets {
+  id: string;
+  databaseId: string;
+  name: string;
+  kind: 'branch' | 'instance';
+  sourceTargetId: string | null;
+  lifecycleStatus: Generated<'active' | 'stopped' | 'expired'>;
+  providerRefJson: Generated<string>;
+  createdAt: number;
+  runtimeServiceId: Generated<string>;
+}
+
+export interface Databases {
+  id: string;
+  projectId: string;
+  name: string;
+  engine: 'postgres' | 'mysql';
+  provider: 'velo' | 'mysql-docker';
+  createdAt: number;
+}
+
 export interface Deployments {
   id: string;
   serviceId: string;
@@ -74,6 +105,15 @@ export interface Domains {
   dnsVerified: Generated<boolean | null>;
   sslStatus: Generated<'pending' | 'active' | 'failed' | null>;
   isSystem: Generated<boolean | null>;
+  createdAt: number;
+}
+
+export interface EnvironmentDatabaseAttachments {
+  id: string;
+  environmentId: string;
+  databaseId: string;
+  targetId: string;
+  mode: 'managed' | 'manual';
   createdAt: number;
 }
 
@@ -172,6 +212,14 @@ export interface Replicas {
   createdAt: Generated<number>;
 }
 
+export interface ServiceDatabaseBindings {
+  id: string;
+  serviceId: string;
+  databaseId: string;
+  envVarKey: string;
+  createdAt: number;
+}
+
 export interface Services {
   id: string;
   environmentId: string;
@@ -213,8 +261,12 @@ export interface Settings {
 export interface DB {
   _Migrations: Migrations;
   apiKeys: ApiKeys;
+  databaseTargetDeployments: DatabaseTargetDeployments;
+  databaseTargets: DatabaseTargets;
+  databases: Databases;
   deployments: Deployments;
   domains: Domains;
+  environmentDatabaseAttachments: EnvironmentDatabaseAttachments;
   environments: Environments;
   githubInstallations: GithubInstallations;
   metrics: Metrics;
@@ -224,6 +276,7 @@ export interface DB {
   projects: Projects;
   registries: Registries;
   replicas: Replicas;
+  serviceDatabaseBindings: ServiceDatabaseBindings;
   services: Services;
   settings: Settings;
 }

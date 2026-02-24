@@ -4,6 +4,7 @@ import type {
 } from "@orpc/contract";
 import { apiKeysContract } from "./api-keys";
 import { cleanupContract } from "./cleanup";
+import { databasesContract } from "./databases";
 import { deploymentsContract } from "./deployments";
 import { domainsContract } from "./domains";
 import { environmentsContract } from "./environments";
@@ -14,13 +15,13 @@ import { projectsContract } from "./projects";
 import { registriesContract } from "./registries";
 import { servicesContract } from "./services";
 import { settingsContract } from "./settings";
-import { dbTemplatesContract, templatesContract } from "./templates";
+import { templatesContract } from "./templates";
 import { updatesContract } from "./updates";
 
 export const contract = {
   apiKeys: apiKeysContract,
   cleanup: cleanupContract,
-  dbTemplates: dbTemplatesContract,
+  databases: databasesContract,
   deployments: deploymentsContract,
   domains: domainsContract,
   environments: environmentsContract,

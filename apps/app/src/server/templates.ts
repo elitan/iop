@@ -12,7 +12,3 @@ export const templates = {
   projects: os.templates.projects.handler(getProjectTemplates),
   databases: os.templates.databases.handler(getDatabaseTemplates),
 };
-
-export const dbTemplates = {
-  list: os.dbTemplates.list.handler(getDatabaseTemplates),
-};

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft,
@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCreateDatabase } from "@/hooks/use-databases";
 import {
   useBatchCreateServices,
   useCreateService,
@@ -36,7 +37,7 @@ import {
 } from "@/hooks/use-services";
 import type { CreateServiceInput, Template } from "@/lib/api";
 import { api } from "@/lib/api";
-
+import { orpc } from "@/lib/orpc-client";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
 
@@ -48,12 +49,7 @@ function generateUniqueName(baseName: string, existingNames: string[]): string {
   return `${baseName}-${counter}`;
 }
 
-function getTemplatePort(template: Template): number {
-  const firstService = Object.values(template.services)[0];
-  return firstService?.port ?? 8080;
-}
-
-type Step = "category" | "repo" | "scanning" | "staged" | "database" | "image";
+type Step = "category" | "repo" | "scanning" | "staged" | "image" | "database";
 
 interface CreateServiceModalProps {
   projectId: string;
@@ -61,6 +57,7 @@ interface CreateServiceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onServiceCreated?: (serviceId: string) => void;
+  onDatabaseCreated?: (databaseId: string) => void;
 }
 
 interface CategoryOption {
@@ -78,24 +75,17 @@ const CATEGORIES: CategoryOption[] = [
     keywords: ["github", "repo", "git", "repository"],
   },
   {
-    id: "database",
-    label: "Database",
-    icon: Database,
-    keywords: ["database", "db", "postgres", "mysql", "redis", "mongo"],
-  },
-  {
     id: "image",
     label: "Docker Image",
     icon: Container,
     keywords: ["docker", "image", "container"],
   },
-];
-
-const DB_OPTIONS = [
-  { id: "postgres", name: "PostgreSQL", color: "text-blue-400" },
-  { id: "mysql", name: "MySQL", color: "text-orange-400" },
-  { id: "redis", name: "Redis", color: "text-red-400" },
-  { id: "mongodb", name: "MongoDB", color: "text-green-400" },
+  {
+    id: "database",
+    label: "Database",
+    icon: Database,
+    keywords: ["database", "postgres", "postgresql", "mysql", "sql"],
+  },
 ];
 
 function matchesSearch(query: string, ...terms: string[]): boolean {
@@ -110,8 +100,11 @@ export function CreateServiceModal({
   open,
   onOpenChange,
   onServiceCreated,
+  onDatabaseCreated,
 }: CreateServiceModalProps): React.ReactElement {
+  const queryClient = useQueryClient();
   const createMutation = useCreateService(environmentId);
+  const createDatabaseMutation = useCreateDatabase(projectId);
   const scanMutation = useScanRepo();
   const batchCreateMutation = useBatchCreateServices(environmentId);
 
@@ -119,7 +112,6 @@ export function CreateServiceModal({
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const dbSearchInputRef = useRef<HTMLInputElement>(null);
   const imageNameRef = useRef<HTMLInputElement>(null);
 
   const [stagedServices, setStagedServices] = useState<StagedService[]>([]);
@@ -128,11 +120,10 @@ export function CreateServiceModal({
     branch: string;
     name: string;
   } | null>(null);
-
-  const { data: dbTemplates } = useQuery({
-    queryKey: ["db-templates"],
-    queryFn: () => api.dbTemplates.list(),
-  });
+  const [databaseName, setDatabaseName] = useState("");
+  const [databaseEngine, setDatabaseEngine] = useState<"postgres" | "mysql">(
+    "postgres",
+  );
 
   const { data: serviceTemplates } = useQuery({
     queryKey: ["service-templates"],
@@ -147,10 +138,6 @@ export function CreateServiceModal({
     matchesSearch(search, cat.label, ...cat.keywords),
   );
 
-  const filteredDbOptions = DB_OPTIONS.filter((db) =>
-    matchesSearch(search, db.name, db.id),
-  );
-
   useEffect(() => {
     if (!open) return;
     const inputRefs: Record<
@@ -158,11 +145,11 @@ export function CreateServiceModal({
       React.RefObject<HTMLInputElement | null> | null
     > = {
       category: searchInputRef,
-      database: dbSearchInputRef,
       repo: null,
       scanning: null,
       staged: null,
       image: null,
+      database: null,
     };
     const ref = inputRefs[step];
     if (ref) setTimeout(() => ref.current?.focus(), 0);
@@ -174,6 +161,8 @@ export function CreateServiceModal({
     setSelectedIndex(0);
     setStagedServices([]);
     setSelectedRepo(null);
+    setDatabaseName("");
+    setDatabaseEngine("postgres");
   }
 
   function handleOpenChange(isOpen: boolean): void {
@@ -320,22 +309,6 @@ export function CreateServiceModal({
     }
   }
 
-  async function handleDbSelect(dbId: string) {
-    const template = (dbTemplates ?? []).find((t) => t.id.startsWith(dbId));
-    if (!template) return;
-
-    const baseName = template.id.split("-")[0];
-    const name = generateUniqueName(baseName, existingServiceNames);
-
-    await createService({
-      name,
-      deployType: "database",
-      templateId: template.id,
-      containerPort: getTemplatePort(template),
-      envVars: [],
-    });
-  }
-
   async function handleImageSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const imageName = imageNameRef.current?.value.trim();
@@ -367,6 +340,43 @@ export function CreateServiceModal({
     });
   }
 
+  async function handleDatabaseSubmit(
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> {
+    e.preventDefault();
+    const nextName = databaseName.trim();
+    if (!nextName) return;
+
+    try {
+      const result = await createDatabaseMutation.mutateAsync({
+        name: nextName,
+        engine: databaseEngine,
+      });
+      await orpc.databases.putAttachment.call({
+        envId: environmentId,
+        databaseId: result.database.id,
+        targetId: result.target.id,
+        mode: "managed",
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.listEnvironmentAttachments.key({
+          input: { envId: environmentId },
+        }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+      });
+      toast.success("Database created");
+      resetState();
+      onOpenChange(false);
+      if (onDatabaseCreated) onDatabaseCreated(result.database.id);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create database";
+      toast.error(message);
+    }
+  }
+
   function handleSearchChange(value: string): void {
     setSearch(value);
     setSelectedIndex(0);
@@ -384,8 +394,8 @@ export function CreateServiceModal({
     repo: "Import from GitHub",
     scanning: "Scanning Repository...",
     staged: "Configure Services",
-    database: "Add Database",
     image: "Deploy Docker Image",
+    database: "Create Database",
   };
 
   function renderStepContent(): React.ReactElement {
@@ -490,51 +500,6 @@ export function CreateServiceModal({
           </div>
         );
 
-      case "database":
-        return (
-          <div className="space-y-3">
-            <Input
-              ref={dbSearchInputRef}
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={(e) =>
-                handleSearchKeyDown(e, filteredDbOptions, handleDbSelect)
-              }
-              placeholder="Which database?"
-              className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
-            />
-            <div className="space-y-1">
-              {filteredDbOptions.map((db, index) => {
-                const hasTemplate = (dbTemplates ?? []).some((t) =>
-                  t.id.startsWith(db.id),
-                );
-                if (!hasTemplate) return null;
-                return (
-                  <button
-                    key={db.id}
-                    type="button"
-                    onClick={() => handleDbSelect(db.id)}
-                    disabled={createMutation.isPending}
-                    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50 ${
-                      index === selectedIndex
-                        ? "border-blue-500 bg-blue-500/10"
-                        : "border-neutral-700 bg-neutral-800 hover:border-neutral-600"
-                    }`}
-                  >
-                    <Database className={`h-4 w-4 ${db.color}`} />
-                    <span className="text-sm text-neutral-100">{db.name}</span>
-                  </button>
-                );
-              })}
-              {filteredDbOptions.length === 0 && (
-                <p className="py-4 text-center text-sm text-neutral-500">
-                  No matches
-                </p>
-              )}
-            </div>
-          </div>
-        );
-
       case "image":
         return (
           <div className="space-y-4">
@@ -592,6 +557,73 @@ export function CreateServiceModal({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        );
+
+      case "database":
+        return (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={resetState}
+              className="flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <form onSubmit={handleDatabaseSubmit} className="space-y-3">
+              <Input
+                id="database_name"
+                name="database_name"
+                autoFocus
+                required
+                value={databaseName}
+                onChange={(e) => setDatabaseName(e.target.value)}
+                placeholder="app-db"
+                className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
+              />
+              <Select
+                value={databaseEngine}
+                onValueChange={(value: "postgres" | "mysql") =>
+                  setDatabaseEngine(value)
+                }
+              >
+                <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-neutral-700 bg-neutral-800">
+                  <SelectItem
+                    value="postgres"
+                    className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
+                  >
+                    PostgreSQL
+                  </SelectItem>
+                  <SelectItem
+                    value="mysql"
+                    className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
+                  >
+                    MySQL
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                type="submit"
+                disabled={
+                  createDatabaseMutation.isPending ||
+                  databaseName.trim().length === 0
+                }
+                size="sm"
+              >
+                {createDatabaseMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    Creating
+                  </>
+                ) : (
+                  "Create"
+                )}
+              </Button>
+            </form>
           </div>
         );
     }

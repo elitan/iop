@@ -485,6 +485,21 @@ export async function stopContainer(name: string): Promise<void> {
   }
 }
 
+export async function stopContainersByLabel(
+  labelName: string,
+  labelValue: string,
+): Promise<void> {
+  try {
+    const { stdout } = await execAsync(
+      `docker ps -aq --filter ${shellEscape(`label=${labelName}=${labelValue}`)} --filter status=running`,
+    );
+    const containerIds = stdout.trim().split(/\s+/).filter(Boolean);
+    for (const containerId of containerIds) {
+      await stopContainer(containerId);
+    }
+  } catch {}
+}
+
 export async function gracefulStopContainer(
   name: string,
   timeout: number = 30,
@@ -501,6 +516,10 @@ export async function gracefulStopContainer(
   } catch {
     // Container might already be removed
   }
+}
+
+export async function startContainer(name: string): Promise<void> {
+  await execAsync(`docker start ${shellEscape(name)}`);
 }
 
 export async function getContainerStatus(containerId: string): Promise<string> {
@@ -707,6 +726,52 @@ export async function removeNetwork(name: string): Promise<void> {
     await execAsync(`docker network rm ${shellEscape(name)}`);
   } catch {
     // Network might not exist or have containers attached
+  }
+}
+
+export async function connectContainerToNetwork(
+  containerName: string,
+  networkName: string,
+  aliases: string[] = [],
+): Promise<void> {
+  const args = ["network", "connect"];
+  for (const alias of aliases) {
+    args.push("--alias", alias);
+  }
+  args.push(networkName, containerName);
+  try {
+    await execAsync(`docker ${args.map(shellEscape).join(" ")}`);
+  } catch (err) {
+    if (
+      !(
+        err instanceof Error &&
+        (err.message.includes("already exists in network") ||
+          err.message.includes("is already connected to network"))
+      )
+    ) {
+      throw err;
+    }
+  }
+}
+
+export async function disconnectContainerFromNetwork(
+  containerName: string,
+  networkName: string,
+): Promise<void> {
+  try {
+    await execAsync(
+      `docker network disconnect ${shellEscape(networkName)} ${shellEscape(containerName)}`,
+    );
+  } catch (err) {
+    if (
+      !(
+        err instanceof Error &&
+        (err.message.includes("is not connected") ||
+          err.message.includes("No such container"))
+      )
+    ) {
+      throw err;
+    }
   }
 }
 

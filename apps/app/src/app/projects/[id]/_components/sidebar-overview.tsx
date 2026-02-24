@@ -25,7 +25,7 @@ import { buildConnectionString } from "@/lib/connection-strings";
 import { getCurrentDeployment } from "@/lib/deployment-utils";
 import { getPreferredDomain } from "@/lib/service-url";
 import { getTimeAgo } from "@/lib/time";
-import { ServiceMetricsCard } from "../services/[serviceId]/_components/service-metrics-card";
+import { RuntimeMetricsCard } from "./runtime-metrics-card";
 
 function getGitHubRepoFromUrl(url: string | null): string | null {
   if (!url) return null;
@@ -266,7 +266,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
         </CardContent>
       </Card>
 
-      <ServiceMetricsCard serviceId={service.id} />
+      <RuntimeMetricsCard runtimeServiceId={service.id} />
 
       {service.serviceType === "database" && currentDeployment && (
         <Card className="bg-neutral-800 border-neutral-700">

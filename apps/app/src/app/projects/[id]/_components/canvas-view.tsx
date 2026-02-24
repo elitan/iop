@@ -21,25 +21,52 @@ import {
   type CanvasPositions,
   useCanvasPositions,
 } from "@/hooks/use-canvas-positions";
+import { useDeleteDatabase } from "@/hooks/use-databases";
 import { useDeleteService } from "@/hooks/use-services";
 import type { Service } from "@/lib/api";
 import { CanvasControls } from "./canvas-controls";
+import type {
+  CanvasDatabase,
+  CanvasDatabaseAttachment,
+} from "./database-content";
+import {
+  DatabaseNode,
+  type DatabaseNodeData,
+  type DatabaseNodeType,
+} from "./database-node";
 import {
   ServiceNode,
   type ServiceNodeData,
   type ServiceNodeType,
 } from "./service-node";
 
+type CanvasResourceType = "service" | "database";
+
 interface ContextMenuState {
   x: number;
   y: number;
-  serviceId: string;
+  resourceType: CanvasResourceType;
+  resourceId: string;
 }
 
 const GRID_SIZE = 20;
 const NODE_WIDTH = 256;
 const NODE_HEIGHT = 100;
-const nodeTypes = { service: ServiceNode } as const;
+const DATABASE_NODE_PREFIX = "database:";
+const nodeTypes = { service: ServiceNode, database: DatabaseNode } as const;
+
+type CanvasNodeType = ServiceNodeType | DatabaseNodeType;
+
+function toDatabaseNodeId(databaseId: string): string {
+  return `${DATABASE_NODE_PREFIX}${databaseId}`;
+}
+
+function fromDatabaseNodeId(nodeId: string): string | null {
+  if (!nodeId.startsWith(DATABASE_NODE_PREFIX)) {
+    return null;
+  }
+  return nodeId.slice(DATABASE_NODE_PREFIX.length);
+}
 
 const ARROW_KEY_DELTAS: Record<string, [number, number]> = {
   ArrowUp: [0, -1],
@@ -70,11 +97,15 @@ interface CanvasViewProps {
   projectId: string;
   environmentId: string;
   services: Service[];
+  databases: CanvasDatabase[];
+  databaseAttachments: CanvasDatabaseAttachment[];
   initialPositions: CanvasPositions;
   domains: Record<string, string>;
   serverIp: string | null;
   selectedServiceId: string | null;
+  selectedDatabaseId: string | null;
   onSelectService: (serviceId: string | null) => void;
+  onSelectDatabase: (databaseId: string | null) => void;
   onOpenCreateModal: () => void;
 }
 
@@ -82,11 +113,15 @@ function CanvasViewInner({
   projectId,
   environmentId,
   services,
+  databases,
+  databaseAttachments,
   initialPositions,
   domains,
   serverIp,
   selectedServiceId,
+  selectedDatabaseId,
   onSelectService,
+  onSelectDatabase,
   onOpenCreateModal,
 }: CanvasViewProps) {
   const { updatePosition, getPosition } = useCanvasPositions(
@@ -94,32 +129,46 @@ function CanvasViewInner({
     initialPositions,
   );
   const { fitView, zoomIn, zoomOut, setViewport, getZoom } = useReactFlow();
-  const deleteMutation = useDeleteService(environmentId);
+  const deleteServiceMutation = useDeleteService(environmentId);
+  const deleteDatabaseMutation = useDeleteDatabase(projectId);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasMovedRef = useRef(false);
   const ignoreMoveRef = useRef(false);
   const paneClickRef = useRef(false);
   const prevSelectedRef = useRef<string | null>(null);
+  const selectedNodeId = selectedServiceId
+    ? selectedServiceId
+    : selectedDatabaseId
+      ? toDatabaseNodeId(selectedDatabaseId)
+      : null;
 
-  const [nodes, setNodes] = useState<ServiceNodeType[]>([]);
+  const [nodes, setNodes] = useState<CanvasNodeType[]>([]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [serviceToDeleteId, setServiceToDeleteId] = useState<string | null>(
-    null,
-  );
-  const savedServiceIdsRef = useRef<Set<string>>(
+  const [resourceToDelete, setResourceToDelete] = useState<{
+    type: CanvasResourceType;
+    id: string;
+  } | null>(null);
+  const savedNodeIdsRef = useRef<Set<string>>(
     new Set(Object.keys(initialPositions)),
   );
   const updatePositionRef = useRef(updatePosition);
   updatePositionRef.current = updatePosition;
 
   useEffect(() => {
-    const newServicePositions: Array<{
+    const newNodePositions: Array<{
       id: string;
       x: number;
       y: number;
     }> = [];
 
-    const newNodes = services.map((service) => {
+    const attachmentsByDatabaseId = new Map(
+      databaseAttachments.map((attachment) => [
+        attachment.databaseId,
+        attachment,
+      ]),
+    );
+
+    const serviceNodes = services.map((service) => {
       const pos = getPosition(service.id);
       const data: ServiceNodeData = {
         service,
@@ -128,9 +177,9 @@ function CanvasViewInner({
         isSelected: selectedServiceId === service.id,
       };
 
-      if (!savedServiceIdsRef.current.has(service.id)) {
-        newServicePositions.push({ id: service.id, x: pos.x, y: pos.y });
-        savedServiceIdsRef.current.add(service.id);
+      if (!savedNodeIdsRef.current.has(service.id)) {
+        newNodePositions.push({ id: service.id, x: pos.x, y: pos.y });
+        savedNodeIdsRef.current.add(service.id);
       }
 
       return {
@@ -141,23 +190,53 @@ function CanvasViewInner({
       };
     });
 
-    setNodes(newNodes);
+    const databaseNodes = databases.map((database) => {
+      const nodeId = toDatabaseNodeId(database.id);
+      const pos = getPosition(nodeId);
+      const data: DatabaseNodeData = {
+        database,
+        attachment: attachmentsByDatabaseId.get(database.id) ?? null,
+        isSelected: selectedDatabaseId === database.id,
+      };
 
-    if (newServicePositions.length > 0) {
+      if (!savedNodeIdsRef.current.has(nodeId)) {
+        newNodePositions.push({ id: nodeId, x: pos.x, y: pos.y });
+        savedNodeIdsRef.current.add(nodeId);
+      }
+
+      return {
+        id: nodeId,
+        type: "database" as const,
+        position: pos,
+        data,
+      };
+    });
+
+    setNodes([...serviceNodes, ...databaseNodes]);
+
+    if (newNodePositions.length > 0) {
       requestAnimationFrame(() => {
-        for (const { id, x, y } of newServicePositions) {
+        for (const { id, x, y } of newNodePositions) {
           updatePositionRef.current(id, x, y);
         }
       });
     }
-  }, [domains, serverIp, selectedServiceId, getPosition, services]);
+  }, [
+    databaseAttachments,
+    databases,
+    domains,
+    getPosition,
+    selectedDatabaseId,
+    selectedServiceId,
+    serverIp,
+    services,
+  ]);
 
   useEffect(() => {
     const wasSelected = prevSelectedRef.current !== null;
-    const isNowDeselected = selectedServiceId === null;
+    const isNowDeselected = selectedNodeId === null;
     const isNewSelection =
-      selectedServiceId !== null &&
-      prevSelectedRef.current !== selectedServiceId;
+      selectedNodeId !== null && prevSelectedRef.current !== selectedNodeId;
 
     if (wasSelected && isNowDeselected && !canvasMovedRef.current) {
       setTimeout(() => {
@@ -167,7 +246,7 @@ function CanvasViewInner({
     }
 
     if (isNewSelection) {
-      const node = nodes.find((n) => n.id === selectedServiceId);
+      const node = nodes.find((n) => n.id === selectedNodeId);
       const container = containerRef.current;
       if (node && container) {
         canvasMovedRef.current = false;
@@ -182,10 +261,10 @@ function CanvasViewInner({
       }
     }
 
-    prevSelectedRef.current = selectedServiceId;
-  }, [selectedServiceId, fitView, nodes, getZoom, setViewport]);
+    prevSelectedRef.current = selectedNodeId;
+  }, [fitView, getZoom, nodes, selectedNodeId, setViewport]);
 
-  function onNodesChange(changes: NodeChange<ServiceNodeType>[]): void {
+  function onNodesChange(changes: NodeChange<CanvasNodeType>[]): void {
     setNodes((nds) => applyNodeChanges(changes, nds));
   }
 
@@ -198,7 +277,7 @@ function CanvasViewInner({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
-      if (!selectedServiceId) return;
+      if (!selectedNodeId) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -212,7 +291,7 @@ function CanvasViewInner({
       const [dx, dy] = delta;
       setNodes((nds) =>
         nds.map((n) => {
-          if (n.id !== selectedServiceId) return n;
+          if (n.id !== selectedNodeId) return n;
           const newPos = {
             x: n.position.x + dx * GRID_SIZE,
             y: n.position.y + dy * GRID_SIZE,
@@ -225,9 +304,14 @@ function CanvasViewInner({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedServiceId, updatePosition]);
+  }, [selectedNodeId, updatePosition]);
 
   function onNodeClick(_: unknown, node: { id: string }): void {
+    const databaseId = fromDatabaseNodeId(node.id);
+    if (databaseId) {
+      onSelectDatabase(databaseId);
+      return;
+    }
     onSelectService(node.id);
   }
 
@@ -240,7 +324,7 @@ function CanvasViewInner({
       paneClickRef.current = false;
       return;
     }
-    if (selectedServiceId) {
+    if (selectedNodeId) {
       canvasMovedRef.current = true;
     }
   }
@@ -248,7 +332,11 @@ function CanvasViewInner({
   function onPaneClick(): void {
     paneClickRef.current = true;
     canvasMovedRef.current = false;
-    onSelectService(null);
+    if (selectedServiceId) {
+      onSelectService(null);
+    } else if (selectedDatabaseId) {
+      onSelectDatabase(null);
+    }
     setContextMenu(null);
   }
 
@@ -257,27 +345,61 @@ function CanvasViewInner({
     node: { id: string },
   ): void {
     event.preventDefault();
-    setContextMenu({ x: event.clientX, y: event.clientY, serviceId: node.id });
+
+    const databaseId = fromDatabaseNodeId(node.id);
+    if (databaseId) {
+      onSelectService(null);
+      onSelectDatabase(databaseId);
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        resourceType: "database",
+        resourceId: databaseId,
+      });
+      return;
+    }
+
+    onSelectDatabase(null);
+    onSelectService(node.id);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      resourceType: "service",
+      resourceId: node.id,
+    });
   }
 
-  function handleDeleteService(): void {
+  function handleDeleteResource(): void {
     if (!contextMenu) return;
-    setServiceToDeleteId(contextMenu.serviceId);
+    setResourceToDelete({
+      type: contextMenu.resourceType,
+      id: contextMenu.resourceId,
+    });
     setContextMenu(null);
   }
 
-  async function handleConfirmDeleteService(): Promise<void> {
-    if (!serviceToDeleteId) return;
+  async function handleConfirmDeleteResource(): Promise<void> {
+    if (!resourceToDelete) return;
 
     try {
-      await deleteMutation.mutateAsync(serviceToDeleteId);
-      toast.success("Service deleted");
-      if (selectedServiceId === serviceToDeleteId) {
-        onSelectService(null);
+      if (resourceToDelete.type === "service") {
+        await deleteServiceMutation.mutateAsync(resourceToDelete.id);
+        toast.success("Service deleted");
+        if (selectedServiceId === resourceToDelete.id) {
+          onSelectService(null);
+        }
+      } else {
+        await deleteDatabaseMutation.mutateAsync(resourceToDelete.id);
+        toast.success("Database deleted");
+        if (selectedDatabaseId === resourceToDelete.id) {
+          onSelectDatabase(null);
+        }
       }
-      setServiceToDeleteId(null);
+      setResourceToDelete(null);
     } catch {
-      toast.error("Failed to delete service");
+      toast.error(
+        `Failed to delete ${resourceToDelete.type === "service" ? "service" : "database"}`,
+      );
     }
   }
 
@@ -291,7 +413,7 @@ function CanvasViewInner({
     }
   }, [contextMenu]);
 
-  if (services.length === 0) {
+  if (services.length === 0 && databases.length === 0) {
     return (
       <div ref={containerRef} className="relative h-full w-full bg-neutral-950">
         <ReactFlow
@@ -365,26 +487,37 @@ function CanvasViewInner({
         >
           <button
             type="button"
-            onClick={handleDeleteService}
-            disabled={deleteMutation.isPending}
+            onClick={handleDeleteResource}
+            disabled={
+              deleteServiceMutation.isPending ||
+              deleteDatabaseMutation.isPending
+            }
             className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm text-red-400 hover:bg-neutral-700 disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
-            Delete Service
+            {contextMenu.resourceType === "service"
+              ? "Delete Service"
+              : "Delete Database"}
           </button>
         </div>
       )}
       <ConfirmDialog
-        open={serviceToDeleteId !== null}
+        open={resourceToDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setServiceToDeleteId(null);
+          if (!open) setResourceToDelete(null);
         }}
-        title="Delete service"
+        title={
+          resourceToDelete
+            ? `Delete ${resourceToDelete.type}`
+            : "Delete resource"
+        }
         description="This cannot be undone."
         confirmLabel="Delete"
         variant="destructive"
-        loading={deleteMutation.isPending}
-        onConfirm={handleConfirmDeleteService}
+        loading={
+          deleteServiceMutation.isPending || deleteDatabaseMutation.isPending
+        }
+        onConfirm={handleConfirmDeleteResource}
       />
     </div>
   );

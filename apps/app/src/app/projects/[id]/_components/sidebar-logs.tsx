@@ -1,9 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Circle } from "lucide-react";
 import { useState } from "react";
-import { LogViewer } from "@/components/log-viewer";
 import {
   Select,
   SelectContent,
@@ -14,7 +12,7 @@ import {
 import { useRuntimeLogs } from "@/hooks/use-runtime-logs";
 import type { Service } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
-import { cn } from "@/lib/utils";
+import { RuntimeLogsPanel } from "./runtime-logs-panel";
 
 interface SidebarLogsProps {
   service: Service;
@@ -43,40 +41,29 @@ function RuntimeLogsContent({
   });
 
   const showFilter = replicaCount > 1 && replicas && replicas.length > 1;
+  const headerSuffix = showFilter ? (
+    <Select value={selectedReplica} onValueChange={setSelectedReplica}>
+      <SelectTrigger className="h-7 w-36 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All replicas</SelectItem>
+        {replicas.map((r) => (
+          <SelectItem key={r.replicaIndex} value={String(r.replicaIndex)}>
+            Replica {r.replicaIndex}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ) : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex items-center gap-2">
-        <Circle
-          className={cn(
-            "h-2 w-2",
-            isConnected
-              ? "fill-green-500 text-green-500"
-              : "fill-neutral-500 text-neutral-500",
-          )}
-        />
-        <span className="text-xs text-neutral-500">
-          {isConnected ? "Live" : "Reconnecting..."}
-        </span>
-        {showFilter && (
-          <Select value={selectedReplica} onValueChange={setSelectedReplica}>
-            <SelectTrigger className="ml-auto h-7 w-36 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All replicas</SelectItem>
-              {replicas.map((r) => (
-                <SelectItem key={r.replicaIndex} value={String(r.replicaIndex)}>
-                  Replica {r.replicaIndex}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      <LogViewer logs={logs} error={error} emptyMessage="Waiting for logs..." />
-    </div>
+    <RuntimeLogsPanel
+      logs={logs}
+      isConnected={isConnected}
+      error={error}
+      headerSuffix={headerSuffix}
+    />
   );
 }
 
