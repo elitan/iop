@@ -144,7 +144,8 @@ export const projects = {
     await assertDemoProjectCreateAllowed();
 
     let template: ReturnType<typeof getTemplate> | null = null;
-    let resolvedTemplateServices: ReturnType<typeof resolveTemplateServices> = [];
+    let resolvedTemplateServices: ReturnType<typeof resolveTemplateServices> =
+      [];
 
     if (input.templateId) {
       template = getTemplate(input.templateId);
@@ -213,7 +214,10 @@ export const projects = {
     }
 
     if (template) {
-      await assertDemoServiceCreateAllowed(envId, resolvedTemplateServices.length);
+      await assertDemoServiceCreateAllowed(
+        envId,
+        resolvedTemplateServices.length,
+      );
 
       for (const svc of resolvedTemplateServices) {
         const serviceHostname = slugify(svc.name);

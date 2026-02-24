@@ -3,8 +3,10 @@ import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/header";
 
-const title = "Frost - Open Source Alternative to Vercel, Netlify, Railway and Render.";
-const description = "Open Source Alternative to Vercel, Netlify, Railway and Render.";
+const title =
+  "Frost - Open Source Alternative to Vercel, Netlify, Railway and Render.";
+const description =
+  "Open Source Alternative to Vercel, Netlify, Railway and Render.";
 const url = "https://frost.build";
 
 export const metadata: Metadata = {

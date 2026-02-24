@@ -24,6 +24,8 @@
       "!**/node_modules",
       "!**/data",
       "!**/repos",
+      "!**/velo-source",
+      "!**/neon-source",
       "!**/*.css",
       "!**/db-types.ts",
       "!**/openapi.json"
