@@ -40,9 +40,9 @@ ATTACHED_TARGET_ID=$(json_get "$ATTACHMENTS" '.[] | select(.databaseId == "'"$DB
 log "Environment attached to main target"
 
 PROVIDER_REF_JSON=$(json_get "$DB_CREATE" '.target.providerRefJson')
-POSTGRES_USER=$(echo "$PROVIDER_REF_JSON" | jq -r 'fromjson.username')
-POSTGRES_PASSWORD=$(echo "$PROVIDER_REF_JSON" | jq -r 'fromjson.password')
-POSTGRES_DB=$(echo "$PROVIDER_REF_JSON" | jq -r 'fromjson.database')
+POSTGRES_USER=$(echo "$PROVIDER_REF_JSON" | jq -r '(try fromjson catch .).username // empty')
+POSTGRES_PASSWORD=$(echo "$PROVIDER_REF_JSON" | jq -r '(try fromjson catch .).password // empty')
+POSTGRES_DB=$(echo "$PROVIDER_REF_JSON" | jq -r '(try fromjson catch .).database // empty')
 [ -z "$POSTGRES_USER" ] && fail "username missing"
 [ -z "$POSTGRES_PASSWORD" ] && fail "password missing"
 [ -z "$POSTGRES_DB" ] && fail "database missing"

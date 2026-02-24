@@ -68,8 +68,9 @@ done
 log "v1 status: $V1_STATUS"
 
 if [ -n "$CONTAINER1_ID" ] && [ "$CONTAINER1_ID" != "null" ]; then
-  CONTAINER1_RUNNING=$(remote "docker inspect $CONTAINER1_ID --format '{{.State.Running}}' 2>/dev/null || echo 'missing'" 2>&1)
-  [ "$CONTAINER1_RUNNING" = "false" ] || [ "$CONTAINER1_RUNNING" = "missing" ] || fail "v1 container still running: $CONTAINER1_RUNNING"
+  CONTAINER1_RUNNING=$(remote "docker inspect $CONTAINER1_ID --format '{{.State.Running}}' 2>/dev/null || echo missing" 2>&1)
+  CONTAINER1_RUNNING=$(echo "$CONTAINER1_RUNNING" | tr -d '\r\n[:space:]')
+  [ -z "$CONTAINER1_RUNNING" ] || [ "$CONTAINER1_RUNNING" = "false" ] || [ "$CONTAINER1_RUNNING" = "missing" ] || fail "v1 container still running: $CONTAINER1_RUNNING"
   log "v1 container stopped"
 fi
 

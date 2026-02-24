@@ -17,6 +17,7 @@ import {
   createNetwork,
   disconnectContainerFromNetwork,
   getAvailablePort,
+  isPortConflictError,
   runContainer,
   startContainer,
   stopContainer,
@@ -310,7 +311,6 @@ async function createTargetRuntime(input: {
 }): Promise<ProviderRef> {
   const image = getDefaultImage(input.engine);
   const port = getDefaultPort(input.engine);
-  const hostPort = await getAvailablePort(10000, 20000);
   const username = input.templateRef?.username ?? "frost";
   const password = input.templateRef?.password ?? randomSecret();
   const database =
@@ -325,6 +325,7 @@ async function createTargetRuntime(input: {
   const memoryLimit =
     input.memoryLimit ?? input.templateRef?.memoryLimit ?? null;
   const cpuLimit = input.cpuLimit ?? input.templateRef?.cpuLimit ?? null;
+  const triedPorts = new Set<number>();
 
   await stopContainer(containerName);
 
@@ -344,64 +345,80 @@ async function createTargetRuntime(input: {
     };
   }
 
-  const runResult = await runContainer({
-    imageName: image,
-    hostPort,
-    containerPort: port,
-    name: containerName,
-    envVars,
-    memoryLimit: memoryLimit ?? undefined,
-    cpuLimit: cpuLimit ?? undefined,
-    labels: {
-      "frost.managed": "true",
-      "frost.service.id": input.runtimeServiceId,
-      "frost.database.id": input.databaseId,
-      "frost.database.target": input.targetName,
-    },
-  });
+  let lastPortConflictError = "";
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const hostPort = await getAvailablePort(10000, 20000, triedPorts);
+    triedPorts.add(hostPort);
+    const runResult = await runContainer({
+      imageName: image,
+      hostPort,
+      containerPort: port,
+      name: containerName,
+      envVars,
+      memoryLimit: memoryLimit ?? undefined,
+      cpuLimit: cpuLimit ?? undefined,
+      labels: {
+        "frost.managed": "true",
+        "frost.service.id": input.runtimeServiceId,
+        "frost.database.id": input.databaseId,
+        "frost.database.target": input.targetName,
+      },
+    });
 
-  if (!runResult.success) {
-    throw new Error(runResult.error || "Failed to start database target");
-  }
-
-  const ready = await waitForHealthy({
-    containerId: runResult.containerId,
-    port: hostPort,
-    timeoutSeconds: 90,
-  });
-
-  if (!ready) {
-    await stopContainer(containerName);
-    throw new Error("Database target failed health check");
-  }
-
-  const providerRef: ProviderRef = {
-    containerName,
-    hostPort,
-    username,
-    password,
-    database,
-    ssl: false,
-    image,
-    port,
-    memoryLimit,
-    cpuLimit,
-  };
-
-  if (
-    input.engine === "postgres" &&
-    input.cloneFromSource &&
-    input.sourceRef !== undefined
-  ) {
-    try {
-      await runPostgresClone(input.sourceRef, providerRef);
-    } catch (error) {
-      await stopContainer(containerName);
-      throw error;
+    if (!runResult.success) {
+      const errorMessage =
+        runResult.error || "Failed to start database target container";
+      if (isPortConflictError(errorMessage)) {
+        lastPortConflictError = errorMessage;
+        await stopContainer(containerName);
+        continue;
+      }
+      throw new Error(errorMessage);
     }
+
+    const ready = await waitForHealthy({
+      containerId: runResult.containerId,
+      port: hostPort,
+      timeoutSeconds: 90,
+    });
+    if (!ready) {
+      await stopContainer(containerName);
+      throw new Error("Database target failed health check");
+    }
+
+    const providerRef: ProviderRef = {
+      containerName,
+      hostPort,
+      username,
+      password,
+      database,
+      ssl: false,
+      image,
+      port,
+      memoryLimit,
+      cpuLimit,
+    };
+
+    if (
+      input.engine === "postgres" &&
+      input.cloneFromSource &&
+      input.sourceRef !== undefined
+    ) {
+      try {
+        await runPostgresClone(input.sourceRef, providerRef);
+      } catch (error) {
+        await stopContainer(containerName);
+        throw error;
+      }
+    }
+
+    return providerRef;
   }
 
-  return providerRef;
+  throw new Error(
+    lastPortConflictError ||
+      "Failed to start database target after port retries",
+  );
 }
 
 async function resolveDatabaseWithTargetById(
