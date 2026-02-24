@@ -793,6 +793,7 @@ export function DatabaseSidebar({
 
   async function handleSaveBranchSettings(input: {
     name?: string;
+    hostname?: string;
     memoryLimit?: string;
     cpuLimit?: number;
   }) {

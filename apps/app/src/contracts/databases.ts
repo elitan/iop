@@ -20,6 +20,7 @@ export const databaseTargetSchema = z.object({
   id: z.string(),
   databaseId: z.string(),
   name: z.string(),
+  hostname: z.string(),
   kind: databaseTargetKindSchema,
   sourceTargetId: z.string().nullable(),
   runtimeServiceId: z.string(),
@@ -55,6 +56,7 @@ const databaseTargetDeploymentSchema = z.object({
 const databaseTargetRuntimeSchema = z.object({
   targetId: z.string(),
   name: z.string(),
+  hostname: z.string(),
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
   containerName: z.string(),
@@ -176,6 +178,10 @@ export const databasesContract = {
       z.object({
         targetId: z.string(),
         name: z.string().min(1).optional(),
+        hostname: z
+          .string()
+          .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
+          .optional(),
         lifecycleStatus: z.enum(["active", "stopped"]).optional(),
         memoryLimit: z
           .string()

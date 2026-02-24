@@ -69,6 +69,7 @@ export interface DatabaseWithTarget {
 export interface DatabaseTargetRuntimeInfo {
   targetId: string;
   name: string;
+  hostname: string;
   runtimeServiceId: string;
   lifecycleStatus: DatabaseTargetLifecycle;
   containerName: string;
@@ -122,6 +123,10 @@ export function assertDatabaseName(name: string): void {
 
 export function assertTargetName(name: string): void {
   assertName(name, TARGET_NAME_PATTERN, "Target name");
+}
+
+export function assertTargetHostname(name: string): void {
+  assertName(name, TARGET_NAME_PATTERN, "Hostname");
 }
 
 function assertMemoryLimit(value: string): void {
@@ -485,12 +490,12 @@ function getBaseAliases(databaseName: string): string[] {
 
 function getTargetAliases(input: {
   databaseName: string;
-  targetName: string;
+  targetHostname: string;
   includeBaseAliases: boolean;
 }): string[] {
   const branchAlias = getDatabaseBranchAlias(
     input.databaseName,
-    input.targetName,
+    input.targetHostname,
   );
   const aliases = [branchAlias, `${branchAlias}.frost.internal`];
   if (input.includeBaseAliases) {
@@ -547,7 +552,7 @@ async function ensurePostgresDatabaseNetworkAttachment(input: {
       networkName,
       getTargetAliases({
         databaseName: input.database.name,
-        targetName: target.name,
+        targetHostname: target.hostname,
         includeBaseAliases: target.id === input.defaultTargetId,
       }),
     );
@@ -649,6 +654,7 @@ export async function createDatabase(input: {
         id: targetId,
         databaseId,
         name: "main",
+        hostname: "main",
         kind,
         sourceTargetId: null,
         runtimeServiceId,
@@ -751,6 +757,7 @@ export async function createDatabaseTarget(input: {
       id: targetId,
       databaseId: database.id,
       name: input.name,
+      hostname: input.name,
       kind: getTargetKind(database.engine as DatabaseEngine),
       sourceTargetId: sourceTarget?.id ?? null,
       runtimeServiceId,
@@ -1318,6 +1325,7 @@ export async function getDatabaseTargetRuntime(
   return {
     targetId: target.id,
     name: target.name,
+    hostname: target.hostname,
     runtimeServiceId: target.runtimeServiceId,
     lifecycleStatus: target.lifecycleStatus as DatabaseTargetLifecycle,
     containerName: providerRef.containerName,
@@ -1333,40 +1341,68 @@ export async function getDatabaseTargetRuntime(
 export async function patchDatabaseTargetRuntimeSettings(input: {
   targetId: string;
   name?: string;
+  hostname?: string;
   lifecycleStatus?: "active" | "stopped";
   memoryLimit?: string | null;
   cpuLimit?: number | null;
 }): Promise<DatabaseTargetRuntimeInfo> {
   const target = await getTargetById(input.targetId);
-  let nameChanged = false;
+  let nextName = target.name;
+  let nextHostname = target.hostname;
 
   if (input.name !== undefined) {
-    const nextName = input.name.trim();
-    assertTargetName(nextName);
-
+    const trimmedName = input.name.trim();
+    assertTargetName(trimmedName);
     if (target.name === "main") {
       throw new Error("main cannot be renamed");
     }
+    nextName = trimmedName;
+  }
 
-    if (nextName !== target.name) {
-      const existing = await db
-        .selectFrom("databaseTargets")
-        .select("id")
-        .where("databaseId", "=", target.databaseId)
-        .where("name", "=", nextName)
-        .executeTakeFirst();
+  if (input.hostname !== undefined) {
+    const trimmedHostname = input.hostname.trim();
+    assertTargetHostname(trimmedHostname);
+    nextHostname = trimmedHostname;
+  } else if (nextName !== target.name && target.hostname === target.name) {
+    nextHostname = nextName;
+  }
 
-      if (existing) {
-        throw new Error("Target with this name already exists");
-      }
+  const nameChanged = nextName !== target.name;
+  const hostnameChanged = nextHostname !== target.hostname;
 
-      await db
-        .updateTable("databaseTargets")
-        .set({ name: nextName })
-        .where("id", "=", target.id)
-        .execute();
-      nameChanged = true;
+  if (nameChanged) {
+    const existingName = await db
+      .selectFrom("databaseTargets")
+      .select("id")
+      .where("databaseId", "=", target.databaseId)
+      .where("name", "=", nextName)
+      .executeTakeFirst();
+    if (existingName) {
+      throw new Error("Target with this name already exists");
     }
+  }
+
+  if (hostnameChanged) {
+    const existingHostname = await db
+      .selectFrom("databaseTargets")
+      .select("id")
+      .where("databaseId", "=", target.databaseId)
+      .where("hostname", "=", nextHostname)
+      .executeTakeFirst();
+    if (existingHostname) {
+      throw new Error("Target with this hostname already exists");
+    }
+  }
+
+  if (nameChanged || hostnameChanged) {
+    await db
+      .updateTable("databaseTargets")
+      .set({
+        name: nextName,
+        hostname: nextHostname,
+      })
+      .where("id", "=", target.id)
+      .execute();
   }
 
   if (input.memoryLimit === null || input.cpuLimit === null) {
@@ -1417,7 +1453,7 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
     });
   }
 
-  if (nameChanged) {
+  if (nameChanged || hostnameChanged) {
     const database = await getDatabaseById(target.databaseId);
     if (database.engine === "postgres") {
       await reconnectPostgresDatabaseAttachments(database);

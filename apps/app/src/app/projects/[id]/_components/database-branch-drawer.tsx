@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Copy, Loader2, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -13,11 +14,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
   useDatabaseTargetDeployments,
   useDatabaseTargetRuntime,
 } from "@/hooks/use-databases";
+import { api } from "@/lib/api";
 import { getDatabaseBranchInternalHost } from "@/lib/database-hostname";
 import { getTimeAgo } from "@/lib/time";
 import { RuntimeLogsPanel } from "./runtime-logs-panel";
@@ -42,12 +51,11 @@ interface Branch {
 }
 
 type BranchDrawerTab = "overview" | "deployments" | "logs" | "settings";
-type BranchSettingsTab = "general" | "runtime" | "danger";
+type BranchSettingsTab = "general" | "runtime";
 
 const BRANCH_SETTINGS_NAV_ITEMS: { id: BranchSettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "runtime", label: "Runtime" },
-  { id: "danger", label: "Danger" },
 ];
 
 interface DatabaseBranchDrawerProps {
@@ -67,6 +75,7 @@ interface DatabaseBranchDrawerProps {
   onSetAsDefaultInEnvironment: () => Promise<void>;
   onSaveSettings: (input: {
     name?: string;
+    hostname?: string;
     memoryLimit?: string;
     cpuLimit?: number;
   }) => Promise<void>;
@@ -101,7 +110,30 @@ function copyToClipboard(value: string) {
   toast.success("Copied to clipboard");
 }
 
-const MEMORY_LIMIT_PATTERN = /^\d+[kmg]$/i;
+const CPU_OPTIONS = [
+  { value: "none", label: "No limit" },
+  { value: "0.25", label: "0.25 vCPU", minCpus: 1 },
+  { value: "0.5", label: "0.5 vCPU", minCpus: 1 },
+  { value: "1", label: "1 vCPU", minCpus: 1 },
+  { value: "2", label: "2 vCPU", minCpus: 2 },
+  { value: "4", label: "4 vCPU", minCpus: 4 },
+  { value: "8", label: "8 vCPU", minCpus: 8 },
+  { value: "16", label: "16 vCPU", minCpus: 16 },
+  { value: "32", label: "32 vCPU", minCpus: 32 },
+];
+
+const MEMORY_OPTIONS = [
+  { value: "none", label: "No limit" },
+  { value: "256m", label: "256 MB", minGB: 1 },
+  { value: "512m", label: "512 MB", minGB: 1 },
+  { value: "1g", label: "1 GB", minGB: 2 },
+  { value: "2g", label: "2 GB", minGB: 3 },
+  { value: "4g", label: "4 GB", minGB: 5 },
+  { value: "8g", label: "8 GB", minGB: 9 },
+  { value: "16g", label: "16 GB", minGB: 17 },
+  { value: "32g", label: "32 GB", minGB: 33 },
+  { value: "64g", label: "64 GB", minGB: 65 },
+];
 
 export function DatabaseBranchDrawer({
   isOpen,
@@ -131,8 +163,9 @@ export function DatabaseBranchDrawer({
     useState<BranchSettingsTab>("general");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [draftBranchName, setDraftBranchName] = useState("");
+  const [draftHostname, setDraftHostname] = useState("");
   const [draftMemoryLimit, setDraftMemoryLimit] = useState("");
-  const [draftCpuLimit, setDraftCpuLimit] = useState("");
+  const [draftCpuLimit, setDraftCpuLimit] = useState("none");
 
   const { logs, isConnected, error } = useDatabaseTargetLogs({
     targetId: branch?.id ?? "",
@@ -141,6 +174,10 @@ export function DatabaseBranchDrawer({
     branch?.id ?? "",
   );
   const { data: runtime } = useDatabaseTargetRuntime(branch?.id ?? "");
+  const { data: hostResources } = useQuery({
+    queryKey: ["hostResources"],
+    queryFn: () => api.health.hostResources(),
+  });
 
   useEffect(
     function resetTabOnBranchChange() {
@@ -151,6 +188,7 @@ export function DatabaseBranchDrawer({
       setActiveSettingsTab("general");
       setDeleteDialogOpen(false);
       setDraftBranchName(branch.name);
+      setDraftHostname(branch.name);
     },
     [branch?.id, branch],
   );
@@ -159,15 +197,17 @@ export function DatabaseBranchDrawer({
     function syncRuntimeSettingsDraft() {
       if (!runtime) {
         setDraftMemoryLimit("");
-        setDraftCpuLimit("");
+        setDraftCpuLimit("none");
+        setDraftHostname(branch?.name ?? "");
         return;
       }
-      setDraftMemoryLimit(runtime.memoryLimit ?? "");
+      setDraftMemoryLimit(runtime.memoryLimit ?? "none");
       setDraftCpuLimit(
-        runtime.cpuLimit !== null ? String(runtime.cpuLimit) : "",
+        runtime.cpuLimit !== null ? String(runtime.cpuLimit) : "none",
       );
+      setDraftHostname(runtime.hostname);
     },
-    [runtime],
+    [runtime, branch?.name],
   );
 
   const internalConnectionString = useMemo(
@@ -184,13 +224,23 @@ export function DatabaseBranchDrawer({
         engine,
         host:
           engine === "postgres"
-            ? getDatabaseBranchInternalHost(databaseName, branch.name)
+            ? getDatabaseBranchInternalHost(
+                databaseName,
+                runtime?.hostname ?? branch.name,
+              )
             : `${databaseName}.frost.internal`,
         port: engine === "postgres" ? 5432 : 3306,
         providerRef,
       });
     },
-    [branch, databaseName, engine, isDefaultInCurrentEnvironment, providerRef],
+    [
+      branch,
+      databaseName,
+      engine,
+      isDefaultInCurrentEnvironment,
+      providerRef,
+      runtime?.hostname,
+    ],
   );
 
   const directConnectionString = useMemo(
@@ -219,21 +269,29 @@ export function DatabaseBranchDrawer({
     branch !== null &&
     nextBranchName.length > 0 &&
     nextBranchName !== branch.name;
-  const nextCpuLimit =
-    draftCpuLimit.trim().length === 0 ? null : Number(draftCpuLimit);
-  const cpuLimitValid =
-    nextCpuLimit !== null &&
-    Number.isFinite(nextCpuLimit) &&
-    nextCpuLimit >= 0.1 &&
-    nextCpuLimit <= 64;
-  const memoryLimitValid = MEMORY_LIMIT_PATTERN.test(draftMemoryLimit.trim());
+  const nextHostname = draftHostname.trim();
+  const hostnamePattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+  const canSaveHostname =
+    runtime !== undefined &&
+    nextHostname.length > 0 &&
+    hostnamePattern.test(nextHostname) &&
+    nextHostname !== runtime.hostname;
+  const nextCpuLimit = draftCpuLimit === "none" ? null : Number(draftCpuLimit);
+  const nextMemoryLimit = draftMemoryLimit === "none" ? null : draftMemoryLimit;
   const hasRuntime = runtime !== undefined;
   const cpuLimitChanged = hasRuntime && nextCpuLimit !== runtime.cpuLimit;
   const memoryLimitChanged =
-    hasRuntime && draftMemoryLimit.trim() !== (runtime.memoryLimit ?? "");
-  const canSaveCpuLimit = hasRuntime && cpuLimitValid && cpuLimitChanged;
+    hasRuntime && nextMemoryLimit !== runtime.memoryLimit;
+  const canSaveCpuLimit =
+    hasRuntime && nextCpuLimit !== null && cpuLimitChanged;
   const canSaveMemoryLimit =
-    hasRuntime && memoryLimitValid && memoryLimitChanged;
+    hasRuntime && nextMemoryLimit !== null && memoryLimitChanged;
+  const filteredCpuOptions = CPU_OPTIONS.filter(
+    (opt) => !opt.minCpus || (hostResources?.cpus ?? 0) >= opt.minCpus,
+  );
+  const filteredMemoryOptions = MEMORY_OPTIONS.filter(
+    (opt) => !opt.minGB || (hostResources?.totalMemoryGB ?? 0) >= opt.minGB,
+  );
   const isAnyOverviewActionPending =
     isStartPending || isResetPending || isSetAsDefaultInEnvironmentPending;
   const showOverviewActions =
@@ -575,51 +633,159 @@ export function DatabaseBranchDrawer({
 
                     <div className="flex-1 space-y-4">
                       {activeSettingsTab === "general" && (
-                        <SettingCard
-                          title={`${runtimeUnitCapitalized} Name`}
-                          description={`Rename this ${runtimeUnit}`}
-                          footerRight={
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                await onSaveSettings({ name: nextBranchName });
-                                toast.success(
-                                  `${runtimeUnitCapitalized} renamed`,
-                                );
-                              }}
-                              disabled={
-                                !canRename ||
-                                !canSaveBranchName ||
-                                isSaveSettingsPending
-                              }
-                            >
-                              {isSaveSettingsPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "Save"
+                        <>
+                          <SettingCard
+                            title={`${runtimeUnitCapitalized} Name`}
+                            description={`Rename this ${runtimeUnit}`}
+                            footerRight={
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  await onSaveSettings({
+                                    name: nextBranchName,
+                                  });
+                                  toast.success(
+                                    `${runtimeUnitCapitalized} renamed`,
+                                  );
+                                }}
+                                disabled={
+                                  !canRename ||
+                                  !canSaveBranchName ||
+                                  isSaveSettingsPending
+                                }
+                              >
+                                {isSaveSettingsPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Save"
+                                )}
+                              </Button>
+                            }
+                          >
+                            <div className="space-y-2">
+                              <Input
+                                id="branch-name"
+                                aria-label="Branch name"
+                                value={draftBranchName}
+                                onChange={(event) =>
+                                  setDraftBranchName(event.target.value)
+                                }
+                                placeholder="Branch name"
+                                className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                                disabled={isSaveSettingsPending}
+                              />
+                              {!canRename && (
+                                <div className="text-xs text-neutral-500">
+                                  main cannot be renamed.
+                                </div>
                               )}
-                            </Button>
-                          }
-                        >
-                          <div className="space-y-2">
-                            <Input
-                              id="branch-name"
-                              aria-label="Branch name"
-                              value={draftBranchName}
-                              onChange={(event) =>
-                                setDraftBranchName(event.target.value)
-                              }
-                              placeholder="Branch name"
-                              className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                              disabled={isSaveSettingsPending}
-                            />
-                            {!canRename && (
-                              <div className="text-xs text-neutral-500">
-                                main cannot be renamed.
+                            </div>
+                          </SettingCard>
+
+                          <SettingCard
+                            title="Hostname"
+                            description="DNS-safe identifier for this branch in the project network."
+                            footerRight={
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  await onSaveSettings({
+                                    hostname: nextHostname,
+                                  });
+                                  toast.success(
+                                    `${runtimeUnitCapitalized} hostname saved`,
+                                  );
+                                }}
+                                disabled={
+                                  !canSaveHostname || isSaveSettingsPending
+                                }
+                              >
+                                {isSaveSettingsPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Save"
+                                )}
+                              </Button>
+                            }
+                          >
+                            <div className="space-y-4">
+                              <div className="flex items-center rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 focus-within:ring-1 focus-within:ring-neutral-500">
+                                <div className="inline-flex items-center font-mono text-sm">
+                                  <input
+                                    value={draftHostname}
+                                    onChange={(event) =>
+                                      setDraftHostname(
+                                        event.target.value.toLowerCase(),
+                                      )
+                                    }
+                                    placeholder="<hostname>"
+                                    size={
+                                      Math.max(draftHostname.length, 10) + 1
+                                    }
+                                    className="border-b border-dashed border-neutral-600 bg-transparent text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-400 focus:outline-none"
+                                  />
+                                  <span className="text-neutral-500">
+                                    .frost.internal
+                                  </span>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        </SettingCard>
+                              <div className="flex items-center gap-2">
+                                <code className="font-mono text-sm text-neutral-500">
+                                  {draftHostname || "<hostname>"}
+                                  .frost.internal
+                                </code>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-neutral-500 hover:text-neutral-300"
+                                  onClick={() =>
+                                    copyToClipboard(
+                                      `${draftHostname}.frost.internal`,
+                                    )
+                                  }
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                              {nextHostname.length > 0 &&
+                                !hostnamePattern.test(nextHostname) && (
+                                  <div className="text-xs text-neutral-500">
+                                    Use lowercase letters, numbers, and hyphens.
+                                  </div>
+                                )}
+                            </div>
+                          </SettingCard>
+
+                          <SettingCard
+                            title="Delete Branch"
+                            description={
+                              canDelete
+                                ? `Permanently delete this ${runtimeUnit}`
+                                : "Main cannot be deleted."
+                            }
+                            variant="danger"
+                            footerRight={
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setDeleteDialogOpen(true)}
+                                disabled={!canDelete || isDeletePending}
+                              >
+                                {isDeletePending ? (
+                                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="mr-1 h-4 w-4" />
+                                )}
+                                Delete {runtimeUnitCapitalized}
+                              </Button>
+                            }
+                          >
+                            <div className="text-sm text-neutral-400">
+                              This action cannot be undone.
+                            </div>
+                          </SettingCard>
+                        </>
                       )}
 
                       {activeSettingsTab === "runtime" && (
@@ -633,9 +799,6 @@ export function DatabaseBranchDrawer({
                               <Button
                                 size="sm"
                                 onClick={async () => {
-                                  if (!cpuLimitValid) {
-                                    return;
-                                  }
                                   await onSaveSettings({
                                     cpuLimit: nextCpuLimit ?? undefined,
                                   });
@@ -655,24 +818,24 @@ export function DatabaseBranchDrawer({
                               </Button>
                             }
                           >
-                            <div className="space-y-2">
-                              <Input
-                                id="branch-cpu-limit"
-                                aria-label="CPU limit"
-                                value={draftCpuLimit}
-                                onChange={(event) =>
-                                  setDraftCpuLimit(event.target.value)
-                                }
-                                placeholder="1"
-                                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                                disabled={isSaveSettingsPending}
-                              />
-                              {!cpuLimitValid && (
-                                <div className="text-xs text-neutral-500">
-                                  Enter a number between 0.1 and 64.
-                                </div>
-                              )}
-                            </div>
+                            <Select
+                              value={draftCpuLimit}
+                              onValueChange={setDraftCpuLimit}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredCpuOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </SettingCard>
 
                           <SettingCard
@@ -684,11 +847,8 @@ export function DatabaseBranchDrawer({
                               <Button
                                 size="sm"
                                 onClick={async () => {
-                                  if (!memoryLimitValid) {
-                                    return;
-                                  }
                                   await onSaveSettings({
-                                    memoryLimit: draftMemoryLimit.trim(),
+                                    memoryLimit: nextMemoryLimit ?? undefined,
                                   });
                                   toast.success(
                                     `${runtimeUnitCapitalized} memory limit saved`,
@@ -706,60 +866,26 @@ export function DatabaseBranchDrawer({
                               </Button>
                             }
                           >
-                            <div className="space-y-2">
-                              <Input
-                                id="branch-memory-limit"
-                                aria-label="Memory limit"
-                                value={draftMemoryLimit}
-                                onChange={(event) =>
-                                  setDraftMemoryLimit(event.target.value)
-                                }
-                                placeholder="512m"
-                                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                                disabled={isSaveSettingsPending}
-                              />
-                              {!memoryLimitValid && (
-                                <div className="text-xs text-neutral-500">
-                                  Use values like 512m or 1g.
-                                </div>
-                              )}
-                            </div>
+                            <Select
+                              value={draftMemoryLimit}
+                              onValueChange={setDraftMemoryLimit}
+                            >
+                              <SelectTrigger className="w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredMemoryOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </SettingCard>
                         </>
-                      )}
-
-                      {activeSettingsTab === "danger" && (
-                        <SettingCard
-                          title="Danger zone"
-                          description={`Irreversible actions for this ${runtimeUnit}.`}
-                          variant="danger"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-neutral-300">
-                                Delete {runtimeUnitCapitalized}
-                              </p>
-                              <p className="text-xs text-neutral-500">
-                                {canDelete
-                                  ? `Permanently delete this ${runtimeUnit}`
-                                  : "Main cannot be deleted."}
-                              </p>
-                            </div>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setDeleteDialogOpen(true)}
-                              disabled={!canDelete || isDeletePending}
-                            >
-                              {isDeletePending ? (
-                                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="mr-1 h-4 w-4" />
-                              )}
-                              Delete {runtimeUnitCapitalized}
-                            </Button>
-                          </div>
-                        </SettingCard>
                       )}
                     </div>
                   </div>

@@ -55,6 +55,7 @@ export interface DatabaseTargets {
   providerRefJson: Generated<string>;
   createdAt: number;
   runtimeServiceId: Generated<string>;
+  hostname: Generated<string>;
 }
 
 export interface Databases {
