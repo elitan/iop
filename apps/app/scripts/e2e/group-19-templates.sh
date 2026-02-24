@@ -86,9 +86,9 @@ DB_TARGET_ID=$(require_field "$DB_CREATE" '.target.id' "create postgres target")
 
 log "Extracting postgres credentials..."
 PROVIDER_REF=$(json_get "$DB_CREATE" '.target.providerRefJson')
-PG_USER=$(echo "$PROVIDER_REF" | jq -r '(try fromjson catch .).username // empty')
-PG_PASS=$(echo "$PROVIDER_REF" | jq -r '(try fromjson catch .).password // empty')
-PG_DB=$(echo "$PROVIDER_REF" | jq -r '(try fromjson catch .).database // empty')
+PG_USER=$(echo "$PROVIDER_REF" | jq -r 'def decode: if type=="string" then (try (fromjson | decode) catch .) else . end; (decode.username // empty)')
+PG_PASS=$(echo "$PROVIDER_REF" | jq -r 'def decode: if type=="string" then (try (fromjson | decode) catch .) else . end; (decode.password // empty)')
+PG_DB=$(echo "$PROVIDER_REF" | jq -r 'def decode: if type=="string" then (try (fromjson | decode) catch .) else . end; (decode.database // empty)')
 [ -z "$PG_PASS" ] && fail "POSTGRES_PASSWORD not generated"
 log "Credentials generated (pw length: ${#PG_PASS})"
 
