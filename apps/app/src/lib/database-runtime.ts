@@ -82,10 +82,20 @@ export interface DatabaseTargetRuntimeInfo {
   createdAt: number;
 }
 
+export interface DatabaseTargetSqlResult {
+  columns: string[];
+  rows: string[][];
+  rowCount: number;
+  command: string | null;
+  output: string;
+  executedAt: number;
+}
+
 const DATABASE_NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,46}[a-z0-9])?$/;
 const TARGET_NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,60}[a-z0-9])?$/;
 const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 const MEMORY_LIMIT_PATTERN = /^\d+[kmg]$/i;
+const POSTGRES_QUERY_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 
 function randomSecret(bytes = 24): string {
   return randomBytes(bytes).toString("base64url");
@@ -273,6 +283,79 @@ async function waitForPostgresReady(providerRef: ProviderRef): Promise<void> {
   throw new Error(
     `Postgres target ${providerRef.containerName} did not become ready`,
   );
+}
+
+function parsePostgresRow(
+  row: string,
+  fieldSeparator: string,
+  nullToken: string,
+): string[] {
+  return row
+    .split(fieldSeparator)
+    .map((value) => (value === nullToken ? "NULL" : value));
+}
+
+function parsePostgresQueryOutput(input: {
+  output: string;
+  fieldSeparator: string;
+  rowSeparator: string;
+  nullToken: string;
+}): {
+  columns: string[];
+  rows: string[][];
+  rowCount: number;
+  command: string | null;
+} {
+  const normalizedOutput = input.output.replace(/\r/g, "");
+
+  if (normalizedOutput.length === 0) {
+    return {
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      command: null,
+    };
+  }
+
+  if (!normalizedOutput.includes(input.rowSeparator)) {
+    const command = normalizedOutput.trim();
+    return {
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      command: command.length > 0 ? command : null,
+    };
+  }
+
+  const chunks = normalizedOutput
+    .split(input.rowSeparator)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.length > 0);
+
+  if (chunks.length === 0) {
+    return {
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      command: null,
+    };
+  }
+
+  const columns = parsePostgresRow(
+    chunks[0],
+    input.fieldSeparator,
+    input.nullToken,
+  );
+  const rows = chunks
+    .slice(1)
+    .map((row) => parsePostgresRow(row, input.fieldSeparator, input.nullToken));
+
+  return {
+    columns,
+    rows,
+    rowCount: rows.length,
+    command: null,
+  };
 }
 
 async function updateTargetContainerResources(input: {
@@ -1353,6 +1436,83 @@ export async function getDatabaseTargetRuntime(
     cpuLimit: providerRef.cpuLimit,
     createdAt: target.createdAt,
   };
+}
+
+export async function runPostgresTargetSql(input: {
+  targetId: string;
+  sql: string;
+}): Promise<DatabaseTargetSqlResult> {
+  const target = await getTargetById(input.targetId);
+  const database = await getDatabaseById(target.databaseId);
+
+  if (database.engine !== "postgres") {
+    throw new Error("SQL runner is only available for postgres targets");
+  }
+
+  if (target.lifecycleStatus !== "active") {
+    throw new Error("Cannot run SQL while target is not active");
+  }
+
+  const sql = input.sql.trim();
+  if (sql.length === 0) {
+    throw new Error("SQL query cannot be empty");
+  }
+
+  const providerRef = parseProviderRef(target.providerRefJson);
+  await waitForPostgresReady(providerRef);
+
+  const fieldSeparator = "\u001f";
+  const rowSeparator = "\u001e";
+  const nullToken = "__FROST_SQL_NULL__";
+  const command =
+    `docker exec -e PGPASSWORD=${shellEscape(providerRef.password)} ${shellEscape(providerRef.containerName)} ` +
+    `psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ${shellEscape(providerRef.username)} -d ${shellEscape(providerRef.database)} ` +
+    `-A -F ${shellEscape(fieldSeparator)} -R ${shellEscape(rowSeparator)} ` +
+    `-P footer=off -P null=${shellEscape(nullToken)} -c ${shellEscape(sql)}`;
+
+  try {
+    const { stdout, stderr } = await execAsync(command, {
+      maxBuffer: POSTGRES_QUERY_MAX_BUFFER_BYTES,
+    });
+    const parsed = parsePostgresQueryOutput({
+      output: stdout,
+      fieldSeparator,
+      rowSeparator,
+      nullToken,
+    });
+    const output = [stdout.trim(), stderr.trim()]
+      .filter((value) => value.length > 0)
+      .join("\n");
+
+    return {
+      ...parsed,
+      output,
+      executedAt: Date.now(),
+    };
+  } catch (error) {
+    const maybeExecError = error as {
+      stdout?: string;
+      stderr?: string;
+    };
+    const stderr =
+      typeof maybeExecError.stderr === "string"
+        ? maybeExecError.stderr.trim()
+        : "";
+    const stdout =
+      typeof maybeExecError.stdout === "string"
+        ? maybeExecError.stdout.trim()
+        : "";
+    const message =
+      stderr.length > 0
+        ? stderr
+        : stdout.length > 0
+          ? stdout
+          : error instanceof Error
+            ? error.message
+            : "SQL query failed";
+
+    throw new Error(message);
+  }
 }
 
 export async function patchDatabaseTargetRuntimeSettings(input: {

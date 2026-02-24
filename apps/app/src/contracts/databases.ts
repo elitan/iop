@@ -68,6 +68,15 @@ const databaseTargetRuntimeSchema = z.object({
   createdAt: z.number(),
 });
 
+const databaseTargetSqlResultSchema = z.object({
+  columns: z.array(z.string()),
+  rows: z.array(z.array(z.string())),
+  rowCount: z.number(),
+  command: z.string().nullable(),
+  output: z.string(),
+  executedAt: z.number(),
+});
+
 const databaseWithMainTargetSchema = z.object({
   database: databaseSchema,
   target: databaseTargetSchema,
@@ -168,6 +177,16 @@ export const databasesContract = {
     .route({ method: "GET", path: "/database-targets/{targetId}/runtime" })
     .input(z.object({ targetId: z.string() }))
     .output(databaseTargetRuntimeSchema),
+
+  runTargetSql: oc
+    .route({ method: "POST", path: "/database-targets/{targetId}/sql" })
+    .input(
+      z.object({
+        targetId: z.string(),
+        sql: z.string().min(1),
+      }),
+    )
+    .output(databaseTargetSqlResultSchema),
 
   patchTargetRuntimeSettings: oc
     .route({

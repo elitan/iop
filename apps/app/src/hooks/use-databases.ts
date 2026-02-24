@@ -41,6 +41,16 @@ export function useDatabaseTargetRuntime(targetId: string) {
   });
 }
 
+export function useRunDatabaseTargetSql(targetId: string) {
+  return useMutation({
+    mutationFn: function mutationFn(
+      data: Omit<ContractInputs["databases"]["runTargetSql"], "targetId">,
+    ) {
+      return orpc.databases.runTargetSql.call({ targetId, ...data });
+    },
+  });
+}
+
 export function useDatabaseAttachments(databaseId: string) {
   return useQuery({
     ...orpc.databases.listDatabaseAttachments.queryOptions({

@@ -21,6 +21,7 @@ import {
   patchDatabaseTargetRuntimeSettings,
   putEnvironmentAttachment,
   resetDatabaseTarget,
+  runPostgresTargetSql,
   startDatabaseTarget,
   stopDatabaseTarget,
 } from "@/lib/database-runtime";
@@ -131,6 +132,14 @@ export const databases = {
   getTargetRuntime: os.databases.getTargetRuntime.handler(async ({ input }) => {
     try {
       return await getDatabaseTargetRuntime(input.targetId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  runTargetSql: os.databases.runTargetSql.handler(async ({ input }) => {
+    try {
+      return await runPostgresTargetSql(input);
     } catch (error) {
       throw toApiError(error);
     }

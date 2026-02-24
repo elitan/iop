@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Copy, Loader2, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
@@ -21,14 +21,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { ContractOutputs } from "@/contracts";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
   useDatabaseTargetDeployments,
   useDatabaseTargetRuntime,
+  useRunDatabaseTargetSql,
 } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
 import { getDatabaseBranchInternalHost } from "@/lib/database-hostname";
 import { getTimeAgo } from "@/lib/time";
+import { DatabaseTableBrowser } from "./database-table-browser";
 import { RuntimeLogsPanel } from "./runtime-logs-panel";
 import { RuntimeMetricsCard } from "./runtime-metrics-card";
 
@@ -50,8 +53,15 @@ interface Branch {
   createdAt: number;
 }
 
-type BranchDrawerTab = "overview" | "deployments" | "logs" | "settings";
+type BranchDrawerTab =
+  | "overview"
+  | "deployments"
+  | "logs"
+  | "tables"
+  | "sql"
+  | "settings";
 type BranchSettingsTab = "general" | "runtime";
+type DatabaseTargetSqlResult = ContractOutputs["databases"]["runTargetSql"];
 
 const BRANCH_SETTINGS_NAV_ITEMS: { id: BranchSettingsTab; label: string }[] = [
   { id: "general", label: "General" },
@@ -110,6 +120,10 @@ function copyToClipboard(value: string) {
   toast.success("Copied to clipboard");
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 const CPU_OPTIONS = [
   { value: "none", label: "No limit" },
   { value: "0.25", label: "0.25 vCPU", minCpus: 1 },
@@ -166,6 +180,11 @@ export function DatabaseBranchDrawer({
   const [draftHostname, setDraftHostname] = useState("");
   const [draftMemoryLimit, setDraftMemoryLimit] = useState("");
   const [draftCpuLimit, setDraftCpuLimit] = useState("none");
+  const [sqlInput, setSqlInput] = useState("select now();");
+  const [sqlResult, setSqlResult] = useState<DatabaseTargetSqlResult | null>(
+    null,
+  );
+  const [sqlError, setSqlError] = useState<string | null>(null);
 
   const { logs, isConnected, error } = useDatabaseTargetLogs({
     targetId: branch?.id ?? "",
@@ -174,6 +193,7 @@ export function DatabaseBranchDrawer({
     branch?.id ?? "",
   );
   const { data: runtime } = useDatabaseTargetRuntime(branch?.id ?? "");
+  const runSqlMutation = useRunDatabaseTargetSql(branch?.id ?? "");
   const { data: hostResources } = useQuery({
     queryKey: ["hostResources"],
     queryFn: () => api.health.hostResources(),
@@ -189,6 +209,9 @@ export function DatabaseBranchDrawer({
       setDeleteDialogOpen(false);
       setDraftBranchName(branch.name);
       setDraftHostname(branch.name);
+      setSqlInput("select now();");
+      setSqlResult(null);
+      setSqlError(null);
     },
     [branch?.id, branch],
   );
@@ -294,10 +317,61 @@ export function DatabaseBranchDrawer({
   );
   const isAnyOverviewActionPending =
     isStartPending || isResetPending || isSetAsDefaultInEnvironmentPending;
+  const showSqlTab = engine === "postgres";
+  const canRunSql =
+    showSqlTab &&
+    branch?.lifecycleStatus === "active" &&
+    sqlInput.trim().length > 0 &&
+    !runSqlMutation.isPending;
+  const branchTabs: { id: BranchDrawerTab; label: string }[] = showSqlTab
+    ? [
+        { id: "overview", label: "Overview" },
+        { id: "tables", label: "Tables" },
+        { id: "sql", label: "SQL" },
+        { id: "deployments", label: "Deployments" },
+        { id: "logs", label: "Logs" },
+        { id: "settings", label: "Settings" },
+      ]
+    : [
+        { id: "overview", label: "Overview" },
+        { id: "deployments", label: "Deployments" },
+        { id: "logs", label: "Logs" },
+        { id: "settings", label: "Settings" },
+      ];
   const showOverviewActions =
     branch?.lifecycleStatus !== "active" ||
     canReset ||
     !isDefaultInCurrentEnvironment;
+
+  async function handleRunSql() {
+    if (!canRunSql) {
+      return;
+    }
+
+    setSqlError(null);
+    try {
+      const result = await runSqlMutation.mutateAsync({ sql: sqlInput });
+      setSqlResult(result);
+      if (result.command !== null) {
+        toast.success(result.command);
+      } else {
+        toast.success(`Query returned ${result.rowCount} rows`);
+      }
+    } catch (error) {
+      const message = getErrorMessage(error, "Failed to run SQL");
+      setSqlError(message);
+      setSqlResult(null);
+      toast.error(message);
+    }
+  }
+
+  function handleSqlKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || !event.metaKey) {
+      return;
+    }
+    event.preventDefault();
+    void handleRunSql();
+  }
 
   return (
     <>
@@ -338,12 +412,7 @@ export function DatabaseBranchDrawer({
 
             <div className="flex h-[calc(100%-57px)] flex-col">
               <StateTabs
-                tabs={[
-                  { id: "overview", label: "Overview" },
-                  { id: "deployments", label: "Deployments" },
-                  { id: "logs", label: "Logs" },
-                  { id: "settings", label: "Settings" },
-                ]}
+                tabs={branchTabs}
                 value={activeTab}
                 onChange={setActiveTab}
                 layoutId="database-branch-drawer-tabs"
@@ -595,6 +664,166 @@ export function DatabaseBranchDrawer({
                       </Badge>
                     }
                   />
+                )}
+
+                {activeTab === "tables" && engine === "postgres" && (
+                  <DatabaseTableBrowser
+                    targetId={branch.id}
+                    branchName={branch.name}
+                    isBranchActive={branch.lifecycleStatus === "active"}
+                  />
+                )}
+
+                {activeTab === "sql" && engine === "postgres" && (
+                  <div className="flex min-h-0 flex-1 flex-col gap-4">
+                    <Card className="border-neutral-700 bg-gradient-to-b from-neutral-900 to-neutral-950">
+                      <CardContent className="space-y-3 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm text-neutral-300">
+                            Run SQL on this branch
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-neutral-700 text-neutral-300"
+                          >
+                            {branch.name}
+                          </Badge>
+                        </div>
+                        <textarea
+                          value={sqlInput}
+                          onChange={(event) => setSqlInput(event.target.value)}
+                          onKeyDown={handleSqlKeyDown}
+                          placeholder="select now();"
+                          className="min-h-40 w-full resize-y rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 font-mono text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500"
+                        />
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-neutral-500">
+                            Runs directly inside this postgres branch.
+                          </p>
+                          <Button
+                            onClick={() => {
+                              void handleRunSql();
+                            }}
+                            disabled={!canRunSql}
+                          >
+                            {runSqlMutation.isPending ? (
+                              <>
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                Running...
+                              </>
+                            ) : (
+                              "Run SQL"
+                            )}
+                          </Button>
+                        </div>
+                        {branch.lifecycleStatus !== "active" && (
+                          <p className="text-xs text-amber-400">
+                            Start this branch before running SQL.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="min-h-0 flex-1 border-neutral-800 bg-neutral-950/70">
+                      <CardContent className="flex h-full min-h-0 flex-col gap-3 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-neutral-300">
+                            Results
+                          </span>
+                          {sqlResult && (
+                            <span className="text-xs text-neutral-500">
+                              {sqlResult.rowCount} rows
+                            </span>
+                          )}
+                        </div>
+
+                        {sqlError && (
+                          <div className="rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+                            {sqlError}
+                          </div>
+                        )}
+
+                        {!sqlError && sqlResult === null && (
+                          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-neutral-800 bg-neutral-900/40 text-sm text-neutral-500">
+                            Run a query to see results.
+                          </div>
+                        )}
+
+                        {!sqlError && sqlResult !== null && (
+                          <div className="flex min-h-0 flex-1 flex-col gap-3">
+                            {sqlResult.command && (
+                              <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
+                                {sqlResult.command}
+                              </div>
+                            )}
+
+                            {sqlResult.columns.length > 0 ? (
+                              <div className="min-h-0 flex-1 overflow-auto rounded-md border border-neutral-800 bg-neutral-900">
+                                <table className="min-w-full text-left font-mono text-xs text-neutral-200">
+                                  <thead className="sticky top-0 bg-neutral-900">
+                                    <tr className="border-b border-neutral-800">
+                                      {sqlResult.columns.map((columnName) => (
+                                        <th
+                                          key={columnName}
+                                          className="px-3 py-2 font-medium text-neutral-400"
+                                        >
+                                          {columnName}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sqlResult.rows.length === 0 ? (
+                                      <tr>
+                                        <td
+                                          className="px-3 py-3 text-neutral-500"
+                                          colSpan={sqlResult.columns.length}
+                                        >
+                                          No rows.
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      sqlResult.rows.map((row, rowIndex) => (
+                                        <tr
+                                          key={`${sqlResult.executedAt}-${rowIndex}`}
+                                          className="border-b border-neutral-900/80 last:border-b-0"
+                                        >
+                                          {sqlResult.columns.map(
+                                            function renderCell(columnName, i) {
+                                              const value = row[i] ?? "";
+                                              return (
+                                                <td
+                                                  key={`${sqlResult.executedAt}-${rowIndex}-${columnName}`}
+                                                  className="px-3 py-2 text-neutral-200"
+                                                >
+                                                  {value.length > 0
+                                                    ? value
+                                                    : " "}
+                                                </td>
+                                              );
+                                            },
+                                          )}
+                                        </tr>
+                                      ))
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : sqlResult.output.length > 0 &&
+                              sqlResult.output !== sqlResult.command ? (
+                              <pre className="min-h-0 flex-1 overflow-auto rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 whitespace-pre-wrap">
+                                {sqlResult.output}
+                              </pre>
+                            ) : sqlResult.command === null ? (
+                              <pre className="min-h-0 flex-1 overflow-auto rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 whitespace-pre-wrap">
+                                Query executed.
+                              </pre>
+                            ) : null}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 )}
 
                 {activeTab === "settings" && (
