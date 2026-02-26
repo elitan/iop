@@ -6,6 +6,7 @@ const databaseProviderSchema = z.enum(["velo", "mysql-docker"]);
 const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
 const attachmentModeSchema = z.enum(["managed", "manual"]);
+const databaseStorageBackendSchema = z.enum(["apfs", "zfs"]);
 
 export const databaseSchema = z.object({
   id: z.string(),
@@ -63,6 +64,7 @@ const databaseTargetRuntimeSchema = z.object({
   hostPort: z.number(),
   image: z.string(),
   port: z.number(),
+  storageBackend: databaseStorageBackendSchema.nullable(),
   memoryLimit: z.string().nullable(),
   cpuLimit: z.number().nullable(),
   createdAt: z.number(),

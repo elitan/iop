@@ -81,6 +81,12 @@ else
   timer "Build tools already installed"
 fi
 
+if ! command -v zfs &> /dev/null || ! command -v zpool &> /dev/null; then
+  timer "Installing zfsutils-linux..."
+  apt-get update -qq
+  apt-get install -y -qq zfsutils-linux > /dev/null || true
+fi
+
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
   timer "Installing Docker..."
@@ -194,6 +200,21 @@ get_public_ipv4() {
   return 1
 }
 
+detect_single_zfs_pool() {
+  if ! command -v zpool &> /dev/null; then
+    return 0
+  fi
+
+  local pools
+  local count
+  pools=$(zpool list -H -o name 2>/dev/null | awk 'NF {print}')
+  count=$(echo "$pools" | awk 'NF {c++} END {print c+0}')
+
+  if [ "$count" -eq 1 ]; then
+    echo "$pools"
+  fi
+}
+
 SERVER_IP=$(get_public_ipv4 || true)
 if ! is_valid_ipv4 "$SERVER_IP"; then
   SERVER_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')
@@ -295,11 +316,24 @@ fi
 
 # Create data directory
 mkdir -p "$FROST_DIR/data"
+ZFS_POOL=$(detect_single_zfs_pool || true)
+ZFS_DATASET_BASE="frost/databases"
+ZFS_MOUNT_BASE="/opt/frost/data/postgres/zfs"
+
+mkdir -p "$ZFS_MOUNT_BASE"
+if [ -n "$ZFS_POOL" ] && command -v zfs &> /dev/null && command -v zpool &> /dev/null; then
+  if zpool list -H -o name "$ZFS_POOL" > /dev/null 2>&1; then
+    zfs list -H "$ZFS_POOL/$ZFS_DATASET_BASE" > /dev/null 2>&1 || zfs create -p "$ZFS_POOL/$ZFS_DATASET_BASE" > /dev/null 2>&1 || true
+  fi
+fi
 
 # Create .env file
 cat > "$FROST_DIR/.env" << EOF
 FROST_JWT_SECRET=$FROST_JWT_SECRET
 FROST_DATA_DIR=$FROST_DIR/data
+FROST_POSTGRES_ZFS_POOL=$ZFS_POOL
+FROST_POSTGRES_ZFS_DATASET_BASE=$ZFS_DATASET_BASE
+FROST_POSTGRES_ZFS_MOUNT_BASE=$ZFS_MOUNT_BASE
 NODE_ENV=production
 EOF
 

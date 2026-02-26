@@ -33,6 +33,91 @@ success() {
   echo -e "${GREEN}$1${NC}"
 }
 
+get_env_value() {
+  local file="$1"
+  local key="$2"
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+  local line
+  line=$(grep -E "^${key}=" "$file" | tail -n 1 || true)
+  if [ -z "$line" ]; then
+    return 0
+  fi
+  echo "${line#*=}"
+}
+
+ensure_env_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  if [ ! -f "$file" ]; then
+    touch "$file"
+  fi
+  if grep -qE "^${key}=" "$file"; then
+    return 0
+  fi
+  echo "${key}=${value}" >> "$file"
+}
+
+detect_single_zfs_pool() {
+  if ! command -v zpool > /dev/null 2>&1; then
+    return 0
+  fi
+  local pools
+  local count
+  pools=$(zpool list -H -o name 2>/dev/null | awk 'NF {print}')
+  count=$(echo "$pools" | awk 'NF {c++} END {print c+0}')
+  if [ "$count" -eq 1 ]; then
+    echo "$pools"
+  fi
+}
+
+ensure_zfs_branching_setup() {
+  if ! command -v zfs > /dev/null 2>&1 || ! command -v zpool > /dev/null 2>&1; then
+    log "Installing zfsutils-linux..."
+    apt-get update -qq || true
+    apt-get install -y -qq zfsutils-linux > /dev/null || true
+  fi
+
+  local env_file="$FROST_DIR/.env"
+  local detected_pool
+  local pool
+  local dataset_base
+  local mount_base
+  local base_dataset
+
+  detected_pool=$(detect_single_zfs_pool || true)
+  pool=$(get_env_value "$env_file" "FROST_POSTGRES_ZFS_POOL")
+  if [ -z "$pool" ]; then
+    pool="$detected_pool"
+  fi
+
+  ensure_env_value "$env_file" "FROST_POSTGRES_ZFS_POOL" "$pool"
+  ensure_env_value "$env_file" "FROST_POSTGRES_ZFS_DATASET_BASE" "frost/databases"
+  ensure_env_value "$env_file" "FROST_POSTGRES_ZFS_MOUNT_BASE" "/opt/frost/data/postgres/zfs"
+
+  dataset_base=$(get_env_value "$env_file" "FROST_POSTGRES_ZFS_DATASET_BASE")
+  mount_base=$(get_env_value "$env_file" "FROST_POSTGRES_ZFS_MOUNT_BASE")
+
+  if [ -n "$mount_base" ]; then
+    mkdir -p "$mount_base"
+  fi
+
+  if [ -z "$pool" ] || ! command -v zfs > /dev/null 2>&1 || ! command -v zpool > /dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! zpool list -H -o name "$pool" > /dev/null 2>&1; then
+    return 0
+  fi
+
+  base_dataset="$pool/$dataset_base"
+  if ! zfs list -H "$base_dataset" > /dev/null 2>&1; then
+    zfs create -p "$base_dataset" > /dev/null 2>&1 || true
+  fi
+}
+
 cleanup_on_failure() {
   error "Update failed!"
   echo "failed" > "$UPDATE_RESULT"
@@ -98,6 +183,8 @@ fi
 if [ -d "$FROST_DIR/apps/app" ] && [ ! -L "$FROST_DIR/apps/app/.env" ]; then
   ln -sf "$FROST_DIR/.env" "$FROST_DIR/apps/app/.env"
 fi
+
+ensure_zfs_branching_setup
 
 # Ensure bun is in PATH
 export HOME="${HOME:-/root}"

@@ -19,10 +19,22 @@ import {
   getAvailablePort,
   isPortConflictError,
   runContainer,
-  startContainer,
   stopContainer,
   waitForHealthy,
 } from "./docker";
+import type { BranchStorageBackendName } from "./postgres-branching/branch-storage-backend";
+import {
+  assertPostgresBranchingReady,
+  buildResetTempStorageRef,
+  checkpointPostgresTargetIfRunning,
+  clonePostgresStorageForTarget,
+  createPostgresPrimaryStorage,
+  createRollbackStack,
+  getPostgresStorageMetadata,
+  removePostgresStorage,
+  resolvePostgresStorageMountPath,
+  swapPostgresStorageFromStaged,
+} from "./postgres-branching/postgres-branch-runtime";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 
@@ -52,6 +64,8 @@ interface ProviderRef {
   port: number;
   memoryLimit: string | null;
   cpuLimit: number | null;
+  storageBackend?: BranchStorageBackendName;
+  storageRef?: string;
 }
 
 export interface RuntimeConnection {
@@ -77,6 +91,7 @@ export interface DatabaseTargetRuntimeInfo {
   hostPort: number;
   image: string;
   port: number;
+  storageBackend: BranchStorageBackendName | null;
   memoryLimit: string | null;
   cpuLimit: number | null;
   createdAt: number;
@@ -183,6 +198,21 @@ async function assertVeloHostReady(): Promise<void> {
 
 function parseProviderRef(json: string): ProviderRef {
   const value = JSON.parse(json) as Partial<ProviderRef>;
+  const hasStorageBackend = typeof value.storageBackend === "string";
+  const hasStorageRef = typeof value.storageRef === "string";
+
+  if (hasStorageBackend !== hasStorageRef) {
+    throw new Error("Invalid provider reference");
+  }
+
+  if (
+    hasStorageBackend &&
+    value.storageBackend !== "apfs" &&
+    value.storageBackend !== "zfs"
+  ) {
+    throw new Error("Invalid provider reference");
+  }
+
   if (
     !value ||
     typeof value.containerName !== "string" ||
@@ -208,11 +238,24 @@ function parseProviderRef(json: string): ProviderRef {
     memoryLimit:
       typeof value.memoryLimit === "string" ? value.memoryLimit : null,
     cpuLimit: typeof value.cpuLimit === "number" ? value.cpuLimit : null,
+    storageBackend: hasStorageBackend ? value.storageBackend : undefined,
+    storageRef: hasStorageRef ? value.storageRef : undefined,
   };
 }
 
 function toProviderRefJson(value: ProviderRef): string {
   return JSON.stringify(value);
+}
+
+function applyProviderRefStorage(
+  providerRef: ProviderRef,
+  storage: {
+    storageBackend: BranchStorageBackendName;
+    storageRef: string;
+  },
+): void {
+  providerRef.storageBackend = storage.storageBackend;
+  providerRef.storageRef = storage.storageRef;
 }
 
 async function recordTargetDeployment(input: {
@@ -248,22 +291,6 @@ async function recordTargetDeployment(input: {
   }
 
   return deployment;
-}
-
-async function runPostgresClone(
-  source: ProviderRef,
-  target: ProviderRef,
-): Promise<void> {
-  await waitForPostgresReady(source);
-  await waitForPostgresReady(target);
-
-  const command =
-    `docker exec ${shellEscape(source.containerName)} ` +
-    `pg_dump -h 127.0.0.1 -U ${shellEscape(source.username)} -d ${shellEscape(source.database)} ` +
-    "--clean --if-exists --no-owner --no-privileges | " +
-    `docker exec -i ${shellEscape(target.containerName)} ` +
-    `psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ${shellEscape(target.username)} -d ${shellEscape(target.database)}`;
-  await execAsync(command);
 }
 
 async function waitForPostgresReady(providerRef: ProviderRef): Promise<void> {
@@ -388,12 +415,12 @@ async function createTargetRuntime(input: {
   engine: DatabaseEngine;
   memoryLimit?: string | null;
   cpuLimit?: number | null;
-  sourceRef?: ProviderRef;
   templateRef?: ProviderRef;
-  cloneFromSource?: boolean;
+  fixedHostPort?: number;
+  storageMountPath?: string;
 }): Promise<ProviderRef> {
-  const image = getDefaultImage(input.engine);
-  const port = getDefaultPort(input.engine);
+  const image = input.templateRef?.image ?? getDefaultImage(input.engine);
+  const port = input.templateRef?.port ?? getDefaultPort(input.engine);
   const username = input.templateRef?.username ?? "frost";
   const password = input.templateRef?.password ?? randomSecret();
   const database =
@@ -409,29 +436,40 @@ async function createTargetRuntime(input: {
     input.memoryLimit ?? input.templateRef?.memoryLimit ?? null;
   const cpuLimit = input.cpuLimit ?? input.templateRef?.cpuLimit ?? null;
   const triedPorts = new Set<number>();
+  const hostPortsToTry: number[] = [];
 
   await stopContainer(containerName);
 
-  let envVars: Record<string, string>;
-  if (input.engine === "postgres") {
-    envVars = {
-      POSTGRES_USER: username,
-      POSTGRES_PASSWORD: password,
-      POSTGRES_DB: database,
-    };
+  if (input.engine === "postgres" && !input.storageMountPath) {
+    throw new Error("Postgres target is missing storage mount path");
+  }
+
+  const envVars: Record<string, string> =
+    input.engine === "postgres"
+      ? {
+          POSTGRES_USER: username,
+          POSTGRES_PASSWORD: password,
+          POSTGRES_DB: database,
+        }
+      : {
+          MYSQL_DATABASE: database,
+          MYSQL_USER: username,
+          MYSQL_PASSWORD: password,
+          MYSQL_ROOT_PASSWORD: randomSecret(),
+        };
+
+  if (input.fixedHostPort !== undefined) {
+    hostPortsToTry.push(input.fixedHostPort);
   } else {
-    envVars = {
-      MYSQL_DATABASE: database,
-      MYSQL_USER: username,
-      MYSQL_PASSWORD: password,
-      MYSQL_ROOT_PASSWORD: randomSecret(),
-    };
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const hostPort = await getAvailablePort(10000, 20000, triedPorts);
+      triedPorts.add(hostPort);
+      hostPortsToTry.push(hostPort);
+    }
   }
 
   let lastPortConflictError = "";
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const hostPort = await getAvailablePort(10000, 20000, triedPorts);
-    triedPorts.add(hostPort);
+  for (const hostPort of hostPortsToTry) {
     const runResult = await runContainer({
       imageName: image,
       hostPort,
@@ -440,6 +478,10 @@ async function createTargetRuntime(input: {
       envVars,
       memoryLimit: memoryLimit ?? undefined,
       cpuLimit: cpuLimit ?? undefined,
+      volumes:
+        input.engine === "postgres" && input.storageMountPath
+          ? [{ name: input.storageMountPath, path: "/var/lib/postgresql/data" }]
+          : undefined,
       labels: {
         "frost.managed": "true",
         "frost.service.id": input.runtimeServiceId,
@@ -482,19 +524,6 @@ async function createTargetRuntime(input: {
       cpuLimit,
     };
 
-    if (
-      input.engine === "postgres" &&
-      input.cloneFromSource &&
-      input.sourceRef !== undefined
-    ) {
-      try {
-        await runPostgresClone(input.sourceRef, providerRef);
-      } catch (error) {
-        await stopContainer(containerName);
-        throw error;
-      }
-    }
-
     return providerRef;
   }
 
@@ -502,6 +531,37 @@ async function createTargetRuntime(input: {
     lastPortConflictError ||
       "Failed to start database target after port retries",
   );
+}
+
+async function recreateTargetRuntime(input: {
+  database: Selectable<Databases>;
+  target: Selectable<DatabaseTargets>;
+  providerRef: ProviderRef;
+}): Promise<ProviderRef> {
+  const storage =
+    input.database.engine === "postgres"
+      ? getPostgresStorageMetadata(input.providerRef)
+      : undefined;
+  const storageMountPath = storage
+    ? await resolvePostgresStorageMountPath(storage)
+    : undefined;
+
+  const nextRef = await createTargetRuntime({
+    databaseId: input.database.id,
+    databaseName: input.database.name,
+    targetName: input.target.name,
+    runtimeServiceId: input.target.runtimeServiceId,
+    engine: input.database.engine as DatabaseEngine,
+    templateRef: input.providerRef,
+    fixedHostPort: input.providerRef.hostPort,
+    storageMountPath,
+  });
+
+  if (storage) {
+    applyProviderRefStorage(nextRef, storage);
+  }
+
+  return nextRef;
 }
 
 async function resolveDatabaseWithTargetById(
@@ -707,6 +767,7 @@ export async function createDatabase(input: {
 
   if (input.engine === "postgres") {
     await assertVeloHostReady();
+    await assertPostgresBranchingReady();
   }
 
   const existing = await db
@@ -739,14 +800,50 @@ export async function createDatabase(input: {
     })
     .execute();
 
+  const rollback = createRollbackStack();
+
   try {
+    let storageMountPath: string | undefined;
+    let postgresStorageHandle:
+      | {
+          storageBackend: BranchStorageBackendName;
+          storageRef: string;
+        }
+      | undefined;
+
+    if (input.engine === "postgres") {
+      const storageHandle = await createPostgresPrimaryStorage({
+        databaseId,
+        targetId,
+      });
+      storageMountPath = storageHandle.mountPath;
+      postgresStorageHandle = {
+        storageBackend: storageHandle.storageBackend,
+        storageRef: storageHandle.storageRef,
+      };
+      rollback.add(async () => {
+        await removePostgresStorage({
+          storageBackend: storageHandle.storageBackend,
+          storageRef: storageHandle.storageRef,
+        });
+      });
+    }
+
     const providerRef = await createTargetRuntime({
       databaseId,
       databaseName: input.name,
       targetName: "main",
       runtimeServiceId,
       engine: input.engine,
+      storageMountPath,
     });
+    rollback.add(async () => {
+      await stopContainer(providerRef.containerName);
+    });
+
+    if (postgresStorageHandle) {
+      applyProviderRefStorage(providerRef, postgresStorageHandle);
+    }
 
     await db
       .insertInto("databaseTargets")
@@ -799,7 +896,10 @@ export async function createDatabase(input: {
         });
       }
     }
+
+    rollback.clear();
   } catch (error) {
+    await rollback.run();
     await db.deleteFrom("databases").where("id", "=", databaseId).execute();
     throw error;
   }
@@ -838,41 +938,89 @@ export async function createDatabaseTarget(input: {
   const createdAt = Date.now();
   const targetId = nanoid();
   const runtimeServiceId = nanoid();
-  const sourceRef = sourceTarget
-    ? parseProviderRef(sourceTarget.providerRefJson)
-    : undefined;
-  const providerRef = await createTargetRuntime({
-    databaseId: database.id,
-    databaseName: database.name,
-    targetName: input.name,
-    runtimeServiceId,
-    engine: database.engine as DatabaseEngine,
-    sourceRef,
-    cloneFromSource: database.engine === "postgres",
-  });
+  const rollback = createRollbackStack();
 
-  await db
-    .insertInto("databaseTargets")
-    .values({
-      id: targetId,
-      databaseId: database.id,
-      name: input.name,
-      hostname: input.name,
-      kind: getTargetKind(database.engine as DatabaseEngine),
-      sourceTargetId: sourceTarget?.id ?? null,
-      runtimeServiceId,
-      lifecycleStatus: "active",
-      providerRefJson: toProviderRefJson(providerRef),
-      createdAt,
-    })
-    .execute();
+  try {
+    let providerRef: ProviderRef;
 
-  await recordTargetDeployment({
-    targetId,
-    action: "create",
-    status: "running",
-    message: "Target created",
-  });
+    if (database.engine === "postgres") {
+      if (!sourceTarget) {
+        throw new Error("Source target is required for Postgres branching");
+      }
+
+      const sourceRef = parseProviderRef(sourceTarget.providerRefJson);
+      const sourceStorage = getPostgresStorageMetadata(sourceRef);
+
+      await checkpointPostgresTargetIfRunning({
+        lifecycleStatus: sourceTarget.lifecycleStatus,
+        providerRef: sourceRef,
+      });
+
+      const clonedStorage = await clonePostgresStorageForTarget({
+        sourceStorage,
+        databaseId: database.id,
+        targetId,
+      });
+
+      rollback.add(async () => {
+        await removePostgresStorage({
+          storageBackend: clonedStorage.storageBackend,
+          storageRef: clonedStorage.storageRef,
+        });
+      });
+
+      providerRef = await createTargetRuntime({
+        databaseId: database.id,
+        databaseName: database.name,
+        targetName: input.name,
+        runtimeServiceId,
+        engine: "postgres",
+        templateRef: sourceRef,
+        storageMountPath: clonedStorage.mountPath,
+      });
+      applyProviderRefStorage(providerRef, clonedStorage);
+    } else {
+      providerRef = await createTargetRuntime({
+        databaseId: database.id,
+        databaseName: database.name,
+        targetName: input.name,
+        runtimeServiceId,
+        engine: database.engine as DatabaseEngine,
+      });
+    }
+
+    rollback.add(async () => {
+      await stopContainer(providerRef.containerName);
+    });
+
+    await db
+      .insertInto("databaseTargets")
+      .values({
+        id: targetId,
+        databaseId: database.id,
+        name: input.name,
+        hostname: input.name,
+        kind: getTargetKind(database.engine as DatabaseEngine),
+        sourceTargetId: sourceTarget?.id ?? null,
+        runtimeServiceId,
+        lifecycleStatus: "active",
+        providerRefJson: toProviderRefJson(providerRef),
+        createdAt,
+      })
+      .execute();
+
+    await recordTargetDeployment({
+      targetId,
+      action: "create",
+      status: "running",
+      message: "Target created",
+    });
+
+    rollback.clear();
+  } catch (error) {
+    await rollback.run();
+    throw error;
+  }
 
   const target = await getTargetById(targetId);
   if (database.engine === "postgres") {
@@ -933,19 +1081,83 @@ export async function resetDatabaseTarget(input: {
   );
   const sourceRef = parseProviderRef(sourceTarget.providerRefJson);
   const currentRef = parseProviderRef(target.providerRefJson);
+  const sourceStorage = getPostgresStorageMetadata(sourceRef);
+  const currentStorage = getPostgresStorageMetadata(currentRef);
+  const rollback = createRollbackStack();
+
+  await checkpointPostgresTargetIfRunning({
+    lifecycleStatus: sourceTarget.lifecycleStatus,
+    providerRef: sourceRef,
+  });
+
+  const stagedStorageRef = buildResetTempStorageRef(database.id, target.id);
+  const stagedStorage = await clonePostgresStorageForTarget({
+    sourceStorage,
+    databaseId: database.id,
+    targetId: target.id,
+    targetStorageRef: stagedStorageRef,
+  });
+  const stagedStorageMetadata = {
+    storageBackend: stagedStorage.storageBackend,
+    storageRef: stagedStorage.storageRef,
+  };
+
+  rollback.add(async () => {
+    await removePostgresStorage(stagedStorageMetadata);
+  });
 
   await stopContainer(currentRef.containerName);
 
-  const nextRef = await createTargetRuntime({
-    databaseId: database.id,
-    databaseName: database.name,
-    targetName: target.name,
-    runtimeServiceId: target.runtimeServiceId,
-    engine: "postgres",
-    sourceRef,
-    templateRef: currentRef,
-    cloneFromSource: true,
-  });
+  try {
+    await swapPostgresStorageFromStaged({
+      liveStorage: currentStorage,
+      stagedStorage: stagedStorageMetadata,
+    });
+    rollback.clear();
+  } catch (error) {
+    await rollback.run();
+    throw error;
+  }
+
+  const liveMountPath = await resolvePostgresStorageMountPath(currentStorage);
+  const templateRef: ProviderRef = {
+    ...sourceRef,
+    image: currentRef.image,
+    port: currentRef.port,
+    memoryLimit: currentRef.memoryLimit,
+    cpuLimit: currentRef.cpuLimit,
+  };
+
+  let nextRef: ProviderRef;
+  try {
+    nextRef = await createTargetRuntime({
+      databaseId: database.id,
+      databaseName: database.name,
+      targetName: target.name,
+      runtimeServiceId: target.runtimeServiceId,
+      engine: "postgres",
+      templateRef,
+      fixedHostPort: currentRef.hostPort,
+      storageMountPath: liveMountPath,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Reset failed while starting";
+    await db
+      .updateTable("databaseTargets")
+      .set({ lifecycleStatus: "stopped" })
+      .where("id", "=", target.id)
+      .execute();
+    await recordTargetDeployment({
+      targetId: target.id,
+      action: "reset",
+      status: "failed",
+      message,
+    });
+    throw error;
+  }
+
+  applyProviderRefStorage(nextRef, currentStorage);
 
   await db
     .updateTable("databaseTargets")
@@ -978,21 +1190,18 @@ export async function startDatabaseTarget(input: {
     input.targetId,
   );
   const providerRef = parseProviderRef(target.providerRefJson);
-  await startContainer(providerRef.containerName);
-
-  const healthy = await waitForHealthy({
-    containerId: providerRef.containerName,
-    port: providerRef.hostPort,
-    timeoutSeconds: 60,
+  const nextRef = await recreateTargetRuntime({
+    database,
+    target,
+    providerRef,
   });
-
-  if (!healthy) {
-    throw new Error("Target failed to start");
-  }
 
   await db
     .updateTable("databaseTargets")
-    .set({ lifecycleStatus: "active" })
+    .set({
+      lifecycleStatus: "active",
+      providerRefJson: toProviderRefJson(nextRef),
+    })
     .where("id", "=", target.id)
     .execute();
 
@@ -1039,7 +1248,7 @@ export async function deleteDatabaseTarget(input: {
   databaseId: string;
   targetId: string;
 }): Promise<void> {
-  const { target } = await resolveDatabaseWithTargetById(
+  const { database, target } = await resolveDatabaseWithTargetById(
     input.databaseId,
     input.targetId,
   );
@@ -1060,6 +1269,9 @@ export async function deleteDatabaseTarget(input: {
 
   const providerRef = parseProviderRef(target.providerRefJson);
   await stopContainer(providerRef.containerName);
+  if (database.engine === "postgres") {
+    await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+  }
   await db.deleteFrom("databaseTargets").where("id", "=", target.id).execute();
 }
 
@@ -1074,6 +1286,9 @@ export async function deleteDatabase(databaseId: string): Promise<void> {
   for (const target of targets) {
     const providerRef = parseProviderRef(target.providerRefJson);
     await stopContainer(providerRef.containerName);
+    if (database.engine === "postgres") {
+      await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+    }
   }
 
   await db.deleteFrom("databases").where("id", "=", database.id).execute();
@@ -1241,6 +1456,7 @@ export async function deleteEnvironmentAttachment(input: {
 
     const providerRef = parseProviderRef(target.providerRefJson);
     await stopContainer(providerRef.containerName);
+    await removePostgresStorage(getPostgresStorageMetadata(providerRef));
     await db
       .deleteFrom("databaseTargets")
       .where("id", "=", target.id)
@@ -1373,21 +1589,34 @@ export async function deployDatabaseTarget(
   targetId: string,
 ): Promise<Selectable<DatabaseTargetDeployments>> {
   const target = await getTargetById(targetId);
+  const database = await getDatabaseById(target.databaseId);
   const providerRef = parseProviderRef(target.providerRefJson);
 
   try {
-    await stopContainer(providerRef.containerName);
-  } catch {}
+    const nextRef = await recreateTargetRuntime({
+      database,
+      target,
+      providerRef,
+    });
 
-  await startContainer(providerRef.containerName);
+    await db
+      .updateTable("databaseTargets")
+      .set({
+        lifecycleStatus: "active",
+        providerRefJson: toProviderRefJson(nextRef),
+      })
+      .where("id", "=", target.id)
+      .execute();
 
-  const healthy = await waitForHealthy({
-    containerId: providerRef.containerName,
-    port: providerRef.hostPort,
-    timeoutSeconds: 60,
-  });
-
-  if (!healthy) {
+    return recordTargetDeployment({
+      targetId: target.id,
+      action: "deploy",
+      status: "running",
+      message: "Target redeployed",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Target failed to redeploy";
     await db
       .updateTable("databaseTargets")
       .set({ lifecycleStatus: "stopped" })
@@ -1398,22 +1627,9 @@ export async function deployDatabaseTarget(
       targetId: target.id,
       action: "deploy",
       status: "failed",
-      message: "Target failed health check",
+      message,
     });
   }
-
-  await db
-    .updateTable("databaseTargets")
-    .set({ lifecycleStatus: "active" })
-    .where("id", "=", target.id)
-    .execute();
-
-  return recordTargetDeployment({
-    targetId: target.id,
-    action: "deploy",
-    status: "running",
-    message: "Target redeployed",
-  });
 }
 
 export async function getDatabaseTargetRuntime(
@@ -1432,6 +1648,7 @@ export async function getDatabaseTargetRuntime(
     hostPort: providerRef.hostPort,
     image: providerRef.image,
     port: providerRef.port,
+    storageBackend: providerRef.storageBackend ?? null,
     memoryLimit: providerRef.memoryLimit,
     cpuLimit: providerRef.cpuLimit,
     createdAt: target.createdAt,
@@ -1770,17 +1987,16 @@ export async function resolveServiceDatabaseEnvVars(input: {
       throw new Error("Failed to resolve database default target");
     }
 
-    const target = await getTargetById(attachment.targetId);
-    const providerRef = parseProviderRef(target.providerRefJson);
+    let target = await getTargetById(attachment.targetId);
 
     if (target.lifecycleStatus !== "active") {
-      await startContainer(providerRef.containerName);
-      await db
-        .updateTable("databaseTargets")
-        .set({ lifecycleStatus: "active" })
-        .where("id", "=", target.id)
-        .execute();
+      target = await startDatabaseTarget({
+        databaseId: database.id,
+        targetId: target.id,
+      });
     }
+
+    const providerRef = parseProviderRef(target.providerRefJson);
 
     if (database.engine === "postgres") {
       await ensurePostgresDatabaseNetworkAttachment({
@@ -1792,10 +2008,7 @@ export async function resolveServiceDatabaseEnvVars(input: {
       await ensureTargetNetworkAttachment({
         environment,
         database,
-        target: {
-          ...target,
-          lifecycleStatus: "active",
-        },
+        target,
       });
     }
 
