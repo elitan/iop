@@ -180,14 +180,7 @@ export class ZfsBranchStorage implements BranchStorageBackend {
     await this.removeStorage(storageRef);
     await mkdir(dirname(mountPath), { recursive: true });
     await runExec("zfs", buildZfsCreateArgs(datasetPath, mountPath));
-
-    try {
-      await runExec("zfs", ["mount", datasetPath]);
-    } catch (error) {
-      if (!isAlreadyMountedError(error)) {
-        throw error;
-      }
-    }
+    await this.mountDataset(datasetPath);
 
     return this.toHandle(storageRef);
   }
@@ -220,14 +213,7 @@ export class ZfsBranchStorage implements BranchStorageBackend {
       await runExec("zfs", ["destroy", snapshotName]).catch(() => undefined);
       throw error;
     }
-
-    try {
-      await runExec("zfs", ["mount", targetDatasetPath]);
-    } catch (error) {
-      if (!isAlreadyMountedError(error)) {
-        throw error;
-      }
-    }
+    await this.mountDataset(targetDatasetPath);
 
     return this.toHandle(targetStorageRef);
   }
@@ -252,7 +238,7 @@ export class ZfsBranchStorage implements BranchStorageBackend {
         `mountpoint=${liveMountPath}`,
         liveDatasetPath,
       ]);
-      await runExec("zfs", ["mount", liveDatasetPath]);
+      await this.mountDataset(liveDatasetPath);
     } catch (error) {
       await runExec("zfs", [
         "rename",
@@ -302,6 +288,16 @@ export class ZfsBranchStorage implements BranchStorageBackend {
       await runExec("zfs", ["unmount", datasetPath]);
     } catch (error) {
       if (!isNotMountedError(error) && !isDatasetNotFound(error)) {
+        throw error;
+      }
+    }
+  }
+
+  private async mountDataset(datasetPath: string): Promise<void> {
+    try {
+      await runExec("zfs", ["mount", datasetPath]);
+    } catch (error) {
+      if (!isAlreadyMountedError(error)) {
         throw error;
       }
     }
