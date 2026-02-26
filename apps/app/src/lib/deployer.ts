@@ -31,7 +31,7 @@ import {
   type VolumeMount,
   waitForHealthy,
 } from "./docker";
-import { syncCaddyConfig } from "./domains";
+import { syncCaddyConfig as syncCaddyConfigDefault } from "./domains";
 import { loadFrostConfig, mergeConfigWithService } from "./frost-config";
 import {
   createCommitStatus,
@@ -68,6 +68,18 @@ export type DeploymentStatus =
   | "cancelled";
 
 const serviceDeploymentLocks = new Map<string, Promise<void>>();
+
+let syncCaddyConfigFn = syncCaddyConfigDefault;
+
+export function setSyncCaddyConfigForTests(
+  syncFn: typeof syncCaddyConfigDefault,
+): void {
+  syncCaddyConfigFn = syncFn;
+}
+
+export function resetSyncCaddyConfigForTests(): void {
+  syncCaddyConfigFn = syncCaddyConfigDefault;
+}
 
 export async function withServiceDeploymentLock<T>(
   serviceId: string,
@@ -1517,7 +1529,7 @@ async function runServiceDeployment(
 
     try {
       await appendLog(deploymentId, "Switching traffic to new container...\n");
-      const syncResult = await syncCaddyConfig();
+      const syncResult = await syncCaddyConfigFn();
       if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
@@ -1832,7 +1844,7 @@ async function runRollbackDeployment(
     );
 
     try {
-      const syncResult = await syncCaddyConfig();
+      const syncResult = await syncCaddyConfigFn();
       if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }

@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { nanoid } from "nanoid";
-import { getSetting, setSetting } from "./auth";
 import { db } from "./db";
-import { deployService } from "./deployer";
+import {
+  deployService,
+  resetSyncCaddyConfigForTests,
+  setSyncCaddyConfigForTests,
+} from "./deployer";
 import { getContainerStatus, removeNetwork, stopContainer } from "./docker";
 
 const TEST_PROJECT_ID = `test-${nanoid(8)}`;
@@ -343,10 +346,6 @@ describe("zero-downtime deploy", () => {
       .where("serviceId", "=", ZD_SERVICE_ID)
       .execute();
 
-    const previousEmail = await getSetting("email");
-    const previousDomain = await getSetting("domain");
-    const originalFetch = globalThis.fetch;
-
     try {
       const deploy1Id = await deployService(ZD_SERVICE_ID);
       const status1 = await waitForDeploymentStatus(deploy1Id, [
@@ -361,14 +360,9 @@ describe("zero-downtime deploy", () => {
         .where("id", "=", deploy1Id)
         .executeTakeFirst();
 
-      await setSetting("email", "sync-fail@test.invalid");
-      await setSetting("domain", "frost-sync-fail.test");
-      globalThis.fetch = async function mockFetchFailure(
-        _input: Parameters<typeof fetch>[0],
-        _init?: Parameters<typeof fetch>[1],
-      ): Promise<Response> {
+      setSyncCaddyConfigForTests(async function failCaddySync() {
         throw new Error("forced-caddy-sync-failure");
-      } as typeof fetch;
+      });
 
       const deploy2Id = await deployService(ZD_SERVICE_ID);
       const status2 = await waitForDeploymentStatus(deploy2Id, [
@@ -389,9 +383,7 @@ describe("zero-downtime deploy", () => {
         expect(containerStatus).toBe("running");
       }
     } finally {
-      globalThis.fetch = originalFetch;
-      await setSetting("email", previousEmail ?? "");
-      await setSetting("domain", previousDomain ?? "");
+      resetSyncCaddyConfigForTests();
     }
   }, 180000);
 });
