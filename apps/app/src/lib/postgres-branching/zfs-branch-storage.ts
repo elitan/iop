@@ -248,7 +248,7 @@ export class ZfsBranchStorage implements BranchStorageBackend {
       throw error;
     }
 
-    await runExec("zfs", ["destroy", "-R", backupDatasetPath]).catch(
+    await runExec("zfs", ["destroy", "-r", backupDatasetPath]).catch(
       () => undefined,
     );
   }
@@ -260,7 +260,7 @@ export class ZfsBranchStorage implements BranchStorageBackend {
     await this.unmountDataset(datasetPath);
 
     try {
-      await runExec("zfs", ["destroy", "-R", datasetPath]);
+      await runExec("zfs", ["destroy", "-r", datasetPath]);
     } catch (error) {
       if (!isDatasetNotFound(error)) {
         throw error;
