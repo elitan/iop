@@ -281,6 +281,20 @@ export function classifyPullFailure(log: string, error?: string): string {
   return "unknown";
 }
 
+export function isTransientContainerStartError(error: string): boolean {
+  const full = error.toLowerCase();
+  return includesAny(full, [
+    "failed to create task for container",
+    "failed to create shim task",
+    "error reading from server: eof",
+    "message recipient disconnected from message bus without replying",
+    "connection reset by peer",
+    "transport is closing",
+    "cannot connect to the docker daemon",
+    "is the docker daemon running",
+  ]);
+}
+
 function includesAny(value: string, needles: string[]): boolean {
   for (const needle of needles) {
     if (value.includes(needle)) {

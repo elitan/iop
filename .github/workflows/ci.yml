@@ -185,9 +185,27 @@ jobs:
           echo "Installing from: $INSTALL_URL"
           echo "Using branch: $BRANCH"
 
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && /tmp/install.sh -b '$BRANCH' --create-api-key" 2>&1 | tee /tmp/install-output.txt
+          ssh root@${{ steps.server.outputs.ip }} "systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true"
 
-          API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
+          API_KEY=""
+          for attempt in 1 2 3 4; do
+            echo "Install attempt $attempt/4"
+            ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && /tmp/install.sh -b '$BRANCH' --create-api-key" 2>&1 | tee /tmp/install-output.txt || true
+
+            API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
+            if [ -n "$API_KEY" ]; then
+              break
+            fi
+
+            if cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep -Eq "Could not get lock /var/lib/dpkg/lock-frontend|Unable to acquire the dpkg frontend lock|unattended-upgr"; then
+              sleep_sec=$((attempt * 10))
+              echo "dpkg lock detected, retrying in ${sleep_sec}s..."
+              sleep "$sleep_sec"
+              continue
+            fi
+
+            break
+          done
 
           if [ -z "$API_KEY" ]; then
             echo "Failed to extract API key"
@@ -476,9 +494,27 @@ jobs:
 
           echo "Installing Frost $TAG from: $INSTALL_URL"
 
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG' --create-api-key" 2>&1 | tee /tmp/install-output.txt
+          ssh root@${{ steps.server.outputs.ip }} "systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true"
 
-          API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
+          API_KEY=""
+          for attempt in 1 2 3 4; do
+            echo "Install attempt $attempt/4"
+            ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG' --create-api-key" 2>&1 | tee /tmp/install-output.txt || true
+
+            API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
+            if [ -n "$API_KEY" ]; then
+              break
+            fi
+
+            if cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep -Eq "Could not get lock /var/lib/dpkg/lock-frontend|Unable to acquire the dpkg frontend lock|unattended-upgr"; then
+              sleep_sec=$((attempt * 10))
+              echo "dpkg lock detected, retrying in ${sleep_sec}s..."
+              sleep "$sleep_sec"
+              continue
+            fi
+
+            break
+          done
 
           if [ -z "$API_KEY" ]; then
             echo "Failed to extract API key"

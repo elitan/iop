@@ -23,6 +23,7 @@ import {
   imageExists,
   isContainerNameConflictError,
   isPortConflictError,
+  isTransientContainerStartError,
   pullImage,
   type RunContainerOptions,
   runContainer,
@@ -433,7 +434,11 @@ async function releaseReplicaPortReservation(
 async function runContainerWithPortRetry(
   replicaId: string,
   options: Omit<RunContainerOptions, "hostPort">,
-  onRetry?: (port: number, attempt: number) => Promise<void>,
+  onRetry?: (input: {
+    port: number;
+    attempt: number;
+    reason: "port-conflict" | "name-conflict" | "transient";
+  }) => Promise<void>,
 ): Promise<{ containerId: string; hostPort: number }> {
   const triedPorts = new Set<number>();
 
@@ -455,19 +460,30 @@ async function runContainerWithPortRetry(
     await releaseReplicaPortReservation(replicaId, hostPort);
 
     const error = result.error || "";
-    const isRetryable =
-      isPortConflictError(error) || isContainerNameConflictError(error);
+    const isPortConflict = isPortConflictError(error);
+    const isNameConflict = isContainerNameConflictError(error);
+    const isTransient = isTransientContainerStartError(error);
+    const isRetryable = isPortConflict || isNameConflict || isTransient;
 
     if (!isRetryable) {
       throw new Error(error || "Failed to start container");
     }
 
-    if (isContainerNameConflictError(error)) {
+    if (isNameConflict) {
       await stopContainer(options.name);
     }
 
     if (onRetry) {
-      await onRetry(hostPort, attempt + 1);
+      const reason = isPortConflict
+        ? "port-conflict"
+        : isNameConflict
+          ? "name-conflict"
+          : "transient";
+      await onRetry({
+        port: hostPort,
+        attempt: attempt + 1,
+        reason,
+      });
     }
   }
 
@@ -674,10 +690,26 @@ async function startReplicas(
             cpuLimit: opts.cpuLimit,
             shutdownTimeout: opts.shutdownTimeout,
           },
-          async (port, attempt) => {
+          async ({ port, attempt, reason }) => {
+            if (reason === "port-conflict") {
+              await appendLog(
+                opts.deploymentId,
+                `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+              );
+              return;
+            }
+
+            if (reason === "name-conflict") {
+              await appendLog(
+                opts.deploymentId,
+                `Container name conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+              );
+              return;
+            }
+
             await appendLog(
               opts.deploymentId,
-              `Port ${port} conflict, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
+              `Transient docker start error, retrying (attempt ${attempt}/${MAX_PORT_ATTEMPTS})...\n`,
             );
           },
         );
