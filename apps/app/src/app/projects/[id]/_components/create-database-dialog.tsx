@@ -37,6 +37,7 @@ export function CreateDatabaseDialog({
 }: CreateDatabaseDialogProps) {
   const router = useRouter();
   const createMutation = useCreateDatabase(projectId);
+  const isCreating = createMutation.isPending;
   const [name, setName] = useState("");
   const [engine, setEngine] = useState<"postgres" | "mysql">("postgres");
 
@@ -64,7 +65,7 @@ export function CreateDatabaseDialog({
   }
 
   function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen && createMutation.isPending) {
+    if (!nextOpen && isCreating) {
       return;
     }
     if (!nextOpen) {
@@ -74,79 +75,89 @@ export function CreateDatabaseDialog({
     onOpenChange(nextOpen);
   }
 
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreate();
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="border-neutral-800 bg-neutral-900 sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Create Database</DialogTitle>
-          <DialogDescription>
-            Create a database and Frost will create the main target.
-          </DialogDescription>
-        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Create Database</DialogTitle>
+            <DialogDescription>
+              Create a database and Frost will create the main target.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="database-name">Name</Label>
-            <Input
-              id="database-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="app-db"
-              className="border-neutral-700 bg-neutral-800 text-neutral-100"
-              disabled={createMutation.isPending}
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="database-name">Name</Label>
+              <Input
+                id="database-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="app-db"
+                className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                disabled={isCreating}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Engine</Label>
+              <Select
+                value={engine}
+                onValueChange={(value: "postgres" | "mysql") =>
+                  setEngine(value)
+                }
+                disabled={isCreating}
+              >
+                <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-neutral-700 bg-neutral-800">
+                  <SelectItem
+                    value="postgres"
+                    className="text-neutral-100 focus:bg-neutral-700"
+                  >
+                    PostgreSQL (branch targets)
+                  </SelectItem>
+                  <SelectItem
+                    value="mysql"
+                    className="text-neutral-100 focus:bg-neutral-700"
+                  >
+                    MySQL (instance targets)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Engine</Label>
-            <Select
-              value={engine}
-              onValueChange={(value: "postgres" | "mysql") => setEngine(value)}
-              disabled={createMutation.isPending}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => handleOpenChange(false)}
+              disabled={isCreating}
             >
-              <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-neutral-700 bg-neutral-800">
-                <SelectItem
-                  value="postgres"
-                  className="text-neutral-100 focus:bg-neutral-700"
-                >
-                  PostgreSQL (branch targets)
-                </SelectItem>
-                <SelectItem
-                  value="mysql"
-                  className="text-neutral-100 focus:bg-neutral-700"
-                >
-                  MySQL (instance targets)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => handleOpenChange(false)}
-            disabled={createMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={createMutation.isPending || name.trim().length === 0}
-          >
-            {createMutation.isPending ? (
-              <>
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              "Create"
-            )}
-          </Button>
-        </DialogFooter>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isCreating || name.trim().length === 0}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

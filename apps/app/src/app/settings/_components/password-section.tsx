@@ -46,10 +46,11 @@ export function PasswordSection() {
     <SettingCard
       title="Password"
       description="Change your login password."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={
             demoMode || mutation.isPending || !currentPassword || !newPassword
           }

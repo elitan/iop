@@ -74,10 +74,11 @@ export function DrainTimeoutCard({ serviceId }: DrainTimeoutCardProps) {
     <SettingCard
       title="Drain Timeout"
       description="Time the old container stays alive after traffic switches to the new one. Allows in-flight requests to complete before shutdown."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

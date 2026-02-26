@@ -198,6 +198,11 @@ export function DomainsSection({
     }
   }
 
+  function handleAddDomainSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleAddDomain();
+  }
+
   async function handleVerifyDns(id: string) {
     try {
       const result = await verifyDnsMutation.mutateAsync(id);
@@ -283,7 +288,10 @@ export function DomainsSection({
         )}
 
         {showAddForm && (
-          <div className="mb-4 rounded-md border border-neutral-800 p-4">
+          <form
+            onSubmit={handleAddDomainSubmit}
+            className="mb-4 rounded-md border border-neutral-800 p-4"
+          >
             <h3 className="text-lg font-medium text-white">Add Domain</h3>
             <p className="mt-1 text-sm text-neutral-400">
               Add a domain to connect it to this service.{" "}
@@ -377,6 +385,7 @@ export function DomainsSection({
 
             <div className="mt-4 flex items-center justify-between">
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => {
@@ -391,8 +400,8 @@ export function DomainsSection({
                 Cancel
               </Button>
               <Button
+                type="submit"
                 size="sm"
-                onClick={handleAddDomain}
                 disabled={
                   addMutation.isPending ||
                   !newDomain ||
@@ -405,7 +414,7 @@ export function DomainsSection({
                 Save
               </Button>
             </div>
-          </div>
+          </form>
         )}
 
         {systemDomains.length > 0 && (

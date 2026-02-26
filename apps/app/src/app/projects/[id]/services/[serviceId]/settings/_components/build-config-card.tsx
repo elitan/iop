@@ -93,10 +93,11 @@ export function BuildConfigCard({ serviceId }: BuildConfigCardProps) {
     <SettingCard
       title="Build Configuration"
       description="Git branch and Dockerfile path for building this service."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

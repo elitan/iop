@@ -81,6 +81,11 @@ export default function EnvironmentsSettingsPage() {
     updateMutation.mutate({ id: editingEnv.id, name: newName.trim() });
   }
 
+  function handleRenameSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    handleRename();
+  }
+
   function handleDelete() {
     if (!deletingEnv) return;
     deleteMutation.mutate(deletingEnv.id);
@@ -143,40 +148,46 @@ export default function EnvironmentsSettingsPage() {
               Change the display name for this environment.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="env-name" className="text-neutral-300">
-                Name
-              </Label>
-              <Input
-                id="env-name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="staging"
-                autoFocus
-                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-              />
+          <form onSubmit={handleRenameSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="env-name" className="text-neutral-300">
+                  Name
+                </Label>
+                <Input
+                  id="env-name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="staging"
+                  autoFocus
+                  className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setEditingEnv(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRename}
-              disabled={
-                !newName.trim() ||
-                newName === editingEnv?.name ||
-                updateMutation.isPending
-              }
-            >
-              {updateMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditingEnv(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  !newName.trim() ||
+                  newName === editingEnv?.name ||
+                  updateMutation.isPending
+                }
+              >
+                {updateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

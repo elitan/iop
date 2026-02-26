@@ -98,10 +98,11 @@ export function ReplicaCountCard({ serviceId }: ReplicaCountCardProps) {
     <SettingCard
       title="Replicas"
       description="Number of container instances to run. Traffic is load-balanced across replicas using round-robin. All replicas must pass health checks."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges || hasVolumes}
         >
           {updateMutation.isPending ? (

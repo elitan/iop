@@ -51,10 +51,11 @@ export function ServiceNameCard({ serviceId }: ServiceNameCardProps) {
     <SettingCard
       title="Service Name"
       description="Display name for this service."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

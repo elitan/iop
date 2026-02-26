@@ -170,6 +170,16 @@ export default function DatabaseBranchesPage() {
     }
   }
 
+  function handleAttachTargetSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleAttachTarget();
+  }
+
+  function handleCreateTargetSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreateTarget();
+  }
+
   if (!database) {
     return null;
   }
@@ -189,7 +199,10 @@ export default function DatabaseBranchesPage() {
                 ? `Current target: ${envAttachment.targetName} (${envAttachment.mode})`
                 : "No target attached for this environment"}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <form
+              onSubmit={handleAttachTargetSubmit}
+              className="flex flex-col gap-2 sm:flex-row"
+            >
               <Select
                 value={selectedTargetId}
                 onValueChange={setSelectedTargetId}
@@ -210,19 +223,20 @@ export default function DatabaseBranchesPage() {
                 </SelectContent>
               </Select>
               <Button
-                onClick={handleAttachTarget}
+                type="submit"
                 disabled={!selectedTargetId || putAttachmentMutation.isPending}
               >
                 Attach
               </Button>
               <Button
+                type="button"
                 variant="ghost"
                 onClick={handleDetachTarget}
                 disabled={!envAttachment || deleteAttachmentMutation.isPending}
               >
                 Detach
               </Button>
-            </div>
+            </form>
           </CardContent>
         </Card>
       )}
@@ -234,49 +248,53 @@ export default function DatabaseBranchesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                value={newTargetName}
-                onChange={(event) => setNewTargetName(event.target.value)}
-                placeholder={database.engine === "postgres" ? "dev" : "staging"}
-                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-              />
+          <form onSubmit={handleCreateTargetSubmit} className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  value={newTargetName}
+                  onChange={(event) => setNewTargetName(event.target.value)}
+                  placeholder={
+                    database.engine === "postgres" ? "dev" : "staging"
+                  }
+                  className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                />
+              </div>
+
+              {database.engine === "postgres" && (
+                <div className="space-y-2">
+                  <Label>Source</Label>
+                  <Select
+                    value={sourceTargetName}
+                    onValueChange={setSourceTargetName}
+                  >
+                    <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-neutral-700 bg-neutral-800">
+                      {sourceOptions.map((option) => (
+                        <SelectItem
+                          key={option.id}
+                          value={option.name}
+                          className="text-neutral-100 focus:bg-neutral-700"
+                        >
+                          {option.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
-            {database.engine === "postgres" && (
-              <div className="space-y-2">
-                <Label>Source</Label>
-                <Select
-                  value={sourceTargetName}
-                  onValueChange={setSourceTargetName}
-                >
-                  <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="border-neutral-700 bg-neutral-800">
-                    {sourceOptions.map((option) => (
-                      <SelectItem
-                        key={option.id}
-                        value={option.name}
-                        className="text-neutral-100 focus:bg-neutral-700"
-                      >
-                        {option.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <Button
-            onClick={handleCreateTarget}
-            disabled={!newTargetName.trim() || createTargetMutation.isPending}
-          >
-            Create
-          </Button>
+            <Button
+              type="submit"
+              disabled={!newTargetName.trim() || createTargetMutation.isPending}
+            >
+              Create
+            </Button>
+          </form>
         </CardContent>
       </Card>
 

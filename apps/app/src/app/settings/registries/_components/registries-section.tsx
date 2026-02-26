@@ -111,6 +111,11 @@ export function RegistriesSection() {
     });
   }
 
+  function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreate();
+  }
+
   function handleDelete() {
     if (demoMode) return;
     if (!deletingRegistry) return;
@@ -214,7 +219,10 @@ export function RegistriesSection() {
           )}
 
           {showForm ? (
-            <div className="space-y-4 rounded-md border border-neutral-800 p-4">
+            <form
+              onSubmit={handleCreateSubmit}
+              className="space-y-4 rounded-md border border-neutral-800 p-4"
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label
@@ -320,7 +328,7 @@ export function RegistriesSection() {
 
               <div className="flex gap-2">
                 <Button
-                  onClick={handleCreate}
+                  type="submit"
                   disabled={demoMode || createMutation.isPending}
                 >
                   {createMutation.isPending ? (
@@ -331,6 +339,7 @@ export function RegistriesSection() {
                   Add Registry
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={() => {
                     setShowForm(false);
@@ -340,9 +349,13 @@ export function RegistriesSection() {
                   Cancel
                 </Button>
               </div>
-            </div>
+            </form>
           ) : (
-            <Button onClick={() => setShowForm(true)} disabled={demoMode}>
+            <Button
+              type="button"
+              onClick={() => setShowForm(true)}
+              disabled={demoMode}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Add Registry
             </Button>

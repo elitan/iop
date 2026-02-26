@@ -33,7 +33,8 @@ import { ExternalLink } from "lucide-react";
  *   description="Maximum time allowed for HTTP requests before returning 504."
  *   learnMoreUrl="https://docs.example.com/timeouts"
  *   learnMoreText="Learn more about Request Timeout"
- *   footerRight={<Button onClick={handleSave}>Save</Button>}
+ *   onSubmit={handleSave}
+ *   footerRight={<Button type="submit">Save</Button>}
  * >
  *   <Select value={timeout} onValueChange={setTimeout}>...</Select>
  * </SettingCard>
@@ -50,6 +51,7 @@ interface SettingCardProps {
   learnMoreUrl?: string;
   learnMoreText?: string;
   variant?: "default" | "danger";
+  onSubmit?: () => void | Promise<void>;
   children: React.ReactNode;
 }
 
@@ -63,17 +65,21 @@ export function SettingCard({
   learnMoreUrl,
   learnMoreText,
   variant = "default",
+  onSubmit,
   children,
 }: SettingCardProps) {
   const rightContent = footerRight ?? footer;
   const isDanger = variant === "danger";
+  const hasFooter = Boolean(footerLeft || rightContent || learnMoreUrl);
+  const className = `rounded-lg border ${isDanger ? "border-red-900/50" : "border-neutral-800"} border-t-neutral-700 bg-neutral-900 shadow-lg shadow-black/25`;
 
-  const hasFooter = footerLeft || rightContent || learnMoreUrl;
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onSubmit?.();
+  }
 
-  return (
-    <div
-      className={`rounded-lg border ${isDanger ? "border-red-900/50" : "border-neutral-800"} border-t-neutral-700 bg-neutral-900 shadow-lg shadow-black/25`}
-    >
+  const cardContent = (
+    <>
       <div className="p-6">
         <div className="flex items-start justify-between">
           <div>
@@ -110,6 +116,16 @@ export function SettingCard({
           {rightContent && <div>{rightContent}</div>}
         </div>
       )}
-    </div>
+    </>
   );
+
+  if (onSubmit) {
+    return (
+      <form onSubmit={handleSubmit} className={className}>
+        {cardContent}
+      </form>
+    );
+  }
+
+  return <div className={className}>{cardContent}</div>;
 }

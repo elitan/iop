@@ -81,10 +81,11 @@ export function HealthCheckCard({ serviceId }: HealthCheckCardProps) {
       description="Frost uses health checks to determine when your container is ready to receive traffic. TCP checks port connectivity, HTTP sends a GET request to the specified path."
       learnMoreUrl="https://docs.docker.com/reference/dockerfile/#healthcheck"
       learnMoreText="Learn more about Health Checks"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

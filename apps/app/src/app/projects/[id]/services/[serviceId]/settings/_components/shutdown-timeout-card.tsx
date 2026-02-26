@@ -75,10 +75,11 @@ export function ShutdownTimeoutCard({ serviceId }: ShutdownTimeoutCardProps) {
       description="Time between sending SIGTERM and SIGKILL when stopping the container. Allows your application to gracefully shut down connections and save state."
       learnMoreUrl="https://docs.docker.com/reference/cli/docker/container/stop/"
       learnMoreText="Learn more about Shutdown Timeout"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

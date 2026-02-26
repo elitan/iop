@@ -48,10 +48,11 @@ export function ProjectNameCard({ projectId }: ProjectNameCardProps) {
     <SettingCard
       title="Project Name"
       description="Display name for this project."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

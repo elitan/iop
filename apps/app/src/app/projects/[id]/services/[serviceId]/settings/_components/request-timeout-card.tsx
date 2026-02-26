@@ -78,10 +78,11 @@ export function RequestTimeoutCard({ serviceId }: RequestTimeoutCardProps) {
       description="Maximum time allowed for HTTP requests. If exceeded, the proxy returns a 504 Gateway Timeout. Useful for long-running operations like file uploads or report generation."
       learnMoreUrl="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504"
       learnMoreText="Learn more about Request Timeout"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

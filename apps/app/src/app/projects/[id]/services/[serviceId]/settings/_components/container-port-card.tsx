@@ -74,6 +74,7 @@ export function ContainerPortCard({ serviceId }: ContainerPortCardProps) {
     <SettingCard
       title="Container Port"
       description="The port your application listens on inside the container."
+      onSubmit={handleSave}
       footerLeft={
         <span className="text-xs text-neutral-500">
           Also sets the PORT env var so your app knows which port to bind to.
@@ -82,7 +83,7 @@ export function ContainerPortCard({ serviceId }: ContainerPortCardProps) {
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

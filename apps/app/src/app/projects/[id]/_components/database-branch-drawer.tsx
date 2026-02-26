@@ -373,6 +373,47 @@ export function DatabaseBranchDrawer({
     void handleRunSql();
   }
 
+  async function saveSettingsWithToast(
+    input: {
+      name?: string;
+      hostname?: string;
+      memoryLimit?: string;
+      cpuLimit?: number;
+    },
+    successMessage: string,
+  ) {
+    await onSaveSettings(input);
+    toast.success(successMessage);
+  }
+
+  async function handleSaveBranchName() {
+    await saveSettingsWithToast(
+      { name: nextBranchName },
+      `${runtimeUnitCapitalized} renamed`,
+    );
+  }
+
+  async function handleSaveHostname() {
+    await saveSettingsWithToast(
+      { hostname: nextHostname },
+      `${runtimeUnitCapitalized} hostname saved`,
+    );
+  }
+
+  async function handleSaveCpuLimit() {
+    await saveSettingsWithToast(
+      { cpuLimit: nextCpuLimit ?? undefined },
+      `${runtimeUnitCapitalized} CPU limit saved`,
+    );
+  }
+
+  async function handleSaveMemoryLimit() {
+    await saveSettingsWithToast(
+      { memoryLimit: nextMemoryLimit ?? undefined },
+      `${runtimeUnitCapitalized} memory limit saved`,
+    );
+  }
+
   return (
     <>
       <SideDrawer
@@ -866,17 +907,11 @@ export function DatabaseBranchDrawer({
                           <SettingCard
                             title={`${runtimeUnitCapitalized} Name`}
                             description={`Rename this ${runtimeUnit}`}
+                            onSubmit={handleSaveBranchName}
                             footerRight={
                               <Button
                                 size="sm"
-                                onClick={async () => {
-                                  await onSaveSettings({
-                                    name: nextBranchName,
-                                  });
-                                  toast.success(
-                                    `${runtimeUnitCapitalized} renamed`,
-                                  );
-                                }}
+                                type="submit"
                                 disabled={
                                   !canRename ||
                                   !canSaveBranchName ||
@@ -914,17 +949,11 @@ export function DatabaseBranchDrawer({
                           <SettingCard
                             title="Hostname"
                             description="DNS-safe identifier for this branch in the project network."
+                            onSubmit={handleSaveHostname}
                             footerRight={
                               <Button
                                 size="sm"
-                                onClick={async () => {
-                                  await onSaveSettings({
-                                    hostname: nextHostname,
-                                  });
-                                  toast.success(
-                                    `${runtimeUnitCapitalized} hostname saved`,
-                                  );
-                                }}
+                                type="submit"
                                 disabled={
                                   !canSaveHostname || isSaveSettingsPending
                                 }
@@ -1024,17 +1053,11 @@ export function DatabaseBranchDrawer({
                             description={`Maximum CPU cores this ${runtimeUnit} can use.`}
                             learnMoreUrl="https://docs.docker.com/config/containers/resource_constraints/#cpu"
                             learnMoreText="Learn more about CPU Limit"
+                            onSubmit={handleSaveCpuLimit}
                             footerRight={
                               <Button
                                 size="sm"
-                                onClick={async () => {
-                                  await onSaveSettings({
-                                    cpuLimit: nextCpuLimit ?? undefined,
-                                  });
-                                  toast.success(
-                                    `${runtimeUnitCapitalized} CPU limit saved`,
-                                  );
-                                }}
+                                type="submit"
                                 disabled={
                                   !canSaveCpuLimit || isSaveSettingsPending
                                 }
@@ -1072,17 +1095,11 @@ export function DatabaseBranchDrawer({
                             description={`Maximum memory this ${runtimeUnit} can use.`}
                             learnMoreUrl="https://docs.docker.com/config/containers/resource_constraints/#memory"
                             learnMoreText="Learn more about Memory Limit"
+                            onSubmit={handleSaveMemoryLimit}
                             footerRight={
                               <Button
                                 size="sm"
-                                onClick={async () => {
-                                  await onSaveSettings({
-                                    memoryLimit: nextMemoryLimit ?? undefined,
-                                  });
-                                  toast.success(
-                                    `${runtimeUnitCapitalized} memory limit saved`,
-                                  );
-                                }}
+                                type="submit"
                                 disabled={
                                   !canSaveMemoryLimit || isSaveSettingsPending
                                 }

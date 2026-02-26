@@ -65,10 +65,11 @@ export default function ProjectVariablesPage() {
       description="These environment variables are inherited by all services in this project."
       learnMoreUrl="/docs/guides/env-vars"
       learnMoreText="Learn more about environment variables"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={
             updateMutation.isPending || !hasChanges || hasValidationErrors
           }

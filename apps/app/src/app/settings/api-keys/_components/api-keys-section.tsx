@@ -49,6 +49,11 @@ export function ApiKeysSection() {
     createMutation.mutate({ name: newKeyName });
   }
 
+  function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreate();
+  }
+
   function handleDelete() {
     if (demoMode) return;
     if (!deletingKeyId) return;
@@ -182,17 +187,16 @@ export function ApiKeysSection() {
             </p>
           )}
 
-          <div className="flex gap-2">
+          <form onSubmit={handleCreateSubmit} className="flex gap-2">
             <Input
               placeholder="Key name (e.g., CI/CD)"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               className="max-w-xs"
               disabled={demoMode}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
             <Button
-              onClick={handleCreate}
+              type="submit"
               disabled={demoMode || createMutation.isPending || !newKeyName}
             >
               {createMutation.isPending ? (
@@ -202,7 +206,7 @@ export function ApiKeysSection() {
               )}
               Create key
             </Button>
-          </div>
+          </form>
         </div>
       )}
       <ConfirmDialog

@@ -71,10 +71,11 @@ export function HostnameCard({ serviceId }: HostnameCardProps) {
     <SettingCard
       title="Hostname"
       description="DNS-safe identifier for inter-service communication within the environment network."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

@@ -81,10 +81,11 @@ export function ImageConfigCard({ serviceId }: ImageConfigCardProps) {
     <SettingCard
       title="Image Configuration"
       description="Docker image and registry for pulling this service."
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

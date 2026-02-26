@@ -91,10 +91,11 @@ export function CpuLimitCard({ serviceId }: CpuLimitCardProps) {
       description="Maximum CPU cores the container can use. A vCPU is a logical CPU (includes hyperthreading). Limits CPU-intensive workloads from affecting other services."
       learnMoreUrl="https://docs.docker.com/config/containers/resource_constraints/#cpu"
       learnMoreText="Learn more about CPU Limit"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

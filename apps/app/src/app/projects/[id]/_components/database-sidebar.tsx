@@ -684,6 +684,16 @@ export function DatabaseSidebar({
     }
   }
 
+  function handleAttachTargetSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleAttachTarget();
+  }
+
+  function handleCreateTargetSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreateTarget();
+  }
+
   async function handleResetTarget(targetId: string, sourceTargetName: string) {
     try {
       await resetTargetMutation.mutateAsync({
@@ -731,6 +741,11 @@ export function DatabaseSidebar({
     } finally {
       setIsRenameBranchPending(false);
     }
+  }
+
+  function handleRenameBranchSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleRenameBranch();
   }
 
   async function handleStartTarget(targetId: string) {
@@ -1270,80 +1285,83 @@ export function DatabaseSidebar({
                   onOpenChange={handleCreateBranchOpenChange}
                 >
                   <DialogContent className="border-neutral-800 bg-neutral-900 sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Create branch</DialogTitle>
-                      <DialogDescription>
-                        Create a child branch from a parent branch.
-                      </DialogDescription>
-                    </DialogHeader>
+                    <form onSubmit={handleCreateTargetSubmit}>
+                      <DialogHeader>
+                        <DialogTitle>Create branch</DialogTitle>
+                        <DialogDescription>
+                          Create a child branch from a parent branch.
+                        </DialogDescription>
+                      </DialogHeader>
 
-                    <div className="space-y-4 py-2">
-                      <div className="space-y-2">
-                        <Input
-                          id="create-branch-name"
-                          aria-label="Branch name"
-                          value={newTargetName}
-                          onChange={(event) =>
-                            setNewTargetName(event.target.value)
-                          }
-                          placeholder="feature-1"
-                          className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                          disabled={createTargetMutation.isPending}
-                        />
+                      <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                          <Input
+                            id="create-branch-name"
+                            aria-label="Branch name"
+                            value={newTargetName}
+                            onChange={(event) =>
+                              setNewTargetName(event.target.value)
+                            }
+                            placeholder="feature-1"
+                            className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                            disabled={createTargetMutation.isPending}
+                          />
+                        </div>
+
+                        {parentBranchOptions.length > 0 && (
+                          <div>
+                            <Select
+                              value={parentBranchName}
+                              onValueChange={setParentBranchName}
+                              disabled={createTargetMutation.isPending}
+                            >
+                              <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="border-neutral-700 bg-neutral-800">
+                                {parentBranchOptions.map((branchName) => (
+                                  <SelectItem
+                                    key={branchName}
+                                    value={branchName}
+                                    className="text-neutral-100 focus:bg-neutral-700"
+                                  >
+                                    {branchName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
 
-                      {parentBranchOptions.length > 0 && (
-                        <div>
-                          <Select
-                            value={parentBranchName}
-                            onValueChange={setParentBranchName}
-                            disabled={createTargetMutation.isPending}
-                          >
-                            <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="border-neutral-700 bg-neutral-800">
-                              {parentBranchOptions.map((branchName) => (
-                                <SelectItem
-                                  key={branchName}
-                                  value={branchName}
-                                  className="text-neutral-100 focus:bg-neutral-700"
-                                >
-                                  {branchName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-
-                    <DialogFooter>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleCreateBranchOpenChange(false)}
-                        disabled={createTargetMutation.isPending}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleCreateTarget}
-                        disabled={
-                          createTargetMutation.isPending ||
-                          !newTargetName.trim() ||
-                          !parentBranchName
-                        }
-                      >
-                        {createTargetMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Create"
-                        )}
-                      </Button>
-                    </DialogFooter>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleCreateBranchOpenChange(false)}
+                          disabled={createTargetMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={
+                            createTargetMutation.isPending ||
+                            !newTargetName.trim() ||
+                            !parentBranchName
+                          }
+                        >
+                          {createTargetMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            "Create"
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
                   </DialogContent>
                 </Dialog>
 
@@ -1352,53 +1370,56 @@ export function DatabaseSidebar({
                   onOpenChange={handleRenameBranchOpenChange}
                 >
                   <DialogContent className="border-neutral-800 bg-neutral-900 sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Rename branch</DialogTitle>
-                      <DialogDescription>
-                        Update the branch name.
-                      </DialogDescription>
-                    </DialogHeader>
+                    <form onSubmit={handleRenameBranchSubmit}>
+                      <DialogHeader>
+                        <DialogTitle>Rename branch</DialogTitle>
+                        <DialogDescription>
+                          Update the branch name.
+                        </DialogDescription>
+                      </DialogHeader>
 
-                    <div className="py-2">
-                      <Input
-                        aria-label="Branch name"
-                        value={renameBranchName}
-                        onChange={(event) =>
-                          setRenameBranchName(event.target.value)
-                        }
-                        placeholder="new-branch-name"
-                        className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                        disabled={isRenameBranchPending}
-                      />
-                    </div>
+                      <div className="py-2">
+                        <Input
+                          aria-label="Branch name"
+                          value={renameBranchName}
+                          onChange={(event) =>
+                            setRenameBranchName(event.target.value)
+                          }
+                          placeholder="new-branch-name"
+                          className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                          disabled={isRenameBranchPending}
+                        />
+                      </div>
 
-                    <DialogFooter>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleRenameBranchOpenChange(false)}
-                        disabled={isRenameBranchPending}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleRenameBranch}
-                        disabled={
-                          isRenameBranchPending ||
-                          !renameBranchTarget ||
-                          !renameBranchName.trim() ||
-                          renameBranchName.trim() === renameBranchTarget.name
-                        }
-                      >
-                        {isRenameBranchPending ? (
-                          <>
-                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                            Renaming...
-                          </>
-                        ) : (
-                          "Rename"
-                        )}
-                      </Button>
-                    </DialogFooter>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleRenameBranchOpenChange(false)}
+                          disabled={isRenameBranchPending}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={
+                            isRenameBranchPending ||
+                            !renameBranchTarget ||
+                            !renameBranchName.trim() ||
+                            renameBranchName.trim() === renameBranchTarget.name
+                          }
+                        >
+                          {isRenameBranchPending ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                              Renaming...
+                            </>
+                          ) : (
+                            "Rename"
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
                   </DialogContent>
                 </Dialog>
               </div>
@@ -1406,26 +1427,32 @@ export function DatabaseSidebar({
               <div className="space-y-4">
                 <Card className="border-neutral-800 bg-neutral-900">
                   <CardContent className="space-y-3 p-4">
-                    <div className="space-y-2">
-                      <Input
-                        aria-label="Instance name"
-                        value={newTargetName}
-                        onChange={(event) =>
-                          setNewTargetName(event.target.value)
-                        }
-                        placeholder="instance-2"
-                        className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleCreateTarget}
-                      disabled={
-                        createTargetMutation.isPending || !newTargetName.trim()
-                      }
+                    <form
+                      onSubmit={handleCreateTargetSubmit}
+                      className="space-y-3"
                     >
-                      Create {runtimeUnit}
-                    </Button>
+                      <div className="space-y-2">
+                        <Input
+                          aria-label="Instance name"
+                          value={newTargetName}
+                          onChange={(event) =>
+                            setNewTargetName(event.target.value)
+                          }
+                          placeholder="instance-2"
+                          className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                        />
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={
+                          createTargetMutation.isPending ||
+                          !newTargetName.trim()
+                        }
+                      >
+                        Create {runtimeUnit}
+                      </Button>
+                    </form>
                   </CardContent>
                 </Card>
 
@@ -1435,7 +1462,10 @@ export function DatabaseSidebar({
                       Environment {runtimeUnit}:{" "}
                       {envAttachment?.targetName ?? "not attached"}
                     </div>
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                    <form
+                      onSubmit={handleAttachTargetSubmit}
+                      className="flex flex-col gap-2 sm:flex-row"
+                    >
                       <Select
                         value={selectedTargetId}
                         onValueChange={setSelectedTargetId}
@@ -1456,7 +1486,7 @@ export function DatabaseSidebar({
                         </SelectContent>
                       </Select>
                       <Button
-                        onClick={handleAttachTarget}
+                        type="submit"
                         disabled={
                           !selectedTargetId || putAttachmentMutation.isPending
                         }
@@ -1464,6 +1494,7 @@ export function DatabaseSidebar({
                         Attach
                       </Button>
                       <Button
+                        type="button"
                         variant="ghost"
                         onClick={handleDetachTarget}
                         disabled={
@@ -1472,7 +1503,7 @@ export function DatabaseSidebar({
                       >
                         Detach
                       </Button>
-                    </div>
+                    </form>
                   </CardContent>
                 </Card>
 

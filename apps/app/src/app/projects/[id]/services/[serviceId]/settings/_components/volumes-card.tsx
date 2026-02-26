@@ -106,6 +106,7 @@ export function VolumesCard({ serviceId }: VolumesCardProps) {
     <SettingCard
       title="Volumes"
       description="Persistent storage that survives redeployments. Data is stored on the host machine."
+      onSubmit={handleSave}
       footerLeft={
         <span className="text-sm text-neutral-500">
           Adding/removing volumes requires redeploy
@@ -114,7 +115,7 @@ export function VolumesCard({ serviceId }: VolumesCardProps) {
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (
@@ -181,10 +182,16 @@ export function VolumesCard({ serviceId }: VolumesCardProps) {
                 }
               }}
             />
-            <Button size="sm" variant="secondary" onClick={handleAddVolume}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={handleAddVolume}
+            >
               Add
             </Button>
             <Button
+              type="button"
               size="sm"
               variant="ghost"
               onClick={() => {
@@ -197,6 +204,7 @@ export function VolumesCard({ serviceId }: VolumesCardProps) {
           </div>
         ) : (
           <Button
+            type="button"
             size="sm"
             variant="secondary"
             onClick={() => setIsAdding(true)}

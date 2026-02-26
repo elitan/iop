@@ -152,13 +152,21 @@ function DatabaseBindingsCard({
     }
   }
 
+  function handleCreateBindingSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void handleCreateBinding();
+  }
+
   return (
     <SettingCard
       title="Database bindings"
       description="Map env var keys to project databases. Frost resolves the current environment target URL at deploy time."
     >
       <div className="space-y-3">
-        <div className="flex flex-col gap-2 md:flex-row">
+        <form
+          onSubmit={handleCreateBindingSubmit}
+          className="flex flex-col gap-2 md:flex-row"
+        >
           <Input
             value={envVarKey}
             onChange={(event) => setEnvVarKey(event.target.value)}
@@ -182,7 +190,7 @@ function DatabaseBindingsCard({
             </SelectContent>
           </Select>
           <Button
-            onClick={handleCreateBinding}
+            type="submit"
             disabled={
               !envVarKey.trim() ||
               !databaseId ||
@@ -191,7 +199,7 @@ function DatabaseBindingsCard({
           >
             Save binding
           </Button>
-        </div>
+        </form>
 
         {bindings.length === 0 ? (
           <p className="text-sm text-neutral-500">No bindings configured.</p>
@@ -207,6 +215,7 @@ function DatabaseBindingsCard({
                   {binding.databaseName} ({binding.databaseEngine})
                 </div>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDeleteBinding(binding.id)}
@@ -277,10 +286,11 @@ function VariablesTab({
       <SettingCard
         title="Service Environment Variables"
         description="These are specific to this service (in addition to project-level vars). The PORT variable is managed by the Container Port setting in Runtime."
+        onSubmit={handleSave}
         footerRight={
           <Button
             size="sm"
-            onClick={handleSave}
+            type="submit"
             disabled={
               updateMutation.isPending || !hasChanges || hasValidationErrors
             }

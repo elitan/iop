@@ -92,10 +92,11 @@ export function MemoryLimitCard({ serviceId }: MemoryLimitCardProps) {
       description="Maximum memory the container can use. If the container exceeds this limit, it will be killed and restarted. Leave unlimited for development, set limits in production."
       learnMoreUrl="https://docs.docker.com/config/containers/resource_constraints/#memory"
       learnMoreText="Learn more about Memory Limit"
+      onSubmit={handleSave}
       footerRight={
         <Button
           size="sm"
-          onClick={handleSave}
+          type="submit"
           disabled={updateMutation.isPending || !hasChanges}
         >
           {updateMutation.isPending ? (

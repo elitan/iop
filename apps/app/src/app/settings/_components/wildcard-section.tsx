@@ -140,9 +140,11 @@ export function WildcardSection() {
       description="Auto-generate subdomains for services with wildcard SSL. Requires DNS provider API access for certificate verification."
       learnMoreUrl="https://caddyserver.com/docs/automatic-https#dns-challenge"
       learnMoreText="Learn more about DNS-01 challenge"
+      onSubmit={config?.configured ? undefined : handleSave}
       footer={
         config?.configured ? (
           <Button
+            type="button"
             variant="destructive"
             onClick={handleRemove}
             disabled={demoMode || saving}
@@ -151,7 +153,7 @@ export function WildcardSection() {
           </Button>
         ) : (
           <Button
-            onClick={handleSave}
+            type="submit"
             disabled={demoMode || !domain || !apiToken || saving}
           >
             {saving ? (
@@ -194,6 +196,7 @@ export function WildcardSection() {
               {settings.serverIp}
             </code>
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0"
@@ -257,6 +260,7 @@ export function WildcardSection() {
                 className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
               />
               <Button
+                type="button"
                 variant="secondary"
                 onClick={handleTestToken}
                 disabled={demoMode || !apiToken || testing}
