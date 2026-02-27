@@ -55,6 +55,7 @@ import {
   getDatabaseLogoAlt,
   getDatabaseLogoUrl,
 } from "@/lib/database-logo";
+import { normalizeDatabaseProvider } from "@/lib/database-provider";
 import { orpc } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/time";
 import {
@@ -248,7 +249,7 @@ function PostgresSettingsPanel({
             <div className="space-y-2 text-sm text-neutral-300">
               <div>Name: {databaseName}</div>
               <div>Engine: {databaseEngine}</div>
-              <div>Provider: {databaseProvider}</div>
+              <div>Provider: {normalizeDatabaseProvider(databaseProvider)}</div>
               <div>Default branch: {defaultBranchName ?? "main"}</div>
             </div>
           </SettingCard>
@@ -859,7 +860,7 @@ export function DatabaseSidebar({
                     {database.engine}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-700 px-2.5 py-1 text-xs text-neutral-400">
-                    {database.provider}
+                    {normalizeDatabaseProvider(database.provider)}
                   </span>
                   {envAttachment && (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-700 px-2.5 py-1 text-xs text-neutral-400">
@@ -1035,7 +1036,9 @@ export function DatabaseSidebar({
               <div className="space-y-2 text-sm text-neutral-300">
                 <div>Name: {database.name}</div>
                 <div>Engine: {database.engine}</div>
-                <div>Provider: {database.provider}</div>
+                <div>
+                  Provider: {normalizeDatabaseProvider(database.provider)}
+                </div>
                 <div>
                   Current instance:{" "}
                   {envAttachment?.targetName ?? "not attached"}

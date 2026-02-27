@@ -3,7 +3,7 @@ CREATE TABLE databases (
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   engine TEXT NOT NULL CHECK (engine IN ('postgres', 'mysql')),
-  provider TEXT NOT NULL CHECK (provider IN ('velo', 'mysql-docker')),
+  provider TEXT NOT NULL CHECK (provider IN ('postgres-docker', 'mysql-docker')),
   created_at INTEGER NOT NULL,
   UNIQUE(project_id, name)
 );

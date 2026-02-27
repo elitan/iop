@@ -63,7 +63,7 @@ export interface Databases {
   projectId: string;
   name: string;
   engine: 'postgres' | 'mysql';
-  provider: 'velo' | 'mysql-docker';
+  provider: 'postgres-docker' | 'mysql-docker';
   createdAt: number;
 }
 

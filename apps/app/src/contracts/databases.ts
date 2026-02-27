@@ -2,7 +2,7 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 const databaseEngineSchema = z.enum(["postgres", "mysql"]);
-const databaseProviderSchema = z.enum(["velo", "mysql-docker"]);
+const databaseProviderSchema = z.enum(["postgres-docker", "mysql-docker"]);
 const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
 const attachmentModeSchema = z.enum(["managed", "manual"]);

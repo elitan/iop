@@ -8,6 +8,7 @@ import { SettingCard } from "@/components/setting-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDatabase, useDeleteDatabase } from "@/hooks/use-databases";
+import { normalizeDatabaseProvider } from "@/lib/database-provider";
 
 export default function DatabaseSettingsPage() {
   const params = useParams();
@@ -56,7 +57,7 @@ export default function DatabaseSettingsPage() {
             variant="outline"
             className="border-neutral-700 text-neutral-300"
           >
-            {database.provider}
+            {normalizeDatabaseProvider(database.provider)}
           </Badge>
         </div>
       </SettingCard>

@@ -4,6 +4,10 @@ import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
 import { getDatabaseBranchAlias } from "./database-hostname";
+import {
+  type DatabaseProvider,
+  normalizeDatabaseProvider,
+} from "./database-provider";
 import { db } from "./db";
 import type {
   Databases,
@@ -41,7 +45,6 @@ import { slugify } from "./slugify";
 const execAsync = promisify(exec);
 
 export type DatabaseEngine = "postgres" | "mysql";
-export type DatabaseProvider = "velo" | "mysql-docker";
 export type DatabaseTargetKind = "branch" | "instance";
 export type DatabaseTargetLifecycle = "active" | "stopped" | "expired";
 export type AttachmentMode = "managed" | "manual";
@@ -162,7 +165,7 @@ function assertMemoryLimit(value: string): void {
 }
 
 function getProvider(engine: DatabaseEngine): DatabaseProvider {
-  return engine === "postgres" ? "velo" : "mysql-docker";
+  return engine === "postgres" ? "postgres-docker" : "mysql-docker";
 }
 
 function getTargetKind(engine: DatabaseEngine): DatabaseTargetKind {
@@ -186,14 +189,23 @@ function getDatabaseNameSlug(name: string): string {
   return base.slice(0, 48);
 }
 
-async function assertVeloHostReady(): Promise<void> {
+async function assertPostgresHostReady(): Promise<void> {
   try {
     await execAsync("docker info --format '{{.ServerVersion}}'");
   } catch {
     throw new Error(
-      "Postgres requires a Velo-ready Docker host. Docker is not available.",
+      "Postgres requires a Docker host. Docker is not available.",
     );
   }
+}
+
+function normalizeDatabase(
+  database: Selectable<Databases>,
+): Selectable<Databases> {
+  return {
+    ...database,
+    provider: normalizeDatabaseProvider(database.provider),
+  };
 }
 
 function parseProviderRef(json: string): ProviderRef {
@@ -601,7 +613,7 @@ async function getDatabaseById(
     throw new Error("Database not found");
   }
 
-  return database;
+  return normalizeDatabase(database);
 }
 
 async function getTargetById(
@@ -766,7 +778,7 @@ export async function createDatabase(input: {
   assertDatabaseName(input.name);
 
   if (input.engine === "postgres") {
-    await assertVeloHostReady();
+    await assertPostgresHostReady();
     await assertPostgresBranchingReady();
   }
 
@@ -2176,12 +2188,14 @@ export async function ensureEnvironmentPostgresDefaults(
 }
 
 export async function listDatabasesByProject(projectId: string) {
-  return db
+  const databases = await db
     .selectFrom("databases")
     .selectAll()
     .where("projectId", "=", projectId)
     .orderBy("createdAt", "asc")
     .execute();
+
+  return databases.map(normalizeDatabase);
 }
 
 export async function listDatabaseTargets(databaseId: string) {

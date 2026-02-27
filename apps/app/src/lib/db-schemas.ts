@@ -566,7 +566,7 @@ export const databasesSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   engine: z.enum(["postgres", "mysql"]),
-  provider: z.enum(["velo", "mysql-docker"]),
+  provider: z.enum(["postgres-docker", "mysql-docker"]),
   createdAt: z.number(),
 });
 
@@ -575,7 +575,7 @@ export const newDatabasesSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   engine: z.enum(["postgres", "mysql"]),
-  provider: z.enum(["velo", "mysql-docker"]),
+  provider: z.enum(["postgres-docker", "mysql-docker"]),
   createdAt: z.number(),
 });
 
@@ -584,7 +584,7 @@ export const databasesUpdateSchema = z.object({
   projectId: z.string().optional(),
   name: z.string().optional(),
   engine: z.enum(["postgres", "mysql"]).optional(),
-  provider: z.enum(["velo", "mysql-docker"]).optional(),
+  provider: z.enum(["postgres-docker", "mysql-docker"]).optional(),
   createdAt: z.number().optional(),
 });
 

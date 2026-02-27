@@ -9,6 +9,7 @@ import {
   useDatabaseAttachments,
   useDatabaseTargets,
 } from "@/hooks/use-databases";
+import { normalizeDatabaseProvider } from "@/lib/database-provider";
 
 export default function DatabaseOverviewPage() {
   const params = useParams();
@@ -46,7 +47,7 @@ export default function DatabaseOverviewPage() {
                 variant="outline"
                 className="border-neutral-700 text-neutral-300"
               >
-                {database.provider}
+                {normalizeDatabaseProvider(database.provider)}
               </Badge>
             </div>
           </CardTitle>

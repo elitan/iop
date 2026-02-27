@@ -10,6 +10,7 @@ import {
   useDatabases,
   useEnvironmentDatabaseAttachments,
 } from "@/hooks/use-databases";
+import { normalizeDatabaseProvider } from "@/lib/database-provider";
 import { orpc } from "@/lib/orpc-client";
 
 export default function ProjectDatabasesPage() {
@@ -77,7 +78,7 @@ export default function ProjectDatabasesPage() {
                         variant="outline"
                         className="border-neutral-700 text-neutral-300"
                       >
-                        {database.provider}
+                        {normalizeDatabaseProvider(database.provider)}
                       </Badge>
                     </div>
 

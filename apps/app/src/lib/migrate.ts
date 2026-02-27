@@ -105,6 +105,27 @@ function runMigrationsWithDb(
 
     const filePath = join(schemaDir, file);
     const sql = readFileSync(filePath, "utf-8");
+    const needsForeignKeysOff = sql.includes("PRAGMA foreign_keys = OFF");
+
+    if (needsForeignKeysOff) {
+      try {
+        sqlite.exec(sql);
+        sqlite
+          .prepare("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)")
+          .run(file, Date.now());
+        console.log(`[migrate] Applied: ${file}`);
+        appliedCount++;
+      } catch (err) {
+        try {
+          sqlite.exec("ROLLBACK");
+        } catch (rollbackError) {
+          console.error("[migrate] Rollback failed:", rollbackError);
+        }
+        console.error(`[migrate] Failed to apply ${file}:`, err);
+        throw err;
+      }
+      continue;
+    }
 
     sqlite.exec("BEGIN EXCLUSIVE");
     try {
