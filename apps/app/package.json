@@ -13,6 +13,7 @@
     "db:gen": "node ./node_modules/.bin/kysely-gen --url ./data/frost.db --dialect sqlite --camel-case --out ./src/lib/db-types.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.999.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@orpc/client": "1.13.4",
     "@orpc/contract": "1.13.4",

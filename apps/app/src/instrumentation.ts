@@ -34,6 +34,12 @@ export async function register() {
     startUpdateScheduler();
     console.log("[startup] update scheduler: started");
 
+    const { startPostgresBackupScheduler } = await import(
+      "./lib/postgres-backup-scheduler"
+    );
+    startPostgresBackupScheduler();
+    console.log("[startup] postgres backup scheduler: started");
+
     const { syncCaddyConfig } = await import("./lib/domains");
     try {
       const result = await syncCaddyConfig();

@@ -7,6 +7,13 @@ const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
 const attachmentModeSchema = z.enum(["managed", "manual"]);
 const databaseStorageBackendSchema = z.enum(["apfs", "zfs"]);
+const backupIntervalUnitSchema = z.enum(["minutes", "hours", "days"]);
+const backupS3ProviderSchema = z.enum([
+  "aws",
+  "cloudflare",
+  "backblaze",
+  "custom",
+]);
 
 export const databaseSchema = z.object({
   id: z.string(),
@@ -119,6 +126,68 @@ const serviceBindingSchema = z.object({
   databaseEngine: databaseEngineSchema,
 });
 
+const databaseBackupConfigSchema = z.object({
+  databaseId: z.string(),
+  enabled: z.boolean(),
+  selectedTargetIds: z.array(z.string()),
+  intervalValue: z.number(),
+  intervalUnit: backupIntervalUnitSchema,
+  retentionDays: z.number(),
+  s3Provider: backupS3ProviderSchema,
+  s3Endpoint: z.string().nullable(),
+  s3Region: z.string().nullable(),
+  s3Bucket: z.string(),
+  s3Prefix: z.string(),
+  s3AccessKeyId: z.string(),
+  hasSecretAccessKey: z.boolean(),
+  s3ForcePathStyle: z.boolean(),
+  includeGlobals: z.boolean(),
+  running: z.boolean(),
+  lastRunAt: z.number().nullable(),
+  lastSuccessAt: z.number().nullable(),
+  lastError: z.string().nullable(),
+  createdAt: z.number().nullable(),
+  updatedAt: z.number().nullable(),
+});
+
+const databaseBackupRunResultSchema = z.object({
+  databaseId: z.string(),
+  startedAt: z.number(),
+  finishedAt: z.number(),
+  branchResults: z.array(
+    z.object({
+      sourceTargetId: z.string(),
+      sourceTargetName: z.string(),
+      manifestKey: z.string(),
+      dumpKey: z.string(),
+      globalsKey: z.string().nullable(),
+      createdAt: z.number(),
+    }),
+  ),
+  deletedByRetention: z.number(),
+});
+
+const databaseBackupListItemSchema = z.object({
+  backupPath: z.string(),
+  sourceTargetId: z.string(),
+  sourceTargetName: z.string(),
+  createdAt: z.number(),
+  createdAtIso: z.string(),
+  dumpSizeBytes: z.number(),
+  hasGlobals: z.boolean(),
+});
+
+const databaseBackupRestoreResultSchema = z.object({
+  databaseId: z.string(),
+  sourceTargetName: z.string(),
+  targetBranchName: z.string(),
+  targetId: z.string(),
+  createdBranch: z.boolean(),
+  startedAt: z.number(),
+  finishedAt: z.number(),
+  warnings: z.array(z.string()),
+});
+
 export const databasesContract = {
   create: oc
     .route({ method: "POST", path: "/projects/{projectId}/databases" })
@@ -140,6 +209,80 @@ export const databasesContract = {
     .route({ method: "GET", path: "/databases/{databaseId}" })
     .input(z.object({ databaseId: z.string() }))
     .output(databaseSchema),
+
+  getBackup: oc
+    .route({ method: "GET", path: "/databases/{databaseId}/backup" })
+    .input(z.object({ databaseId: z.string() }))
+    .output(databaseBackupConfigSchema),
+
+  upsertBackup: oc
+    .route({ method: "POST", path: "/databases/{databaseId}/backup" })
+    .input(
+      z.object({
+        databaseId: z.string(),
+        enabled: z.boolean(),
+        selectedTargetIds: z.array(z.string()).min(1),
+        intervalValue: z.number().int().min(1),
+        intervalUnit: backupIntervalUnitSchema,
+        retentionDays: z.number().int().min(1),
+        s3Provider: backupS3ProviderSchema,
+        s3Endpoint: z.string().nullable(),
+        s3Region: z.string().nullable(),
+        s3Bucket: z.string().min(1),
+        s3Prefix: z.string(),
+        s3AccessKeyId: z.string().min(1),
+        s3SecretAccessKey: z.string().optional(),
+        s3ForcePathStyle: z.boolean(),
+        includeGlobals: z.boolean(),
+      }),
+    )
+    .output(databaseBackupConfigSchema),
+
+  testBackupConnection: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/backup/test-connection",
+    })
+    .input(z.object({ databaseId: z.string() }))
+    .output(z.object({ success: z.boolean() })),
+
+  runBackup: oc
+    .route({ method: "POST", path: "/databases/{databaseId}/backup/run" })
+    .input(z.object({ databaseId: z.string() }))
+    .output(databaseBackupRunResultSchema),
+
+  listBackups: oc
+    .route({ method: "GET", path: "/databases/{databaseId}/backup/backups" })
+    .input(z.object({ databaseId: z.string() }))
+    .output(z.array(databaseBackupListItemSchema)),
+
+  restoreBackup: oc
+    .route({ method: "POST", path: "/databases/{databaseId}/backup/restore" })
+    .input(
+      z.object({
+        databaseId: z.string(),
+        backupPath: z.string().min(1),
+        targetBranchName: z.string().optional(),
+        createIfMissing: z.boolean().optional(),
+        allowOverwrite: z.boolean().optional(),
+      }),
+    )
+    .output(databaseBackupRestoreResultSchema),
+
+  restoreBackupMain: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/backup/restore-main",
+    })
+    .input(
+      z.object({
+        databaseId: z.string(),
+        backupPath: z.string().min(1),
+        createIfMissing: z.boolean().optional(),
+        allowOverwrite: z.boolean().optional(),
+      }),
+    )
+    .output(databaseBackupRestoreResultSchema),
 
   delete: oc
     .route({ method: "DELETE", path: "/databases/{databaseId}" })

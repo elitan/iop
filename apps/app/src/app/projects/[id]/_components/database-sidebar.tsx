@@ -57,6 +57,7 @@ import {
 } from "@/lib/database-logo";
 import { orpc } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/time";
+import { DatabaseBackupSettingsPanel } from "./database-backup-settings-panel";
 import {
   DatabaseBranchDrawer,
   type DatabaseProviderRef,
@@ -182,7 +183,7 @@ function buildBranchTreeRows(targets: BranchTreeTarget[]): BranchTreeRow[] {
   return rows;
 }
 
-type PostgresSettingsTab = "general" | "danger";
+type PostgresSettingsTab = "general" | "backups" | "danger";
 type BranchRowAction = "reset" | "delete";
 
 const POSTGRES_SETTINGS_NAV_ITEMS: {
@@ -190,22 +191,30 @@ const POSTGRES_SETTINGS_NAV_ITEMS: {
   label: string;
 }[] = [
   { id: "general", label: "General" },
+  { id: "backups", label: "Backups" },
   { id: "danger", label: "Danger" },
 ];
 
 interface PostgresSettingsPanelProps {
+  databaseId: string;
   databaseName: string;
   databaseEngine: "postgres" | "mysql";
   databaseProvider: string;
+  targets: Array<{
+    id: string;
+    name: string;
+  }>;
   defaultBranchName: string | null;
   onDelete: () => void;
   isDeletePending: boolean;
 }
 
 function PostgresSettingsPanel({
+  databaseId,
   databaseName,
   databaseEngine,
   databaseProvider,
+  targets,
   defaultBranchName,
   onDelete,
   isDeletePending,
@@ -252,6 +261,13 @@ function PostgresSettingsPanel({
               <div>Default branch: {defaultBranchName ?? "main"}</div>
             </div>
           </SettingCard>
+        )}
+
+        {activeTab === "backups" && (
+          <DatabaseBackupSettingsPanel
+            databaseId={databaseId}
+            targets={targets}
+          />
         )}
 
         {activeTab === "danger" && (
@@ -1022,9 +1038,16 @@ export function DatabaseSidebar({
         ),
         settings: isPostgres ? (
           <PostgresSettingsPanel
+            databaseId={database.id}
             databaseName={database.name}
             databaseEngine={database.engine}
             databaseProvider={database.provider}
+            targets={targets.map(function toTargetOption(target) {
+              return {
+                id: target.id,
+                name: target.name,
+              };
+            })}
             defaultBranchName={envAttachment?.targetName ?? null}
             onDelete={() => setDeleteDialogOpen(true)}
             isDeletePending={deleteDatabaseMutation.isPending}
