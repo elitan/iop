@@ -167,29 +167,6 @@ export function useRestoreDatabaseBackup(databaseId: string) {
   });
 }
 
-export function useRestoreDatabaseBackupMain(databaseId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (
-      data: Omit<
-        ContractInputs["databases"]["restoreBackupMain"],
-        "databaseId"
-      >,
-    ) => orpc.databases.restoreBackupMain.call({ databaseId, ...data }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.getBackup.key({ input: { databaseId } }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listBackups.key({ input: { databaseId } }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
-      });
-    },
-  });
-}
-
 export function useDeleteDatabase(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({

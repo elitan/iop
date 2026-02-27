@@ -157,7 +157,7 @@ describe("postgres backup runner integration", () => {
           projectId,
           name: `pg-${databaseId.slice(0, 8)}`,
           engine: "postgres",
-          provider: "velo",
+          provider: "mysql-docker",
           createdAt: now,
         })
         .execute();

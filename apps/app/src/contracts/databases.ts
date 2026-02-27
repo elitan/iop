@@ -269,21 +269,6 @@ export const databasesContract = {
     )
     .output(databaseBackupRestoreResultSchema),
 
-  restoreBackupMain: oc
-    .route({
-      method: "POST",
-      path: "/databases/{databaseId}/backup/restore-main",
-    })
-    .input(
-      z.object({
-        databaseId: z.string(),
-        backupPath: z.string().min(1),
-        createIfMissing: z.boolean().optional(),
-        allowOverwrite: z.boolean().optional(),
-      }),
-    )
-    .output(databaseBackupRestoreResultSchema),
-
   delete: oc
     .route({ method: "DELETE", path: "/databases/{databaseId}" })
     .input(z.object({ databaseId: z.string() }))

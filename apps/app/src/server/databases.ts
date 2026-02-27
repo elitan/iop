@@ -33,7 +33,6 @@ import {
 import {
   listPostgresBackups,
   restorePostgresBackup,
-  restorePostgresBackupToMain,
   runPostgresBackup,
   testPostgresBackupConnection,
 } from "@/lib/postgres-backup-runner";
@@ -180,21 +179,6 @@ export const databases = {
       throw toApiError(error);
     }
   }),
-
-  restoreBackupMain: os.databases.restoreBackupMain.handler(
-    async ({ input }) => {
-      try {
-        return await restorePostgresBackupToMain({
-          databaseId: input.databaseId,
-          backupPath: input.backupPath,
-          createIfMissing: input.createIfMissing,
-          allowOverwrite: input.allowOverwrite,
-        });
-      } catch (error) {
-        throw toApiError(error);
-      }
-    },
-  ),
 
   delete: os.databases.delete.handler(async ({ input }) => {
     try {

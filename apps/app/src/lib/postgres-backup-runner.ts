@@ -810,18 +810,3 @@ export async function restorePostgresBackup(input: {
     await rm(tempDir, { recursive: true, force: true });
   }
 }
-
-export async function restorePostgresBackupToMain(input: {
-  databaseId: string;
-  backupPath: string;
-  createIfMissing?: boolean;
-  allowOverwrite?: boolean;
-}): Promise<PostgresBackupRestoreResult> {
-  return restorePostgresBackup({
-    databaseId: input.databaseId,
-    backupPath: input.backupPath,
-    targetBranchName: "main",
-    createIfMissing: input.createIfMissing,
-    allowOverwrite: input.allowOverwrite,
-  });
-}
