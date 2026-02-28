@@ -16,6 +16,20 @@ export function useDatabase(databaseId: string) {
   });
 }
 
+export function useDatabaseBackupConfig(databaseId: string) {
+  return useQuery({
+    ...orpc.databases.getBackup.queryOptions({ input: { databaseId } }),
+    enabled: !!databaseId,
+  });
+}
+
+export function useListDatabaseBackups(databaseId: string) {
+  return useQuery({
+    ...orpc.databases.listBackups.queryOptions({ input: { databaseId } }),
+    enabled: !!databaseId,
+  });
+}
+
 export function useDatabaseTargets(databaseId: string) {
   return useQuery({
     ...orpc.databases.listTargets.queryOptions({ input: { databaseId } }),
@@ -90,6 +104,76 @@ export function useCreateDatabase(projectId: string) {
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.list.key({ input: { projectId } }),
+      });
+    },
+  });
+}
+
+export function useUpsertDatabaseBackupConfig(databaseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      data: Omit<ContractInputs["databases"]["upsertBackup"], "databaseId">,
+    ) => orpc.databases.upsertBackup.call({ databaseId, ...data }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.getBackup.key({ input: { databaseId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.listBackups.key({ input: { databaseId } }),
+      });
+    },
+  });
+}
+
+export function useTestDatabaseBackupConnection(databaseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      orpc.databases.testBackupConnection.call({
+        databaseId,
+      }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.getBackup.key({ input: { databaseId } }),
+      });
+    },
+  });
+}
+
+export function useRunDatabaseBackup(databaseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      orpc.databases.runBackup.call({
+        databaseId,
+      }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.getBackup.key({ input: { databaseId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.listBackups.key({ input: { databaseId } }),
+      });
+    },
+  });
+}
+
+export function useRestoreDatabaseBackup(databaseId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      data: Omit<ContractInputs["databases"]["restoreBackup"], "databaseId">,
+    ) => orpc.databases.restoreBackup.call({ databaseId, ...data }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.getBackup.key({ input: { databaseId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.listBackups.key({ input: { databaseId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
       });
     },
   });

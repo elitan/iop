@@ -563,7 +563,7 @@ export const databasesSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   engine: z.enum(["postgres", "mysql"]),
-  provider: z.enum(["velo", "mysql-docker"]),
+  provider: z.enum(["postgres-docker", "mysql-docker"]),
   createdAt: z.number(),
 });
 
@@ -572,7 +572,7 @@ export const newDatabasesSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   engine: z.enum(["postgres", "mysql"]),
-  provider: z.enum(["velo", "mysql-docker"]),
+  provider: z.enum(["postgres-docker", "mysql-docker"]),
   createdAt: z.number(),
 });
 
@@ -581,7 +581,7 @@ export const databasesUpdateSchema = z.object({
   projectId: z.string().optional(),
   name: z.string().optional(),
   engine: z.enum(["postgres", "mysql"]).optional(),
-  provider: z.enum(["velo", "mysql-docker"]).optional(),
+  provider: z.enum(["postgres-docker", "mysql-docker"]).optional(),
   createdAt: z.number().optional(),
 });
 
@@ -741,6 +741,86 @@ export type NewServiceDatabaseBindings = z.infer<
 >;
 export type ServiceDatabaseBindingsUpdate = z.infer<
   typeof serviceDatabaseBindingsUpdateSchema
+>;
+
+export const databaseBackupConfigsSchema = z.object({
+  databaseId: z.string(),
+  enabled: z.boolean(),
+  selectedTargetIdsJson: z.string(),
+  intervalValue: z.number(),
+  intervalUnit: z.enum(["minutes", "hours", "days"]),
+  retentionDays: z.number(),
+  s3Provider: z.enum(["aws", "cloudflare", "backblaze", "custom"]),
+  s3Endpoint: z.string().nullable(),
+  s3Region: z.string().nullable(),
+  s3Bucket: z.string(),
+  s3Prefix: z.string(),
+  s3AccessKeyId: z.string(),
+  s3SecretAccessKeyEncrypted: z.string(),
+  s3ForcePathStyle: z.boolean(),
+  includeGlobals: z.boolean(),
+  running: z.boolean(),
+  lastRunAt: z.number().nullable(),
+  lastSuccessAt: z.number().nullable(),
+  lastError: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+export const newDatabaseBackupConfigsSchema = z.object({
+  databaseId: z.string(),
+  enabled: z.boolean(),
+  selectedTargetIdsJson: z.string(),
+  intervalValue: z.number(),
+  intervalUnit: z.enum(["minutes", "hours", "days"]),
+  retentionDays: z.number(),
+  s3Provider: z.enum(["aws", "cloudflare", "backblaze", "custom"]),
+  s3Endpoint: z.string().nullable().optional(),
+  s3Region: z.string().nullable().optional(),
+  s3Bucket: z.string(),
+  s3Prefix: z.string(),
+  s3AccessKeyId: z.string(),
+  s3SecretAccessKeyEncrypted: z.string(),
+  s3ForcePathStyle: z.boolean(),
+  includeGlobals: z.boolean(),
+  running: z.boolean(),
+  lastRunAt: z.number().nullable().optional(),
+  lastSuccessAt: z.number().nullable().optional(),
+  lastError: z.string().nullable().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+export const databaseBackupConfigsUpdateSchema = z.object({
+  databaseId: z.string().optional(),
+  enabled: z.boolean().optional(),
+  selectedTargetIdsJson: z.string().optional(),
+  intervalValue: z.number().optional(),
+  intervalUnit: z.enum(["minutes", "hours", "days"]).optional(),
+  retentionDays: z.number().optional(),
+  s3Provider: z.enum(["aws", "cloudflare", "backblaze", "custom"]).optional(),
+  s3Endpoint: z.string().nullable().optional(),
+  s3Region: z.string().nullable().optional(),
+  s3Bucket: z.string().optional(),
+  s3Prefix: z.string().optional(),
+  s3AccessKeyId: z.string().optional(),
+  s3SecretAccessKeyEncrypted: z.string().optional(),
+  s3ForcePathStyle: z.boolean().optional(),
+  includeGlobals: z.boolean().optional(),
+  running: z.boolean().optional(),
+  lastRunAt: z.number().nullable().optional(),
+  lastSuccessAt: z.number().nullable().optional(),
+  lastError: z.string().nullable().optional(),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
+});
+
+export type DatabaseBackupConfigs = z.infer<typeof databaseBackupConfigsSchema>;
+export type NewDatabaseBackupConfigs = z.infer<
+  typeof newDatabaseBackupConfigsSchema
+>;
+export type DatabaseBackupConfigsUpdate = z.infer<
+  typeof databaseBackupConfigsUpdateSchema
 >;
 
 export const settingsSchema = z.object({

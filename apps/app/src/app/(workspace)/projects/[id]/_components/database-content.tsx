@@ -13,7 +13,7 @@ export interface CanvasDatabase {
   id: string;
   name: string;
   engine: "postgres" | "mysql";
-  provider: "velo" | "mysql-docker";
+  provider: "postgres-docker" | "mysql-docker";
 }
 
 export interface CanvasDatabaseAttachment {

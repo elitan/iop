@@ -55,5 +55,5 @@ CLAUDE.local.md
 
 # local mcp config
 .mcp.json
-/velo-source/
+/postgres-source/
 /neon-source/

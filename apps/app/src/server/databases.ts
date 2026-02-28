@@ -25,6 +25,16 @@ import {
   stopDatabaseTarget,
 } from "@/lib/database-runtime";
 import { db } from "@/lib/db";
+import {
+  getPostgresBackupConfig,
+  updatePostgresBackupConfig,
+} from "@/lib/postgres-backup-config";
+import {
+  listPostgresBackups,
+  restorePostgresBackup,
+  runPostgresBackup,
+  testPostgresBackupConnection,
+} from "@/lib/postgres-backup-runner";
 import { os } from "./orpc";
 
 function toApiError(error: unknown) {
@@ -49,6 +59,12 @@ function toApiError(error: unknown) {
     message.includes("cannot") ||
     message.includes("only") ||
     message.includes("supported") ||
+    message.includes("required") ||
+    message.includes("invalid") ||
+    message.includes("empty") ||
+    message.includes("configured") ||
+    message.includes("overwrite") ||
+    message.includes("select") ||
     message.includes("uppercase") ||
     message.includes("must share")
   ) {
@@ -119,6 +135,81 @@ export const databases = {
   get: os.databases.get.handler(async ({ input }) => {
     try {
       return await getDatabase(input.databaseId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  getBackup: os.databases.getBackup.handler(async ({ input }) => {
+    try {
+      return await getPostgresBackupConfig(input.databaseId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  upsertBackup: os.databases.upsertBackup.handler(async ({ input }) => {
+    try {
+      return await updatePostgresBackupConfig({
+        databaseId: input.databaseId,
+        config: {
+          enabled: input.enabled,
+          selectedTargetIds: input.selectedTargetIds,
+          intervalValue: input.intervalValue,
+          intervalUnit: input.intervalUnit,
+          retentionDays: input.retentionDays,
+          s3Provider: input.s3Provider,
+          s3Endpoint: input.s3Endpoint,
+          s3Region: input.s3Region,
+          s3Bucket: input.s3Bucket,
+          s3Prefix: input.s3Prefix ?? "",
+          s3AccessKeyId: input.s3AccessKeyId,
+          s3SecretAccessKey: input.s3SecretAccessKey,
+          s3ForcePathStyle:
+            input.s3ForcePathStyle ?? input.s3Provider === "custom",
+          includeGlobals: input.includeGlobals ?? true,
+        },
+      });
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  testBackupConnection: os.databases.testBackupConnection.handler(
+    async ({ input }) => {
+      try {
+        return await testPostgresBackupConnection(input.databaseId);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+  ),
+
+  runBackup: os.databases.runBackup.handler(async ({ input }) => {
+    try {
+      return await runPostgresBackup(input.databaseId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  listBackups: os.databases.listBackups.handler(async ({ input }) => {
+    try {
+      return await listPostgresBackups(input.databaseId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  restoreBackup: os.databases.restoreBackup.handler(async ({ input }) => {
+    try {
+      return await restorePostgresBackup({
+        databaseId: input.databaseId,
+        backupPath: input.backupPath,
+        targetBranchName: input.targetBranchName,
+        createIfMissing: input.createIfMissing,
+        allowOverwrite: input.allowOverwrite,
+      });
     } catch (error) {
       throw toApiError(error);
     }

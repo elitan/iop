@@ -35,6 +35,30 @@ export interface ApiKeys {
   lastUsedAt: string | null;
 }
 
+export interface DatabaseBackupConfigs {
+  databaseId: string;
+  enabled: Generated<boolean>;
+  selectedTargetIdsJson: Generated<string>;
+  intervalValue: Generated<number>;
+  intervalUnit: Generated<'minutes' | 'hours' | 'days'>;
+  retentionDays: Generated<number>;
+  s3Provider: Generated<'aws' | 'cloudflare' | 'backblaze' | 'custom'>;
+  s3Endpoint: string | null;
+  s3Region: string | null;
+  s3Bucket: Generated<string>;
+  s3Prefix: Generated<string>;
+  s3AccessKeyId: Generated<string>;
+  s3SecretAccessKeyEncrypted: Generated<string>;
+  s3ForcePathStyle: Generated<boolean>;
+  includeGlobals: Generated<boolean>;
+  running: Generated<boolean>;
+  lastRunAt: number | null;
+  lastSuccessAt: number | null;
+  lastError: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DatabaseTargetDeployments {
   id: string;
   targetId: string;
@@ -63,7 +87,7 @@ export interface Databases {
   projectId: string;
   name: string;
   engine: 'postgres' | 'mysql';
-  provider: 'velo' | 'mysql-docker';
+  provider: 'postgres-docker' | 'mysql-docker';
   createdAt: number;
 }
 
@@ -261,6 +285,7 @@ export interface Settings {
 export interface DB {
   _Migrations: Migrations;
   apiKeys: ApiKeys;
+  databaseBackupConfigs: DatabaseBackupConfigs;
   databaseTargetDeployments: DatabaseTargetDeployments;
   databaseTargets: DatabaseTargets;
   databases: Databases;
