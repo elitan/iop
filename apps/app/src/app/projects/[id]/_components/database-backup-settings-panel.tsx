@@ -81,6 +81,15 @@ function formatDate(value: number): string {
   return new Date(value).toLocaleString();
 }
 
+function formatBackupLabel(input: {
+  sourceTargetName: string;
+  createdAt: number;
+  hasGlobals: boolean;
+}): string {
+  const globals = input.hasGlobals ? " • globals" : "";
+  return `${formatDate(input.createdAt)} • ${input.sourceTargetName}${globals}`;
+}
+
 function getDefaultS3Prefix(prefix: string | null | undefined): string {
   const value = prefix?.trim() ?? "";
   return value.length > 0 ? value : DEFAULT_S3_PREFIX;
@@ -226,6 +235,34 @@ export function DatabaseBackupSettingsPanel({
     [form.selectedTargetIds, targets],
   );
 
+  useEffect(
+    function syncRestoreDefaults() {
+      const backups = listBackupsQuery.data ?? [];
+      if (backups.length === 0) {
+        if (restoreBackupPath.length > 0) {
+          setRestoreBackupPath("");
+        }
+        return;
+      }
+
+      const selected = backups.find(function byPath(backup) {
+        return backup.backupPath === restoreBackupPath;
+      });
+
+      if (selected) {
+        if (restoreTargetBranchName.length === 0) {
+          setRestoreTargetBranchName(selected.sourceTargetName);
+        }
+        return;
+      }
+
+      const newest = backups[0];
+      setRestoreBackupPath(newest.backupPath);
+      setRestoreTargetBranchName(newest.sourceTargetName);
+    },
+    [listBackupsQuery.data, restoreBackupPath, restoreTargetBranchName],
+  );
+
   function toggleTarget(targetId: string) {
     setForm(function update(current) {
       const selected = new Set(current.selectedTargetIds);
@@ -321,6 +358,23 @@ export function DatabaseBackupSettingsPanel({
       toast.error(toErrorMessage(error, "Restore failed"));
     }
   }
+
+  const selectedBackup = listBackupsQuery.data?.find(function byPath(backup) {
+    return backup.backupPath === restoreBackupPath;
+  });
+  const restoreBranchNames = Array.from(
+    new Set(
+      [
+        ...targets.map(function toName(target) {
+          return target.name;
+        }),
+        selectedBackup?.sourceTargetName ?? "",
+        restoreTargetBranchName,
+      ].filter(function nonEmpty(value) {
+        return value.trim().length > 0;
+      }),
+    ),
+  );
 
   return (
     <div className="space-y-4">
@@ -680,66 +734,65 @@ export function DatabaseBackupSettingsPanel({
             <div className="text-sm text-neutral-400">No backups found.</div>
           )}
 
-          {listBackupsQuery.data?.map(function renderBackup(backup) {
-            return (
-              <button
-                type="button"
-                key={backup.backupPath}
-                onClick={function onClick() {
-                  startRestore(backup.backupPath, backup.sourceTargetName);
-                }}
-                className={
-                  restoreBackupPath === backup.backupPath
-                    ? "w-full rounded border border-neutral-500 bg-neutral-800 px-3 py-2 text-left"
-                    : "w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-left"
-                }
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="border-neutral-700 text-neutral-300"
-                  >
-                    {backup.sourceTargetName}
-                  </Badge>
-                  {backup.hasGlobals && (
-                    <Badge
-                      variant="outline"
-                      className="border-neutral-700 text-neutral-300"
-                    >
-                      globals
-                    </Badge>
-                  )}
-                  <span className="text-sm text-neutral-300">
-                    {formatDate(backup.createdAt)}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {backup.backupPath}
-                </div>
-              </button>
-            );
-          })}
-
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Target branch</Label>
-              <Input
-                value={restoreTargetBranchName}
-                onChange={function onChange(event) {
-                  setRestoreTargetBranchName(event.target.value);
+              <Label>Backup</Label>
+              <Select
+                value={restoreBackupPath || undefined}
+                onValueChange={function onValueChange(value) {
+                  const backup = listBackupsQuery.data?.find(
+                    function byPath(item) {
+                      return item.backupPath === value;
+                    },
+                  );
+                  if (backup) {
+                    startRestore(backup.backupPath, backup.sourceTargetName);
+                    return;
+                  }
+                  setRestoreBackupPath(value);
                 }}
-                placeholder="main"
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select backup" />
+                </SelectTrigger>
+                <SelectContent>
+                  {listBackupsQuery.data?.map(function renderBackup(backup) {
+                    return (
+                      <SelectItem
+                        key={backup.backupPath}
+                        value={backup.backupPath}
+                      >
+                        {formatBackupLabel(backup)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedBackup && (
+                <div className="text-xs text-neutral-500">
+                  {selectedBackup.backupPath}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Selected backup source</Label>
-              <Input
-                value={restoreBackupPath}
-                onChange={function onChange(event) {
-                  setRestoreBackupPath(event.target.value);
-                }}
-                placeholder="select a backup above"
-              />
+              <Label>Target branch</Label>
+              <Select
+                value={restoreTargetBranchName || undefined}
+                onValueChange={setRestoreTargetBranchName}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {restoreBranchNames.map(function renderBranch(name) {
+                    return (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
