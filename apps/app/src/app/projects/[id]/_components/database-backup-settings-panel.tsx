@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -170,6 +170,7 @@ export function DatabaseBackupSettingsPanel({
   const [restoreBackupPath, setRestoreBackupPath] = useState("");
   const [restoreTargetBranchName, setRestoreTargetBranchName] = useState("");
   const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
+  const [showOtherBranches, setShowOtherBranches] = useState(false);
 
   useEffect(
     function syncForm() {
@@ -362,6 +363,20 @@ export function DatabaseBackupSettingsPanel({
   const selectedBackup = listBackupsQuery.data?.find(function byPath(backup) {
     return backup.backupPath === restoreBackupPath;
   });
+  const mainTarget =
+    targets.find(function byMain(target) {
+      return target.name === "main";
+    }) ??
+    targets[0] ??
+    null;
+  const otherTargets = targets.filter(function notMain(target) {
+    return target.id !== mainTarget?.id;
+  });
+  const selectedOtherBranches = otherTargets.filter(
+    function isSelected(target) {
+      return form.selectedTargetIds.includes(target.id);
+    },
+  ).length;
   const restoreBranchNames = Array.from(
     new Set(
       [
@@ -461,26 +476,73 @@ export function DatabaseBackupSettingsPanel({
 
           <div className="space-y-2">
             <Label>Branches to backup</Label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {targets.map(function renderTarget(target) {
-                const checked = form.selectedTargetIds.includes(target.id);
-                return (
-                  <label
-                    key={target.id}
-                    className="flex items-center gap-2 rounded border border-neutral-700 px-3 py-2 text-sm text-neutral-200"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={function onChange() {
-                        toggleTarget(target.id);
-                      }}
-                    />
-                    <span>{target.name}</span>
-                  </label>
-                );
-              })}
-            </div>
+            {mainTarget && (
+              <label className="flex items-center gap-2 rounded border border-neutral-700 px-3 py-2 text-sm text-neutral-200">
+                <input
+                  type="checkbox"
+                  checked={form.selectedTargetIds.includes(mainTarget.id)}
+                  onChange={function onChange() {
+                    toggleTarget(mainTarget.id);
+                  }}
+                />
+                <span>{mainTarget.name}</span>
+              </label>
+            )}
+            {otherTargets.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded border border-neutral-700 px-3 py-2 text-sm text-neutral-200"
+                  onClick={function onClick() {
+                    setShowOtherBranches(function update(current) {
+                      return !current;
+                    });
+                  }}
+                >
+                  <span>
+                    Branches ({otherTargets.length})
+                    {selectedOtherBranches > 0 &&
+                      ` • ${selectedOtherBranches} selected`}
+                  </span>
+                  <ChevronRight
+                    className={
+                      showOtherBranches
+                        ? "h-4 w-4 rotate-90 transition-transform"
+                        : "h-4 w-4 transition-transform"
+                    }
+                  />
+                </button>
+                {showOtherBranches && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {otherTargets.map(function renderTarget(target) {
+                      const checked = form.selectedTargetIds.includes(
+                        target.id,
+                      );
+                      return (
+                        <label
+                          key={target.id}
+                          className="flex items-center gap-2 rounded border border-neutral-700 px-3 py-2 text-sm text-neutral-200"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={function onChange() {
+                              toggleTarget(target.id);
+                            }}
+                          />
+                          <span>{target.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            {!mainTarget && (
+              <div className="text-xs text-neutral-400">
+                No branches available.
+              </div>
+            )}
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
