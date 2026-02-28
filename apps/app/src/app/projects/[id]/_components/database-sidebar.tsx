@@ -203,6 +203,8 @@ interface PostgresSettingsPanelProps {
   targets: Array<{
     id: string;
     name: string;
+    sourceTargetId: string | null;
+    createdAt: number;
   }>;
   defaultBranchName: string | null;
   onDelete: () => void;
@@ -1046,6 +1048,8 @@ export function DatabaseSidebar({
               return {
                 id: target.id,
                 name: target.name,
+                sourceTargetId: target.sourceTargetId,
+                createdAt: target.createdAt,
               };
             })}
             defaultBranchName={envAttachment?.targetName ?? null}

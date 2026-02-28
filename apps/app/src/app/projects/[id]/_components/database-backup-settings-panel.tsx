@@ -33,6 +33,8 @@ const DEFAULT_S3_PREFIX = "frost-backups";
 export interface DatabaseBackupTargetOption {
   id: string;
   name: string;
+  sourceTargetId: string | null;
+  createdAt: number;
 }
 
 interface DatabaseBackupSettingsPanelProps {
@@ -95,12 +97,67 @@ function getDefaultS3Prefix(prefix: string | null | undefined): string {
   return value.length > 0 ? value : DEFAULT_S3_PREFIX;
 }
 
+interface BackupBranchTreeRow {
+  target: DatabaseBackupTargetOption;
+  depth: number;
+}
+
+function buildBackupBranchTreeRows(
+  targets: DatabaseBackupTargetOption[],
+): BackupBranchTreeRow[] {
+  const byId = new Map<string, DatabaseBackupTargetOption>(
+    targets.map(function toPair(target) {
+      return [target.id, target];
+    }),
+  );
+  const rootKey = "__root__";
+  const childrenByParent = new Map<string, DatabaseBackupTargetOption[]>();
+
+  for (const target of targets) {
+    const parentId =
+      target.sourceTargetId && byId.has(target.sourceTargetId)
+        ? target.sourceTargetId
+        : rootKey;
+    const siblings = childrenByParent.get(parentId) ?? [];
+    siblings.push(target);
+    childrenByParent.set(parentId, siblings);
+  }
+
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort(function byOrder(left, right) {
+      if (left.createdAt !== right.createdAt) {
+        return left.createdAt - right.createdAt;
+      }
+      return left.name.localeCompare(right.name);
+    });
+  }
+
+  const rows: BackupBranchTreeRow[] = [];
+
+  function walk(parentId: string, depth: number) {
+    const children = childrenByParent.get(parentId) ?? [];
+    for (const child of children) {
+      rows.push({ target: child, depth });
+      walk(child.id, depth + 1);
+    }
+  }
+
+  walk(rootKey, 0);
+  return rows;
+}
+
 function createDefaultForm(
   targets: DatabaseBackupTargetOption[],
 ): BackupFormState {
+  const mainTarget =
+    targets.find(function byMain(target) {
+      return target.name === "main";
+    }) ??
+    targets[0] ??
+    null;
   return {
     enabled: false,
-    selectedTargetIds: targets.length > 0 ? [targets[0].id] : [],
+    selectedTargetIds: mainTarget ? [mainTarget.id] : [],
     intervalValue: 6,
     intervalUnit: "hours",
     retentionDays: 30,
@@ -227,9 +284,13 @@ export function DatabaseBackupSettingsPanel({
         return;
       }
       setForm(function update(current) {
+        const mainTarget =
+          targets.find(function byMain(target) {
+            return target.name === "main";
+          }) ?? targets[0];
         return {
           ...current,
-          selectedTargetIds: [targets[0].id],
+          selectedTargetIds: [mainTarget.id],
         };
       });
     },
@@ -363,18 +424,30 @@ export function DatabaseBackupSettingsPanel({
   const selectedBackup = listBackupsQuery.data?.find(function byPath(backup) {
     return backup.backupPath === restoreBackupPath;
   });
+  const branchTreeRows = buildBackupBranchTreeRows(targets);
   const mainTarget =
-    targets.find(function byMain(target) {
-      return target.name === "main";
-    }) ??
-    targets[0] ??
+    branchTreeRows.find(function byMain(row) {
+      return row.target.name === "main";
+    })?.target ??
+    branchTreeRows[0]?.target ??
     null;
-  const otherTargets = targets.filter(function notMain(target) {
-    return target.id !== mainTarget?.id;
-  });
-  const selectedOtherBranches = otherTargets.filter(
-    function isSelected(target) {
-      return form.selectedTargetIds.includes(target.id);
+  const mainDepth =
+    branchTreeRows.find(function byId(row) {
+      return row.target.id === mainTarget?.id;
+    })?.depth ?? 0;
+  const otherBranchRows = branchTreeRows
+    .filter(function notMain(row) {
+      return row.target.id !== mainTarget?.id;
+    })
+    .map(function toDisplayRow(row) {
+      return {
+        target: row.target,
+        depth: Math.max(0, row.depth - mainDepth),
+      };
+    });
+  const selectedOtherBranches = otherBranchRows.filter(
+    function isSelected(row) {
+      return form.selectedTargetIds.includes(row.target.id);
     },
   ).length;
   const restoreBranchNames = Array.from(
@@ -488,7 +561,7 @@ export function DatabaseBackupSettingsPanel({
                 <span>{mainTarget.name}</span>
               </label>
             )}
-            {otherTargets.length > 0 && (
+            {otherBranchRows.length > 0 && (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -500,7 +573,7 @@ export function DatabaseBackupSettingsPanel({
                   }}
                 >
                   <span>
-                    Branches ({otherTargets.length})
+                    Branches ({otherBranchRows.length})
                     {selectedOtherBranches > 0 &&
                       ` • ${selectedOtherBranches} selected`}
                   </span>
@@ -513,8 +586,9 @@ export function DatabaseBackupSettingsPanel({
                   />
                 </button>
                 {showOtherBranches && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {otherTargets.map(function renderTarget(target) {
+                  <div className="space-y-2">
+                    {otherBranchRows.map(function renderRow(row) {
+                      const target = row.target;
                       const checked = form.selectedTargetIds.includes(
                         target.id,
                       );
@@ -522,6 +596,7 @@ export function DatabaseBackupSettingsPanel({
                         <label
                           key={target.id}
                           className="flex items-center gap-2 rounded border border-neutral-700 px-3 py-2 text-sm text-neutral-200"
+                          style={{ paddingLeft: `${12 + row.depth * 20}px` }}
                         >
                           <input
                             type="checkbox"
