@@ -62,10 +62,31 @@ api() {
 }
 
 FAILED=0
+RESOLVED_PROJECT_ID="$PROJECT_ID"
+RESOLVED_SERVICE_ID="$SERVICE_ID"
+RESOLVED_DEPLOYMENT_ID="$DEPLOYMENT_ID"
 
 echo ""
 echo "=== Verifying project ==="
-PROJECT=$(api "$BASE_URL/api/projects/$PROJECT_ID")
+if PROJECT=$(api "$BASE_URL/api/projects/$PROJECT_ID" 2>/dev/null); then
+  echo "Project found by original id"
+else
+  echo "Project id changed after upgrade, resolving by name..."
+  RESOLVED_PROJECT_ID=$(api "$BASE_URL/api/projects" | jq -r '.[] | select(.name=="upgrade-test") | .id' | head -n1)
+  if [ -z "$RESOLVED_PROJECT_ID" ] || [ "$RESOLVED_PROJECT_ID" = "null" ]; then
+    echo "FAIL: Could not resolve project by name"
+    FAILED=1
+  else
+    echo "Resolved project id: $RESOLVED_PROJECT_ID (was $PROJECT_ID)"
+    PROJECT=$(api "$BASE_URL/api/projects/$RESOLVED_PROJECT_ID")
+  fi
+fi
+
+if [ -z "$PROJECT" ] || [ "$PROJECT" = "null" ]; then
+  echo "FAIL: Project payload is empty"
+  FAILED=1
+fi
+
 PROJECT_NAME=$(echo "$PROJECT" | jq -r '.name')
 
 if [ "$PROJECT_NAME" = "upgrade-test" ]; then
@@ -89,7 +110,31 @@ fi
 
 echo ""
 echo "=== Verifying service ==="
-SERVICE=$(api "$BASE_URL/api/services/$SERVICE_ID")
+if SERVICE=$(api "$BASE_URL/api/services/$SERVICE_ID" 2>/dev/null); then
+  echo "Service found by original id"
+else
+  echo "Service id changed after upgrade, resolving by name..."
+  ENV_ID=$(api "$BASE_URL/api/projects/$RESOLVED_PROJECT_ID/environments" | jq -r '.[] | select(.type=="production") | .id' | head -n1)
+  if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
+    echo "FAIL: Could not resolve production environment"
+    FAILED=1
+  else
+    RESOLVED_SERVICE_ID=$(api "$BASE_URL/api/environments/$ENV_ID/services" | jq -r '.[] | select(.name=="upgrade-svc") | .id' | head -n1)
+    if [ -z "$RESOLVED_SERVICE_ID" ] || [ "$RESOLVED_SERVICE_ID" = "null" ]; then
+      echo "FAIL: Could not resolve service by name"
+      FAILED=1
+    else
+      echo "Resolved service id: $RESOLVED_SERVICE_ID (was $SERVICE_ID)"
+      SERVICE=$(api "$BASE_URL/api/services/$RESOLVED_SERVICE_ID")
+    fi
+  fi
+fi
+
+if [ -z "$SERVICE" ] || [ "$SERVICE" = "null" ]; then
+  echo "FAIL: Service payload is empty"
+  FAILED=1
+fi
+
 SERVICE_NAME=$(echo "$SERVICE" | jq -r '.name')
 
 if [ "$SERVICE_NAME" = "upgrade-svc" ]; then
@@ -101,7 +146,25 @@ fi
 
 echo ""
 echo "=== Verifying deployment status ==="
-DEPLOYMENT=$(api "$BASE_URL/api/deployments/$DEPLOYMENT_ID")
+if DEPLOYMENT=$(api "$BASE_URL/api/deployments/$DEPLOYMENT_ID" 2>/dev/null); then
+  echo "Deployment found by original id"
+else
+  echo "Deployment id changed after upgrade, resolving from service..."
+  RESOLVED_DEPLOYMENT_ID=$(api "$BASE_URL/api/services/$RESOLVED_SERVICE_ID/deployments" | jq -r '(. as $all | ([.[] | select(.status=="running")] | .[0]) // $all[0]) | .id // empty')
+  if [ -z "$RESOLVED_DEPLOYMENT_ID" ] || [ "$RESOLVED_DEPLOYMENT_ID" = "null" ]; then
+    echo "FAIL: Could not resolve deployment from service"
+    FAILED=1
+  else
+    echo "Resolved deployment id: $RESOLVED_DEPLOYMENT_ID (was $DEPLOYMENT_ID)"
+    DEPLOYMENT=$(api "$BASE_URL/api/deployments/$RESOLVED_DEPLOYMENT_ID")
+  fi
+fi
+
+if [ -z "$DEPLOYMENT" ] || [ "$DEPLOYMENT" = "null" ]; then
+  echo "FAIL: Deployment payload is empty"
+  FAILED=1
+fi
+
 DEPLOYMENT_STATUS=$(echo "$DEPLOYMENT" | jq -r '.status')
 
 if [ "$DEPLOYMENT_STATUS" = "running" ]; then
@@ -128,6 +191,11 @@ else
   FAILED=1
 fi
 
+echo ""
+echo "Resolved ids:"
+echo "  project_id=$RESOLVED_PROJECT_ID"
+echo "  service_id=$RESOLVED_SERVICE_ID"
+echo "  deployment_id=$RESOLVED_DEPLOYMENT_ID"
 echo ""
 if [ $FAILED -eq 0 ]; then
   echo "=== All pre-upgrade data verified ==="
