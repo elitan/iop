@@ -4,8 +4,8 @@ import { deploymentsSchema, replicasSchema } from "@/lib/db-schemas";
 
 export const deploymentsContract = {
   get: oc
-    .route({ method: "GET", path: "/deployments/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/deployments/{deploymentId}" })
+    .input(z.object({ deploymentId: z.string() }))
     .output(deploymentsSchema),
 
   listByEnvironment: oc
@@ -14,12 +14,12 @@ export const deploymentsContract = {
     .output(z.array(deploymentsSchema)),
 
   rollback: oc
-    .route({ method: "POST", path: "/deployments/{id}/rollback" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/deployments/{deploymentId}/rollback" })
+    .input(z.object({ deploymentId: z.string() }))
     .output(z.object({ deploymentId: z.string() })),
 
   getReplicas: oc
-    .route({ method: "GET", path: "/deployments/{id}/replicas" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/deployments/{deploymentId}/replicas" })
+    .input(z.object({ deploymentId: z.string() }))
     .output(z.array(replicasSchema)),
 };

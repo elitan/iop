@@ -23,30 +23,42 @@ export function useDatabaseTargets(databaseId: string) {
   });
 }
 
-export function useDatabaseTargetDeployments(targetId: string) {
+export function useDatabaseTargetDeployments(
+  databaseId: string,
+  targetId: string,
+) {
   return useQuery({
     ...orpc.databases.listTargetDeployments.queryOptions({
-      input: { targetId },
+      input: { databaseId, targetId },
     }),
-    enabled: !!targetId,
+    enabled: !!databaseId && !!targetId,
     refetchInterval: 3000,
   });
 }
 
-export function useDatabaseTargetRuntime(targetId: string) {
+export function useDatabaseTargetRuntime(databaseId: string, targetId: string) {
   return useQuery({
-    ...orpc.databases.getTargetRuntime.queryOptions({ input: { targetId } }),
-    enabled: !!targetId,
+    ...orpc.databases.getTargetRuntime.queryOptions({
+      input: { databaseId, targetId },
+    }),
+    enabled: !!databaseId && !!targetId,
     refetchInterval: 3000,
   });
 }
 
-export function useRunDatabaseTargetSql(targetId: string) {
+export function useRunDatabaseTargetSql(databaseId: string, targetId: string) {
   return useMutation({
     mutationFn: function mutationFn(
-      data: Omit<ContractInputs["databases"]["runTargetSql"], "targetId">,
+      data: Omit<
+        ContractInputs["databases"]["runTargetSql"],
+        "databaseId" | "targetId"
+      >,
     ) {
-      return orpc.databases.runTargetSql.call({ targetId, ...data });
+      return orpc.databases.runTargetSql.call({
+        databaseId,
+        targetId,
+        ...data,
+      });
     },
   });
 }
@@ -176,52 +188,54 @@ export function useDeleteDatabaseTarget(databaseId: string) {
   });
 }
 
-export function useDeleteDatabaseTargetById() {
+export function useDeployDatabaseTarget(databaseId: string, targetId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ targetId }: { targetId: string }) =>
-      orpc.databases.deleteTargetById.call({ targetId }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries();
-    },
-  });
-}
-
-export function useDeployDatabaseTarget(targetId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => orpc.databases.deployTarget.call({ targetId }),
+    mutationFn: () =>
+      orpc.databases.deployTarget.call({ databaseId, targetId }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargetDeployments.key({
-          input: { targetId },
+          input: { databaseId, targetId },
         }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.databases.getTargetRuntime.key({ input: { targetId } }),
+        queryKey: orpc.databases.getTargetRuntime.key({
+          input: { databaseId, targetId },
+        }),
       });
       await queryClient.refetchQueries();
     },
   });
 }
 
-export function usePatchDatabaseTargetRuntimeSettings(targetId: string) {
+export function usePatchDatabaseTargetRuntimeSettings(
+  databaseId: string,
+  targetId: string,
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (
       data: Omit<
         ContractInputs["databases"]["patchTargetRuntimeSettings"],
-        "targetId"
+        "databaseId" | "targetId"
       >,
-    ) => orpc.databases.patchTargetRuntimeSettings.call({ targetId, ...data }),
+    ) =>
+      orpc.databases.patchTargetRuntimeSettings.call({
+        databaseId,
+        targetId,
+        ...data,
+      }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.databases.getTargetRuntime.key({ input: { targetId } }),
+        queryKey: orpc.databases.getTargetRuntime.key({
+          input: { databaseId, targetId },
+        }),
       });
       await queryClient.refetchQueries();
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargetDeployments.key({
-          input: { targetId },
+          input: { databaseId, targetId },
         }),
       });
     },
@@ -247,7 +261,7 @@ export function usePutEnvironmentDatabaseAttachment(
         }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: envId } }),
+        queryKey: orpc.environments.get.key({ input: { envId } }),
       });
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
@@ -271,7 +285,7 @@ export function useDeleteEnvironmentDatabaseAttachment(
         }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: envId } }),
+        queryKey: orpc.environments.get.key({ input: { envId } }),
       });
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),

@@ -10,7 +10,7 @@ export const deployments = {
     const deployment = await db
       .selectFrom("deployments")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.deploymentId)
       .executeTakeFirst();
 
     if (!deployment) {
@@ -36,7 +36,7 @@ export const deployments = {
     return db
       .selectFrom("replicas")
       .selectAll()
-      .where("deploymentId", "=", input.id)
+      .where("deploymentId", "=", input.deploymentId)
       .orderBy("replicaIndex", "asc")
       .execute();
   }),
@@ -47,7 +47,7 @@ export const deployments = {
     const deployment = await db
       .selectFrom("deployments")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.deploymentId)
       .executeTakeFirst();
 
     if (!deployment) {
@@ -77,7 +77,7 @@ export const deployments = {
       throw new ORPCError("GONE", { message: "Image no longer available" });
     }
 
-    const newDeploymentId = await rollbackDeployment(input.id);
+    const newDeploymentId = await rollbackDeployment(input.deploymentId);
     return { deploymentId: newDeploymentId };
   }),
 };

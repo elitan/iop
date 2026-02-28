@@ -45,8 +45,8 @@ export const projectsContract = {
     .output(z.array(projectListItemSchema)),
 
   get: oc
-    .route({ method: "GET", path: "/projects/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/projects/{projectId}" })
+    .input(z.object({ projectId: z.string() }))
     .output(projectWithServicesSchema),
 
   create: oc
@@ -61,24 +61,23 @@ export const projectsContract = {
     .output(projectsSchema),
 
   update: oc
-    .route({ method: "PATCH", path: "/projects/{id}" })
+    .route({ method: "PATCH", path: "/projects/{projectId}" })
     .input(
       z.object({
-        id: z.string(),
+        projectId: z.string(),
         name: z.string().optional(),
         envVars: z.array(envVarSchema).optional(),
-        canvasPositions: z.string().optional(),
       }),
     )
     .output(projectsSchema),
 
   delete: oc
-    .route({ method: "DELETE", path: "/projects/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "DELETE", path: "/projects/{projectId}" })
+    .input(z.object({ projectId: z.string() }))
     .output(z.object({ success: z.boolean() })),
 
   deploy: oc
-    .route({ method: "POST", path: "/projects/{id}/deploy" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/projects/{projectId}/deploy" })
+    .input(z.object({ projectId: z.string() }))
     .output(z.object({ deploymentIds: z.array(z.string()) })),
 };

@@ -1,7 +1,7 @@
-import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
+import { newOauthTokenId } from "@/lib/id";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -177,7 +177,7 @@ async function issueTokenPair(clientId: string) {
   await db
     .insertInto("oauthTokens")
     .values({
-      id: nanoid(),
+      id: newOauthTokenId(),
       accessTokenHash: hashOAuthToken(accessToken),
       refreshTokenHash: hashOAuthToken(refreshToken),
       clientId,

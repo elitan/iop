@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
+import { newOauthClientId } from "@/lib/id";
 
 const REGISTER_WINDOW_MS = 60 * 1000;
 const REGISTER_MAX_REQUESTS = 20;
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const id = nanoid();
+  const id = newOauthClientId();
   const clientId = `frost_client_${randomBytes(16).toString("hex")}`;
 
   await db

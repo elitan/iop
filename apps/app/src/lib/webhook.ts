@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
 import { db } from "./db";
 import { getDomainsForService } from "./domains";
 import { normalizeGitHubUrl, updatePRComment } from "./github";
+import { newEnvironmentId } from "./id";
 import { cleanupEnvironment } from "./lifecycle";
 import { getPreferredDomain } from "./service-url";
 import { createService } from "./services";
@@ -96,7 +96,7 @@ export async function createPreviewEnvironment(
     return existing.id;
   }
 
-  const id = nanoid();
+  const id = newEnvironmentId();
   const now = Date.now();
   const name = slugify(prTitle).substring(0, 50);
 
@@ -315,7 +315,7 @@ export function buildPRCommentBody(params: BuildPRCommentParams): string {
 
   function dashboardUrl(serviceId: string): string | null {
     if (!frostDomain) return null;
-    return `https://${frostDomain}/projects/${projectId}/environments/${environmentId}?service=${serviceId}`;
+    return `https://${frostDomain}/projects/${projectId}/environments/${environmentId}/services/${serviceId}`;
   }
 
   const rows = services

@@ -119,6 +119,11 @@ const serviceBindingSchema = z.object({
   databaseEngine: databaseEngineSchema,
 });
 
+const targetParamsSchema = z.object({
+  databaseId: z.string(),
+  targetId: z.string(),
+});
+
 export const databasesContract = {
   create: oc
     .route({ method: "POST", path: "/projects/{projectId}/databases" })
@@ -162,29 +167,45 @@ export const databasesContract = {
     .input(z.object({ databaseId: z.string() }))
     .output(z.array(databaseTargetSchema)),
 
+  getTarget: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/targets/{targetId}",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetSchema),
+
   listTargetDeployments: oc
     .route({
       method: "GET",
-      path: "/database-targets/{targetId}/deployments",
+      path: "/databases/{databaseId}/targets/{targetId}/deployments",
     })
-    .input(z.object({ targetId: z.string() }))
+    .input(targetParamsSchema)
     .output(z.array(databaseTargetDeploymentSchema)),
 
   deployTarget: oc
-    .route({ method: "POST", path: "/database-targets/{targetId}/deploy" })
-    .input(z.object({ targetId: z.string() }))
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/targets/{targetId}/deploy",
+    })
+    .input(targetParamsSchema)
     .output(databaseTargetDeploymentSchema),
 
   getTargetRuntime: oc
-    .route({ method: "GET", path: "/database-targets/{targetId}/runtime" })
-    .input(z.object({ targetId: z.string() }))
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/targets/{targetId}/runtime",
+    })
+    .input(targetParamsSchema)
     .output(databaseTargetRuntimeSchema),
 
   runTargetSql: oc
-    .route({ method: "POST", path: "/database-targets/{targetId}/sql" })
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/targets/{targetId}/sql",
+    })
     .input(
-      z.object({
-        targetId: z.string(),
+      targetParamsSchema.extend({
         sql: z.string().min(1),
       }),
     )
@@ -193,11 +214,10 @@ export const databasesContract = {
   patchTargetRuntimeSettings: oc
     .route({
       method: "PATCH",
-      path: "/database-targets/{targetId}/runtime-settings",
+      path: "/databases/{databaseId}/targets/{targetId}",
     })
     .input(
-      z.object({
-        targetId: z.string(),
+      targetParamsSchema.extend({
         name: z.string().min(1).optional(),
         hostname: z
           .string()
@@ -249,16 +269,127 @@ export const databasesContract = {
       method: "DELETE",
       path: "/databases/{databaseId}/targets/{targetId}",
     })
-    .input(z.object({ databaseId: z.string(), targetId: z.string() }))
+    .input(targetParamsSchema)
     .output(z.object({ success: z.boolean() })),
 
-  deleteTargetById: oc
+  createBranch: oc
+    .route({ method: "POST", path: "/databases/{databaseId}/branches" })
+    .input(
+      z.object({
+        databaseId: z.string(),
+        name: z.string().min(1),
+        sourceTargetName: z.string().optional(),
+      }),
+    )
+    .output(databaseTargetSchema),
+
+  listBranches: oc
+    .route({ method: "GET", path: "/databases/{databaseId}/branches" })
+    .input(z.object({ databaseId: z.string() }))
+    .output(z.array(databaseTargetSchema)),
+
+  getBranch: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/branches/{targetId}",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetSchema),
+
+  patchBranch: oc
+    .route({
+      method: "PATCH",
+      path: "/databases/{databaseId}/branches/{targetId}",
+    })
+    .input(
+      targetParamsSchema.extend({
+        name: z.string().min(1).optional(),
+        hostname: z
+          .string()
+          .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
+          .optional(),
+        lifecycleStatus: z.enum(["active", "stopped"]).optional(),
+        memoryLimit: z
+          .string()
+          .regex(/^\d+[kmg]$/i)
+          .nullable()
+          .optional(),
+        cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
+      }),
+    )
+    .output(databaseTargetRuntimeSchema),
+
+  deleteBranch: oc
     .route({
       method: "DELETE",
-      path: "/database-targets/{targetId}",
+      path: "/databases/{databaseId}/branches/{targetId}",
     })
-    .input(z.object({ targetId: z.string() }))
+    .input(targetParamsSchema)
     .output(z.object({ success: z.boolean() })),
+
+  deployBranch: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/branches/{targetId}/deploy",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetDeploymentSchema),
+
+  startBranch: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/branches/{targetId}/start",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetSchema),
+
+  stopBranch: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/branches/{targetId}/stop",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetSchema),
+
+  resetBranch: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/branches/{targetId}/reset",
+    })
+    .input(
+      targetParamsSchema.extend({
+        sourceTargetName: z.string(),
+      }),
+    )
+    .output(databaseTargetSchema),
+
+  runBranchSql: oc
+    .route({
+      method: "POST",
+      path: "/databases/{databaseId}/branches/{targetId}/sql",
+    })
+    .input(
+      targetParamsSchema.extend({
+        sql: z.string().min(1),
+      }),
+    )
+    .output(databaseTargetSqlResultSchema),
+
+  getBranchRuntime: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/branches/{targetId}/runtime",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetRuntimeSchema),
+
+  listBranchDeployments: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/branches/{targetId}/deployments",
+    })
+    .input(targetParamsSchema)
+    .output(z.array(databaseTargetDeploymentSchema)),
 
   putAttachment: oc
     .route({

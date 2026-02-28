@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseDatabaseTargetLogsOptions {
+  databaseId: string;
   targetId: string;
 }
 
@@ -16,6 +17,7 @@ const MAX_LINES = 1000;
 const RECONNECT_DELAY = 2000;
 
 export function useDatabaseTargetLogs({
+  databaseId,
   targetId,
 }: UseDatabaseTargetLogsOptions): UseDatabaseTargetLogsResult {
   const [logs, setLogs] = useState<string[]>([]);
@@ -42,7 +44,7 @@ export function useDatabaseTargetLogs({
 
   const connect = useCallback(
     function connect() {
-      if (!targetId) return;
+      if (!databaseId || !targetId) return;
 
       disconnect();
       shouldReconnectRef.current = true;
@@ -57,7 +59,7 @@ export function useDatabaseTargetLogs({
 
       const tail = lineCountRef.current > 0 ? 0 : 100;
       const es = new EventSource(
-        `/api/database-targets/${targetId}/logs?tail=${tail}`,
+        `/api/databases/${databaseId}/targets/${targetId}/logs?tail=${tail}`,
       );
       eventSourceRef.current = es;
 
@@ -107,15 +109,15 @@ export function useDatabaseTargetLogs({
         }
       };
     },
-    [targetId, disconnect],
+    [databaseId, targetId, disconnect],
   );
 
   useEffect(() => {
-    if (targetId) {
+    if (databaseId && targetId) {
       connect();
     }
     return disconnect;
-  }, [targetId, connect, disconnect]);
+  }, [databaseId, targetId, connect, disconnect]);
 
   return { logs, isConnected, error };
 }

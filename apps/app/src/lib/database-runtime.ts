@@ -22,6 +22,14 @@ import {
   stopContainer,
   waitForHealthy,
 } from "./docker";
+import {
+  newDatabaseId,
+  newDatabaseTargetDeploymentId,
+  newDatabaseTargetId,
+  newEnvironmentDatabaseAttachmentId,
+  newRuntimeServiceId,
+  newServiceDatabaseBindingId,
+} from "./id";
 import type { BranchStorageBackendName } from "./postgres-branching/branch-storage-backend";
 import {
   assertPostgresBranchingReady,
@@ -264,7 +272,7 @@ async function recordTargetDeployment(input: {
   status: DatabaseTargetDeploymentStatus;
   message?: string | null;
 }): Promise<Selectable<DatabaseTargetDeployments>> {
-  const id = nanoid();
+  const id = newDatabaseTargetDeploymentId();
   const now = Date.now();
 
   await db
@@ -781,9 +789,9 @@ export async function createDatabase(input: {
     throw new Error("Database with this name already exists");
   }
 
-  const databaseId = nanoid();
-  const targetId = nanoid();
-  const runtimeServiceId = nanoid();
+  const databaseId = newDatabaseId();
+  const targetId = newDatabaseTargetId();
+  const runtimeServiceId = newRuntimeServiceId();
   const createdAt = Date.now();
   const provider = getProvider(input.engine);
   const kind = getTargetKind(input.engine);
@@ -880,7 +888,7 @@ export async function createDatabase(input: {
         await db
           .insertInto("environmentDatabaseAttachments")
           .values({
-            id: nanoid(),
+            id: newEnvironmentDatabaseAttachmentId(),
             environmentId: environment.id,
             databaseId,
             targetId,
@@ -936,8 +944,8 @@ export async function createDatabaseTarget(input: {
   }
 
   const createdAt = Date.now();
-  const targetId = nanoid();
-  const runtimeServiceId = nanoid();
+  const targetId = newDatabaseTargetId();
+  const runtimeServiceId = newRuntimeServiceId();
   const rollback = createRollbackStack();
 
   try {
@@ -1346,7 +1354,7 @@ export async function putEnvironmentAttachment(input: {
   await db
     .insertInto("environmentDatabaseAttachments")
     .values({
-      id: nanoid(),
+      id: newEnvironmentDatabaseAttachmentId(),
       environmentId: environment.id,
       databaseId: database.id,
       targetId: target.id,
@@ -1555,7 +1563,7 @@ export async function createServiceDatabaseBinding(input: {
   await db
     .insertInto("serviceDatabaseBindings")
     .values({
-      id: nanoid(),
+      id: newServiceDatabaseBindingId(),
       serviceId: input.serviceId,
       databaseId: input.databaseId,
       envVarKey: input.envVarKey,
@@ -2146,7 +2154,7 @@ export async function ensureEnvironmentPostgresDefaults(
       await db
         .insertInto("environmentDatabaseAttachments")
         .values({
-          id: nanoid(),
+          id: newEnvironmentDatabaseAttachmentId(),
           environmentId: environment.id,
           databaseId: database.id,
           targetId: mainTarget.id,

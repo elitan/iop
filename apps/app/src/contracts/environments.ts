@@ -14,8 +14,8 @@ export const environmentsContract = {
     .output(z.array(environmentsSchema)),
 
   get: oc
-    .route({ method: "GET", path: "/environments/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/environments/{envId}" })
+    .input(z.object({ envId: z.string() }))
     .output(environmentWithServicesSchema),
 
   create: oc
@@ -31,22 +31,22 @@ export const environmentsContract = {
     .output(environmentsSchema),
 
   update: oc
-    .route({ method: "PATCH", path: "/environments/{id}" })
+    .route({ method: "PATCH", path: "/environments/{envId}" })
     .input(
       z.object({
-        id: z.string(),
+        envId: z.string(),
         name: z.string().min(1).optional(),
       }),
     )
     .output(environmentsSchema),
 
   delete: oc
-    .route({ method: "DELETE", path: "/environments/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "DELETE", path: "/environments/{envId}" })
+    .input(z.object({ envId: z.string() }))
     .output(z.object({ success: z.boolean() })),
 
   deploy: oc
-    .route({ method: "POST", path: "/environments/{id}/deploy" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/environments/{envId}/deploy" })
+    .input(z.object({ envId: z.string() }))
     .output(z.object({ deploymentIds: z.array(z.string()) })),
 };

@@ -26,7 +26,7 @@ run_target_sql() {
   local sql="$2"
   local body
   body=$(jq -nc --arg sql "$sql" '{sql: $sql}')
-  api -X POST "$BASE_URL/api/database-targets/$target_id/sql" -d "$body"
+  api -X POST "$BASE_URL/api/databases/$DB_ID/targets/$target_id/sql" -d "$body"
 }
 
 ZFS_POOL=$(remote '. /opt/frost/.env; echo ${FROST_POSTGRES_ZFS_POOL:-}')
@@ -42,7 +42,7 @@ DB_CREATE=$(api -X POST "$BASE_URL/api/projects/$PROJECT_ID/databases" \
 DB_ID=$(require_field "$DB_CREATE" '.database.id' "create database") || fail "Failed to create database: $DB_CREATE"
 MAIN_TARGET_ID=$(require_field "$DB_CREATE" '.target.id' "main target") || fail "Missing main target: $DB_CREATE"
 
-MAIN_RUNTIME=$(api "$BASE_URL/api/database-targets/$MAIN_TARGET_ID/runtime")
+MAIN_RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$MAIN_TARGET_ID/runtime")
 MAIN_BACKEND=$(json_get "$MAIN_RUNTIME" '.storageBackend')
 [ "$MAIN_BACKEND" = "zfs" ] || fail "Expected zfs backend for main, got: $MAIN_BACKEND"
 
@@ -59,7 +59,7 @@ BRANCH_TARGET=$(api -X POST "$BASE_URL/api/databases/$DB_ID/targets" \
   -d '{"name":"dev","sourceTargetName":"main"}')
 BRANCH_TARGET_ID=$(require_field "$BRANCH_TARGET" '.id' "branch target") || fail "Failed to create branch: $BRANCH_TARGET"
 
-BRANCH_RUNTIME=$(api "$BASE_URL/api/database-targets/$BRANCH_TARGET_ID/runtime")
+BRANCH_RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$BRANCH_TARGET_ID/runtime")
 BRANCH_BACKEND=$(json_get "$BRANCH_RUNTIME" '.storageBackend')
 [ "$BRANCH_BACKEND" = "zfs" ] || fail "Expected zfs backend for branch, got: $BRANCH_BACKEND"
 
@@ -99,7 +99,7 @@ api -X POST "$BASE_URL/api/databases/$DB_ID/targets/$BRANCH_TARGET_ID/start" -d 
 BRANCH_AFTER_START_COUNT=$(json_get "$(run_target_sql "$BRANCH_TARGET_ID" "SELECT COUNT(*) FROM frost_branch_test;")" '.rows[0][0]')
 [ "$BRANCH_AFTER_START_COUNT" = "2" ] || fail "Expected branch count 2 after start, got: $BRANCH_AFTER_START_COUNT"
 
-DEPLOY_RESULT=$(api -X POST "$BASE_URL/api/database-targets/$BRANCH_TARGET_ID/deploy" -d '{}')
+DEPLOY_RESULT=$(api -X POST "$BASE_URL/api/databases/$DB_ID/targets/$BRANCH_TARGET_ID/deploy" -d '{}')
 DEPLOY_STATUS=$(json_get "$DEPLOY_RESULT" '.status')
 [ "$DEPLOY_STATUS" = "running" ] || fail "Expected deploy status running, got: $DEPLOY_STATUS"
 

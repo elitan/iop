@@ -1,8 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { nanoid } from "nanoid";
 import { encrypt } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { dockerLogin, getRegistryUrl } from "@/lib/docker";
+import { newRegistryId } from "@/lib/id";
 import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
@@ -39,7 +39,7 @@ export const registries = {
       });
     }
 
-    const id = nanoid();
+    const id = newRegistryId();
     const now = Date.now();
     const passwordEncrypted = encrypt(input.password);
 

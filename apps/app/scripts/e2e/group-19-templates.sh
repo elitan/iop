@@ -96,7 +96,7 @@ log "Waiting for postgres runtime..."
 DB_RUNTIME="{}"
 DB_HOST_PORT=""
 for _ in $(seq 1 60); do
-  DB_RUNTIME=$(api "$BASE_URL/api/database-targets/$DB_TARGET_ID/runtime")
+  DB_RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$DB_TARGET_ID/runtime")
   DB_HOST_PORT=$(echo "$DB_RUNTIME" | jq -r '.hostPort // empty')
   if [ -n "$DB_HOST_PORT" ] && [ "$DB_HOST_PORT" != "null" ]; then
     break

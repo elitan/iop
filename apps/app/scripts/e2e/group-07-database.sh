@@ -47,7 +47,7 @@ POSTGRES_DB=$(echo "$PROVIDER_REF_JSON" | jq -r 'def decode: if type=="string" t
 [ -z "$POSTGRES_PASSWORD" ] && fail "password missing"
 [ -z "$POSTGRES_DB" ] && fail "database missing"
 
-RUNTIME=$(api "$BASE_URL/api/database-targets/$TARGET_ID/runtime")
+RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$TARGET_ID/runtime")
 HOST_PORT=$(require_field "$RUNTIME" '.hostPort' "get runtime hostPort") || fail "No host port: $RUNTIME"
 
 log "Verifying database is accepting connections..."

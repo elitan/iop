@@ -1,8 +1,8 @@
 import { promises as dns } from "node:dns";
-import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
 import { acmeIssuer, type DnsConfig, dnsAcmeIssuer } from "./caddy";
 import { db } from "./db";
+import { newDomainId } from "./id";
 
 const CADDY_ADMIN = "http://localhost:2019";
 const DNS_LABEL_MAX = 63;
@@ -28,7 +28,7 @@ export async function addDomain(
 ) {
   const { domain, type = "proxy", redirectTarget, redirectCode = 301 } = input;
 
-  const id = nanoid();
+  const id = newDomainId();
   const now = Date.now();
 
   await db
@@ -239,7 +239,7 @@ export async function createWildcardDomain(
     return;
   }
 
-  const id = nanoid();
+  const id = newDomainId();
   const now = Date.now();
 
   await db

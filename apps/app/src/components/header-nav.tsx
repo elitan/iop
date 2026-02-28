@@ -37,7 +37,7 @@ export function HeaderNav() {
         href="/settings"
         className="relative text-sm text-neutral-400 transition-colors hover:text-neutral-100"
       >
-        Settings
+        Workspace
         {hasUpdate && (
           <span className="absolute -right-2 -top-1 h-2 w-2 rounded-full bg-blue-500" />
         )}

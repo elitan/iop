@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
-import { nanoid } from "nanoid";
 import { getSetting } from "./auth";
 import { emitBuildLogChunk } from "./build-log-stream";
 import { decrypt } from "./crypto";
@@ -41,6 +40,7 @@ import {
   isGitHubRepo,
 } from "./github";
 import { detectIcon, detectIconFromImage } from "./icon-detector";
+import { newDeploymentId, newReplicaId } from "./id";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
@@ -645,7 +645,7 @@ async function startReplicas(
     await db
       .insertInto("replicas")
       .values({
-        id: nanoid(),
+        id: newReplicaId(),
         deploymentId: opts.deploymentId,
         replicaIndex: i,
         containerId: null,
@@ -945,7 +945,7 @@ async function updateCommitStatusIfGitHub(
         .executeTakeFirst();
 
       if (deployment) {
-        targetUrl = `https://${frostDomain}/projects/${deployment.projectId}/environments/${deployment.environmentId}?service=${deployment.serviceId}`;
+        targetUrl = `https://${frostDomain}/projects/${deployment.projectId}/environments/${deployment.environmentId}/services/${deployment.serviceId}`;
       }
     }
 
@@ -1044,7 +1044,7 @@ async function deployServiceUnlocked(
 
   await cancelActiveDeployments(serviceId);
 
-  const deploymentId = nanoid();
+  const deploymentId = newDeploymentId();
   const now = Date.now();
 
   await db

@@ -1,8 +1,9 @@
-import { createPrivateKey, createSign, randomUUID } from "node:crypto";
+import { createPrivateKey, createSign } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { getSetting, setSetting } from "./auth";
 import { db } from "./db";
+import { newGithubInstallationId } from "./id";
 
 const GITHUB_API = "https://api.github.com";
 
@@ -123,7 +124,7 @@ export async function saveInstallation(installation: {
     await db
       .insertInto("githubInstallations")
       .values({
-        id: randomUUID(),
+        id: newGithubInstallationId(),
         installationId: installation.installationId,
         accountLogin: installation.accountLogin,
         accountType: installation.accountType,

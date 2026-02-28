@@ -6,7 +6,6 @@ import {
   createServiceDatabaseBinding,
   deleteDatabase,
   deleteDatabaseTarget,
-  deleteDatabaseTargetById,
   deleteEnvironmentAttachment,
   deleteServiceDatabaseBinding,
   deployDatabaseTarget,
@@ -57,6 +56,41 @@ function toApiError(error: unknown) {
   }
 
   return new ORPCError("INTERNAL_SERVER_ERROR", { message });
+}
+
+async function getTargetByDatabase(databaseId: string, targetId: string) {
+  const target = await db
+    .selectFrom("databaseTargets")
+    .selectAll()
+    .where("id", "=", targetId)
+    .executeTakeFirst();
+
+  if (!target || target.databaseId !== databaseId) {
+    throw new ORPCError("NOT_FOUND", { message: "Target not found" });
+  }
+
+  return target;
+}
+
+async function assertPostgresDatabase(databaseId: string) {
+  const database = await getDatabase(databaseId);
+  if (database.engine !== "postgres") {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Branch routes are only available for postgres databases",
+    });
+  }
+  return database;
+}
+
+async function assertPostgresBranch(databaseId: string, targetId: string) {
+  await assertPostgresDatabase(databaseId);
+  const target = await getTargetByDatabase(databaseId, targetId);
+  if (target.kind !== "branch") {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Branch routes only support branch targets",
+    });
+  }
+  return target;
 }
 
 export const databases = {
@@ -111,9 +145,18 @@ export const databases = {
     return listDatabaseTargets(input.databaseId);
   }),
 
+  getTarget: os.databases.getTarget.handler(async ({ input }) => {
+    try {
+      return await getTargetByDatabase(input.databaseId, input.targetId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
   listTargetDeployments: os.databases.listTargetDeployments.handler(
     async ({ input }) => {
       try {
+        await getTargetByDatabase(input.databaseId, input.targetId);
         return await listDatabaseTargetDeployments(input.targetId);
       } catch (error) {
         throw toApiError(error);
@@ -123,6 +166,7 @@ export const databases = {
 
   deployTarget: os.databases.deployTarget.handler(async ({ input }) => {
     try {
+      await getTargetByDatabase(input.databaseId, input.targetId);
       return await deployDatabaseTarget(input.targetId);
     } catch (error) {
       throw toApiError(error);
@@ -131,6 +175,7 @@ export const databases = {
 
   getTargetRuntime: os.databases.getTargetRuntime.handler(async ({ input }) => {
     try {
+      await getTargetByDatabase(input.databaseId, input.targetId);
       return await getDatabaseTargetRuntime(input.targetId);
     } catch (error) {
       throw toApiError(error);
@@ -139,7 +184,11 @@ export const databases = {
 
   runTargetSql: os.databases.runTargetSql.handler(async ({ input }) => {
     try {
-      return await runPostgresTargetSql(input);
+      await getTargetByDatabase(input.databaseId, input.targetId);
+      return await runPostgresTargetSql({
+        targetId: input.targetId,
+        sql: input.sql,
+      });
     } catch (error) {
       throw toApiError(error);
     }
@@ -148,7 +197,15 @@ export const databases = {
   patchTargetRuntimeSettings: os.databases.patchTargetRuntimeSettings.handler(
     async ({ input }) => {
       try {
-        return await patchDatabaseTargetRuntimeSettings(input);
+        await getTargetByDatabase(input.databaseId, input.targetId);
+        return await patchDatabaseTargetRuntimeSettings({
+          targetId: input.targetId,
+          name: input.name,
+          hostname: input.hostname,
+          lifecycleStatus: input.lifecycleStatus,
+          memoryLimit: input.memoryLimit,
+          cpuLimit: input.cpuLimit,
+        });
       } catch (error) {
         throw toApiError(error);
       }
@@ -188,14 +245,126 @@ export const databases = {
     }
   }),
 
-  deleteTargetById: os.databases.deleteTargetById.handler(async ({ input }) => {
+  createBranch: os.databases.createBranch.handler(async ({ input }) => {
     try {
-      await deleteDatabaseTargetById(input.targetId);
+      await assertPostgresDatabase(input.databaseId);
+      return await createDatabaseTarget(input);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  listBranches: os.databases.listBranches.handler(async ({ input }) => {
+    try {
+      await assertPostgresDatabase(input.databaseId);
+      const targets = await listDatabaseTargets(input.databaseId);
+      return targets.filter((target) => target.kind === "branch");
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  getBranch: os.databases.getBranch.handler(async ({ input }) => {
+    try {
+      return await assertPostgresBranch(input.databaseId, input.targetId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  patchBranch: os.databases.patchBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await patchDatabaseTargetRuntimeSettings({
+        targetId: input.targetId,
+        name: input.name,
+        hostname: input.hostname,
+        lifecycleStatus: input.lifecycleStatus,
+        memoryLimit: input.memoryLimit,
+        cpuLimit: input.cpuLimit,
+      });
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  deleteBranch: os.databases.deleteBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      await deleteDatabaseTarget(input);
       return { success: true };
     } catch (error) {
       throw toApiError(error);
     }
   }),
+
+  deployBranch: os.databases.deployBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await deployDatabaseTarget(input.targetId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  startBranch: os.databases.startBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await startDatabaseTarget(input);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  stopBranch: os.databases.stopBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await stopDatabaseTarget(input);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  resetBranch: os.databases.resetBranch.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await resetDatabaseTarget(input);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  runBranchSql: os.databases.runBranchSql.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await runPostgresTargetSql({
+        targetId: input.targetId,
+        sql: input.sql,
+      });
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  getBranchRuntime: os.databases.getBranchRuntime.handler(async ({ input }) => {
+    try {
+      await assertPostgresBranch(input.databaseId, input.targetId);
+      return await getDatabaseTargetRuntime(input.targetId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  listBranchDeployments: os.databases.listBranchDeployments.handler(
+    async ({ input }) => {
+      try {
+        await assertPostgresBranch(input.databaseId, input.targetId);
+        return await listDatabaseTargetDeployments(input.targetId);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+  ),
 
   putAttachment: os.databases.putAttachment.handler(async ({ input }) => {
     try {

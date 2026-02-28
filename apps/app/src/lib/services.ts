@@ -1,8 +1,8 @@
 import type { Selectable } from "kysely";
-import { nanoid } from "nanoid";
 import { db } from "./db";
 import type { Services } from "./db-types";
 import { createWildcardDomain } from "./domains";
+import { newServiceId } from "./id";
 import { generateSelfSignedCert } from "./ssl";
 
 export interface CreateServiceInput {
@@ -43,7 +43,7 @@ export interface CreateServiceInput {
 export async function createService(
   input: CreateServiceInput,
 ): Promise<Selectable<Services>> {
-  const id = input.id ?? nanoid();
+  const id = input.id ?? newServiceId();
   const now = Date.now();
 
   await db

@@ -347,7 +347,6 @@ export const projectsSchema = z.object({
   envVars: z.string(),
   createdAt: z.number(),
   hostname: z.string().nullable(),
-  canvasPositions: z.string().nullable(),
 });
 
 export const newProjectsSchema = z.object({
@@ -356,7 +355,6 @@ export const newProjectsSchema = z.object({
   envVars: z.string().optional(),
   createdAt: z.number(),
   hostname: z.string().nullable(),
-  canvasPositions: z.string().nullable().optional(),
 });
 
 export const projectsUpdateSchema = z.object({
@@ -365,7 +363,6 @@ export const projectsUpdateSchema = z.object({
   envVars: z.string().optional(),
   createdAt: z.number().optional(),
   hostname: z.string().nullable().optional(),
-  canvasPositions: z.string().nullable().optional(),
 });
 
 export type Projects = z.infer<typeof projectsSchema>;

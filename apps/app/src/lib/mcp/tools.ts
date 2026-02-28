@@ -1,7 +1,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
@@ -16,6 +15,7 @@ import {
   removeDomain,
   syncCaddyConfig,
 } from "@/lib/domains";
+import { newEnvironmentId, newProjectId } from "@/lib/id";
 import { cleanupProject, cleanupService } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { shellEscape } from "@/lib/shell-escape";
@@ -113,7 +113,7 @@ export function registerTools(server: McpServer) {
     "Create a new empty project",
     { name: z.string() },
     async ({ name }) => {
-      const id = nanoid();
+      const id = newProjectId();
       const now = Date.now();
 
       await db
@@ -121,7 +121,7 @@ export function registerTools(server: McpServer) {
         .values({ id, name, hostname: slugify(name), createdAt: now })
         .execute();
 
-      const envId = nanoid();
+      const envId = newEnvironmentId();
       await db
         .insertInto("environments")
         .values({

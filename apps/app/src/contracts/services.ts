@@ -15,8 +15,8 @@ const volumeInfoSchema = z.object({
 
 export const servicesContract = {
   get: oc
-    .route({ method: "GET", path: "/services/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/services/{serviceId}" })
+    .input(z.object({ serviceId: z.string() }))
     .output(serviceWithDeploymentSchema),
 
   list: oc
@@ -60,10 +60,10 @@ export const servicesContract = {
     .output(servicesSchema),
 
   update: oc
-    .route({ method: "PATCH", path: "/services/{id}" })
+    .route({ method: "PATCH", path: "/services/{serviceId}" })
     .input(
       z.object({
-        id: z.string(),
+        serviceId: z.string(),
         name: z.string().optional(),
         hostname: z
           .string()
@@ -98,23 +98,23 @@ export const servicesContract = {
     .output(servicesSchema),
 
   delete: oc
-    .route({ method: "DELETE", path: "/services/{id}" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "DELETE", path: "/services/{serviceId}" })
+    .input(z.object({ serviceId: z.string() }))
     .output(z.object({ success: z.boolean() })),
 
   deploy: oc
-    .route({ method: "POST", path: "/services/{id}/deploy" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/services/{serviceId}/deploy" })
+    .input(z.object({ serviceId: z.string() }))
     .output(z.object({ deploymentId: z.string() })),
 
   listDeployments: oc
-    .route({ method: "GET", path: "/services/{id}/deployments" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/services/{serviceId}/deployments" })
+    .input(z.object({ serviceId: z.string() }))
     .output(z.array(deploymentsSchema)),
 
   getVolumes: oc
-    .route({ method: "GET", path: "/services/{id}/volumes" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "GET", path: "/services/{serviceId}/volumes" })
+    .input(z.object({ serviceId: z.string() }))
     .output(z.array(volumeInfoSchema)),
 
   createBatch: oc

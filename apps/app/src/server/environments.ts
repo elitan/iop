@@ -1,5 +1,4 @@
 import { ORPCError } from "@orpc/server";
-import { nanoid } from "nanoid";
 import {
   cloneEnvironmentDatabaseTargets,
   ensureEnvironmentPostgresDefaults,
@@ -7,6 +6,7 @@ import {
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
+import { newEnvironmentId } from "@/lib/id";
 import { cleanupEnvironment } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
@@ -31,7 +31,7 @@ export const environments = {
     const environment = await db
       .selectFrom("environments")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .executeTakeFirst();
 
     if (!environment) {
@@ -41,7 +41,7 @@ export const environments = {
     const services = await db
       .selectFrom("services")
       .selectAll()
-      .where("environmentId", "=", input.id)
+      .where("environmentId", "=", input.envId)
       .execute();
 
     const servicesWithDeployments =
@@ -76,7 +76,7 @@ export const environments = {
       });
     }
 
-    const id = nanoid();
+    const id = newEnvironmentId();
     const now = Date.now();
 
     await db
@@ -183,7 +183,7 @@ export const environments = {
     const environment = await db
       .selectFrom("environments")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .executeTakeFirst();
 
     if (!environment) {
@@ -196,7 +196,7 @@ export const environments = {
         .select("id")
         .where("projectId", "=", environment.projectId)
         .where("name", "=", input.name)
-        .where("id", "!=", input.id)
+        .where("id", "!=", input.envId)
         .executeTakeFirst();
 
       if (existing) {
@@ -211,13 +211,13 @@ export const environments = {
       .set({
         name: input.name ?? environment.name,
       })
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .execute();
 
     const updated = await db
       .selectFrom("environments")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .executeTakeFirst();
 
     if (!updated) {
@@ -233,7 +233,7 @@ export const environments = {
     const environment = await db
       .selectFrom("environments")
       .select(["id", "projectId", "type"])
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .executeTakeFirst();
 
     if (!environment) {
@@ -254,7 +254,7 @@ export const environments = {
     const environment = await db
       .selectFrom("environments")
       .select("id")
-      .where("id", "=", input.id)
+      .where("id", "=", input.envId)
       .executeTakeFirst();
 
     if (!environment) {
@@ -264,13 +264,13 @@ export const environments = {
     const services = await db
       .selectFrom("services")
       .select("id")
-      .where("environmentId", "=", input.id)
+      .where("environmentId", "=", input.envId)
       .execute();
     for (const service of services) {
       await assertDemoDeployRateLimit(service.id);
     }
 
-    const deploymentIds = await deployEnvironment(input.id);
+    const deploymentIds = await deployEnvironment(input.envId);
     return { deploymentIds };
   }),
 };

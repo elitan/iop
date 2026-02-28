@@ -1,6 +1,6 @@
-import { nanoid } from "nanoid";
 import { generateApiKey, hashApiKey } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { newApiKeyId } from "@/lib/id";
 import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
 
@@ -16,7 +16,7 @@ export const apiKeys = {
   create: os.apiKeys.create.handler(async ({ input }) => {
     assertDemoWriteAllowed("api key changes");
 
-    const id = nanoid();
+    const id = newApiKeyId();
     const key = generateApiKey();
     const keyHash = hashApiKey(key);
     const keyPrefix = key.slice(0, 12);

@@ -1,7 +1,7 @@
-import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getDemoModeBlockedMessage, isDemoMode } from "@/lib/demo-mode";
+import { newOauthCodeId } from "@/lib/id";
 import { generateCode, getAuthCodeExpiry, hashOAuthToken } from "@/lib/oauth";
 
 export async function GET(request: Request) {
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
   await db
     .insertInto("oauthCodes")
     .values({
-      id: nanoid(),
+      id: newOauthCodeId(),
       codeHash,
       clientId,
       codeChallenge,

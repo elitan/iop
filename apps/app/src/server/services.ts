@@ -26,7 +26,7 @@ export const services = {
     const service = await db
       .selectFrom("services")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
@@ -189,7 +189,7 @@ export const services = {
     const service = await db
       .selectFrom("services")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
@@ -208,7 +208,7 @@ export const services = {
         .select("id")
         .where("environmentId", "=", service.environmentId)
         .where("hostname", "=", input.hostname)
-        .where("id", "!=", input.id)
+        .where("id", "!=", input.serviceId)
         .executeTakeFirst();
 
       if (existingHostname) {
@@ -274,14 +274,14 @@ export const services = {
       await db
         .updateTable("services")
         .set(updates)
-        .where("id", "=", input.id)
+        .where("id", "=", input.serviceId)
         .execute();
     }
 
     const updated = await db
       .selectFrom("services")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!updated) {
@@ -292,8 +292,8 @@ export const services = {
   }),
 
   delete: os.services.delete.handler(async ({ input }) => {
-    await cleanupService(input.id);
-    await db.deleteFrom("services").where("id", "=", input.id).execute();
+    await cleanupService(input.serviceId);
+    await db.deleteFrom("services").where("id", "=", input.serviceId).execute();
 
     try {
       await syncCaddyConfig();
@@ -306,16 +306,16 @@ export const services = {
     const service = await db
       .selectFrom("services")
       .select("id")
-      .where("id", "=", input.id)
+      .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
 
-    await assertDemoDeployRateLimit(input.id);
+    await assertDemoDeployRateLimit(input.serviceId);
 
-    const deploymentId = await deployService(input.id);
+    const deploymentId = await deployService(input.serviceId);
     return { deploymentId };
   }),
 
@@ -323,7 +323,7 @@ export const services = {
     const deployments = await db
       .selectFrom("deployments")
       .selectAll()
-      .where("serviceId", "=", input.id)
+      .where("serviceId", "=", input.serviceId)
       .orderBy("createdAt", "desc")
       .limit(20)
       .execute();
@@ -335,7 +335,7 @@ export const services = {
     const service = await db
       .selectFrom("services")
       .select("volumes")
-      .where("id", "=", input.id)
+      .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
@@ -353,7 +353,7 @@ export const services = {
 
     return Promise.all(
       volumeConfig.map(async (v) => {
-        const dockerVolumeName = buildVolumeName(input.id, v.name);
+        const dockerVolumeName = buildVolumeName(input.serviceId, v.name);
         const sizeBytes = await getVolumeSize(dockerVolumeName);
         return { name: v.name, path: v.path, sizeBytes };
       }),

@@ -6,9 +6,9 @@ export function useProjects() {
   return useQuery(orpc.projects.list.queryOptions());
 }
 
-export function useProject(id: string) {
+export function useProject(projectId: string) {
   return useQuery({
-    ...orpc.projects.get.queryOptions({ input: { id } }),
+    ...orpc.projects.get.queryOptions({ input: { projectId } }),
     refetchInterval: 2000,
   });
 }
@@ -26,14 +26,15 @@ export function useCreateProject() {
   });
 }
 
-export function useUpdateProject(id: string) {
+export function useUpdateProject(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ContractInputs["projects"]["update"], "id">) =>
-      orpc.projects.update.call({ id, ...data }),
+    mutationFn: (
+      data: Omit<ContractInputs["projects"]["update"], "projectId">,
+    ) => orpc.projects.update.call({ projectId, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.projects.get.key({ input: { id } }),
+        queryKey: orpc.projects.get.key({ input: { projectId } }),
       });
     },
   });
@@ -42,7 +43,7 @@ export function useUpdateProject(id: string) {
 export function useDeleteProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => orpc.projects.delete.call({ id }),
+    mutationFn: (projectId: string) => orpc.projects.delete.call({ projectId }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.projects.list.key(),
@@ -51,16 +52,16 @@ export function useDeleteProject() {
   });
 }
 
-export function useDeployProject(id: string) {
+export function useDeployProject(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => orpc.projects.deploy.call({ id }),
+    mutationFn: () => orpc.projects.deploy.call({ projectId }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.projects.get.key({ input: { id } }),
+        queryKey: orpc.projects.get.key({ input: { projectId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.list.key({ input: { projectId: id } }),
+        queryKey: orpc.environments.list.key({ input: { projectId } }),
       });
     },
   });

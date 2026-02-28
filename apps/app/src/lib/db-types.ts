@@ -189,7 +189,6 @@ export interface Projects {
   name: string;
   hostname: string | null;
   envVars: Generated<string>;
-  canvasPositions: Generated<string | null>;
   createdAt: number;
 }
 

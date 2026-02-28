@@ -15,7 +15,7 @@ interface UseServiceOptions {
 
 export function useService(id: string, options?: UseServiceOptions) {
   return useQuery({
-    ...orpc.services.get.queryOptions({ input: { id } }),
+    ...orpc.services.get.queryOptions({ input: { serviceId: id } }),
     refetchInterval: options?.refetchInterval ?? false,
   });
 }
@@ -31,7 +31,9 @@ export function useCreateService(environmentId: string) {
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+        queryKey: orpc.environments.get.key({
+          input: { envId: environmentId },
+        }),
       });
     },
   });
@@ -40,17 +42,20 @@ export function useCreateService(environmentId: string) {
 export function useUpdateService(id: string, environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Omit<ContractInputs["services"]["update"], "id">) =>
-      orpc.services.update.call({ id, ...data }),
+    mutationFn: (
+      data: Omit<ContractInputs["services"]["update"], "serviceId">,
+    ) => orpc.services.update.call({ serviceId: id, ...data }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.services.get.key({ input: { id } }),
+        queryKey: orpc.services.get.key({ input: { serviceId: id } }),
       });
       await queryClient.refetchQueries({
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+        queryKey: orpc.environments.get.key({
+          input: { envId: environmentId },
+        }),
       });
     },
   });
@@ -59,13 +64,15 @@ export function useUpdateService(id: string, environmentId: string) {
 export function useDeleteService(environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => orpc.services.delete.call({ id }),
+    mutationFn: (serviceId: string) => orpc.services.delete.call({ serviceId }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+        queryKey: orpc.environments.get.key({
+          input: { envId: environmentId },
+        }),
       });
     },
   });
@@ -74,28 +81,34 @@ export function useDeleteService(environmentId: string) {
 export function useDeployService(id: string, environmentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => orpc.services.deploy.call({ id }),
+    mutationFn: () => orpc.services.deploy.call({ serviceId: id }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
-        queryKey: orpc.services.get.key({ input: { id } }),
+        queryKey: orpc.services.get.key({ input: { serviceId: id } }),
       });
       await queryClient.refetchQueries({
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+        queryKey: orpc.environments.get.key({
+          input: { envId: environmentId },
+        }),
       });
     },
   });
 }
 
 export function useServiceVolumes(id: string) {
-  return useQuery(orpc.services.getVolumes.queryOptions({ input: { id } }));
+  return useQuery(
+    orpc.services.getVolumes.queryOptions({ input: { serviceId: id } }),
+  );
 }
 
 export function useDeployments(serviceId: string) {
   return useQuery({
-    ...orpc.services.listDeployments.queryOptions({ input: { id: serviceId } }),
+    ...orpc.services.listDeployments.queryOptions({
+      input: { serviceId },
+    }),
     refetchInterval: 2000,
   });
 }
@@ -125,7 +138,9 @@ export function useBatchCreateServices(environmentId: string) {
         queryKey: orpc.services.list.key({ input: { environmentId } }),
       });
       await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { id: environmentId } }),
+        queryKey: orpc.environments.get.key({
+          input: { envId: environmentId },
+        }),
       });
     },
   });

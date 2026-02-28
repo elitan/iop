@@ -1,9 +1,9 @@
 import { ORPCError } from "@orpc/server";
-import { nanoid } from "nanoid";
 import { getSetting } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
+import { newEnvironmentId, newProjectId } from "@/lib/id";
 import { cleanupProject } from "@/lib/lifecycle";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
@@ -112,7 +112,7 @@ export const projects = {
     const project = await db
       .selectFrom("projects")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.projectId)
       .executeTakeFirst();
 
     if (!project) {
@@ -122,7 +122,7 @@ export const projects = {
     const productionEnv = await db
       .selectFrom("environments")
       .select("id")
-      .where("projectId", "=", input.id)
+      .where("projectId", "=", input.projectId)
       .where("type", "=", "production")
       .executeTakeFirst();
 
@@ -173,7 +173,7 @@ export const projects = {
       }
     }
 
-    const id = nanoid();
+    const id = newProjectId();
     const now = Date.now();
     const hostname = slugify(input.name);
 
@@ -188,7 +188,7 @@ export const projects = {
       })
       .execute();
 
-    const envId = nanoid();
+    const envId = newEnvironmentId();
     await db
       .insertInto("environments")
       .values({
@@ -253,7 +253,7 @@ export const projects = {
     const project = await db
       .selectFrom("projects")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.projectId)
       .executeTakeFirst();
 
     if (!project) {
@@ -267,22 +267,19 @@ export const projects = {
     if (input.envVars !== undefined) {
       updates.envVars = JSON.stringify(input.envVars);
     }
-    if (input.canvasPositions !== undefined) {
-      updates.canvasPositions = input.canvasPositions;
-    }
 
     if (Object.keys(updates).length > 0) {
       await db
         .updateTable("projects")
         .set(updates)
-        .where("id", "=", input.id)
+        .where("id", "=", input.projectId)
         .execute();
     }
 
     const updated = await db
       .selectFrom("projects")
       .selectAll()
-      .where("id", "=", input.id)
+      .where("id", "=", input.projectId)
       .executeTakeFirst();
 
     if (!updated) {
@@ -293,7 +290,7 @@ export const projects = {
   }),
 
   delete: os.projects.delete.handler(async ({ input }) => {
-    await cleanupProject(input.id);
+    await cleanupProject(input.projectId);
     return { success: true };
   }),
 
@@ -301,7 +298,7 @@ export const projects = {
     const project = await db
       .selectFrom("projects")
       .select("id")
-      .where("id", "=", input.id)
+      .where("id", "=", input.projectId)
       .executeTakeFirst();
 
     if (!project) {
@@ -312,13 +309,13 @@ export const projects = {
       .selectFrom("services")
       .innerJoin("environments", "environments.id", "services.environmentId")
       .select("services.id")
-      .where("environments.projectId", "=", input.id)
+      .where("environments.projectId", "=", input.projectId)
       .execute();
     for (const service of services) {
       await assertDemoDeployRateLimit(service.id);
     }
 
-    const deploymentIds = await deployProject(input.id);
+    const deploymentIds = await deployProject(input.projectId);
     return { deploymentIds };
   }),
 };
