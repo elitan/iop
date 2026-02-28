@@ -9,6 +9,7 @@ export type PostgresBackupS3Provider =
   | "cloudflare"
   | "backblaze"
   | "custom";
+const DEFAULT_S3_PREFIX = "frost-backups";
 
 export interface PostgresBackupConfigUpdateInput {
   enabled: boolean;
@@ -257,7 +258,7 @@ function defaultView(
     s3Endpoint: null,
     s3Region: null,
     s3Bucket: "",
-    s3Prefix: "",
+    s3Prefix: DEFAULT_S3_PREFIX,
     s3AccessKeyId: "",
     hasSecretAccessKey: false,
     s3ForcePathStyle: false,
@@ -380,7 +381,8 @@ export async function updatePostgresBackupConfig(input: {
   );
   const s3Endpoint = normalizeNullableText(input.config.s3Endpoint);
   const s3Region = normalizeNullableText(input.config.s3Region);
-  const s3Prefix = (input.config.s3Prefix ?? "").trim();
+  const s3PrefixInput = (input.config.s3Prefix ?? "").trim();
+  const s3Prefix = s3PrefixInput.length > 0 ? s3PrefixInput : DEFAULT_S3_PREFIX;
   const selectedTargetIds = uniqueValues(input.config.selectedTargetIds);
 
   if (selectedTargetIds.length === 0) {

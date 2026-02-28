@@ -128,11 +128,12 @@ export const databases = {
           s3Endpoint: input.s3Endpoint,
           s3Region: input.s3Region,
           s3Bucket: input.s3Bucket,
-          s3Prefix: input.s3Prefix,
+          s3Prefix: input.s3Prefix ?? "",
           s3AccessKeyId: input.s3AccessKeyId,
           s3SecretAccessKey: input.s3SecretAccessKey,
-          s3ForcePathStyle: input.s3ForcePathStyle,
-          includeGlobals: input.includeGlobals,
+          s3ForcePathStyle:
+            input.s3ForcePathStyle ?? input.s3Provider === "custom",
+          includeGlobals: input.includeGlobals ?? true,
         },
       });
     } catch (error) {

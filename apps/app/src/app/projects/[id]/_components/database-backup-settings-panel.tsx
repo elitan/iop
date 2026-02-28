@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
@@ -28,6 +28,7 @@ import {
 
 type BackupIntervalUnit = "minutes" | "hours" | "days";
 type BackupProvider = "aws" | "cloudflare" | "backblaze" | "custom";
+const DEFAULT_S3_PREFIX = "frost-backups";
 
 export interface DatabaseBackupTargetOption {
   id: string;
@@ -54,8 +55,6 @@ interface BackupFormState {
   accessKeyId: string;
   secretAccessKey: string;
   useExistingSecret: boolean;
-  forcePathStyle: boolean;
-  includeGlobals: boolean;
 }
 
 function parseCloudflareAccountId(endpoint: string | null): string {
@@ -82,29 +81,9 @@ function formatDate(value: number): string {
   return new Date(value).toLocaleString();
 }
 
-function intervalToMs(value: number, unit: BackupIntervalUnit): number {
-  if (unit === "minutes") {
-    return value * 60 * 1000;
-  }
-  if (unit === "hours") {
-    return value * 60 * 60 * 1000;
-  }
-  return value * 24 * 60 * 60 * 1000;
-}
-
-function getNextRunTimes(input: {
-  lastRunAt: number | null;
-  intervalValue: number;
-  intervalUnit: BackupIntervalUnit;
-  count: number;
-}): number[] {
-  const intervalMs = intervalToMs(input.intervalValue, input.intervalUnit);
-  const base = input.lastRunAt ?? Date.now();
-  const values: number[] = [];
-  for (let index = 1; index <= input.count; index += 1) {
-    values.push(base + intervalMs * index);
-  }
-  return values;
+function getDefaultS3Prefix(prefix: string | null | undefined): string {
+  const value = prefix?.trim() ?? "";
+  return value.length > 0 ? value : DEFAULT_S3_PREFIX;
 }
 
 function createDefaultForm(
@@ -121,12 +100,10 @@ function createDefaultForm(
     endpoint: "",
     region: "",
     bucket: "",
-    prefix: "",
+    prefix: DEFAULT_S3_PREFIX,
     accessKeyId: "",
     secretAccessKey: "",
     useExistingSecret: false,
-    forcePathStyle: false,
-    includeGlobals: true,
   };
 }
 
@@ -209,12 +186,10 @@ export function DatabaseBackupSettingsPanel({
         endpoint: data.s3Endpoint ?? "",
         region: data.s3Region ?? parseBackblazeRegion(data.s3Endpoint),
         bucket: data.s3Bucket,
-        prefix: data.s3Prefix,
+        prefix: getDefaultS3Prefix(data.s3Prefix),
         accessKeyId: data.s3AccessKeyId,
         secretAccessKey: "",
         useExistingSecret: data.hasSecretAccessKey,
-        forcePathStyle: data.s3ForcePathStyle,
-        includeGlobals: data.includeGlobals,
       });
     },
     [backupConfigQuery.data, targets],
@@ -249,18 +224,6 @@ export function DatabaseBackupSettingsPanel({
       });
     },
     [form.selectedTargetIds, targets],
-  );
-
-  const nextRunTimes = useMemo(
-    function computeNextRuns() {
-      return getNextRunTimes({
-        lastRunAt: backupConfigQuery.data?.lastRunAt ?? null,
-        intervalValue: form.intervalValue,
-        intervalUnit: form.intervalUnit,
-        count: 3,
-      });
-    },
-    [backupConfigQuery.data?.lastRunAt, form.intervalValue, form.intervalUnit],
   );
 
   function toggleTarget(targetId: string) {
@@ -298,14 +261,14 @@ export function DatabaseBackupSettingsPanel({
         s3Endpoint: providerFields.endpoint,
         s3Region: providerFields.region,
         s3Bucket: form.bucket.trim(),
-        s3Prefix: form.prefix.trim(),
+        s3Prefix: getDefaultS3Prefix(form.prefix),
         s3AccessKeyId: form.accessKeyId.trim(),
         s3SecretAccessKey:
           form.secretAccessKey.trim().length > 0
             ? form.secretAccessKey
             : undefined,
-        s3ForcePathStyle: form.forcePathStyle,
-        includeGlobals: form.includeGlobals,
+        s3ForcePathStyle: form.s3Provider === "custom",
+        includeGlobals: true,
       });
       setForm(function update(current) {
         return {
@@ -526,23 +489,6 @@ export function DatabaseBackupSettingsPanel({
             </div>
           </div>
 
-          <div className="space-y-1 text-xs text-neutral-400">
-            <div>Timezone: server local time</div>
-            <div className="flex flex-wrap gap-2">
-              {nextRunTimes.map(function renderTime(value) {
-                return (
-                  <Badge
-                    key={value}
-                    variant="outline"
-                    className="border-neutral-700 text-neutral-300"
-                  >
-                    {formatDate(value)}
-                  </Badge>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Provider</Label>
@@ -574,18 +520,6 @@ export function DatabaseBackupSettingsPanel({
                     return { ...current, bucket: event.target.value };
                   });
                 }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Prefix</Label>
-              <Input
-                value={form.prefix}
-                onChange={function onChange(event) {
-                  setForm(function update(current) {
-                    return { ...current, prefix: event.target.value };
-                  });
-                }}
-                placeholder="frost-backups"
               />
             </div>
             <div className="space-y-2">
@@ -710,33 +644,6 @@ export function DatabaseBackupSettingsPanel({
               </div>
             </div>
           )}
-
-          <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2 text-sm text-neutral-300">
-              <input
-                type="checkbox"
-                checked={form.forcePathStyle}
-                onChange={function onChange(event) {
-                  setForm(function update(current) {
-                    return { ...current, forcePathStyle: event.target.checked };
-                  });
-                }}
-              />
-              force path style
-            </label>
-            <label className="flex items-center gap-2 text-sm text-neutral-300">
-              <input
-                type="checkbox"
-                checked={form.includeGlobals}
-                onChange={function onChange(event) {
-                  setForm(function update(current) {
-                    return { ...current, includeGlobals: event.target.checked };
-                  });
-                }}
-              />
-              include globals
-            </label>
-          </div>
 
           <div className="space-y-1 text-xs text-neutral-400">
             <div>
