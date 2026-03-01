@@ -5,14 +5,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   useDatabase,
   useDatabaseTargets,
   useDeleteDatabase,
 } from "@/hooks/use-databases";
-import { normalizeDatabaseProvider } from "@/lib/database-provider";
 import { DatabaseBackupSettingsPanel } from "../../../../../_components/database-backup-settings-panel";
 
 export default function DatabaseSettingsPage() {
@@ -49,26 +47,6 @@ export default function DatabaseSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <SettingCard
-        title="Database"
-        description="Engine and provider for this database"
-      >
-        <div className="flex gap-2">
-          <Badge
-            variant="outline"
-            className="border-neutral-700 text-neutral-300"
-          >
-            {database.engine}
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-neutral-700 text-neutral-300"
-          >
-            {normalizeDatabaseProvider(database.provider)}
-          </Badge>
-        </div>
-      </SettingCard>
-
       {database.engine === "postgres" && (
         <DatabaseBackupSettingsPanel
           databaseId={database.id}
