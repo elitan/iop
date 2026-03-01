@@ -1,8 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useParams, usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { MainContentHeader } from "@/components/main-content-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/lib/orpc-client";
@@ -32,6 +37,7 @@ export default function WorkspaceLayout({
   const params = useParams();
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const rawProjectId = params.id;
   const projectId = typeof rawProjectId === "string" ? rawProjectId : "";
@@ -47,6 +53,7 @@ export default function WorkspaceLayout({
     /^\/projects\/[^/]+\/settings(\/|$)/.test(pathname);
   const shouldCenterContent = isSettingsPage && !isResourceDetailPage;
   const showMainContentHeader = !isResourceDetailPage;
+  const shouldOpenCreateService = searchParams.get("create") === "service";
 
   const [createServiceModalOpen, setCreateServiceModalOpen] = useState(false);
   const [createEnvDialogOpen, setCreateEnvDialogOpen] = useState(false);
@@ -164,6 +171,33 @@ export default function WorkspaceLayout({
       : "overflow-auto p-6",
   );
 
+  useEffect(
+    function syncCreateServiceFromQuery() {
+      if (!isProjectPage || !currentEnvId || !shouldOpenCreateService) {
+        return;
+      }
+      setCreateServiceModalOpen(true);
+    },
+    [currentEnvId, isProjectPage, shouldOpenCreateService],
+  );
+
+  function clearCreateQueryParam() {
+    if (!searchParams.has("create")) {
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("create");
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+  }
+
+  function handleCreateServiceModalOpenChange(open: boolean) {
+    setCreateServiceModalOpen(open);
+    if (!open) {
+      clearCreateQueryParam();
+    }
+  }
+
   return (
     <>
       <main className="fixed inset-0 flex min-h-0">
@@ -209,7 +243,7 @@ export default function WorkspaceLayout({
           projectId={projectId}
           environmentId={currentEnvId}
           open={createServiceModalOpen}
-          onOpenChange={setCreateServiceModalOpen}
+          onOpenChange={handleCreateServiceModalOpenChange}
           onServiceCreated={function handleServiceCreated(serviceId) {
             router.push(
               `/projects/${projectId}/environments/${currentEnvId}/services/${serviceId}`,

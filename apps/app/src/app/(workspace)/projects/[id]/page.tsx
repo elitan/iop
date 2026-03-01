@@ -1,11 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Layers } from "lucide-react";
+import { Layers, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   useDatabases,
@@ -33,15 +34,6 @@ export default function ProjectStartPage() {
       return production?.id ?? environments[0]?.id ?? "";
     },
     [environments],
-  );
-
-  const currentEnvironment = useMemo(
-    function getCurrentEnvironment() {
-      return environments.find(
-        (environment) => environment.id === currentEnvId,
-      );
-    },
-    [currentEnvId, environments],
   );
 
   const { data: environment, isLoading: isEnvironmentLoading } = useQuery({
@@ -154,25 +146,33 @@ export default function ProjectStartPage() {
   if (!hasResources) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Environment
-            </p>
-            <p className="truncate text-sm text-neutral-200">
-              {currentEnvironment?.name ?? "Unknown"}
-            </p>
-          </div>
-          <Link
-            href={`/projects/${projectId}/settings/environments`}
-            className="text-sm text-neutral-400 transition-colors hover:text-neutral-100"
-          >
-            Manage Environments
-          </Link>
-        </div>
-        <Card className="border-neutral-800 bg-neutral-900">
-          <CardContent className="py-10 text-center text-sm text-neutral-400">
-            No services or databases yet.
+        <Card className="relative overflow-hidden border-neutral-800 bg-neutral-950">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(163,163,163,0.22),transparent_52%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(23,23,23,0.1)_0%,rgba(10,10,10,0.8)_100%)]" />
+          <CardContent className="relative py-14">
+            <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-900/80 px-3 py-1 text-xs text-neutral-300">
+                <Sparkles className="h-3.5 w-3.5 text-neutral-300" />
+                New project
+              </div>
+
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight text-neutral-100 sm:text-3xl">
+                Create your first service
+              </h2>
+              <p className="mt-3 max-w-xl text-sm text-neutral-400">
+                Start with a repo, Docker image, or database. Frost wires logs,
+                deploys, and internal networking for you.
+              </p>
+
+              <div className="mt-8">
+                <Button asChild>
+                  <Link href={`/projects/${projectId}?create=service`}>
+                    <Plus className="h-4 w-4" />
+                    Create first service
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -181,23 +181,6 @@ export default function ProjectStartPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Environment
-          </p>
-          <p className="truncate text-sm text-neutral-200">
-            {currentEnvironment?.name ?? "Unknown"}
-          </p>
-        </div>
-        <Link
-          href={`/projects/${projectId}/settings/environments`}
-          className="text-sm text-neutral-400 transition-colors hover:text-neutral-100"
-        >
-          Manage Environments
-        </Link>
-      </div>
-
       {services.length > 0 && (
         <section className="space-y-3">
           <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">

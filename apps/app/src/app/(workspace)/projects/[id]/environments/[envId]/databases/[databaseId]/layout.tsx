@@ -12,16 +12,13 @@ import {
   type ResourceSidebarTab,
 } from "../../../../_components/resource-sidebar";
 
-type DatabaseLayoutTab = "overview" | "branches" | "settings";
+type DatabaseLayoutTab = "branches" | "settings";
 
 function getActiveTab(pathname: string): DatabaseLayoutTab {
   if (pathname.includes("/settings")) {
     return "settings";
   }
-  if (pathname.includes("/branches")) {
-    return "branches";
-  }
-  return "overview";
+  return "branches";
 }
 
 export default function DatabaseDetailLayout({
@@ -61,10 +58,6 @@ export default function DatabaseDetailLayout({
 
   const tabs: ResourceSidebarTab<DatabaseLayoutTab>[] = [
     {
-      id: "overview",
-      label: "Overview",
-    },
-    {
       id: "branches",
       label: database?.engine === "postgres" ? "Branches" : "Instances",
     },
@@ -76,9 +69,6 @@ export default function DatabaseDetailLayout({
 
   function handleTabChange(tab: DatabaseLayoutTab) {
     switch (tab) {
-      case "overview":
-        router.push(basePath);
-        return;
       case "branches":
         router.push(`${basePath}/branches`);
         return;
@@ -101,11 +91,7 @@ export default function DatabaseDetailLayout({
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        contentMode={
-          activeTab === "overview" || activeTab === "settings"
-            ? "center"
-            : "full"
-        }
+        contentMode={activeTab === "settings" ? "center" : "full"}
         icon={
           <img
             src={logoSrc}

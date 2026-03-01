@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateDatabase } from "@/hooks/use-databases";
+import { useCreateDatabase, useDatabases } from "@/hooks/use-databases";
 import {
   useBatchCreateServices,
   useCreateService,
@@ -37,6 +37,11 @@ import {
 } from "@/hooks/use-services";
 import type { CreateServiceInput, Template } from "@/lib/api";
 import { api } from "@/lib/api";
+import {
+  DATABASE_LOGO_FALLBACK,
+  getDatabaseLogoAlt,
+  getDatabaseLogoUrl,
+} from "@/lib/database-logo";
 import { orpc } from "@/lib/orpc-client";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
@@ -94,6 +99,30 @@ function matchesSearch(query: string, ...terms: string[]): boolean {
   return terms.some((term) => term.toLowerCase().includes(q));
 }
 
+function getDatabaseEngineLabel(engine: "postgres" | "mysql"): string {
+  if (engine === "postgres") {
+    return "Postgres";
+  }
+  return "MySQL";
+}
+
+const DATABASE_ENGINE_OPTIONS: Array<{
+  engine: "postgres" | "mysql";
+  label: string;
+  description: string;
+}> = [
+  {
+    engine: "postgres",
+    label: "Postgres",
+    description: "Fast default setup",
+  },
+  {
+    engine: "mysql",
+    label: "MySQL",
+    description: "Compatible with MySQL apps",
+  },
+];
+
 export function CreateServiceModal({
   projectId,
   environmentId,
@@ -120,7 +149,6 @@ export function CreateServiceModal({
     branch: string;
     name: string;
   } | null>(null);
-  const [databaseName, setDatabaseName] = useState("");
   const [databaseEngine, setDatabaseEngine] = useState<"postgres" | "mysql">(
     "postgres",
   );
@@ -131,8 +159,18 @@ export function CreateServiceModal({
   });
 
   const { data: existingServices } = useServices(environmentId);
+  const { data: existingDatabases = [] } = useDatabases(projectId);
 
   const existingServiceNames = (existingServices ?? []).map((s) => s.name);
+  const existingDatabaseNames = existingDatabases.map(
+    function getName(database) {
+      return database.name;
+    },
+  );
+  const nextDatabaseName = generateUniqueName(
+    databaseEngine,
+    existingDatabaseNames,
+  );
 
   const filteredCategories = CATEGORIES.filter((cat) =>
     matchesSearch(search, cat.label, ...cat.keywords),
@@ -161,7 +199,6 @@ export function CreateServiceModal({
     setSelectedIndex(0);
     setStagedServices([]);
     setSelectedRepo(null);
-    setDatabaseName("");
     setDatabaseEngine("postgres");
   }
 
@@ -344,8 +381,7 @@ export function CreateServiceModal({
     e: React.FormEvent<HTMLFormElement>,
   ): Promise<void> {
     e.preventDefault();
-    const nextName = databaseName.trim();
-    if (!nextName) return;
+    const nextName = generateUniqueName(databaseEngine, existingDatabaseNames);
 
     try {
       const result = await createDatabaseMutation.mutateAsync({
@@ -574,46 +610,74 @@ export function CreateServiceModal({
               Back
             </button>
             <form onSubmit={handleDatabaseSubmit} className="space-y-3">
-              <Input
-                id="database_name"
-                name="database_name"
-                autoFocus
-                required
-                value={databaseName}
-                onChange={(e) => setDatabaseName(e.target.value)}
-                placeholder="app-db"
-                className="border-neutral-700 bg-neutral-800 text-neutral-100 placeholder:text-neutral-500"
-              />
-              <Select
-                value={databaseEngine}
-                onValueChange={(value: "postgres" | "mysql") =>
-                  setDatabaseEngine(value)
-                }
-              >
-                <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-neutral-700 bg-neutral-800">
-                  <SelectItem
-                    value="postgres"
-                    className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                  >
-                    PostgreSQL
-                  </SelectItem>
-                  <SelectItem
-                    value="mysql"
-                    className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                  >
-                    MySQL
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <div role="radiogroup" className="space-y-2">
+                {DATABASE_ENGINE_OPTIONS.map(
+                  function renderEngineOption(option) {
+                    const isSelected = databaseEngine === option.engine;
+                    return (
+                      <button
+                        key={option.engine}
+                        type="button"
+                        onClick={function selectEngine() {
+                          setDatabaseEngine(option.engine);
+                        }}
+                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                          isSelected
+                            ? "border-neutral-500 bg-neutral-800"
+                            : "border-neutral-700 bg-neutral-900 hover:border-neutral-600"
+                        }`}
+                        aria-pressed={isSelected}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-neutral-800">
+                              <img
+                                src={getDatabaseLogoUrl(option.engine)}
+                                alt={getDatabaseLogoAlt(option.engine)}
+                                className="h-4 w-4 object-contain"
+                                onError={function onLogoError(event) {
+                                  if (
+                                    event.currentTarget.src ===
+                                    DATABASE_LOGO_FALLBACK
+                                  ) {
+                                    return;
+                                  }
+                                  event.currentTarget.src =
+                                    DATABASE_LOGO_FALLBACK;
+                                }}
+                              />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-neutral-100">
+                                {option.label}
+                              </p>
+                              <p className="mt-0.5 text-xs text-neutral-400">
+                                {option.description}
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={`h-4 w-4 shrink-0 rounded-full border ${
+                              isSelected
+                                ? "border-neutral-300 bg-neutral-300"
+                                : "border-neutral-600"
+                            }`}
+                          />
+                        </div>
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+              <p className="text-xs text-neutral-500">
+                Name auto-generated:{" "}
+                <span className="font-mono text-neutral-300">
+                  {nextDatabaseName}
+                </span>
+              </p>
               <Button
                 type="submit"
-                disabled={
-                  createDatabaseMutation.isPending ||
-                  databaseName.trim().length === 0
-                }
+                disabled={createDatabaseMutation.isPending}
                 size="sm"
               >
                 {createDatabaseMutation.isPending ? (
@@ -622,7 +686,7 @@ export function CreateServiceModal({
                     Creating
                   </>
                 ) : (
-                  "Create"
+                  `Create ${getDatabaseEngineLabel(databaseEngine)}`
                 )}
               </Button>
             </form>
