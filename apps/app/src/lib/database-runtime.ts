@@ -8,6 +8,10 @@ import {
   type DatabaseProvider,
   normalizeDatabaseProvider,
 } from "./database-provider";
+import {
+  startDatabaseTargetGateway,
+  stopDatabaseTargetGateway,
+} from "./database-target-gateway";
 import { db } from "./db";
 import type {
   Databases,
@@ -67,6 +71,7 @@ export type DatabaseTargetDeploymentStatus = "running" | "failed" | "stopped";
 interface ProviderRef {
   containerName: string;
   hostPort: number;
+  runtimeHostPort?: number;
   username: string;
   password: string;
   database: string;
@@ -100,11 +105,17 @@ export interface DatabaseTargetRuntimeInfo {
   lifecycleStatus: DatabaseTargetLifecycle;
   containerName: string;
   hostPort: number;
+  runtimeHostPort: number;
+  gatewayEnabled: boolean;
   image: string;
   port: number;
   storageBackend: BranchStorageBackendName | null;
   memoryLimit: string | null;
   cpuLimit: number | null;
+  ttlValue: number | null;
+  ttlUnit: "hours" | "days" | null;
+  scaleToZeroMinutes: number | null;
+  lastActivityAt: number | null;
   createdAt: number;
 }
 
@@ -122,6 +133,9 @@ const TARGET_NAME_PATTERN = /^[a-z0-9]([a-z0-9-]{0,60}[a-z0-9])?$/;
 const ENV_VAR_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 const MEMORY_LIMIT_PATTERN = /^\d+[kmg]$/i;
 const POSTGRES_QUERY_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
+const TARGET_ACTIVITY_WRITE_THROTTLE_MS = 5000;
+
+const targetActivityWriteAt = new Map<string, number>();
 
 function randomSecret(bytes = 24): string {
   return randomBytes(bytes).toString("base64url");
@@ -246,9 +260,16 @@ function parseProviderRef(json: string): ProviderRef {
   ) {
     throw new Error("Invalid provider reference");
   }
+  if (
+    value.runtimeHostPort !== undefined &&
+    typeof value.runtimeHostPort !== "number"
+  ) {
+    throw new Error("Invalid provider reference");
+  }
   return {
     containerName: value.containerName,
     hostPort: value.hostPort,
+    runtimeHostPort: value.runtimeHostPort,
     username: value.username,
     password: value.password,
     database: value.database,
@@ -276,6 +297,65 @@ function applyProviderRefStorage(
 ): void {
   providerRef.storageBackend = storage.storageBackend;
   providerRef.storageRef = storage.storageRef;
+}
+
+function getTargetRuntimeHostPort(
+  target: Pick<DatabaseTargets, "runtimeHostPort">,
+  providerRef: ProviderRef,
+): number {
+  if (target.runtimeHostPort !== null) {
+    return target.runtimeHostPort;
+  }
+  if (providerRef.runtimeHostPort !== undefined) {
+    return providerRef.runtimeHostPort;
+  }
+  return providerRef.hostPort;
+}
+
+function applyProviderRefRuntimePorts(input: {
+  target: Pick<DatabaseTargets, "runtimeHostPort">;
+  previousProviderRef: ProviderRef;
+  nextProviderRef: ProviderRef;
+}): void {
+  if (
+    input.target.runtimeHostPort === null &&
+    input.previousProviderRef.runtimeHostPort === undefined
+  ) {
+    input.nextProviderRef.runtimeHostPort = undefined;
+    return;
+  }
+
+  const runtimeHostPort = getTargetRuntimeHostPort(
+    input.target,
+    input.previousProviderRef,
+  );
+  input.nextProviderRef.hostPort = input.previousProviderRef.hostPort;
+  input.nextProviderRef.runtimeHostPort = runtimeHostPort;
+}
+
+async function setTargetActivityAt(
+  targetId: string,
+  activityAt: number,
+): Promise<void> {
+  await db
+    .updateTable("databaseTargets")
+    .set({ lastActivityAt: activityAt })
+    .where("id", "=", targetId)
+    .execute();
+}
+
+function queueTargetActivityWrite(targetId: string): void {
+  const now = Date.now();
+  const lastWriteAt = targetActivityWriteAt.get(targetId) ?? 0;
+  if (now - lastWriteAt < TARGET_ACTIVITY_WRITE_THROTTLE_MS) {
+    return;
+  }
+  targetActivityWriteAt.set(targetId, now);
+  setTargetActivityAt(targetId, now).catch(function onError() {});
+}
+
+function clearTargetActivityWrite(targetId: string): void {
+  targetActivityWriteAt.delete(targetId);
 }
 
 async function recordTargetDeployment(input: {
@@ -557,6 +637,7 @@ async function recreateTargetRuntime(input: {
   database: Selectable<Databases>;
   target: Selectable<DatabaseTargets>;
   providerRef: ProviderRef;
+  fixedHostPort?: number;
 }): Promise<ProviderRef> {
   const storage =
     input.database.engine === "postgres"
@@ -573,7 +654,7 @@ async function recreateTargetRuntime(input: {
     runtimeServiceId: input.target.runtimeServiceId,
     engine: input.database.engine as DatabaseEngine,
     templateRef: input.providerRef,
-    fixedHostPort: input.providerRef.hostPort,
+    fixedHostPort: input.fixedHostPort ?? input.providerRef.hostPort,
     storageMountPath,
   });
 
@@ -763,6 +844,68 @@ async function reconnectPostgresDatabaseAttachments(
   }
 }
 
+function isScaleToZeroEnabled(
+  target: Pick<DatabaseTargets, "scaleToZeroMinutes">,
+): boolean {
+  return target.scaleToZeroMinutes !== null;
+}
+
+async function ensureTargetGateway(targetId: string): Promise<void> {
+  const target = await getTargetById(targetId);
+  const providerRef = parseProviderRef(target.providerRefJson);
+
+  if (!isScaleToZeroEnabled(target)) {
+    await stopDatabaseTargetGateway(target.id);
+    return;
+  }
+
+  if (target.runtimeHostPort === null) {
+    throw new Error("Scale to zero target is missing runtime host port");
+  }
+
+  await startDatabaseTargetGateway({
+    targetId: target.id,
+    listenPort: providerRef.hostPort,
+    ensureRunning: async function ensureRunning() {
+      let current = await getTargetById(target.id);
+      if (current.lifecycleStatus !== "active") {
+        current = await startDatabaseTarget({
+          databaseId: current.databaseId,
+          targetId: current.id,
+        });
+      }
+      const currentProviderRef = parseProviderRef(current.providerRefJson);
+      return getTargetRuntimeHostPort(current, currentProviderRef);
+    },
+    onActivity: function onActivity() {
+      queueTargetActivityWrite(target.id);
+    },
+  });
+}
+
+export async function restoreDatabaseTargetGateways(): Promise<void> {
+  const targets = await db
+    .selectFrom("databaseTargets")
+    .innerJoin("databases", "databases.id", "databaseTargets.databaseId")
+    .selectAll("databaseTargets")
+    .where("databaseTargets.scaleToZeroMinutes", "is not", null)
+    .where("databaseTargets.kind", "=", "branch")
+    .where("databaseTargets.name", "!=", "main")
+    .where("databases.engine", "=", "postgres")
+    .execute();
+
+  for (const target of targets) {
+    try {
+      await ensureTargetGateway(target.id);
+    } catch (error) {
+      console.error("[database-runtime] Failed to restore target gateway", {
+        targetId: target.id,
+        error,
+      });
+    }
+  }
+}
+
 function buildConnectionString(
   database: Selectable<Databases>,
   providerRef: ProviderRef,
@@ -877,6 +1020,11 @@ export async function createDatabase(input: {
         runtimeServiceId,
         lifecycleStatus: "active",
         providerRefJson: toProviderRefJson(providerRef),
+        ttlValue: null,
+        ttlUnit: null,
+        scaleToZeroMinutes: null,
+        lastActivityAt: createdAt,
+        runtimeHostPort: null,
         createdAt,
       })
       .execute();
@@ -1025,6 +1173,11 @@ export async function createDatabaseTarget(input: {
         runtimeServiceId,
         lifecycleStatus: "active",
         providerRefJson: toProviderRefJson(providerRef),
+        ttlValue: null,
+        ttlUnit: null,
+        scaleToZeroMinutes: null,
+        lastActivityAt: createdAt,
+        runtimeHostPort: null,
         createdAt,
       })
       .execute();
@@ -1157,7 +1310,7 @@ export async function resetDatabaseTarget(input: {
       runtimeServiceId: target.runtimeServiceId,
       engine: "postgres",
       templateRef,
-      fixedHostPort: currentRef.hostPort,
+      fixedHostPort: getTargetRuntimeHostPort(target, currentRef),
       storageMountPath: liveMountPath,
     });
   } catch (error) {
@@ -1178,6 +1331,11 @@ export async function resetDatabaseTarget(input: {
   }
 
   applyProviderRefStorage(nextRef, currentStorage);
+  applyProviderRefRuntimePorts({
+    target,
+    previousProviderRef: currentRef,
+    nextProviderRef: nextRef,
+  });
 
   await db
     .updateTable("databaseTargets")
@@ -1185,6 +1343,7 @@ export async function resetDatabaseTarget(input: {
       sourceTargetId: sourceTarget.id,
       lifecycleStatus: "active",
       providerRefJson: toProviderRefJson(nextRef),
+      lastActivityAt: Date.now(),
     })
     .where("id", "=", target.id)
     .execute();
@@ -1197,6 +1356,7 @@ export async function resetDatabaseTarget(input: {
   });
 
   const updated = await getTargetById(target.id);
+  await ensureTargetGateway(updated.id);
   await reconnectTargetAttachments(database, updated);
   return updated;
 }
@@ -1210,10 +1370,17 @@ export async function startDatabaseTarget(input: {
     input.targetId,
   );
   const providerRef = parseProviderRef(target.providerRefJson);
+  const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
   const nextRef = await recreateTargetRuntime({
     database,
     target,
     providerRef,
+    fixedHostPort: runtimeHostPort,
+  });
+  applyProviderRefRuntimePorts({
+    target,
+    previousProviderRef: providerRef,
+    nextProviderRef: nextRef,
   });
 
   await db
@@ -1221,6 +1388,7 @@ export async function startDatabaseTarget(input: {
     .set({
       lifecycleStatus: "active",
       providerRefJson: toProviderRefJson(nextRef),
+      lastActivityAt: Date.now(),
     })
     .where("id", "=", target.id)
     .execute();
@@ -1233,6 +1401,7 @@ export async function startDatabaseTarget(input: {
   });
 
   const updated = await getTargetById(target.id);
+  await ensureTargetGateway(updated.id);
   await reconnectTargetAttachments(database, updated);
   return updated;
 }
@@ -1261,6 +1430,7 @@ export async function stopDatabaseTarget(input: {
     message: "Target stopped",
   });
 
+  clearTargetActivityWrite(target.id);
   return getTargetById(target.id);
 }
 
@@ -1287,6 +1457,8 @@ export async function deleteDatabaseTarget(input: {
     throw new Error("Target is attached to one or more environments");
   }
 
+  await stopDatabaseTargetGateway(target.id);
+  clearTargetActivityWrite(target.id);
   const providerRef = parseProviderRef(target.providerRefJson);
   await stopContainer(providerRef.containerName);
   if (database.engine === "postgres") {
@@ -1304,6 +1476,8 @@ export async function deleteDatabase(databaseId: string): Promise<void> {
     .execute();
 
   for (const target of targets) {
+    await stopDatabaseTargetGateway(target.id);
+    clearTargetActivityWrite(target.id);
     const providerRef = parseProviderRef(target.providerRefJson);
     await stopContainer(providerRef.containerName);
     if (database.engine === "postgres") {
@@ -1340,6 +1514,10 @@ export async function putEnvironmentAttachment(input: {
 
   if (target.databaseId !== database.id) {
     throw new Error("Target does not belong to the database");
+  }
+
+  if (target.scaleToZeroMinutes !== null) {
+    throw new Error("Cannot attach a target while scale to zero is enabled");
   }
 
   if (
@@ -1474,6 +1652,8 @@ export async function deleteEnvironmentAttachment(input: {
       return;
     }
 
+    await stopDatabaseTargetGateway(target.id);
+    clearTargetActivityWrite(target.id);
     const providerRef = parseProviderRef(target.providerRefJson);
     await stopContainer(providerRef.containerName);
     await removePostgresStorage(getPostgresStorageMetadata(providerRef));
@@ -1510,6 +1690,8 @@ export async function deleteEnvironmentAttachment(input: {
     return;
   }
 
+  await stopDatabaseTargetGateway(target.id);
+  clearTargetActivityWrite(target.id);
   const providerRef = parseProviderRef(target.providerRefJson);
   await stopContainer(providerRef.containerName);
   await db.deleteFrom("databaseTargets").where("id", "=", target.id).execute();
@@ -1613,10 +1795,17 @@ export async function deployDatabaseTarget(
   const providerRef = parseProviderRef(target.providerRefJson);
 
   try {
+    const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
     const nextRef = await recreateTargetRuntime({
       database,
       target,
       providerRef,
+      fixedHostPort: runtimeHostPort,
+    });
+    applyProviderRefRuntimePorts({
+      target,
+      previousProviderRef: providerRef,
+      nextProviderRef: nextRef,
     });
 
     await db
@@ -1624,9 +1813,12 @@ export async function deployDatabaseTarget(
       .set({
         lifecycleStatus: "active",
         providerRefJson: toProviderRefJson(nextRef),
+        lastActivityAt: Date.now(),
       })
       .where("id", "=", target.id)
       .execute();
+
+    await ensureTargetGateway(target.id);
 
     return recordTargetDeployment({
       targetId: target.id,
@@ -1666,11 +1858,17 @@ export async function getDatabaseTargetRuntime(
     lifecycleStatus: target.lifecycleStatus as DatabaseTargetLifecycle,
     containerName: providerRef.containerName,
     hostPort: providerRef.hostPort,
+    runtimeHostPort: getTargetRuntimeHostPort(target, providerRef),
+    gatewayEnabled: isScaleToZeroEnabled(target),
     image: providerRef.image,
     port: providerRef.port,
     storageBackend: providerRef.storageBackend ?? null,
     memoryLimit: providerRef.memoryLimit,
     cpuLimit: providerRef.cpuLimit,
+    ttlValue: target.ttlValue,
+    ttlUnit: target.ttlUnit,
+    scaleToZeroMinutes: target.scaleToZeroMinutes,
+    lastActivityAt: target.lastActivityAt,
     createdAt: target.createdAt,
   };
 }
@@ -1749,6 +1947,8 @@ export async function runPostgresTargetSql(input: {
             : "SQL query failed";
 
     throw new Error(message);
+  } finally {
+    queueTargetActivityWrite(target.id);
   }
 }
 
@@ -1757,10 +1957,14 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
   name?: string;
   hostname?: string;
   lifecycleStatus?: "active" | "stopped";
+  ttlValue?: number | null;
+  ttlUnit?: "hours" | "days" | null;
+  scaleToZeroMinutes?: number | null;
   memoryLimit?: string | null;
   cpuLimit?: number | null;
 }): Promise<DatabaseTargetRuntimeInfo> {
   const target = await getTargetById(input.targetId);
+  const database = await getDatabaseById(target.databaseId);
   let nextName = target.name;
   let nextHostname = target.hostname;
 
@@ -1819,6 +2023,52 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       .execute();
   }
 
+  let nextTtlValue = target.ttlValue;
+  let nextTtlUnit = target.ttlUnit;
+
+  if (input.ttlValue !== undefined) {
+    nextTtlValue = input.ttlValue;
+  }
+  if (input.ttlUnit !== undefined) {
+    nextTtlUnit = input.ttlUnit;
+  }
+  if (input.ttlValue === null || input.ttlUnit === null) {
+    nextTtlValue = null;
+    nextTtlUnit = null;
+  }
+  if (
+    (nextTtlValue === null && nextTtlUnit !== null) ||
+    (nextTtlValue !== null && nextTtlUnit === null)
+  ) {
+    throw new Error("TTL value and unit must be set together");
+  }
+  if (nextTtlValue !== null && target.name === "main") {
+    throw new Error("main cannot use TTL");
+  }
+  if (
+    nextTtlValue !== null &&
+    (database.engine !== "postgres" || target.kind !== "branch")
+  ) {
+    throw new Error("TTL is only available for postgres branches");
+  }
+
+  let nextScaleToZeroMinutes = target.scaleToZeroMinutes;
+  if (input.scaleToZeroMinutes !== undefined) {
+    nextScaleToZeroMinutes = input.scaleToZeroMinutes;
+  }
+  if (nextScaleToZeroMinutes !== null && target.name === "main") {
+    throw new Error("main cannot use scale to zero");
+  }
+  if (
+    nextScaleToZeroMinutes !== null &&
+    (database.engine !== "postgres" || target.kind !== "branch")
+  ) {
+    throw new Error("Scale to zero is only available for postgres branches");
+  }
+
+  const scaleToZeroChanged =
+    nextScaleToZeroMinutes !== target.scaleToZeroMinutes;
+
   if (input.memoryLimit === null || input.cpuLimit === null) {
     throw new Error("Clearing branch limits is not supported yet");
   }
@@ -1853,6 +2103,120 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       .execute();
   }
 
+  if (scaleToZeroChanged) {
+    const currentProviderRef = parseProviderRef(
+      (await getTargetById(target.id)).providerRefJson,
+    );
+    if (nextScaleToZeroMinutes !== null) {
+      const attachment = await db
+        .selectFrom("environmentDatabaseAttachments")
+        .select("id")
+        .where("targetId", "=", target.id)
+        .executeTakeFirst();
+      if (attachment) {
+        throw new Error(
+          "Scale to zero only works for detached branches right now",
+        );
+      }
+
+      let runtimeHostPort = target.runtimeHostPort;
+      let nextProviderRef = currentProviderRef;
+
+      if (runtimeHostPort === null) {
+        runtimeHostPort = await getAvailablePort(
+          10000,
+          20000,
+          new Set([currentProviderRef.hostPort]),
+        );
+      }
+
+      if (target.lifecycleStatus === "active") {
+        const recreated = await recreateTargetRuntime({
+          database,
+          target,
+          providerRef: currentProviderRef,
+          fixedHostPort: runtimeHostPort,
+        });
+        recreated.hostPort = currentProviderRef.hostPort;
+        recreated.runtimeHostPort = runtimeHostPort;
+        nextProviderRef = recreated;
+      } else {
+        nextProviderRef = {
+          ...currentProviderRef,
+          runtimeHostPort,
+        };
+      }
+
+      await db
+        .updateTable("databaseTargets")
+        .set({
+          providerRefJson: toProviderRefJson(nextProviderRef),
+          runtimeHostPort,
+          scaleToZeroMinutes: nextScaleToZeroMinutes,
+          lastActivityAt: Date.now(),
+        })
+        .where("id", "=", target.id)
+        .execute();
+
+      await ensureTargetGateway(target.id);
+    } else {
+      await stopDatabaseTargetGateway(target.id);
+      clearTargetActivityWrite(target.id);
+
+      let nextProviderRef = currentProviderRef;
+      if (target.lifecycleStatus === "active") {
+        const recreated = await recreateTargetRuntime({
+          database,
+          target: {
+            ...target,
+            runtimeHostPort: null,
+          },
+          providerRef: currentProviderRef,
+          fixedHostPort: currentProviderRef.hostPort,
+        });
+        recreated.runtimeHostPort = undefined;
+        nextProviderRef = recreated;
+      } else {
+        nextProviderRef = {
+          ...currentProviderRef,
+          runtimeHostPort: undefined,
+        };
+      }
+
+      await db
+        .updateTable("databaseTargets")
+        .set({
+          providerRefJson: toProviderRefJson(nextProviderRef),
+          runtimeHostPort: null,
+          scaleToZeroMinutes: null,
+        })
+        .where("id", "=", target.id)
+        .execute();
+    }
+  } else if (nextScaleToZeroMinutes !== null) {
+    await db
+      .updateTable("databaseTargets")
+      .set({ scaleToZeroMinutes: nextScaleToZeroMinutes })
+      .where("id", "=", target.id)
+      .execute();
+  }
+
+  if (
+    nextTtlValue !== target.ttlValue ||
+    nextTtlUnit !== target.ttlUnit ||
+    nextScaleToZeroMinutes !== target.scaleToZeroMinutes
+  ) {
+    await db
+      .updateTable("databaseTargets")
+      .set({
+        ttlValue: nextTtlValue,
+        ttlUnit: nextTtlUnit,
+        scaleToZeroMinutes: nextScaleToZeroMinutes,
+      })
+      .where("id", "=", target.id)
+      .execute();
+  }
+
   if (input.lifecycleStatus === "active") {
     await startDatabaseTarget({
       databaseId: target.databaseId,
@@ -1868,7 +2232,6 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
   }
 
   if (nameChanged || hostnameChanged) {
-    const database = await getDatabaseById(target.databaseId);
     if (database.engine === "postgres") {
       await reconnectPostgresDatabaseAttachments(database);
     }

@@ -80,6 +80,11 @@ export interface DatabaseTargets {
   createdAt: number;
   runtimeServiceId: Generated<string>;
   hostname: Generated<string>;
+  ttlValue: number | null;
+  ttlUnit: 'hours' | 'days' | null;
+  scaleToZeroMinutes: number | null;
+  lastActivityAt: number | null;
+  runtimeHostPort: number | null;
 }
 
 export interface Databases {

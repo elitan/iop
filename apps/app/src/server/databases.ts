@@ -109,6 +109,59 @@ async function assertPostgresBranch(databaseId: string, targetId: string) {
   return target;
 }
 
+async function assertBranchPolicyPatchAllowed(input: {
+  databaseId: string;
+  targetId: string;
+  ttlValue?: number | null;
+  ttlUnit?: "hours" | "days" | null;
+  scaleToZeroMinutes?: number | null;
+}) {
+  const hasTtlValue = input.ttlValue !== undefined;
+  const hasTtlUnit = input.ttlUnit !== undefined;
+  const touchesPolicyFields =
+    hasTtlValue || hasTtlUnit || input.scaleToZeroMinutes !== undefined;
+
+  if (!touchesPolicyFields) {
+    return;
+  }
+
+  if (hasTtlValue !== hasTtlUnit) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "ttlValue and ttlUnit must be set together",
+    });
+  }
+
+  const database = await getDatabase(input.databaseId);
+  const target = await getTargetByDatabase(input.databaseId, input.targetId);
+
+  if (database.engine !== "postgres" || target.kind !== "branch") {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "TTL and scale to zero are only available for postgres branches",
+    });
+  }
+
+  const enablesTtl = input.ttlValue !== null || input.ttlUnit !== null;
+  const enablesScaleToZero = input.scaleToZeroMinutes !== null;
+  if (target.name === "main" && (enablesTtl || enablesScaleToZero)) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "main cannot use TTL or scale to zero",
+    });
+  }
+
+  if (enablesScaleToZero) {
+    const attachment = await db
+      .selectFrom("environmentDatabaseAttachments")
+      .select("id")
+      .where("targetId", "=", target.id)
+      .executeTakeFirst();
+    if (attachment) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Scale to zero only works for detached branches right now",
+      });
+    }
+  }
+}
+
 export const databases = {
   create: os.databases.create.handler(async ({ input }) => {
     const project = await db
@@ -289,11 +342,21 @@ export const databases = {
     async ({ input }) => {
       try {
         await getTargetByDatabase(input.databaseId, input.targetId);
+        await assertBranchPolicyPatchAllowed({
+          databaseId: input.databaseId,
+          targetId: input.targetId,
+          ttlValue: input.ttlValue,
+          ttlUnit: input.ttlUnit,
+          scaleToZeroMinutes: input.scaleToZeroMinutes,
+        });
         return await patchDatabaseTargetRuntimeSettings({
           targetId: input.targetId,
           name: input.name,
           hostname: input.hostname,
           lifecycleStatus: input.lifecycleStatus,
+          ttlValue: input.ttlValue,
+          ttlUnit: input.ttlUnit,
+          scaleToZeroMinutes: input.scaleToZeroMinutes,
           memoryLimit: input.memoryLimit,
           cpuLimit: input.cpuLimit,
         });
@@ -366,11 +429,21 @@ export const databases = {
   patchBranch: os.databases.patchBranch.handler(async ({ input }) => {
     try {
       await assertPostgresBranch(input.databaseId, input.targetId);
+      await assertBranchPolicyPatchAllowed({
+        databaseId: input.databaseId,
+        targetId: input.targetId,
+        ttlValue: input.ttlValue,
+        ttlUnit: input.ttlUnit,
+        scaleToZeroMinutes: input.scaleToZeroMinutes,
+      });
       return await patchDatabaseTargetRuntimeSettings({
         targetId: input.targetId,
         name: input.name,
         hostname: input.hostname,
         lifecycleStatus: input.lifecycleStatus,
+        ttlValue: input.ttlValue,
+        ttlUnit: input.ttlUnit,
+        scaleToZeroMinutes: input.scaleToZeroMinutes,
         memoryLimit: input.memoryLimit,
         cpuLimit: input.cpuLimit,
       });

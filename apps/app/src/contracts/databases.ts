@@ -34,6 +34,11 @@ export const databaseTargetSchema = z.object({
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
   providerRefJson: z.string(),
+  ttlValue: z.number().nullable(),
+  ttlUnit: z.enum(["hours", "days"]).nullable(),
+  scaleToZeroMinutes: z.number().nullable(),
+  lastActivityAt: z.number().nullable(),
+  runtimeHostPort: z.number().nullable(),
   createdAt: z.number(),
 });
 
@@ -69,11 +74,17 @@ const databaseTargetRuntimeSchema = z.object({
   lifecycleStatus: databaseTargetLifecycleSchema,
   containerName: z.string(),
   hostPort: z.number(),
+  runtimeHostPort: z.number(),
+  gatewayEnabled: z.boolean(),
   image: z.string(),
   port: z.number(),
   storageBackend: databaseStorageBackendSchema.nullable(),
   memoryLimit: z.string().nullable(),
   cpuLimit: z.number().nullable(),
+  ttlValue: z.number().nullable(),
+  ttlUnit: z.enum(["hours", "days"]).nullable(),
+  scaleToZeroMinutes: z.number().nullable(),
+  lastActivityAt: z.number().nullable(),
   createdAt: z.number(),
 });
 
@@ -358,6 +369,15 @@ export const databasesContract = {
           .nullable()
           .optional(),
         cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
+        ttlValue: z.number().int().min(1).max(8760).nullable().optional(),
+        ttlUnit: z.enum(["hours", "days"]).nullable().optional(),
+        scaleToZeroMinutes: z
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 60)
+          .nullable()
+          .optional(),
       }),
     )
     .output(databaseTargetRuntimeSchema),
@@ -443,6 +463,15 @@ export const databasesContract = {
           .nullable()
           .optional(),
         cpuLimit: z.number().min(0.1).max(64).nullable().optional(),
+        ttlValue: z.number().int().min(1).max(8760).nullable().optional(),
+        ttlUnit: z.enum(["hours", "days"]).nullable().optional(),
+        scaleToZeroMinutes: z
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 60)
+          .nullable()
+          .optional(),
       }),
     )
     .output(databaseTargetRuntimeSchema),

@@ -599,6 +599,11 @@ export const databaseTargetsSchema = z.object({
   runtimeServiceId: z.string(),
   lifecycleStatus: z.enum(["active", "stopped", "expired"]),
   providerRefJson: z.string(),
+  ttlValue: z.number().nullable(),
+  ttlUnit: z.enum(["hours", "days"]).nullable(),
+  scaleToZeroMinutes: z.number().nullable(),
+  lastActivityAt: z.number().nullable(),
+  runtimeHostPort: z.number().nullable(),
   createdAt: z.number(),
 });
 
@@ -612,6 +617,11 @@ export const newDatabaseTargetsSchema = z.object({
   runtimeServiceId: z.string(),
   lifecycleStatus: z.enum(["active", "stopped", "expired"]).optional(),
   providerRefJson: z.string().optional(),
+  ttlValue: z.number().nullable(),
+  ttlUnit: z.enum(["hours", "days"]).nullable(),
+  scaleToZeroMinutes: z.number().nullable(),
+  lastActivityAt: z.number().nullable(),
+  runtimeHostPort: z.number().nullable(),
   createdAt: z.number(),
 });
 
@@ -625,6 +635,11 @@ export const databaseTargetsUpdateSchema = z.object({
   runtimeServiceId: z.string().optional(),
   lifecycleStatus: z.enum(["active", "stopped", "expired"]).optional(),
   providerRefJson: z.string().optional(),
+  ttlValue: z.number().nullable().optional(),
+  ttlUnit: z.enum(["hours", "days"]).nullable().optional(),
+  scaleToZeroMinutes: z.number().nullable().optional(),
+  lastActivityAt: z.number().nullable().optional(),
+  runtimeHostPort: z.number().nullable().optional(),
   createdAt: z.number().optional(),
 });
 
