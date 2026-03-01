@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { StateTabs } from "@/components/state-tabs";
-import { StatusDot } from "@/components/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -469,11 +468,10 @@ export function DatabaseBranchPanel({
                 {databaseName}
               </Button>
               <div className="mt-1 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex items-center gap-2">
+                <div className="min-w-0">
                   <h3 className="truncate text-lg font-semibold text-neutral-200">
                     {branch.name}
                   </h3>
-                  <StatusDot status={branch.lifecycleStatus} showLabel />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
