@@ -35,7 +35,7 @@ export default function DatabaseDetailLayout({
   const basePath = `/projects/${projectId}/environments/${envId}/databases/${databaseId}`;
   const activeTab = getActiveTab(pathname);
   const isBranchDetailPage =
-    /^\/projects\/[^/]+\/environments\/[^/]+\/databases\/[^/]+\/branches\/[^/]+$/.test(
+    /^\/projects\/[^/]+\/environments\/[^/]+\/databases\/[^/]+\/branches\/[^/]+(?:\/[^/]+)?$/.test(
       pathname,
     );
   const { data: database } = useDatabase(databaseId);

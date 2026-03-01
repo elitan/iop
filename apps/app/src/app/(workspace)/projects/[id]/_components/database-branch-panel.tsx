@@ -50,7 +50,12 @@ interface Branch {
   createdAt: number;
 }
 
-type BranchPanelTab = "overview" | "logs" | "tables" | "sql" | "settings";
+export type BranchPanelTab =
+  | "overview"
+  | "logs"
+  | "tables"
+  | "sql"
+  | "settings";
 type BranchSettingsTab = "general" | "runtime";
 type DatabaseTargetSqlResult = ContractOutputs["databases"]["runTargetSql"];
 
@@ -62,11 +67,12 @@ const BRANCH_SETTINGS_NAV_ITEMS: { id: BranchSettingsTab; label: string }[] = [
 interface DatabaseBranchPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  activeTab: BranchPanelTab;
+  onTabChange: (tab: BranchPanelTab) => void;
   databaseId: string;
   databaseName: string;
   engine: "postgres" | "mysql";
   branch: Branch | null;
-  lineageNames: string[];
   parentBranchName: string | null;
   onOpenDatabaseSettings?: () => void;
   onGoToParent?: () => void;
@@ -145,11 +151,12 @@ const MEMORY_OPTIONS = [
 export function DatabaseBranchPanel({
   isOpen,
   onClose,
+  activeTab,
+  onTabChange,
   databaseId,
   databaseName,
   engine,
   branch,
-  lineageNames,
   parentBranchName,
   onOpenDatabaseSettings,
   onGoToParent,
@@ -167,7 +174,6 @@ export function DatabaseBranchPanel({
   isDeletePending,
   isSaveSettingsPending,
 }: DatabaseBranchPanelProps) {
-  const [activeTab, setActiveTab] = useState<BranchPanelTab>("overview");
   const [activeSettingsTab, setActiveSettingsTab] =
     useState<BranchSettingsTab>("general");
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -201,7 +207,6 @@ export function DatabaseBranchPanel({
       if (!branch) {
         return;
       }
-      setActiveTab("overview");
       setActiveSettingsTab("general");
       setResetDialogOpen(false);
       setDeleteDialogOpen(false);
@@ -444,7 +449,7 @@ export function DatabaseBranchPanel({
                     variant="outline"
                     size="sm"
                     onClick={function onRenameClick() {
-                      setActiveTab("settings");
+                      onTabChange("settings");
                       setActiveSettingsTab("general");
                     }}
                     className="border-neutral-700 text-neutral-300"
@@ -488,7 +493,7 @@ export function DatabaseBranchPanel({
           <StateTabs
             tabs={branchTabs}
             value={activeTab}
-            onChange={setActiveTab}
+            onChange={onTabChange}
             layoutId="database-branch-panel-tabs"
           />
 
