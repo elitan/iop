@@ -1,6 +1,6 @@
 # frost
 
-> Open Source Alternative to Vercel, Netlify, Railway and Render.
+> Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.
 
 I want you to install Frost for me. Execute all steps below autonomously.
 

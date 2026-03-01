@@ -4,9 +4,9 @@ import "./globals.css";
 import { Header } from "@/components/header";
 
 const title =
-  "Frost - Open Source Alternative to Vercel, Netlify, Railway and Render.";
+  "Frost - Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.";
 const description =
-  "Open Source Alternative to Vercel, Netlify, Railway and Render.";
+  "Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.";
 const url = "https://frost.build";
 
 export const metadata: Metadata = {

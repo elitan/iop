@@ -1,6 +1,6 @@
 # Frost
 
-Open Source Alternative to Vercel, Netlify, Railway and Render.
+Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.
 
 See also: `CLAUDE.local.md` for local/personal instructions (gitignored).
 

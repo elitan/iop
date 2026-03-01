@@ -1,6 +1,6 @@
 # Frost
 
-**Open Source Alternative to Vercel, Netlify, Railway and Render.**
+**Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.**
 
 Build, deploy, and run from one open-source platform.
 Your apps run on your server.

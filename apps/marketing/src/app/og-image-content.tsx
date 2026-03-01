@@ -150,7 +150,7 @@ export function OgImageContent() {
             display: "flex",
           }}
         >
-          Vercel, Netlify, Railway and Render.
+          Vercel, Netlify, Railway, Render and Neon.
         </div>
       </div>
 

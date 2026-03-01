@@ -24,7 +24,7 @@ export function Hero() {
           Open Source Alternative to
           <br />
           <span className="text-foreground">
-            Vercel, Netlify, Railway and Render.
+            Vercel, Netlify, Railway, Render and Neon.
           </span>
         </motion.h1>
 

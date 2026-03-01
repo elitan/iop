@@ -20,7 +20,8 @@ export function Footer() {
               <span className="font-semibold text-lg">Frost</span>
             </div>
             <p className="text-sm text-muted-foreground text-center md:text-left">
-              Open Source Alternative to Vercel, Netlify, Railway and Render.
+              Open Source Alternative to Vercel, Netlify, Railway, Render and
+              Neon.
             </p>
           </div>
 
