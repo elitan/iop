@@ -434,13 +434,6 @@ export function DatabaseBranchPanel({
                 <ChevronLeft className="h-4 w-4" />
                 {databaseName}
               </Button>
-              <div className="flex items-center gap-1 text-xs text-neutral-500">
-                <span className="truncate">
-                  {lineageNames.length > 0
-                    ? lineageNames.join(" / ")
-                    : branch.name}
-                </span>
-              </div>
               <div className="mt-1 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex items-center gap-2">
                   <h3 className="truncate text-lg font-semibold text-neutral-200">
