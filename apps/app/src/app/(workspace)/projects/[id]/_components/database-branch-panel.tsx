@@ -22,7 +22,6 @@ import {
 import type { ContractOutputs } from "@/contracts";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
-  useDatabaseTargetDeployments,
   useDatabaseTargetRuntime,
   useRunDatabaseTargetSql,
 } from "@/hooks/use-databases";
@@ -51,13 +50,7 @@ interface Branch {
   createdAt: number;
 }
 
-type BranchPanelTab =
-  | "overview"
-  | "deployments"
-  | "logs"
-  | "tables"
-  | "sql"
-  | "settings";
+type BranchPanelTab = "overview" | "logs" | "tables" | "sql" | "settings";
 type BranchSettingsTab = "general" | "runtime";
 type DatabaseTargetSqlResult = ContractOutputs["databases"]["runTargetSql"];
 
@@ -193,10 +186,6 @@ export function DatabaseBranchPanel({
     databaseId,
     targetId: branch?.id ?? "",
   });
-  const { data: deployments = [] } = useDatabaseTargetDeployments(
-    databaseId,
-    branch?.id ?? "",
-  );
   const { data: runtime } = useDatabaseTargetRuntime(
     databaseId,
     branch?.id ?? "",
@@ -335,13 +324,11 @@ export function DatabaseBranchPanel({
         { id: "overview", label: "Overview" },
         { id: "tables", label: "Tables" },
         { id: "sql", label: "SQL" },
-        { id: "deployments", label: "Deployments" },
         { id: "logs", label: "Logs" },
         { id: "settings", label: "Settings" },
       ]
     : [
         { id: "overview", label: "Overview" },
-        { id: "deployments", label: "Deployments" },
         { id: "logs", label: "Logs" },
         { id: "settings", label: "Settings" },
       ];
@@ -440,6 +427,19 @@ export function DatabaseBranchPanel({
                   </h3>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={function onRestartClick() {
+                      void onDeploy();
+                    }}
+                    className="border-neutral-700 text-neutral-300"
+                    disabled={
+                      isDeployPending || branch.lifecycleStatus !== "active"
+                    }
+                  >
+                    {isDeployPending ? "Restarting..." : "Restart"}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -633,69 +633,6 @@ export function DatabaseBranchPanel({
                   )}
                 </div>
               </div>
-            )}
-
-            {activeTab === "deployments" && (
-              <Card className="border-neutral-800 bg-neutral-900">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-300">
-                      Branch deployments
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void onDeploy();
-                      }}
-                      disabled={isDeployPending}
-                    >
-                      {isDeployPending ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                          Redeploying...
-                        </>
-                      ) : (
-                        "Redeploy"
-                      )}
-                    </Button>
-                  </div>
-                  {deployments.length === 0 ? (
-                    <p className="text-sm text-neutral-500">
-                      No deployments yet.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {deployments.map((deployment) => (
-                        <div
-                          key={deployment.id}
-                          className="rounded-md border border-neutral-800 bg-neutral-950/40 px-3 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm text-neutral-200">
-                              {deployment.action}
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className="border-neutral-700 text-neutral-300"
-                            >
-                              {deployment.status}
-                            </Badge>
-                          </div>
-                          <div className="mt-1 text-xs text-neutral-500">
-                            {getTimeAgo(new Date(deployment.createdAt))}
-                          </div>
-                          {deployment.message && (
-                            <div className="mt-1 text-xs text-neutral-500">
-                              {deployment.message}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             )}
 
             {activeTab === "logs" && (

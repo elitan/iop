@@ -214,9 +214,9 @@ export default function DatabaseBranchDetailPage() {
         onDeploy={async function onDeploy() {
           try {
             await deployTargetMutation.mutateAsync();
-            toast.success("Branch redeployed");
+            toast.success("Branch restarted");
           } catch (error) {
-            toast.error(getErrorMessage(error, "Failed to redeploy branch"));
+            toast.error(getErrorMessage(error, "Failed to restart branch"));
           }
         }}
         onReset={async function onReset() {
