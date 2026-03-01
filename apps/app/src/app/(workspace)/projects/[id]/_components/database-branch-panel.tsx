@@ -528,141 +528,144 @@ export function DatabaseBranchPanel({
 
           <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
             {activeTab === "overview" && (
-              <div className="space-y-4">
-                <Card className="border-neutral-800 bg-neutral-900">
-                  <CardContent className="p-4">
-                    <div className="grid gap-4 text-sm md:grid-cols-3">
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-neutral-500">
-                          Parent
+              <div className="mx-auto w-full max-w-[1200px]">
+                <div className="space-y-4">
+                  <Card className="border-neutral-800 bg-neutral-900">
+                    <CardContent className="p-4">
+                      <div className="grid gap-4 text-sm md:grid-cols-3">
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-wide text-neutral-500">
+                            Parent
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-neutral-200">
+                              {parentBranchName ?? "-"}
+                            </span>
+                            {onGoToParent && parentBranchName && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={function onGoToParentClick() {
+                                  onGoToParent();
+                                }}
+                              >
+                                Go to parent
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-wide text-neutral-500">
+                            Created
+                          </p>
+                          <p className="text-neutral-200">
+                            {getTimeAgo(new Date(branch.createdAt))}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-wide text-neutral-500">
+                            Default in envs
+                          </p>
+                          <p className="text-neutral-200">
+                            {defaultEnvironmentNames.length}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-neutral-700 bg-neutral-800">
+                    <CardContent className="space-y-4 p-4">
+                      <div>
+                        <p className="mb-1 text-xs text-neutral-500">
+                          Internal connection
                         </p>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-neutral-200">
-                            {parentBranchName ?? "-"}
-                          </span>
-                          {onGoToParent && parentBranchName && (
+                        {internalConnectionString ? (
+                          <div className="flex items-start gap-2">
+                            <code className="flex-1 overflow-auto rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
+                              {internalConnectionString}
+                            </code>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={function onGoToParentClick() {
-                                onGoToParent();
-                              }}
+                              onClick={() =>
+                                copyToClipboard(internalConnectionString)
+                              }
                             >
-                              Go to parent
+                              <Copy className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-neutral-500">
+                            Set this{" "}
+                            {engine === "postgres" ? "branch" : "instance"} as
+                            default in this environment to use the internal
+                            alias.
+                          </p>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-neutral-500">
-                          Created
-                        </p>
-                        <p className="text-neutral-200">
-                          {getTimeAgo(new Date(branch.createdAt))}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-neutral-500">
-                          Default in envs
-                        </p>
-                        <p className="text-neutral-200">
-                          {defaultEnvironmentNames.length}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
 
-                <Card className="border-neutral-700 bg-neutral-800">
-                  <CardContent className="space-y-4 p-4">
-                    <div>
-                      <p className="mb-1 text-xs text-neutral-500">
-                        Internal connection
-                      </p>
-                      {internalConnectionString ? (
-                        <div className="flex items-start gap-2">
-                          <code className="flex-1 overflow-auto rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
-                            {internalConnectionString}
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              copyToClipboard(internalConnectionString)
-                            }
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-neutral-500">
-                          Set this{" "}
-                          {engine === "postgres" ? "branch" : "instance"} as
-                          default in this environment to use the internal alias.
+                      <div>
+                        <p className="mb-1 text-xs text-neutral-500">
+                          Direct host connection
                         </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="mb-1 text-xs text-neutral-500">
-                        Direct host connection
-                      </p>
-                      {directConnectionString ? (
-                        <div className="flex items-start gap-2">
-                          <code className="flex-1 overflow-auto rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
-                            {directConnectionString}
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              copyToClipboard(directConnectionString)
-                            }
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-neutral-500">
-                          Connection details unavailable.
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {runtime?.runtimeServiceId && (
-                  <RuntimeMetricsCard
-                    runtimeServiceId={runtime.runtimeServiceId}
-                  />
-                )}
-
-                {showOverviewActions && (
-                  <Card className="border-neutral-800 bg-neutral-900">
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex flex-wrap gap-2">
-                        {branch.lifecycleStatus !== "active" && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              void onStart();
-                            }}
-                            disabled={isStartPending}
-                          >
-                            {isStartPending ? (
-                              <>
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                                Starting...
-                              </>
-                            ) : (
-                              "Start"
-                            )}
-                          </Button>
+                        {directConnectionString ? (
+                          <div className="flex items-start gap-2">
+                            <code className="flex-1 overflow-auto rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300">
+                              {directConnectionString}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                copyToClipboard(directConnectionString)
+                              }
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-neutral-500">
+                            Connection details unavailable.
+                          </p>
                         )}
                       </div>
                     </CardContent>
                   </Card>
-                )}
+
+                  {runtime?.runtimeServiceId && (
+                    <RuntimeMetricsCard
+                      runtimeServiceId={runtime.runtimeServiceId}
+                    />
+                  )}
+
+                  {showOverviewActions && (
+                    <Card className="border-neutral-800 bg-neutral-900">
+                      <CardContent className="space-y-3 p-4">
+                        <div className="flex flex-wrap gap-2">
+                          {branch.lifecycleStatus !== "active" && (
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                void onStart();
+                              }}
+                              disabled={isStartPending}
+                            >
+                              {isStartPending ? (
+                                <>
+                                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                  Starting...
+                                </>
+                              ) : (
+                                "Start"
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
             )}
 
