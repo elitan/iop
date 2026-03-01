@@ -74,6 +74,7 @@ interface DatabaseBranchPanelProps {
   databaseName: string;
   engine: "postgres" | "mysql";
   branch: Branch | null;
+  lineageNames: string[];
   parentBranchName: string | null;
   onGoToParent?: () => void;
   defaultEnvironmentNames: string[];
@@ -157,6 +158,7 @@ export function DatabaseBranchPanel({
   databaseName,
   engine,
   branch,
+  lineageNames,
   parentBranchName,
   onGoToParent,
   defaultEnvironmentNames,
@@ -429,16 +431,10 @@ export function DatabaseBranchPanel({
           <div className="flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1 text-xs text-neutral-500">
-                <span className="truncate">{databaseName}</span>
-                <span>/</span>
-                {parentBranchName && (
-                  <>
-                    <span className="truncate">{parentBranchName}</span>
-                    <span>/</span>
-                  </>
-                )}
-                <span className="truncate font-mono text-neutral-300">
-                  {branch.name}
+                <span className="truncate">
+                  {lineageNames.length > 0
+                    ? lineageNames.join(" / ")
+                    : branch.name}
                 </span>
               </div>
               <div className="mt-1 flex items-center gap-2">
@@ -497,16 +493,6 @@ export function DatabaseBranchPanel({
               </Button>
             </div>
           </div>
-
-          <div className="px-4 pb-3">
-            <div className="flex items-center gap-2 text-xs text-neutral-500">
-              <span>{engine === "postgres" ? "branch" : "instance"}</span>
-              {parentBranchName && (
-                <span>parent branch {parentBranchName}</span>
-              )}
-              <span>created {getTimeAgo(new Date(branch.createdAt))}</span>
-            </div>
-          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -518,69 +504,49 @@ export function DatabaseBranchPanel({
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
-            <div className="mb-4 rounded-md border border-neutral-800 bg-neutral-900/60 px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-neutral-400">You are in</span>
-                  <Badge
-                    variant="outline"
-                    className="border-neutral-700 text-neutral-300"
-                  >
-                    {branch.name}
-                  </Badge>
-                  {parentBranchName && (
-                    <>
-                      <span className="text-neutral-500">child of</span>
-                      <span className="font-mono text-neutral-300">
-                        {parentBranchName}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {onGoToParent && parentBranchName && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={function onGoToParentClick() {
-                      onGoToParent();
-                    }}
-                  >
-                    Go to parent
-                  </Button>
-                )}
-              </div>
-            </div>
-
             {activeTab === "overview" && (
               <div className="space-y-4">
                 <Card className="border-neutral-800 bg-neutral-900">
-                  <CardContent className="space-y-3 p-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <StatusDot status={branch.lifecycleStatus} showLabel />
-                      <Badge
-                        variant="outline"
-                        className="border-neutral-700 text-neutral-300"
-                      >
-                        {branch.name}
-                      </Badge>
-                    </div>
-                    <div className="text-neutral-300">
-                      Database: {databaseName}
-                    </div>
-                    <div className="text-neutral-500">
-                      Parent branch: {parentBranchName ?? "-"}
-                    </div>
-                    <div className="text-neutral-500">
-                      Default in envs: {defaultEnvironmentNames.length}
-                    </div>
-                    <div className="text-neutral-500">
-                      Created: {getTimeAgo(new Date(branch.createdAt))}
-                    </div>
-                    {runtime && (
-                      <div className="text-neutral-500">
-                        Runtime id: {runtime.runtimeServiceId}
+                  <CardContent className="p-4">
+                    <div className="grid gap-4 text-sm md:grid-cols-3">
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-neutral-500">
+                          Parent
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-neutral-200">
+                            {parentBranchName ?? "-"}
+                          </span>
+                          {onGoToParent && parentBranchName && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={function onGoToParentClick() {
+                                onGoToParent();
+                              }}
+                            >
+                              Go to parent
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    )}
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-neutral-500">
+                          Created
+                        </p>
+                        <p className="text-neutral-200">
+                          {getTimeAgo(new Date(branch.createdAt))}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-neutral-500">
+                          Default in envs
+                        </p>
+                        <p className="text-neutral-200">
+                          {defaultEnvironmentNames.length}
+                        </p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1221,9 +1187,7 @@ export function DatabaseBranchPanel({
   return (
     <>
       {branchContent && (
-        <div className="h-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-          {branchContent}
-        </div>
+        <div className="h-full overflow-hidden">{branchContent}</div>
       )}
 
       <ConfirmDialog

@@ -105,6 +105,34 @@ export default function DatabaseBranchDetailPage() {
     [branch, targets],
   );
 
+  const branchLineageNames = useMemo(
+    function getBranchLineageNames() {
+      if (!branch) {
+        return [];
+      }
+      const byId = new Map(
+        targets.map(function toEntry(target) {
+          return [target.id, target];
+        }),
+      );
+      const names: string[] = [];
+      const visited = new Set<string>();
+      let current: (typeof targets)[number] | null = branch;
+
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        names.unshift(current.name);
+        if (!current.sourceTargetId) {
+          break;
+        }
+        current = byId.get(current.sourceTargetId) ?? null;
+      }
+
+      return names;
+    },
+    [branch, targets],
+  );
+
   const branchProviderRef = useMemo(
     function getBranchProviderRef() {
       if (!branch) {
@@ -161,6 +189,7 @@ export default function DatabaseBranchDetailPage() {
         databaseName={database.name}
         engine={database.engine}
         branch={branch}
+        lineageNames={branchLineageNames}
         parentBranchName={parentBranchName}
         onGoToParent={
           parentBranchId
