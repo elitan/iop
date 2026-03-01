@@ -188,7 +188,7 @@ export default function WorkspaceLayout({
           <WorkspaceLeftMenu />
         )}
 
-        <div className="min-h-0 flex-1 bg-neutral-950/20">
+        <div className="flex min-h-0 flex-1 flex-col bg-neutral-950/20">
           {showMainContentHeader && (
             <MainContentHeader title={mainHeaderTitle} />
           )}
