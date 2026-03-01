@@ -176,7 +176,7 @@ export default function DatabaseBranchDetailPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-240px)] min-h-[560px]">
+    <div className="h-full min-h-0">
       <DatabaseBranchPanel
         isOpen
         onClose={goBackToBranches}

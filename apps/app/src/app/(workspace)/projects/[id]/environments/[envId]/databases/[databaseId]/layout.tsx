@@ -34,6 +34,10 @@ export default function DatabaseDetailLayout({
   const databaseId = params.databaseId as string;
   const basePath = `/projects/${projectId}/environments/${envId}/databases/${databaseId}`;
   const activeTab = getActiveTab(pathname);
+  const isBranchDetailPage =
+    /^\/projects\/[^/]+\/environments\/[^/]+\/databases\/[^/]+\/branches\/[^/]+$/.test(
+      pathname,
+    );
   const { data: database } = useDatabase(databaseId);
   const [logoSrc, setLogoSrc] = useState(DATABASE_LOGO_FALLBACK);
 
@@ -80,6 +84,10 @@ export default function DatabaseDetailLayout({
 
   function handleClose() {
     router.push(`/projects/${projectId}/environments/${envId}`);
+  }
+
+  if (isBranchDetailPage) {
+    return <div className="h-full min-h-0 overflow-hidden">{children}</div>;
   }
 
   return (

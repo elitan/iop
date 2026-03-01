@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Copy, Loader2, Trash2, X } from "lucide-react";
+import { ChevronLeft, Copy, Loader2, Trash2 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -421,6 +421,15 @@ export function DatabaseBranchPanel({
         <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
           <div className="flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="-ml-2 mb-1 h-7 px-2 text-neutral-300 hover:text-neutral-100"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                {databaseName}
+              </Button>
               <div className="flex items-center gap-1 text-xs text-neutral-500">
                 <span className="truncate">
                   {lineageNames.length > 0
@@ -474,14 +483,6 @@ export function DatabaseBranchPanel({
                   Delete
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </div>
