@@ -128,7 +128,7 @@ DEV_STATUS=$(wait_for_branch_status "$DEV_TARGET_ID" "stopped" 36 5 || true)
 log "Branch auto-stopped after idle timeout"
 
 log "Connecting on same host port to auto-wake..."
-WAKE_RESULT=$(remote "PGPASSWORD='$DEV_POSTGRES_PASSWORD' timeout 90 psql \"host=localhost port=$DEV_HOST_PORT_AFTER user=$DEV_POSTGRES_USER dbname=$DEV_POSTGRES_DB sslmode=disable connect_timeout=70\" -tAc 'select 1'" 2>&1 || true)
+WAKE_RESULT=$(remote "timeout 90 docker run --rm --network host -e PGPASSWORD='$DEV_POSTGRES_PASSWORD' postgres:17 psql \"host=127.0.0.1 port=$DEV_HOST_PORT_AFTER user=$DEV_POSTGRES_USER dbname=$DEV_POSTGRES_DB sslmode=disable connect_timeout=70\" -tAc 'select 1'" 2>&1 || true)
 WAKE_VALUE=$(echo "$WAKE_RESULT" | tr -d '[:space:]')
 [ "$WAKE_VALUE" = "1" ] || fail "Expected wake query result 1, got: $WAKE_RESULT"
 log "Wake query succeeded on same host port"
