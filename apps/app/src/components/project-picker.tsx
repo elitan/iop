@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -36,43 +35,48 @@ export function ProjectPicker({
   onCreateNew,
 }: ProjectPickerProps) {
   return (
-    <div className="inline-flex items-center gap-1">
-      <Link
-        href={textHref}
-        className="truncate text-sm text-neutral-100 outline-none transition-colors hover:text-neutral-300"
-      >
-        {currentProjectName}
-      </Link>
+    <DropdownMenu>
+      <div className="flex w-full items-center gap-1">
+        <Link
+          href={textHref}
+          className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-transparent px-2 text-sm text-neutral-100 outline-none transition-colors hover:border-neutral-800 hover:bg-neutral-900"
+        >
+          <span className="truncate">{currentProjectName}</span>
+        </Link>
 
-      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-neutral-400 outline-none transition-colors hover:bg-neutral-800 hover:text-neutral-100"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-neutral-400 outline-none transition-colors hover:border-neutral-800 hover:bg-neutral-900 hover:text-neutral-100 data-[state=open]:border-neutral-800 data-[state=open]:bg-neutral-900 data-[state=open]:text-neutral-100"
             aria-label="Switch project"
           >
             <ChevronsUpDown className="h-3.5 w-3.5" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-48">
-          <DropdownMenuLabel>Projects</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={currentProjectId}
-            onValueChange={onSelect}
-          >
-            {projects.map((project) => (
-              <DropdownMenuRadioItem key={project.id} value={project.id}>
+      </div>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuRadioGroup
+          value={currentProjectId}
+          onValueChange={onSelect}
+        >
+          {projects.map(function renderProject(project) {
+            return (
+              <DropdownMenuRadioItem
+                key={project.id}
+                value={project.id}
+                className="w-full"
+              >
                 {project.name}
               </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onCreateNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            );
+          })}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onCreateNew}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Project
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -34,44 +33,51 @@ export function EnvironmentPicker({
   onSelect,
   onCreateNew,
 }: EnvironmentPickerProps) {
-  const currentEnv = environments.find((e) => e.id === currentEnvId);
+  const currentEnv = environments.find(function byId(environment) {
+    return environment.id === currentEnvId;
+  });
   const currentName = currentEnv?.name ?? "Select environment";
 
   return (
-    <div className="inline-flex items-center gap-1">
-      <Link
-        href={textHref}
-        className="truncate text-sm text-neutral-100 outline-none transition-colors hover:text-neutral-300"
-      >
-        {currentName}
-      </Link>
+    <DropdownMenu>
+      <div className="flex w-full items-center gap-1">
+        <Link
+          href={textHref}
+          className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-transparent px-2 text-sm text-neutral-100 outline-none transition-colors hover:border-neutral-800 hover:bg-neutral-900"
+        >
+          <span className="truncate">{currentName}</span>
+        </Link>
 
-      <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-neutral-400 outline-none transition-colors hover:bg-neutral-800 hover:text-neutral-100"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-neutral-400 outline-none transition-colors hover:border-neutral-800 hover:bg-neutral-900 hover:text-neutral-100 data-[state=open]:border-neutral-800 data-[state=open]:bg-neutral-900 data-[state=open]:text-neutral-100"
             aria-label="Switch environment"
           >
             <ChevronsUpDown className="h-3.5 w-3.5" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-48">
-          <DropdownMenuLabel>Environments</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={currentEnvId} onValueChange={onSelect}>
-            {environments.map((env) => (
-              <DropdownMenuRadioItem key={env.id} value={env.id}>
-                {env.name}
+      </div>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuRadioGroup value={currentEnvId} onValueChange={onSelect}>
+          {environments.map(function renderEnvironment(environment) {
+            return (
+              <DropdownMenuRadioItem
+                key={environment.id}
+                value={environment.id}
+                className="w-full"
+              >
+                {environment.name}
               </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onCreateNew}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Environment
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            );
+          })}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onCreateNew}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Environment
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,24 +1,27 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { type SyntheticEvent, useMemo } from "react";
 import { BrandLockup } from "@/components/brand-lockup";
 import { EnvironmentPicker } from "@/components/environment-picker";
 import { LeftMenuFooter } from "@/components/left-menu-footer";
 import { ProjectPicker } from "@/components/project-picker";
 import { ShellTopRow } from "@/components/shell-top-row";
 import { StatusDot } from "@/components/status-dot";
-import { Button } from "@/components/ui/button";
 import {
   useDatabases,
   useEnvironmentDatabaseAttachments,
 } from "@/hooks/use-databases";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
+import {
+  DATABASE_LOGO_FALLBACK,
+  getDatabaseLogoUrl,
+} from "@/lib/database-logo";
 import { orpc } from "@/lib/orpc-client";
+import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
 import { getPreferredDomain } from "@/lib/service-url";
 
 interface ProjectLeftMenuProps {
@@ -35,6 +38,59 @@ function getResourceItemClass(isActive: boolean): string {
     return "block w-full rounded-lg border border-neutral-500 bg-neutral-800/70 px-3 py-2 text-left";
   }
   return "block w-full rounded-lg border border-transparent px-3 py-2 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900";
+}
+
+function handleImageFallback(
+  event: SyntheticEvent<HTMLImageElement>,
+  fallbackSrc: string,
+) {
+  const image = event.currentTarget;
+  if (image.src === fallbackSrc) {
+    return;
+  }
+  image.src = fallbackSrc;
+}
+
+interface ResourceListItemProps {
+  href: string;
+  isActive: boolean;
+  iconSrc: string;
+  iconFallback: string;
+  name: string;
+  subtitle: string;
+  status: string;
+}
+
+function ResourceListItem({
+  href,
+  isActive,
+  iconSrc,
+  iconFallback,
+  name,
+  subtitle,
+  status,
+}: ResourceListItemProps) {
+  return (
+    <Link href={href} className={getResourceItemClass(isActive)}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-neutral-800 text-neutral-400">
+            <img
+              src={iconSrc}
+              alt=""
+              className="h-4 w-4 object-contain"
+              onError={function onIconError(event) {
+                handleImageFallback(event, iconFallback);
+              }}
+            />
+          </span>
+          <span className="truncate text-sm text-neutral-100">{name}</span>
+        </div>
+        <StatusDot status={status} className="shrink-0" />
+      </div>
+      <p className="mt-1 truncate text-xs text-neutral-500">{subtitle}</p>
+    </Link>
+  );
 }
 
 export function ProjectLeftMenu({
@@ -154,7 +210,7 @@ export function ProjectLeftMenu({
           </p>
           <Link
             href={`/projects/${projectId}/settings`}
-            className="text-xs text-neutral-400 transition-colors hover:text-neutral-100"
+            className="cursor-pointer text-xs text-neutral-400 transition-colors hover:text-neutral-100"
           >
             Settings
           </Link>
@@ -199,36 +255,26 @@ export function ProjectLeftMenu({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b border-neutral-800 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Resources
-              </p>
-              <p className="mt-1 text-xs text-neutral-500">
-                {services.length} services · {databases.length} databases
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
+        <div className="flex-1 space-y-4 overflow-auto px-3 py-3">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Resources
+            </p>
+            <button
+              type="button"
               onClick={onOpenCreateService}
               disabled={!currentEnvId}
+              className="cursor-pointer text-xs text-neutral-400 transition-colors hover:text-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-700"
             >
-              <Plus className="mr-1 h-3.5 w-3.5" />
               Add
-            </Button>
+            </button>
           </div>
-        </div>
 
-        <div className="flex-1 space-y-4 overflow-auto px-3 py-3">
-          {hasResources && services.length > 0 && (
-            <section className="space-y-1">
-              <p className="px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Services
-              </p>
+          {hasResources && (
+            <div className="space-y-1">
               {services.map(function renderService(service) {
                 const deployment = service.latestDeployment;
+                const serviceIcon = getServiceIcon(service) ?? FALLBACK_ICON;
                 const url =
                   domains[service.id] ||
                   (serverIp && deployment?.hostPort
@@ -238,36 +284,19 @@ export function ProjectLeftMenu({
                   ? `/projects/${projectId}/environments/${currentEnvId}/services/${service.id}`
                   : `/projects/${projectId}`;
                 return (
-                  <Link
+                  <ResourceListItem
                     key={service.id}
                     href={href}
-                    className={getResourceItemClass(
-                      selectedServiceId === service.id,
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-neutral-100">
-                        {service.name}
-                      </span>
-                      <StatusDot
-                        status={deployment?.status ?? "pending"}
-                        className="shrink-0"
-                      />
-                    </div>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {url ?? "no public url"}
-                    </p>
-                  </Link>
+                    isActive={selectedServiceId === service.id}
+                    iconSrc={serviceIcon}
+                    iconFallback={FALLBACK_ICON}
+                    name={service.name}
+                    subtitle={url ?? "no public url"}
+                    status={deployment?.status ?? "pending"}
+                  />
                 );
               })}
-            </section>
-          )}
 
-          {hasResources && databases.length > 0 && (
-            <section className="space-y-1">
-              <p className="px-1 text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Databases
-              </p>
               {databases.map(function renderDatabase(database) {
                 const attachment =
                   databaseAttachmentById.get(database.id) ?? null;
@@ -280,29 +309,19 @@ export function ProjectLeftMenu({
                   ? `/projects/${projectId}/environments/${currentEnvId}/databases/${database.id}`
                   : `/projects/${projectId}`;
                 return (
-                  <Link
+                  <ResourceListItem
                     key={database.id}
                     href={href}
-                    className={getResourceItemClass(
-                      selectedDatabaseId === database.id,
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-neutral-100">
-                        {database.name}
-                      </span>
-                      <StatusDot
-                        status={attachment?.targetLifecycleStatus ?? "stopped"}
-                        className="shrink-0"
-                      />
-                    </div>
-                    <p className="mt-1 truncate text-xs text-neutral-500">
-                      {database.engine} · {branchLabel}
-                    </p>
-                  </Link>
+                    isActive={selectedDatabaseId === database.id}
+                    iconSrc={getDatabaseLogoUrl(database.engine)}
+                    iconFallback={DATABASE_LOGO_FALLBACK}
+                    name={database.name}
+                    subtitle={`${database.engine} · ${branchLabel}`}
+                    status={attachment?.targetLifecycleStatus ?? "stopped"}
+                  />
                 );
               })}
-            </section>
+            </div>
           )}
 
           {!hasResources && (
