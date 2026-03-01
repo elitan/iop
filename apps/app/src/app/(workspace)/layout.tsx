@@ -1,12 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  useParams,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { MainContentHeader } from "@/components/main-content-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +32,6 @@ export default function WorkspaceLayout({
   const params = useParams();
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const rawProjectId = params.id;
   const projectId = typeof rawProjectId === "string" ? rawProjectId : "";
@@ -53,10 +47,10 @@ export default function WorkspaceLayout({
     /^\/projects\/[^/]+\/settings(\/|$)/.test(pathname);
   const shouldCenterContent = isSettingsPage && !isResourceDetailPage;
   const showMainContentHeader = !isResourceDetailPage;
-  const shouldOpenCreateService = searchParams.get("create") === "service";
 
   const [createServiceModalOpen, setCreateServiceModalOpen] = useState(false);
   const [createEnvDialogOpen, setCreateEnvDialogOpen] = useState(false);
+  const [createQueryValue, setCreateQueryValue] = useState<string | null>(null);
 
   const { data: environments = [], isLoading: isEnvironmentsLoading } =
     useQuery({
@@ -170,6 +164,22 @@ export default function WorkspaceLayout({
       ? "overflow-hidden bg-neutral-950/20"
       : "overflow-auto p-6",
   );
+  const shouldOpenCreateService = createQueryValue === "service";
+
+  useEffect(
+    function syncCreateQueryValue() {
+      if (typeof window === "undefined") {
+        return;
+      }
+      const currentPathname = window.location.pathname;
+      if (currentPathname !== pathname) {
+        return;
+      }
+      const currentSearchParams = new URLSearchParams(window.location.search);
+      setCreateQueryValue(currentSearchParams.get("create"));
+    },
+    [pathname],
+  );
 
   useEffect(
     function syncCreateServiceFromQuery() {
@@ -182,12 +192,16 @@ export default function WorkspaceLayout({
   );
 
   function clearCreateQueryParam() {
-    if (!searchParams.has("create")) {
+    if (typeof window === "undefined") {
       return;
     }
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams(window.location.search);
+    if (!nextParams.has("create")) {
+      return;
+    }
     nextParams.delete("create");
     const nextQuery = nextParams.toString();
+    setCreateQueryValue(nextParams.get("create"));
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
   }
 
