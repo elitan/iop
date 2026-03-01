@@ -3,7 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ChevronLeft, Copy, Loader2, Trash2 } from "lucide-react";
-import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  type SyntheticEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
@@ -29,6 +35,10 @@ import {
 } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
 import { getDatabaseBranchInternalHost } from "@/lib/database-hostname";
+import {
+  DATABASE_LOGO_FALLBACK,
+  getDatabaseLogoUrl,
+} from "@/lib/database-logo";
 import { getTimeAgo } from "@/lib/time";
 import { DatabaseTableBrowser } from "./database-table-browser";
 import { RuntimeLogsPanel } from "./runtime-logs-panel";
@@ -184,6 +194,9 @@ export function DatabaseBranchPanel({
   const [draftHostname, setDraftHostname] = useState("");
   const [draftMemoryLimit, setDraftMemoryLimit] = useState("");
   const [draftCpuLimit, setDraftCpuLimit] = useState("none");
+  const [databaseLogoSrc, setDatabaseLogoSrc] = useState(
+    getDatabaseLogoUrl(engine),
+  );
   const [sqlInput, setSqlInput] = useState("select now();");
   const [sqlResult, setSqlResult] = useState<DatabaseTargetSqlResult | null>(
     null,
@@ -242,6 +255,21 @@ export function DatabaseBranchPanel({
     },
     [runtime, branch?.name],
   );
+
+  useEffect(
+    function syncDatabaseLogo() {
+      setDatabaseLogoSrc(getDatabaseLogoUrl(engine));
+    },
+    [engine],
+  );
+
+  function handleDatabaseLogoError(event: SyntheticEvent<HTMLImageElement>) {
+    if (databaseLogoSrc === DATABASE_LOGO_FALLBACK) {
+      return;
+    }
+    event.currentTarget.src = DATABASE_LOGO_FALLBACK;
+    setDatabaseLogoSrc(DATABASE_LOGO_FALLBACK);
+  }
 
   const internalConnectionString = useMemo(
     function getInternalConnectionString() {
@@ -432,6 +460,12 @@ export function DatabaseBranchPanel({
                 className="-ml-2 mb-1 h-7 px-2 text-neutral-300 hover:text-neutral-100"
               >
                 <ChevronLeft className="h-4 w-4" />
+                <img
+                  src={databaseLogoSrc}
+                  alt=""
+                  className="h-4 w-4 object-contain"
+                  onError={handleDatabaseLogoError}
+                />
                 {databaseName}
               </Button>
               <div className="mt-1 flex items-center justify-between gap-3">
