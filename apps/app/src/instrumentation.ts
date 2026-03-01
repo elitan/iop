@@ -40,6 +40,18 @@ export async function register() {
     startPostgresBackupScheduler();
     console.log("[startup] postgres backup scheduler: started");
 
+    const { restoreDatabaseTargetGateways } = await import(
+      "./lib/database-runtime"
+    );
+    await restoreDatabaseTargetGateways();
+    console.log("[startup] database target gateways: restored");
+
+    const { startDatabaseTargetPolicyScheduler } = await import(
+      "./lib/database-target-policy-scheduler"
+    );
+    startDatabaseTargetPolicyScheduler();
+    console.log("[startup] database target policy scheduler: started");
+
     const { syncCaddyConfig } = await import("./lib/domains");
     try {
       const result = await syncCaddyConfig();

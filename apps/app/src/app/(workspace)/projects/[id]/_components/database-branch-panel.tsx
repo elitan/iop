@@ -88,6 +88,9 @@ interface DatabaseBranchPanelProps {
     hostname?: string;
     memoryLimit?: string;
     cpuLimit?: number;
+    ttlValue?: number | null;
+    ttlUnit?: "hours" | "days" | null;
+    scaleToZeroMinutes?: number | null;
   }) => Promise<void>;
   isStartPending: boolean;
   isDeployPending: boolean;
@@ -181,6 +184,9 @@ export function DatabaseBranchPanel({
   const [draftHostname, setDraftHostname] = useState("");
   const [draftMemoryLimit, setDraftMemoryLimit] = useState("");
   const [draftCpuLimit, setDraftCpuLimit] = useState("none");
+  const [draftTtlValue, setDraftTtlValue] = useState("");
+  const [draftTtlUnit, setDraftTtlUnit] = useState<"hours" | "days">("hours");
+  const [draftScaleToZeroMinutes, setDraftScaleToZeroMinutes] = useState("");
   const [sqlInput, setSqlInput] = useState("select now();");
   const [sqlResult, setSqlResult] = useState<DatabaseTargetSqlResult | null>(
     null,
@@ -228,6 +234,9 @@ export function DatabaseBranchPanel({
         setDraftMemoryLimit("");
         setDraftCpuLimit("none");
         setDraftHostname(branch?.name ?? "");
+        setDraftTtlValue("");
+        setDraftTtlUnit("hours");
+        setDraftScaleToZeroMinutes("");
         return;
       }
       setDraftMemoryLimit(runtime.memoryLimit ?? "none");
@@ -235,6 +244,15 @@ export function DatabaseBranchPanel({
         runtime.cpuLimit !== null ? String(runtime.cpuLimit) : "none",
       );
       setDraftHostname(runtime.hostname);
+      setDraftTtlValue(
+        runtime.ttlValue !== null ? String(runtime.ttlValue) : "",
+      );
+      setDraftTtlUnit(runtime.ttlUnit ?? "hours");
+      setDraftScaleToZeroMinutes(
+        runtime.scaleToZeroMinutes !== null
+          ? String(runtime.scaleToZeroMinutes)
+          : "",
+      );
     },
     [runtime, branch?.name],
   );
@@ -315,6 +333,42 @@ export function DatabaseBranchPanel({
     hasRuntime && nextCpuLimit !== null && cpuLimitChanged;
   const canSaveMemoryLimit =
     hasRuntime && nextMemoryLimit !== null && memoryLimitChanged;
+  const nextTtlValue =
+    draftTtlValue.trim().length > 0 ? Number(draftTtlValue.trim()) : null;
+  const isValidTtlValue =
+    nextTtlValue === null ||
+    (Number.isInteger(nextTtlValue) &&
+      nextTtlValue >= 1 &&
+      nextTtlValue <= 8760);
+  const ttlChanged =
+    hasRuntime &&
+    (nextTtlValue !== runtime.ttlValue ||
+      (nextTtlValue !== null && draftTtlUnit !== runtime.ttlUnit));
+  const canSaveTtl = hasRuntime && isValidTtlValue && ttlChanged;
+  const nextScaleToZeroMinutes =
+    draftScaleToZeroMinutes.trim().length > 0
+      ? Number(draftScaleToZeroMinutes.trim())
+      : null;
+  const isValidScaleToZeroMinutes =
+    nextScaleToZeroMinutes === null ||
+    (Number.isInteger(nextScaleToZeroMinutes) &&
+      nextScaleToZeroMinutes >= 1 &&
+      nextScaleToZeroMinutes <= 24 * 60);
+  const scaleToZeroChanged =
+    hasRuntime && nextScaleToZeroMinutes !== runtime.scaleToZeroMinutes;
+  const branchAttachedToEnvironment = defaultEnvironmentNames.length > 0;
+  let scaleToZeroBlockedReason: string | null = null;
+  if (isMainBranch) {
+    scaleToZeroBlockedReason = "main cannot use scale to zero.";
+  } else if (branchAttachedToEnvironment) {
+    scaleToZeroBlockedReason =
+      "Detach this branch from environments before enabling scale to zero.";
+  }
+  const canSaveScaleToZero =
+    hasRuntime &&
+    isValidScaleToZeroMinutes &&
+    scaleToZeroChanged &&
+    (nextScaleToZeroMinutes === null || scaleToZeroBlockedReason === null);
   const filteredCpuOptions = CPU_OPTIONS.filter(
     (opt) => !opt.minCpus || (hostResources?.cpus ?? 0) >= opt.minCpus,
   );
@@ -385,6 +439,9 @@ export function DatabaseBranchPanel({
       hostname?: string;
       memoryLimit?: string;
       cpuLimit?: number;
+      ttlValue?: number | null;
+      ttlUnit?: "hours" | "days" | null;
+      scaleToZeroMinutes?: number | null;
     },
     successMessage: string,
   ) {
@@ -417,6 +474,27 @@ export function DatabaseBranchPanel({
     await saveSettingsWithToast(
       { memoryLimit: nextMemoryLimit ?? undefined },
       `${runtimeUnitCapitalized} memory limit saved`,
+    );
+  }
+
+  async function handleSaveTtl() {
+    await saveSettingsWithToast(
+      {
+        ttlValue: nextTtlValue,
+        ttlUnit: nextTtlValue === null ? null : draftTtlUnit,
+      },
+      nextTtlValue === null
+        ? `${runtimeUnitCapitalized} TTL cleared`
+        : `${runtimeUnitCapitalized} TTL saved`,
+    );
+  }
+
+  async function handleSaveScaleToZero() {
+    await saveSettingsWithToast(
+      { scaleToZeroMinutes: nextScaleToZeroMinutes },
+      nextScaleToZeroMinutes === null
+        ? `${runtimeUnitCapitalized} scale to zero disabled`
+        : `${runtimeUnitCapitalized} scale to zero saved`,
     );
   }
 
@@ -484,9 +562,21 @@ export function DatabaseBranchPanel({
                       Created: {getTimeAgo(new Date(branch.createdAt))}
                     </div>
                     {runtime && (
-                      <div className="text-neutral-500">
-                        Runtime id: {runtime.runtimeServiceId}
-                      </div>
+                      <>
+                        <div className="text-neutral-500">
+                          Runtime id: {runtime.runtimeServiceId}
+                        </div>
+                        <div className="text-neutral-500">
+                          Scale to zero:{" "}
+                          {runtime.gatewayEnabled ? "enabled" : "disabled"}
+                        </div>
+                        <div className="text-neutral-500">
+                          Last activity:{" "}
+                          {runtime.lastActivityAt
+                            ? getTimeAgo(new Date(runtime.lastActivityAt))
+                            : "never"}
+                        </div>
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -1114,6 +1204,115 @@ export function DatabaseBranchPanel({
                             ))}
                           </SelectContent>
                         </Select>
+                      </SettingCard>
+
+                      <SettingCard
+                        title="Branch TTL"
+                        description="Auto-delete this branch after a fixed age."
+                        onSubmit={handleSaveTtl}
+                        footerRight={
+                          <Button
+                            size="sm"
+                            type="submit"
+                            disabled={
+                              !canSaveTtl ||
+                              isSaveSettingsPending ||
+                              (isMainBranch && nextTtlValue !== null)
+                            }
+                          >
+                            {isSaveSettingsPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Save"
+                            )}
+                          </Button>
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={8760}
+                            value={draftTtlValue}
+                            onChange={(event) =>
+                              setDraftTtlValue(event.target.value)
+                            }
+                            placeholder="disabled"
+                            className="w-36 border-neutral-700 bg-neutral-800 text-neutral-100"
+                          />
+                          <Select
+                            value={draftTtlUnit}
+                            onValueChange={(value) =>
+                              setDraftTtlUnit(value as "hours" | "days")
+                            }
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hours">hours</SelectItem>
+                              <SelectItem value="days">days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {isMainBranch && nextTtlValue !== null && (
+                          <div className="mt-2 text-xs text-neutral-500">
+                            main cannot use TTL.
+                          </div>
+                        )}
+                        {!isValidTtlValue && (
+                          <div className="mt-2 text-xs text-neutral-500">
+                            Use a whole number between 1 and 8760.
+                          </div>
+                        )}
+                      </SettingCard>
+
+                      <SettingCard
+                        title="Scale To Zero"
+                        description="Auto-stop this branch after idle time."
+                        onSubmit={handleSaveScaleToZero}
+                        footerRight={
+                          <Button
+                            size="sm"
+                            type="submit"
+                            disabled={
+                              !canSaveScaleToZero || isSaveSettingsPending
+                            }
+                          >
+                            {isSaveSettingsPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Save"
+                            )}
+                          </Button>
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={24 * 60}
+                            value={draftScaleToZeroMinutes}
+                            onChange={(event) =>
+                              setDraftScaleToZeroMinutes(event.target.value)
+                            }
+                            placeholder="disabled"
+                            className="w-40 border-neutral-700 bg-neutral-800 text-neutral-100"
+                          />
+                          <span className="text-sm text-neutral-500">
+                            minutes
+                          </span>
+                        </div>
+                        {scaleToZeroBlockedReason && (
+                          <div className="mt-2 text-xs text-neutral-500">
+                            {scaleToZeroBlockedReason}
+                          </div>
+                        )}
+                        {!isValidScaleToZeroMinutes && (
+                          <div className="mt-2 text-xs text-neutral-500">
+                            Use a whole number between 1 and 1440.
+                          </div>
+                        )}
                       </SettingCard>
                     </>
                   )}
