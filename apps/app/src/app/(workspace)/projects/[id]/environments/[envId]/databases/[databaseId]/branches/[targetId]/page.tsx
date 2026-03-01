@@ -186,6 +186,11 @@ export default function DatabaseBranchDetailPage() {
         branch={branch}
         lineageNames={branchLineageNames}
         parentBranchName={parentBranchName}
+        onOpenDatabaseSettings={function onOpenDatabaseSettings() {
+          router.push(
+            `/projects/${projectId}/environments/${envId}/databases/${databaseId}/settings`,
+          );
+        }}
         onGoToParent={
           parentBranchId
             ? function onGoToParent() {

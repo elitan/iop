@@ -76,6 +76,7 @@ interface DatabaseBranchPanelProps {
   branch: Branch | null;
   lineageNames: string[];
   parentBranchName: string | null;
+  onOpenDatabaseSettings?: () => void;
   onGoToParent?: () => void;
   defaultEnvironmentNames: string[];
   isDefaultInCurrentEnvironment: boolean;
@@ -158,6 +159,7 @@ export function DatabaseBranchPanel({
   branch,
   lineageNames,
   parentBranchName,
+  onOpenDatabaseSettings,
   onGoToParent,
   defaultEnvironmentNames,
   isDefaultInCurrentEnvironment,
@@ -910,6 +912,30 @@ export function DatabaseBranchPanel({
                 <div className="flex-1 space-y-4">
                   {activeSettingsTab === "general" && (
                     <>
+                      {engine === "postgres" && onOpenDatabaseSettings && (
+                        <SettingCard
+                          title="Backups and Restore"
+                          description="Backups are managed at database level. Open database settings to configure backups and restore."
+                          footerRight={
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-neutral-700 text-neutral-300"
+                              onClick={function onOpenDatabaseSettingsClick() {
+                                onOpenDatabaseSettings();
+                              }}
+                            >
+                              Open Database Settings
+                            </Button>
+                          }
+                        >
+                          <div className="text-sm text-neutral-400">
+                            Use this when you need backup schedules or restore.
+                          </div>
+                        </SettingCard>
+                      )}
+
                       <SettingCard
                         title={`${runtimeUnitCapitalized} Name`}
                         description={`Rename this ${runtimeUnit}`}
