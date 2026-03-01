@@ -84,7 +84,6 @@ interface DatabaseBranchPanelProps {
   onDeploy: () => Promise<void>;
   onReset: () => Promise<void>;
   onDelete: () => Promise<void>;
-  onSetAsDefaultInEnvironment: () => Promise<void>;
   onSaveSettings: (input: {
     name?: string;
     hostname?: string;
@@ -95,7 +94,6 @@ interface DatabaseBranchPanelProps {
   isDeployPending: boolean;
   isResetPending: boolean;
   isDeletePending: boolean;
-  isSetAsDefaultInEnvironmentPending: boolean;
   isSaveSettingsPending: boolean;
 }
 
@@ -168,13 +166,11 @@ export function DatabaseBranchPanel({
   onDeploy,
   onReset,
   onDelete,
-  onSetAsDefaultInEnvironment,
   onSaveSettings,
   isStartPending,
   isDeployPending,
   isResetPending,
   isDeletePending,
-  isSetAsDefaultInEnvironmentPending,
   isSaveSettingsPending,
 }: DatabaseBranchPanelProps) {
   const [activeTab, setActiveTab] = useState<BranchPanelTab>("overview");
@@ -325,8 +321,6 @@ export function DatabaseBranchPanel({
   const filteredMemoryOptions = MEMORY_OPTIONS.filter(
     (opt) => !opt.minGB || (hostResources?.totalMemoryGB ?? 0) >= opt.minGB,
   );
-  const isAnyOverviewActionPending =
-    isStartPending || isResetPending || isSetAsDefaultInEnvironmentPending;
   const showSqlTab = engine === "postgres";
   const canRunSql =
     showSqlTab &&
@@ -348,10 +342,7 @@ export function DatabaseBranchPanel({
         { id: "logs", label: "Logs" },
         { id: "settings", label: "Settings" },
       ];
-  const showOverviewActions =
-    branch?.lifecycleStatus !== "active" ||
-    canReset ||
-    !isDefaultInCurrentEnvironment;
+  const showOverviewActions = branch?.lifecycleStatus !== "active";
 
   async function handleRunSql() {
     if (!canRunSql) {
@@ -550,75 +541,6 @@ export function DatabaseBranchPanel({
                   </CardContent>
                 </Card>
 
-                {runtime?.runtimeServiceId && (
-                  <RuntimeMetricsCard
-                    runtimeServiceId={runtime.runtimeServiceId}
-                  />
-                )}
-
-                {showOverviewActions && (
-                  <Card className="border-neutral-800 bg-neutral-900">
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex flex-wrap gap-2">
-                        {branch.lifecycleStatus !== "active" && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              void onStart();
-                            }}
-                            disabled={isAnyOverviewActionPending}
-                          >
-                            {isStartPending ? (
-                              <>
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                                Starting...
-                              </>
-                            ) : (
-                              "Start"
-                            )}
-                          </Button>
-                        )}
-                        {canReset && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              void onReset();
-                            }}
-                            disabled={isAnyOverviewActionPending}
-                          >
-                            {isResetPending ? (
-                              <>
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                                Resetting...
-                              </>
-                            ) : (
-                              "Reset from parent"
-                            )}
-                          </Button>
-                        )}
-                        {!isDefaultInCurrentEnvironment && (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              void onSetAsDefaultInEnvironment();
-                            }}
-                            disabled={isAnyOverviewActionPending}
-                          >
-                            {isSetAsDefaultInEnvironmentPending ? (
-                              <>
-                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                                Updating...
-                              </>
-                            ) : (
-                              "Set as default for this environment"
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
                 <Card className="border-neutral-700 bg-neutral-800">
                   <CardContent className="space-y-4 p-4">
                     <div>
@@ -676,6 +598,39 @@ export function DatabaseBranchPanel({
                     </div>
                   </CardContent>
                 </Card>
+
+                {runtime?.runtimeServiceId && (
+                  <RuntimeMetricsCard
+                    runtimeServiceId={runtime.runtimeServiceId}
+                  />
+                )}
+
+                {showOverviewActions && (
+                  <Card className="border-neutral-800 bg-neutral-900">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex flex-wrap gap-2">
+                        {branch.lifecycleStatus !== "active" && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              void onStart();
+                            }}
+                            disabled={isStartPending}
+                          >
+                            {isStartPending ? (
+                              <>
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                                Starting...
+                              </>
+                            ) : (
+                              "Start"
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 

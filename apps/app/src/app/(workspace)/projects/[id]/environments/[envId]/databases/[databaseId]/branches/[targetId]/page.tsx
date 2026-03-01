@@ -13,7 +13,6 @@ import {
   useDeployDatabaseTarget,
   useEnvironmentDatabaseAttachments,
   usePatchDatabaseTargetRuntimeSettings,
-  usePutEnvironmentDatabaseAttachment,
   useResetDatabaseTarget,
   useStartDatabaseTarget,
 } from "@/hooks/use-databases";
@@ -65,10 +64,6 @@ export default function DatabaseBranchDetailPage() {
   const deployTargetMutation = useDeployDatabaseTarget(databaseId, branchId);
   const resetTargetMutation = useResetDatabaseTarget(databaseId);
   const deleteTargetMutation = useDeleteDatabaseTarget(databaseId);
-  const putAttachmentMutation = usePutEnvironmentDatabaseAttachment(
-    envId,
-    databaseId,
-  );
   const patchTargetRuntimeSettingsMutation =
     usePatchDatabaseTargetRuntimeSettings(databaseId, branchId);
 
@@ -239,21 +234,6 @@ export default function DatabaseBranchDetailPage() {
             toast.error(getErrorMessage(error, "Failed to delete branch"));
           }
         }}
-        onSetAsDefaultInEnvironment={async function onSetAsDefault() {
-          if (!envId) {
-            toast.error("No environment selected");
-            return;
-          }
-          try {
-            await putAttachmentMutation.mutateAsync({
-              targetId: branch.id,
-              mode: "manual",
-            });
-            toast.success("Default branch updated");
-          } catch (error) {
-            toast.error(getErrorMessage(error, "Failed to set default branch"));
-          }
-        }}
         onSaveSettings={async function onSaveSettings(input) {
           await patchTargetRuntimeSettingsMutation.mutateAsync(input);
         }}
@@ -261,7 +241,6 @@ export default function DatabaseBranchDetailPage() {
         isDeployPending={deployTargetMutation.isPending}
         isResetPending={resetTargetMutation.isPending}
         isDeletePending={deleteTargetMutation.isPending}
-        isSetAsDefaultInEnvironmentPending={putAttachmentMutation.isPending}
         isSaveSettingsPending={patchTargetRuntimeSettingsMutation.isPending}
       />
     </div>
