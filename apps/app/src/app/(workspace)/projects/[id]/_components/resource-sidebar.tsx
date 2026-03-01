@@ -10,6 +10,8 @@ export interface ResourceSidebarTab<T extends string> {
   label: string;
 }
 
+export type ResourceContentMode = "full" | "center";
+
 interface ResourceSidebarProps<T extends string> {
   isOpen: boolean;
   onClose: () => void;
@@ -18,6 +20,7 @@ interface ResourceSidebarProps<T extends string> {
   tabs: ResourceSidebarTab<T>[];
   activeTab: T;
   onTabChange: (tab: T) => void;
+  contentMode?: ResourceContentMode;
   children: React.ReactNode;
 }
 
@@ -29,15 +32,16 @@ export function ResourceSidebar<T extends string>({
   tabs,
   activeTab,
   onTabChange,
+  contentMode = "full",
   children,
 }: ResourceSidebarProps<T>) {
   if (!isOpen) {
     return null;
   }
 
-  const content = (
+  return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-row items-center justify-between border-b border-neutral-800 px-4 py-3">
+      <div className="flex h-14 flex-row items-center justify-between border-b border-neutral-800 px-4">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400">
             {icon}
@@ -62,11 +66,13 @@ export function ResourceSidebar<T extends string>({
           layoutId="sidebar-tabs"
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
-          {children}
+          {contentMode === "center" ? (
+            <div className="mx-auto w-full max-w-[1200px]">{children}</div>
+          ) : (
+            children
+          )}
         </div>
       </div>
     </div>
   );
-
-  return content;
 }

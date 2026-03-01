@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ResourceSidebar } from "./resource-sidebar";
+import { type ResourceContentMode, ResourceSidebar } from "./resource-sidebar";
 
 export type CoreSidebarTab = "overview" | "deployments" | "logs" | "settings";
 
@@ -30,6 +30,7 @@ interface ResourceSidebarCoreProps<T extends string = never> {
   tabOrder?: Array<CoreSidebarTab | T>;
   initialTab?: CoreSidebarTab | T;
   onActiveTabChange?: (tab: CoreSidebarTab | T) => void;
+  getContentMode?: (tab: CoreSidebarTab | T) => ResourceContentMode;
 }
 
 const CORE_TABS: { id: CoreSidebarTab; label: string }[] = [
@@ -59,6 +60,7 @@ export function ResourceSidebarCore<T extends string = never>({
   tabOrder,
   initialTab,
   onActiveTabChange,
+  getContentMode,
 }: ResourceSidebarCoreProps<T>) {
   const [activeTab, setActiveTab] = useState<CoreSidebarTab | T>("overview");
 
@@ -157,6 +159,7 @@ export function ResourceSidebarCore<T extends string = never>({
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
+      contentMode={getContentMode?.(activeTab) ?? "full"}
     >
       {content}
     </ResourceSidebar>

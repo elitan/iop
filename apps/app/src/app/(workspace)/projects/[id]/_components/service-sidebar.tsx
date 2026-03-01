@@ -59,6 +59,9 @@ export function ServiceSidebar({
             setActiveTab(tab);
           }
         }}
+        getContentMode={function getContentMode(tab) {
+          return tab === "overview" || tab === "settings" ? "center" : "full";
+        }}
         icon={
           <img
             src={getServiceIcon(service) ?? FALLBACK_ICON}

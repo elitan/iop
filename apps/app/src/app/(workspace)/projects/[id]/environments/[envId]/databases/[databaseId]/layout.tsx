@@ -1,14 +1,28 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { TabNav } from "@/components/tab-nav";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import { useDatabase } from "@/hooks/use-databases";
 import {
   DATABASE_LOGO_FALLBACK,
-  getDatabaseLogoAlt,
   getDatabaseLogoUrl,
 } from "@/lib/database-logo";
+import {
+  ResourceSidebar,
+  type ResourceSidebarTab,
+} from "../../../../_components/resource-sidebar";
+
+type DatabaseLayoutTab = "overview" | "branches" | "settings";
+
+function getActiveTab(pathname: string): DatabaseLayoutTab {
+  if (pathname.includes("/settings")) {
+    return "settings";
+  }
+  if (pathname.includes("/branches")) {
+    return "branches";
+  }
+  return "overview";
+}
 
 export default function DatabaseDetailLayout({
   children,
@@ -16,9 +30,13 @@ export default function DatabaseDetailLayout({
   children: React.ReactNode;
 }) {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const projectId = params.id as string;
   const envId = params.envId as string;
   const databaseId = params.databaseId as string;
+  const basePath = `/projects/${projectId}/environments/${envId}/databases/${databaseId}`;
+  const activeTab = getActiveTab(pathname);
   const { data: database } = useDatabase(databaseId);
   const [logoSrc, setLogoSrc] = useState(DATABASE_LOGO_FALLBACK);
 
@@ -33,46 +51,72 @@ export default function DatabaseDetailLayout({
     [database],
   );
 
-  function handleLogoError() {
+  function handleLogoError(event: SyntheticEvent<HTMLImageElement>) {
     if (logoSrc === DATABASE_LOGO_FALLBACK) {
       return;
     }
+    event.currentTarget.src = DATABASE_LOGO_FALLBACK;
     setLogoSrc(DATABASE_LOGO_FALLBACK);
   }
 
-  const tabs = [
+  const tabs: ResourceSidebarTab<DatabaseLayoutTab>[] = [
     {
-      label: database?.engine === "postgres" ? "Branches" : "Instances",
-      href: `/projects/${projectId}/environments/${envId}/databases/${databaseId}/branches`,
+      id: "overview",
+      label: "Overview",
     },
     {
+      id: "branches",
+      label: database?.engine === "postgres" ? "Branches" : "Instances",
+    },
+    {
+      id: "settings",
       label: "Settings",
-      href: `/projects/${projectId}/environments/${envId}/databases/${databaseId}/settings`,
     },
   ];
 
+  function handleTabChange(tab: DatabaseLayoutTab) {
+    switch (tab) {
+      case "overview":
+        router.push(basePath);
+        return;
+      case "branches":
+        router.push(`${basePath}/branches`);
+        return;
+      case "settings":
+        router.push(`${basePath}/settings`);
+        return;
+    }
+  }
+
+  function handleClose() {
+    router.push(`/projects/${projectId}/environments/${envId}`);
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-800 bg-neutral-900">
+    <div className="h-full min-h-0 overflow-hidden">
+      <ResourceSidebar
+        isOpen
+        onClose={handleClose}
+        title={database?.name ?? "Database"}
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        contentMode={
+          activeTab === "overview" || activeTab === "settings"
+            ? "center"
+            : "full"
+        }
+        icon={
           <img
             src={logoSrc}
-            alt={getDatabaseLogoAlt(database?.engine ?? "postgres")}
-            className="h-5 w-5 object-contain"
+            alt=""
+            className="h-4 w-4 object-contain"
             onError={handleLogoError}
           />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-neutral-100">
-            {database?.name ?? "Database"}
-          </p>
-          <p className="text-xs text-neutral-500">
-            {database?.engine === "mysql" ? "MySQL" : "PostgreSQL"}
-          </p>
-        </div>
-      </div>
-      <TabNav tabs={tabs} layoutId="database-tabs" />
-      <div>{children}</div>
+        }
+      >
+        {children}
+      </ResourceSidebar>
     </div>
   );
 }

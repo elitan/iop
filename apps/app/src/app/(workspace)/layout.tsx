@@ -41,7 +41,12 @@ export default function WorkspaceLayout({
     /^\/projects\/[^/]+\/environments\/[^/]+\/(services|databases)\//.test(
       pathname,
     );
-  const showMainContentHeader = true;
+  const isSettingsPage =
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/") ||
+    /^\/projects\/[^/]+\/settings(\/|$)/.test(pathname);
+  const shouldCenterContent = isSettingsPage && !isResourceDetailPage;
+  const showMainContentHeader = !isResourceDetailPage;
 
   const [createServiceModalOpen, setCreateServiceModalOpen] = useState(false);
   const [createEnvDialogOpen, setCreateEnvDialogOpen] = useState(false);
@@ -190,6 +195,8 @@ export default function WorkspaceLayout({
           <div className={bodyClassName}>
             {isProjectPage && isEnvironmentsLoading ? (
               <Skeleton className="h-32 w-full" />
+            ) : shouldCenterContent ? (
+              <div className="mx-auto w-full max-w-[1200px]">{children}</div>
             ) : (
               children
             )}
