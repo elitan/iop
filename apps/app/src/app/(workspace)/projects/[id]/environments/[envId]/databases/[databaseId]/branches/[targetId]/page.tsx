@@ -92,6 +92,19 @@ export default function DatabaseBranchDetailPage() {
     [branch, targets],
   );
 
+  const parentBranchId = useMemo(
+    function getParentBranchId() {
+      if (!branch?.sourceTargetId) {
+        return null;
+      }
+      const parent = targets.find(function isParentTarget(target) {
+        return target.id === branch.sourceTargetId;
+      });
+      return parent?.id ?? null;
+    },
+    [branch, targets],
+  );
+
   const branchProviderRef = useMemo(
     function getBranchProviderRef() {
       if (!branch) {
@@ -149,6 +162,15 @@ export default function DatabaseBranchDetailPage() {
         engine={database.engine}
         branch={branch}
         parentBranchName={parentBranchName}
+        onGoToParent={
+          parentBranchId
+            ? function onGoToParent() {
+                router.push(
+                  `/projects/${projectId}/environments/${envId}/databases/${databaseId}/branches/${parentBranchId}`,
+                );
+              }
+            : undefined
+        }
         defaultEnvironmentNames={defaultEnvironmentNames}
         isDefaultInCurrentEnvironment={envAttachment?.targetId === branch.id}
         providerRef={branchProviderRef}

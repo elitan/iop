@@ -75,6 +75,7 @@ interface DatabaseBranchPanelProps {
   engine: "postgres" | "mysql";
   branch: Branch | null;
   parentBranchName: string | null;
+  onGoToParent?: () => void;
   defaultEnvironmentNames: string[];
   isDefaultInCurrentEnvironment: boolean;
   providerRef: DatabaseProviderRef | null;
@@ -157,6 +158,7 @@ export function DatabaseBranchPanel({
   engine,
   branch,
   parentBranchName,
+  onGoToParent,
   defaultEnvironmentNames,
   isDefaultInCurrentEnvironment,
   providerRef,
@@ -423,15 +425,81 @@ export function DatabaseBranchPanel({
   const branchContent =
     isOpen && branch ? (
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="truncate text-lg font-semibold text-neutral-200">
-                {branch.name}
-              </h3>
-              <StatusDot status={branch.lifecycleStatus} showLabel />
+        <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
+          <div className="flex items-start justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 text-xs text-neutral-500">
+                <span className="truncate">{databaseName}</span>
+                <span>/</span>
+                {parentBranchName && (
+                  <>
+                    <span className="truncate">{parentBranchName}</span>
+                    <span>/</span>
+                  </>
+                )}
+                <span className="truncate font-mono text-neutral-300">
+                  {branch.name}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <h3 className="truncate text-lg font-semibold text-neutral-200">
+                  {branch.name}
+                </h3>
+                <StatusDot status={branch.lifecycleStatus} showLabel />
+              </div>
             </div>
-            <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={function onRenameClick() {
+                  setActiveTab("settings");
+                  setActiveSettingsTab("general");
+                }}
+                className="border-neutral-700 text-neutral-300"
+                disabled={!canRename}
+              >
+                Rename
+              </Button>
+              {canReset && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={function onResetClick() {
+                    void onReset();
+                  }}
+                  className="border-neutral-700 text-neutral-300"
+                  disabled={isResetPending}
+                >
+                  {isResetPending ? "Resetting..." : "Reset to parent"}
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={function onDeleteClick() {
+                    setDeleteDialogOpen(true);
+                  }}
+                  className="border-red-900 text-red-300 hover:bg-red-950/40 hover:text-red-200"
+                  disabled={isDeletePending}
+                >
+                  Delete
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-2 text-xs text-neutral-500">
               <span>{engine === "postgres" ? "branch" : "instance"}</span>
               {parentBranchName && (
                 <span>parent branch {parentBranchName}</span>
@@ -439,17 +507,9 @@ export function DatabaseBranchPanel({
               <span>created {getTimeAgo(new Date(branch.createdAt))}</span>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
 
-        <div className="flex h-[calc(100%-57px)] flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <StateTabs
             tabs={branchTabs}
             value={activeTab}
@@ -458,6 +518,39 @@ export function DatabaseBranchPanel({
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
+            <div className="mb-4 rounded-md border border-neutral-800 bg-neutral-900/60 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-neutral-400">You are in</span>
+                  <Badge
+                    variant="outline"
+                    className="border-neutral-700 text-neutral-300"
+                  >
+                    {branch.name}
+                  </Badge>
+                  {parentBranchName && (
+                    <>
+                      <span className="text-neutral-500">child of</span>
+                      <span className="font-mono text-neutral-300">
+                        {parentBranchName}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {onGoToParent && parentBranchName && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={function onGoToParentClick() {
+                      onGoToParent();
+                    }}
+                  >
+                    Go to parent
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {activeTab === "overview" && (
               <div className="space-y-4">
                 <Card className="border-neutral-800 bg-neutral-900">
