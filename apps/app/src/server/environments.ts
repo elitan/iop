@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { ensureEnvironmentPostgresNetworkAccess } from "@/lib/database-runtime";
 import { db } from "@/lib/db";
 import { deployEnvironment } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
@@ -160,6 +161,8 @@ export const environments = {
         message: "Failed to create environment",
       });
     }
+
+    await ensureEnvironmentPostgresNetworkAccess(id);
 
     if (shouldDeploy) {
       deployEnvironment(id).catch(console.error);

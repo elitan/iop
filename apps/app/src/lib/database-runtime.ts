@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
+import { getDatabaseBranchAlias } from "./database-hostname";
 import {
   type DatabaseProvider,
   normalizeDatabaseProvider,
@@ -16,8 +17,12 @@ import type {
   Databases,
   DatabaseTargetDeployments,
   DatabaseTargets,
+  Environments,
 } from "./db-types";
 import {
+  connectContainerToNetwork,
+  createNetwork,
+  disconnectContainerFromNetwork,
   getAvailablePort,
   isPortConflictError,
   runContainer,
@@ -729,6 +734,123 @@ async function getTargetByName(
   return target;
 }
 
+function buildNetworkName(environment: Selectable<Environments>): string {
+  return sanitizeDockerName(
+    `frost-net-${environment.projectId}-${environment.id}`,
+  );
+}
+
+function getBaseAliases(databaseName: string): string[] {
+  return [databaseName, `${databaseName}.frost.internal`];
+}
+
+function getTargetAliases(input: {
+  databaseName: string;
+  targetHostname: string;
+  includeBaseAliases: boolean;
+}): string[] {
+  const branchAlias = getDatabaseBranchAlias(
+    input.databaseName,
+    input.targetHostname,
+  );
+  const aliases = [branchAlias, `${branchAlias}.frost.internal`];
+  if (input.includeBaseAliases) {
+    aliases.push(...getBaseAliases(input.databaseName));
+  }
+  return aliases;
+}
+
+async function ensurePostgresDatabaseNetworkAttachment(input: {
+  environment: Selectable<Environments>;
+  database: Selectable<Databases>;
+}): Promise<void> {
+  const targets = await db
+    .selectFrom("databaseTargets")
+    .selectAll()
+    .where("databaseId", "=", input.database.id)
+    .execute();
+
+  if (targets.length === 0) {
+    return;
+  }
+
+  const mainTargetId =
+    targets.find((target) => target.name === "main")?.id ?? targets[0]?.id;
+
+  const networkName = buildNetworkName(input.environment);
+  await createNetwork(networkName, {
+    "frost.managed": "true",
+    "frost.project.id": input.environment.projectId,
+  });
+
+  for (const target of targets) {
+    const providerRef = parseProviderRef(target.providerRefJson);
+    await disconnectContainerFromNetwork(
+      providerRef.containerName,
+      networkName,
+    );
+  }
+
+  for (const target of targets) {
+    const providerRef = parseProviderRef(target.providerRefJson);
+    await connectContainerToNetwork(
+      providerRef.containerName,
+      networkName,
+      getTargetAliases({
+        databaseName: input.database.name,
+        targetHostname: target.hostname,
+        includeBaseAliases: target.id === mainTargetId,
+      }),
+    );
+  }
+}
+
+async function reconnectPostgresDatabaseNetwork(
+  database: Selectable<Databases>,
+): Promise<void> {
+  if (database.engine !== "postgres") {
+    return;
+  }
+
+  const environments = await db
+    .selectFrom("environments")
+    .selectAll()
+    .where("projectId", "=", database.projectId)
+    .execute();
+
+  for (const environment of environments) {
+    await ensurePostgresDatabaseNetworkAttachment({ environment, database });
+  }
+}
+
+export async function ensureEnvironmentPostgresNetworkAccess(
+  environmentId: string,
+): Promise<void> {
+  const environment = await db
+    .selectFrom("environments")
+    .selectAll()
+    .where("id", "=", environmentId)
+    .executeTakeFirst();
+
+  if (!environment) {
+    throw new Error("Environment not found");
+  }
+
+  const databases = await db
+    .selectFrom("databases")
+    .selectAll()
+    .where("projectId", "=", environment.projectId)
+    .where("engine", "=", "postgres")
+    .execute();
+
+  for (const database of databases) {
+    await ensurePostgresDatabaseNetworkAttachment({
+      environment,
+      database: normalizeDatabase(database),
+    });
+  }
+}
+
 function isScaleToZeroEnabled(
   target: Pick<DatabaseTargets, "scaleToZeroMinutes">,
 ): boolean {
@@ -906,6 +1028,11 @@ export async function createDatabase(input: {
       message: "Target created",
     });
 
+    if (input.engine === "postgres") {
+      const createdDatabase = await getDatabaseById(databaseId);
+      await reconnectPostgresDatabaseNetwork(createdDatabase);
+    }
+
     rollback.clear();
   } catch (error) {
     await rollback.run();
@@ -1037,6 +1164,9 @@ export async function createDatabaseTarget(input: {
   }
 
   const target = await getTargetById(targetId);
+  if (database.engine === "postgres") {
+    await reconnectPostgresDatabaseNetwork(database);
+  }
   return target;
 }
 
@@ -1122,6 +1252,7 @@ export async function resetDatabaseTarget(input: {
       fixedHostPort: getTargetRuntimeHostPort(target, currentRef),
       storageMountPath: liveMountPath,
     });
+    await waitForPostgresReady(nextRef);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reset failed while starting";
@@ -1166,6 +1297,7 @@ export async function resetDatabaseTarget(input: {
 
   const updated = await getTargetById(target.id);
   await ensureTargetGateway(updated.id);
+  await reconnectPostgresDatabaseNetwork(database);
   return updated;
 }
 
@@ -1185,6 +1317,9 @@ export async function startDatabaseTarget(input: {
     providerRef,
     fixedHostPort: runtimeHostPort,
   });
+  if (database.engine === "postgres") {
+    await waitForPostgresReady(nextRef);
+  }
   applyProviderRefRuntimePorts({
     target,
     previousProviderRef: providerRef,
@@ -1210,6 +1345,7 @@ export async function startDatabaseTarget(input: {
 
   const updated = await getTargetById(target.id);
   await ensureTargetGateway(updated.id);
+  await reconnectPostgresDatabaseNetwork(database);
   return updated;
 }
 
@@ -1323,7 +1459,11 @@ export async function patchDatabase(input: {
     .where("id", "=", database.id)
     .execute();
 
-  return getDatabaseById(database.id);
+  const updated = await getDatabaseById(database.id);
+  if (updated.engine === "postgres") {
+    await reconnectPostgresDatabaseNetwork(updated);
+  }
+  return updated;
 }
 
 export async function cleanupEnvironmentAttachments(
@@ -1362,6 +1502,9 @@ export async function deployDatabaseTarget(
       providerRef,
       fixedHostPort: runtimeHostPort,
     });
+    if (database.engine === "postgres") {
+      await waitForPostgresReady(nextRef);
+    }
     applyProviderRefRuntimePorts({
       target,
       previousProviderRef: providerRef,
@@ -1379,6 +1522,9 @@ export async function deployDatabaseTarget(
       .execute();
 
     await ensureTargetGateway(target.id);
+    if (database.engine === "postgres") {
+      await reconnectPostgresDatabaseNetwork(database);
+    }
 
     return recordTargetDeployment({
       targetId: target.id,
@@ -1778,6 +1924,13 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       databaseId: target.databaseId,
       targetId: target.id,
     });
+  }
+
+  if (
+    database.engine === "postgres" &&
+    (nameChanged || hostnameChanged || scaleToZeroChanged)
+  ) {
+    await reconnectPostgresDatabaseNetwork(database);
   }
 
   return getDatabaseTargetRuntime(target.id);
