@@ -6,7 +6,6 @@ import type { Selectable } from "kysely";
 import { getSetting } from "./auth";
 import { emitBuildLogChunk } from "./build-log-stream";
 import { decrypt } from "./crypto";
-import { resolveServiceDatabaseEnvVars } from "./database-runtime";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
 import {
@@ -1111,11 +1110,7 @@ async function runServiceDeployment(
 
   const projectEnvVars = parseEnvVars(project.envVars);
   const serviceEnvVars = parseEnvVars(service.envVars);
-  const bindingEnvVars = await resolveServiceDatabaseEnvVars({
-    serviceId: service.id,
-    environmentId: environment.id,
-  });
-  const envVars = { ...projectEnvVars, ...serviceEnvVars, ...bindingEnvVars };
+  const envVars = { ...projectEnvVars, ...serviceEnvVars };
   const envVarsList: EnvVar[] = Object.entries(envVars).map(([key, value]) => ({
     key,
     value,
@@ -1758,11 +1753,7 @@ async function runRollbackDeployment(
     ? JSON.parse(sourceDeployment.envVarsSnapshot)
     : [];
   const envVars = Object.fromEntries(envVarsList.map((e) => [e.key, e.value]));
-  const bindingEnvVars = await resolveServiceDatabaseEnvVars({
-    serviceId: service.id,
-    environmentId: environment.id,
-  });
-  const runtimeEnvBase = { ...envVars, ...bindingEnvVars };
+  const runtimeEnvBase = { ...envVars };
 
   try {
     await appendLog(

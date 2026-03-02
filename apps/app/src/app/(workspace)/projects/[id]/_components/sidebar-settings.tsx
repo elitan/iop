@@ -1,26 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  useCreateServiceDatabaseBinding,
-  useDatabases,
-  useDeleteServiceDatabaseBinding,
-  useServiceDatabaseBindings,
-} from "@/hooks/use-databases";
 import { useProject } from "@/hooks/use-projects";
 import { useDeployService, useUpdateService } from "@/hooks/use-services";
 import type { EnvVar, Service } from "@/lib/api";
@@ -106,132 +92,6 @@ function ReadOnlyVar({ name, value }: ReadOnlyVarProps) {
   );
 }
 
-function DatabaseBindingsCard({
-  service,
-  projectId,
-}: {
-  service: Service;
-  projectId: string;
-}) {
-  const { data: databases = [] } = useDatabases(projectId);
-  const { data: bindings = [] } = useServiceDatabaseBindings(service.id);
-  const createBindingMutation = useCreateServiceDatabaseBinding(service.id);
-  const deleteBindingMutation = useDeleteServiceDatabaseBinding(service.id);
-
-  const [envVarKey, setEnvVarKey] = useState("");
-  const [databaseId, setDatabaseId] = useState("");
-
-  async function handleCreateBinding() {
-    const key = envVarKey.trim().toUpperCase();
-    if (!key || !databaseId) return;
-
-    try {
-      await createBindingMutation.mutateAsync({
-        databaseId,
-        envVarKey: key,
-      });
-      setEnvVarKey("");
-      setDatabaseId("");
-      toast.success("Database binding saved");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to save binding";
-      toast.error(message);
-    }
-  }
-
-  async function handleDeleteBinding(bindingId: string) {
-    try {
-      await deleteBindingMutation.mutateAsync({ bindingId });
-      toast.success("Database binding removed");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to remove binding";
-      toast.error(message);
-    }
-  }
-
-  function handleCreateBindingSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void handleCreateBinding();
-  }
-
-  return (
-    <SettingCard
-      title="Database bindings"
-      description="Map env var keys to project databases. Frost resolves the current environment target URL at deploy time."
-    >
-      <div className="space-y-3">
-        <form
-          onSubmit={handleCreateBindingSubmit}
-          className="flex flex-col gap-2 md:flex-row"
-        >
-          <Input
-            value={envVarKey}
-            onChange={(event) => setEnvVarKey(event.target.value)}
-            placeholder="DATABASE_URL"
-            className="border-neutral-700 bg-neutral-800 text-neutral-100 md:w-48"
-          />
-          <Select value={databaseId} onValueChange={setDatabaseId}>
-            <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100 md:w-56">
-              <SelectValue placeholder="Select database" />
-            </SelectTrigger>
-            <SelectContent className="border-neutral-700 bg-neutral-800">
-              {databases.map((database) => (
-                <SelectItem
-                  key={database.id}
-                  value={database.id}
-                  className="text-neutral-100 focus:bg-neutral-700 focus:text-neutral-100"
-                >
-                  {database.name} ({database.engine})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="submit"
-            disabled={
-              !envVarKey.trim() ||
-              !databaseId ||
-              createBindingMutation.isPending
-            }
-          >
-            Save binding
-          </Button>
-        </form>
-
-        {bindings.length === 0 ? (
-          <p className="text-sm text-neutral-500">No bindings configured.</p>
-        ) : (
-          <div className="space-y-2">
-            {bindings.map((binding) => (
-              <div
-                key={binding.id}
-                className="flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-950/40 px-3 py-2"
-              >
-                <div className="text-sm text-neutral-200">
-                  <span className="font-mono">{binding.envVarKey}</span> {"->"}{" "}
-                  {binding.databaseName} ({binding.databaseEngine})
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteBinding(binding.id)}
-                  disabled={deleteBindingMutation.isPending}
-                  className="text-red-400 hover:text-red-300"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </SettingCard>
-  );
-}
-
 function VariablesTab({
   service,
   projectId,
@@ -309,8 +169,6 @@ function VariablesTab({
           managedKeySettingsUrl={runtimeSettingsUrl}
         />
       </SettingCard>
-
-      <DatabaseBindingsCard service={service} projectId={projectId} />
 
       <SettingCard
         title="Project Environment Variables"

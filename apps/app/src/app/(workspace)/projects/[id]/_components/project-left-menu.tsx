@@ -10,10 +10,7 @@ import { LeftMenuFooter } from "@/components/left-menu-footer";
 import { ProjectPicker } from "@/components/project-picker";
 import { ShellTopRow } from "@/components/shell-top-row";
 import { StatusDot } from "@/components/status-dot";
-import {
-  useDatabases,
-  useEnvironmentDatabaseAttachments,
-} from "@/hooks/use-databases";
+import { useDatabases } from "@/hooks/use-databases";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
 import {
@@ -119,8 +116,6 @@ export function ProjectLeftMenu({
     enabled: currentEnvId.length > 0,
     refetchInterval: 2000,
   });
-  const { data: databaseAttachments = [] } =
-    useEnvironmentDatabaseAttachments(currentEnvId);
 
   const services = useMemo(
     function getServices() {
@@ -162,17 +157,6 @@ export function ProjectLeftMenu({
       return domainMap;
     },
     [allDomains],
-  );
-
-  const databaseAttachmentById = useMemo(
-    function getDatabaseAttachmentById() {
-      return new Map(
-        databaseAttachments.map(function toEntry(attachment) {
-          return [attachment.databaseId, attachment];
-        }),
-      );
-    },
-    [databaseAttachments],
   );
 
   const hasResources = services.length > 0 || databases.length > 0;
@@ -298,13 +282,6 @@ export function ProjectLeftMenu({
               })}
 
               {databases.map(function renderDatabase(database) {
-                const attachment =
-                  databaseAttachmentById.get(database.id) ?? null;
-                const branchLabel = attachment
-                  ? attachment.targetName
-                  : database.engine === "postgres"
-                    ? "main"
-                    : "not attached";
                 const href = currentEnvId
                   ? `/projects/${projectId}/environments/${currentEnvId}/databases/${database.id}`
                   : `/projects/${projectId}`;
@@ -316,8 +293,8 @@ export function ProjectLeftMenu({
                     iconSrc={getDatabaseLogoUrl(database.engine)}
                     iconFallback={DATABASE_LOGO_FALLBACK}
                     name={database.name}
-                    subtitle={`${database.engine} · ${branchLabel}`}
-                    status={attachment?.targetLifecycleStatus ?? "stopped"}
+                    subtitle={`${database.engine} · manual`}
+                    status="ok"
                   />
                 );
               })}

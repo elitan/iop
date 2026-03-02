@@ -7,11 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   useDatabase,
-  useDatabaseAttachments,
   useDatabaseTargets,
   useDeleteDatabaseTarget,
   useDeployDatabaseTarget,
-  useEnvironmentDatabaseAttachments,
   usePatchDatabaseTargetRuntimeSettings,
   useResetDatabaseTarget,
   useStartDatabaseTarget,
@@ -92,9 +90,6 @@ export default function DatabaseBranchDetailLayout({
 
   const { data: database } = useDatabase(databaseId);
   const { data: targets = [] } = useDatabaseTargets(databaseId);
-  const { data: attachments = [] } = useDatabaseAttachments(databaseId);
-  const { data: envAttachments = [] } =
-    useEnvironmentDatabaseAttachments(envId);
 
   const startTargetMutation = useStartDatabaseTarget(databaseId);
   const deployTargetMutation = useDeployDatabaseTarget(databaseId, branchId);
@@ -144,22 +139,6 @@ export default function DatabaseBranchDetailLayout({
       return parseProviderRef(branch.providerRefJson);
     },
     [branch],
-  );
-
-  const defaultEnvironmentNames = useMemo(
-    function getDefaultEnvironmentNames() {
-      if (!branch) {
-        return [];
-      }
-      return attachments
-        .filter((attachment) => attachment.targetId === branch.id)
-        .map((attachment) => attachment.environmentName);
-    },
-    [attachments, branch],
-  );
-
-  const envAttachment = envAttachments.find(
-    (attachment) => attachment.databaseId === databaseId,
   );
 
   const activeTab = getActiveTab(pathname, branchBasePath);
@@ -215,8 +194,6 @@ export default function DatabaseBranchDetailLayout({
               }
             : undefined
         }
-        defaultEnvironmentNames={defaultEnvironmentNames}
-        isDefaultInCurrentEnvironment={envAttachment?.targetId === branch.id}
         providerRef={branchProviderRef}
         onStart={async function onStart() {
           try {

@@ -5,10 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  useDatabases,
-  useEnvironmentDatabaseAttachments,
-} from "@/hooks/use-databases";
+import { useDatabases } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 import { getPreferredDomain } from "@/lib/service-url";
@@ -29,8 +26,6 @@ export default function EnvironmentDetailPage() {
 
   const { data: databases = [], isLoading: isDatabasesLoading } =
     useDatabases(projectId);
-  const { data: databaseAttachments = [] } =
-    useEnvironmentDatabaseAttachments(envId);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: function fetchSettings() {
@@ -78,17 +73,6 @@ export default function EnvironmentDetailPage() {
       return domainMap;
     },
     [allDomains],
-  );
-
-  const databaseAttachmentById = useMemo(
-    function getDatabaseAttachmentById() {
-      return new Map(
-        databaseAttachments.map(function toEntry(attachment) {
-          return [attachment.databaseId, attachment];
-        }),
-      );
-    },
-    [databaseAttachments],
   );
 
   const hasResources = services.length > 0 || databases.length > 0;
@@ -200,7 +184,6 @@ export default function EnvironmentDetailPage() {
                 <DatabaseCard
                   key={database.id}
                   database={database}
-                  attachment={databaseAttachmentById.get(database.id) ?? null}
                   onOpen={openDatabase}
                 />
               );

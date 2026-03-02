@@ -123,22 +123,6 @@ async function runTtlPolicy(now: number): Promise<void> {
       continue;
     }
 
-    const attachment = await db
-      .selectFrom("environmentDatabaseAttachments")
-      .select("id")
-      .where("targetId", "=", target.id)
-      .executeTakeFirst();
-
-    if (attachment) {
-      console.log(
-        "[database-target-policy-scheduler] TTL delete skipped for attached target",
-        {
-          targetId: target.id,
-        },
-      );
-      continue;
-    }
-
     try {
       await deleteDatabaseTarget({
         databaseId: target.databaseId,

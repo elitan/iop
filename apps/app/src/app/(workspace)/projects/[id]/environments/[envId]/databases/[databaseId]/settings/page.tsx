@@ -1,24 +1,31 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   useDatabase,
   useDatabaseTargets,
   useDeleteDatabase,
+  useUpdateDatabase,
 } from "@/hooks/use-databases";
 import { DatabaseBackupSettingsPanel } from "../../../../../_components/database-backup-settings-panel";
 
-type DatabaseSettingsTab = "general";
+type DatabaseSettingsTab = "general" | "backup" | "restore";
 
 const DATABASE_SETTINGS_NAV_ITEMS: {
   id: DatabaseSettingsTab;
   label: string;
-}[] = [{ id: "general", label: "General" }];
+}[] = [
+  { id: "general", label: "General" },
+  { id: "backup", label: "Backup" },
+  { id: "restore", label: "Restore" },
+];
 
 export default function DatabaseSettingsPage() {
   const params = useParams();
@@ -30,8 +37,24 @@ export default function DatabaseSettingsPage() {
   const { data: database } = useDatabase(databaseId);
   const { data: targets = [] } = useDatabaseTargets(databaseId);
   const deleteMutation = useDeleteDatabase(projectId);
+  const updateMutation = useUpdateDatabase(databaseId, projectId);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DatabaseSettingsTab>("general");
+  const [name, setName] = useState("");
+  const initialName = useRef("");
+
+  useEffect(
+    function syncName() {
+      if (!database) {
+        return;
+      }
+      setName(database.name);
+      initialName.current = database.name;
+    },
+    [database],
+  );
+
+  const hasNameChanges = name.trim() !== initialName.current;
 
   async function handleDelete() {
     if (!database) {
@@ -45,6 +68,31 @@ export default function DatabaseSettingsPage() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to delete database";
+      toast.error(message);
+    }
+  }
+
+  async function handleSaveName() {
+    if (!database) {
+      return;
+    }
+
+    const nextName = name.trim();
+    if (nextName.length === 0) {
+      toast.error("Name is required");
+      return;
+    }
+
+    try {
+      await updateMutation.mutateAsync({
+        name: nextName,
+      });
+      setName(nextName);
+      initialName.current = nextName;
+      toast.success("Database name updated");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update database";
       toast.error(message);
     }
   }
@@ -80,26 +128,86 @@ export default function DatabaseSettingsPage() {
       <div className="flex-1 space-y-6">
         {activeTab === "general" && (
           <>
-            {database.engine === "postgres" && (
-              <DatabaseBackupSettingsPanel
-                databaseId={database.id}
-                targets={targets}
+            <SettingCard
+              title="Database Name"
+              description="Display name for this database."
+              onSubmit={handleSaveName}
+              footerRight={
+                <Button
+                  size="sm"
+                  type="submit"
+                  disabled={updateMutation.isPending || !hasNameChanges}
+                >
+                  {updateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              }
+            >
+              <Input
+                value={name}
+                onChange={function onNameChange(event) {
+                  setName(event.target.value);
+                }}
+                placeholder="my-database"
               />
-            )}
+            </SettingCard>
 
             <SettingCard
               title="Delete Database"
-              description="This removes all targets, attachments, and bindings for this database."
+              description="This removes all targets for this database."
             >
               <Button
                 variant="destructive"
-                onClick={() => setDeleteDialogOpen(true)}
+                onClick={function onDeleteClick() {
+                  setDeleteDialogOpen(true);
+                }}
                 disabled={deleteMutation.isPending}
               >
                 Delete database
               </Button>
             </SettingCard>
           </>
+        )}
+
+        {activeTab === "backup" && database.engine === "postgres" && (
+          <DatabaseBackupSettingsPanel
+            databaseId={database.id}
+            targets={targets}
+            mode="backup"
+          />
+        )}
+
+        {activeTab === "backup" && database.engine !== "postgres" && (
+          <SettingCard
+            title="Backups"
+            description="Backups are available for postgres databases only."
+          >
+            <div className="text-sm text-neutral-400">
+              This database engine does not support backup settings.
+            </div>
+          </SettingCard>
+        )}
+
+        {activeTab === "restore" && database.engine === "postgres" && (
+          <DatabaseBackupSettingsPanel
+            databaseId={database.id}
+            targets={targets}
+            mode="restore"
+          />
+        )}
+
+        {activeTab === "restore" && database.engine !== "postgres" && (
+          <SettingCard
+            title="Restore"
+            description="Restore is available for postgres databases only."
+          >
+            <div className="text-sm text-neutral-400">
+              This database engine does not support restore settings.
+            </div>
+          </SettingCard>
         )}
       </div>
 

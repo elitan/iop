@@ -65,12 +65,6 @@ TARGET_FOUND=$(json_get "$TARGETS" '.[] | select(.id == "'"$TARGET_ID"'") | .id'
 [ "$TARGET_FOUND" != "$TARGET_ID" ] && fail "Target not found: $TARGETS"
 log "Main target exists"
 
-log "Verifying environment attachment..."
-ATTACHMENTS=$(api "$BASE_URL/api/environments/$ENV_ID/database-attachments")
-ATTACHED_TARGET_ID=$(json_get "$ATTACHMENTS" '.[] | select(.databaseId == "'"$DB_ID"'") | .targetId')
-[ "$ATTACHED_TARGET_ID" != "$TARGET_ID" ] && fail "Expected target attachment $TARGET_ID, got: $ATTACHED_TARGET_ID"
-log "Environment attached to main target"
-
 PROVIDER_REF_JSON=$(json_get "$DB_CREATE" '.target.providerRefJson')
 POSTGRES_USER=$(provider_ref_field "$PROVIDER_REF_JSON" "username")
 POSTGRES_PASSWORD=$(provider_ref_field "$PROVIDER_REF_JSON" "password")

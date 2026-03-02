@@ -2,11 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { MainContentHeader } from "@/components/main-content-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/lib/orpc-client";
 import { cn } from "@/lib/utils";
+import { CreateServiceModalProvider } from "./_components/create-service-modal-provider";
 import { WorkspaceLeftMenu } from "./_components/workspace-left-menu";
 import { CreateServiceModal } from "./projects/[id]/_components/create-service-modal";
 import { ProjectLeftMenu } from "./projects/[id]/_components/project-left-menu";
@@ -50,7 +51,6 @@ export default function WorkspaceLayout({
 
   const [createServiceModalOpen, setCreateServiceModalOpen] = useState(false);
   const [createEnvDialogOpen, setCreateEnvDialogOpen] = useState(false);
-  const [createQueryValue, setCreateQueryValue] = useState<string | null>(null);
 
   const { data: environments = [], isLoading: isEnvironmentsLoading } =
     useQuery({
@@ -74,7 +74,7 @@ export default function WorkspaceLayout({
       const production = environments.find(
         (environment) => environment.type === "production",
       );
-      return production?.id ?? "";
+      return production?.id ?? environments[0]?.id ?? "";
     },
     [isProjectPage, params.envId, environments],
   );
@@ -164,56 +164,24 @@ export default function WorkspaceLayout({
       ? "overflow-hidden bg-neutral-950/20"
       : "overflow-auto p-6",
   );
-  const shouldOpenCreateService = createQueryValue === "service";
-
-  useEffect(
-    function syncCreateQueryValue() {
-      if (typeof window === "undefined") {
-        return;
-      }
-      const currentPathname = window.location.pathname;
-      if (currentPathname !== pathname) {
-        return;
-      }
-      const currentSearchParams = new URLSearchParams(window.location.search);
-      setCreateQueryValue(currentSearchParams.get("create"));
-    },
-    [pathname],
-  );
-
-  useEffect(
-    function syncCreateServiceFromQuery() {
-      if (!isProjectPage || !currentEnvId || !shouldOpenCreateService) {
-        return;
-      }
-      setCreateServiceModalOpen(true);
-    },
-    [currentEnvId, isProjectPage, shouldOpenCreateService],
-  );
-
-  function clearCreateQueryParam() {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const nextParams = new URLSearchParams(window.location.search);
-    if (!nextParams.has("create")) {
-      return;
-    }
-    nextParams.delete("create");
-    const nextQuery = nextParams.toString();
-    setCreateQueryValue(nextParams.get("create"));
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
-  }
 
   function handleCreateServiceModalOpenChange(open: boolean) {
     setCreateServiceModalOpen(open);
-    if (!open) {
-      clearCreateQueryParam();
-    }
   }
 
+  const createServiceModalContextValue = useMemo(
+    function getCreateServiceModalContextValue() {
+      return {
+        openCreateServiceModal: function openCreateServiceModal() {
+          setCreateServiceModalOpen(true);
+        },
+      };
+    },
+    [],
+  );
+
   return (
-    <>
+    <CreateServiceModalProvider value={createServiceModalContextValue}>
       <main className="fixed inset-0 flex min-h-0">
         {isProjectPage ? (
           isEnvironmentsLoading ? (
@@ -225,7 +193,7 @@ export default function WorkspaceLayout({
               selectedServiceId={selectedServiceId}
               selectedDatabaseId={selectedDatabaseId}
               onOpenCreateService={function openCreateService() {
-                setCreateServiceModalOpen(true);
+                createServiceModalContextValue.openCreateServiceModal();
               }}
               onOpenCreateEnvironment={function openCreateEnvironment() {
                 setCreateEnvDialogOpen(true);
@@ -280,6 +248,6 @@ export default function WorkspaceLayout({
           onOpenChange={setCreateEnvDialogOpen}
         />
       )}
-    </>
+    </CreateServiceModalProvider>
   );
 }

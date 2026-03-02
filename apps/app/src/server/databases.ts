@@ -1,24 +1,17 @@
 import { ORPCError } from "@orpc/server";
 import {
-  assertComputeService,
   createDatabase,
   createDatabaseTarget,
-  createServiceDatabaseBinding,
   deleteDatabase,
   deleteDatabaseTarget,
-  deleteEnvironmentAttachment,
-  deleteServiceDatabaseBinding,
   deployDatabaseTarget,
   getDatabase,
   getDatabaseTargetRuntime,
-  listDatabaseAttachments,
   listDatabasesByProject,
   listDatabaseTargetDeployments,
   listDatabaseTargets,
-  listEnvironmentDatabaseAttachments,
-  listServiceDatabaseBindings,
+  patchDatabase,
   patchDatabaseTargetRuntimeSettings,
-  putEnvironmentAttachment,
   resetDatabaseTarget,
   runPostgresTargetSql,
   startDatabaseTarget,
@@ -45,11 +38,7 @@ function toApiError(error: unknown) {
   const message =
     error instanceof Error ? error.message : String(error ?? "Unknown error");
 
-  if (
-    message.includes("not found") ||
-    message.includes("not belong") ||
-    message.includes("missing attachment")
-  ) {
+  if (message.includes("not found") || message.includes("not belong")) {
     return new ORPCError("NOT_FOUND", { message });
   }
 
@@ -147,19 +136,6 @@ async function assertBranchPolicyPatchAllowed(input: {
       message: "main cannot use TTL or scale to zero",
     });
   }
-
-  if (enablesScaleToZero) {
-    const attachment = await db
-      .selectFrom("environmentDatabaseAttachments")
-      .select("id")
-      .where("targetId", "=", target.id)
-      .executeTakeFirst();
-    if (attachment) {
-      throw new ORPCError("BAD_REQUEST", {
-        message: "Scale to zero only works for detached branches right now",
-      });
-    }
-  }
 }
 
 export const databases = {
@@ -188,6 +164,14 @@ export const databases = {
   get: os.databases.get.handler(async ({ input }) => {
     try {
       return await getDatabase(input.databaseId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  patch: os.databases.patch.handler(async ({ input }) => {
+    try {
+      return await patchDatabase(input);
     } catch (error) {
       throw toApiError(error);
     }
@@ -527,79 +511,6 @@ export const databases = {
       } catch (error) {
         throw toApiError(error);
       }
-    },
-  ),
-
-  putAttachment: os.databases.putAttachment.handler(async ({ input }) => {
-    try {
-      await putEnvironmentAttachment({
-        environmentId: input.envId,
-        databaseId: input.databaseId,
-        targetId: input.targetId,
-        mode: input.mode,
-      });
-      return { success: true };
-    } catch (error) {
-      throw toApiError(error);
-    }
-  }),
-
-  listEnvironmentAttachments: os.databases.listEnvironmentAttachments.handler(
-    async ({ input }) => {
-      return listEnvironmentDatabaseAttachments(input.envId);
-    },
-  ),
-
-  deleteAttachment: os.databases.deleteAttachment.handler(async ({ input }) => {
-    try {
-      await deleteEnvironmentAttachment({
-        environmentId: input.envId,
-        databaseId: input.databaseId,
-      });
-      return { success: true };
-    } catch (error) {
-      throw toApiError(error);
-    }
-  }),
-
-  createServiceBinding: os.databases.createServiceBinding.handler(
-    async ({ input }) => {
-      try {
-        await assertComputeService(input.serviceId);
-        await createServiceDatabaseBinding(input);
-        return { success: true };
-      } catch (error) {
-        throw toApiError(error);
-      }
-    },
-  ),
-
-  listServiceBindings: os.databases.listServiceBindings.handler(
-    async ({ input }) => {
-      return listServiceDatabaseBindings(input.serviceId);
-    },
-  ),
-
-  deleteServiceBinding: os.databases.deleteServiceBinding.handler(
-    async ({ input }) => {
-      const binding = await db
-        .selectFrom("serviceDatabaseBindings")
-        .select(["id", "serviceId"])
-        .where("id", "=", input.bindingId)
-        .executeTakeFirst();
-
-      if (!binding || binding.serviceId !== input.serviceId) {
-        throw new ORPCError("NOT_FOUND", { message: "Binding not found" });
-      }
-
-      await deleteServiceDatabaseBinding(input.bindingId);
-      return { success: true };
-    },
-  ),
-
-  listDatabaseAttachments: os.databases.listDatabaseAttachments.handler(
-    async ({ input }) => {
-      return listDatabaseAttachments(input.databaseId);
     },
   ),
 };

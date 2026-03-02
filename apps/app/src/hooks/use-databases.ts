@@ -16,6 +16,23 @@ export function useDatabase(databaseId: string) {
   });
 }
 
+export function useUpdateDatabase(databaseId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      data: Omit<ContractInputs["databases"]["patch"], "databaseId">,
+    ) => orpc.databases.patch.call({ databaseId, ...data }),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.get.key({ input: { databaseId } }),
+      });
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.list.key({ input: { projectId } }),
+      });
+    },
+  });
+}
+
 export function useDatabaseBackupConfig(databaseId: string) {
   return useQuery({
     ...orpc.databases.getBackup.queryOptions({ input: { databaseId } }),
@@ -74,24 +91,6 @@ export function useRunDatabaseTargetSql(databaseId: string, targetId: string) {
         ...data,
       });
     },
-  });
-}
-
-export function useDatabaseAttachments(databaseId: string) {
-  return useQuery({
-    ...orpc.databases.listDatabaseAttachments.queryOptions({
-      input: { databaseId },
-    }),
-    enabled: !!databaseId,
-  });
-}
-
-export function useEnvironmentDatabaseAttachments(envId: string) {
-  return useQuery({
-    ...orpc.databases.listEnvironmentAttachments.queryOptions({
-      input: { envId },
-    }),
-    enabled: !!envId,
   });
 }
 
@@ -205,11 +204,6 @@ export function useCreateDatabaseTarget(databaseId: string, projectId: string) {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.list.key({ input: { projectId } }),
       });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listDatabaseAttachments.key({
-          input: { databaseId },
-        }),
-      });
     },
   });
 }
@@ -263,11 +257,6 @@ export function useDeleteDatabaseTarget(databaseId: string) {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
       });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listDatabaseAttachments.key({
-          input: { databaseId },
-        }),
-      });
     },
   });
 }
@@ -320,101 +309,6 @@ export function usePatchDatabaseTargetRuntimeSettings(
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargetDeployments.key({
           input: { databaseId, targetId },
-        }),
-      });
-    },
-  });
-}
-
-export function usePutEnvironmentDatabaseAttachment(
-  envId: string,
-  databaseId: string,
-) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (
-      data: Omit<
-        ContractInputs["databases"]["putAttachment"],
-        "envId" | "databaseId"
-      >,
-    ) => orpc.databases.putAttachment.call({ envId, databaseId, ...data }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listEnvironmentAttachments.key({
-          input: { envId },
-        }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { envId } }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
-      });
-    },
-  });
-}
-
-export function useDeleteEnvironmentDatabaseAttachment(
-  envId: string,
-  databaseId: string,
-) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () =>
-      orpc.databases.deleteAttachment.call({ envId, databaseId }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listEnvironmentAttachments.key({
-          input: { envId },
-        }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({ input: { envId } }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
-      });
-    },
-  });
-}
-
-export function useServiceDatabaseBindings(serviceId: string) {
-  return useQuery({
-    ...orpc.databases.listServiceBindings.queryOptions({
-      input: { serviceId },
-    }),
-    enabled: !!serviceId,
-  });
-}
-
-export function useCreateServiceDatabaseBinding(serviceId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (
-      data: Omit<
-        ContractInputs["databases"]["createServiceBinding"],
-        "serviceId"
-      >,
-    ) => orpc.databases.createServiceBinding.call({ serviceId, ...data }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listServiceBindings.key({
-          input: { serviceId },
-        }),
-      });
-    },
-  });
-}
-
-export function useDeleteServiceDatabaseBinding(serviceId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ bindingId }: { bindingId: string }) =>
-      orpc.databases.deleteServiceBinding.call({ serviceId, bindingId }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listServiceBindings.key({
-          input: { serviceId },
         }),
       });
     },

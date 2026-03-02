@@ -76,8 +76,6 @@ interface DatabaseBranchPanelProps {
   parentBranchName: string | null;
   onOpenDatabaseSettings?: () => void;
   onGoToParent?: () => void;
-  defaultEnvironmentNames: string[];
-  isDefaultInCurrentEnvironment: boolean;
   providerRef: DatabaseProviderRef | null;
   onStart: () => Promise<void>;
   onDeploy: () => Promise<void>;
@@ -163,8 +161,6 @@ export function DatabaseBranchPanel({
   parentBranchName,
   onOpenDatabaseSettings,
   onGoToParent,
-  defaultEnvironmentNames,
-  isDefaultInCurrentEnvironment,
   providerRef,
   onStart,
   onDeploy,
@@ -254,39 +250,6 @@ export function DatabaseBranchPanel({
     [runtime, branch?.name],
   );
 
-  const internalConnectionString = useMemo(
-    function getInternalConnectionString() {
-      if (!branch || !providerRef) {
-        return null;
-      }
-
-      if (engine !== "postgres" && !isDefaultInCurrentEnvironment) {
-        return null;
-      }
-
-      return getConnectionString({
-        engine,
-        host:
-          engine === "postgres"
-            ? getDatabaseBranchInternalHost(
-                databaseName,
-                runtime?.hostname ?? branch.name,
-              )
-            : `${databaseName}.frost.internal`,
-        port: engine === "postgres" ? 5432 : 3306,
-        providerRef,
-      });
-    },
-    [
-      branch,
-      databaseName,
-      engine,
-      isDefaultInCurrentEnvironment,
-      providerRef,
-      runtime?.hostname,
-    ],
-  );
-
   const directConnectionString = useMemo(
     function getDirectConnectionString() {
       if (!branch || !providerRef) {
@@ -300,6 +263,30 @@ export function DatabaseBranchPanel({
       });
     },
     [branch, engine, providerRef],
+  );
+
+  const internalConnectionString = useMemo(
+    function getInternalConnectionString() {
+      if (!branch || !providerRef) {
+        return null;
+      }
+
+      const host =
+        engine === "postgres"
+          ? getDatabaseBranchInternalHost(
+              databaseName,
+              runtime?.hostname ?? branch.name,
+            )
+          : `${runtime?.hostname ?? branch.name}.frost.internal`;
+
+      return getConnectionString({
+        engine,
+        host,
+        port: engine === "postgres" ? 5432 : 3306,
+        providerRef,
+      });
+    },
+    [branch, databaseName, engine, providerRef, runtime?.hostname],
   );
 
   const isMainBranch = branch?.name === "main";
@@ -353,13 +340,9 @@ export function DatabaseBranchPanel({
       nextScaleToZeroMinutes <= 24 * 60);
   const scaleToZeroChanged =
     hasRuntime && nextScaleToZeroMinutes !== runtime.scaleToZeroMinutes;
-  const branchAttachedToEnvironment = defaultEnvironmentNames.length > 0;
   let scaleToZeroBlockedReason: string | null = null;
   if (isMainBranch) {
     scaleToZeroBlockedReason = "main cannot use scale to zero.";
-  } else if (branchAttachedToEnvironment) {
-    scaleToZeroBlockedReason =
-      "Detach this branch from environments before enabling scale to zero.";
   }
   const canSaveScaleToZero =
     hasRuntime &&
@@ -611,14 +594,6 @@ export function DatabaseBranchPanel({
                             {getTimeAgo(new Date(branch.createdAt))}
                           </p>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs uppercase tracking-wide text-neutral-500">
-                            Default in envs
-                          </p>
-                          <p className="text-neutral-200">
-                            {defaultEnvironmentNames.length}
-                          </p>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -646,17 +621,14 @@ export function DatabaseBranchPanel({
                           </div>
                         ) : (
                           <p className="text-sm text-neutral-500">
-                            Set this{" "}
-                            {engine === "postgres" ? "branch" : "instance"} as
-                            default in this environment to use the internal
-                            alias.
+                            Connection details unavailable.
                           </p>
                         )}
                       </div>
 
                       <div>
                         <p className="mb-1 text-xs text-neutral-500">
-                          Direct host connection
+                          Direct connection
                         </p>
                         {directConnectionString ? (
                           <div className="flex items-start gap-2">

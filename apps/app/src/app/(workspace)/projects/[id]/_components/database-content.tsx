@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StatusDot } from "@/components/status-dot";
 import { Badge } from "@/components/ui/badge";
 import {
   DATABASE_LOGO_FALLBACK,
@@ -16,22 +15,18 @@ export interface CanvasDatabase {
   provider: "postgres-docker" | "mysql-docker";
 }
 
-export interface CanvasDatabaseAttachment {
-  databaseId: string;
-  targetName: string;
-  targetLifecycleStatus: "active" | "stopped" | "expired";
-  mode: "managed" | "manual";
-}
-
 interface DatabaseContentProps {
   database: CanvasDatabase;
-  attachment: CanvasDatabaseAttachment | null;
 }
 
-export function DatabaseContent({
-  database,
-  attachment,
-}: DatabaseContentProps) {
+function getDatabaseSubtitle(engine: "postgres" | "mysql"): string {
+  if (engine === "postgres") {
+    return "branches managed manually";
+  }
+  return "instances managed manually";
+}
+
+export function DatabaseContent({ database }: DatabaseContentProps) {
   const [logoSrc, setLogoSrc] = useState(getDatabaseLogoUrl(database.engine));
 
   useEffect(
@@ -60,20 +55,11 @@ export function DatabaseContent({
           />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate font-medium text-neutral-200">
-              {database.name}
-            </p>
-            <StatusDot
-              status={attachment?.targetLifecycleStatus ?? "stopped"}
-            />
-          </div>
+          <p className="truncate font-medium text-neutral-200">
+            {database.name}
+          </p>
           <p className="truncate text-xs text-neutral-500">
-            {attachment
-              ? attachment.targetName
-              : database.engine === "postgres"
-                ? "main"
-                : "not attached"}
+            {getDatabaseSubtitle(database.engine)}
           </p>
         </div>
       </div>
@@ -85,9 +71,6 @@ export function DatabaseContent({
         >
           {database.engine}
         </Badge>
-        {attachment && (
-          <span className="text-xs text-neutral-500">{attachment.mode}</span>
-        )}
       </div>
     </>
   );

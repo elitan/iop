@@ -2,19 +2,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Layers, Plus, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  useDatabases,
-  useEnvironmentDatabaseAttachments,
-} from "@/hooks/use-databases";
+import { useDatabases } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 import { getPreferredDomain } from "@/lib/service-url";
+import { useCreateServiceModal } from "../../_components/create-service-modal-provider";
 import { DatabaseCard } from "./_components/database-card";
 import { ServiceCard } from "./_components/service-card";
 
@@ -22,6 +19,7 @@ export default function ProjectStartPage() {
   const params = useParams();
   const projectId = params.id as string;
   const router = useRouter();
+  const { openCreateServiceModal } = useCreateServiceModal();
 
   const { data: environments = [], isLoading: isEnvironmentsLoading } =
     useQuery(orpc.environments.list.queryOptions({ input: { projectId } }));
@@ -43,8 +41,6 @@ export default function ProjectStartPage() {
   });
   const { data: databases = [], isLoading: isDatabasesLoading } =
     useDatabases(projectId);
-  const { data: databaseAttachments = [] } =
-    useEnvironmentDatabaseAttachments(currentEnvId);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: function fetchSettings() {
@@ -92,17 +88,6 @@ export default function ProjectStartPage() {
       return domainMap;
     },
     [allDomains],
-  );
-
-  const databaseAttachmentById = useMemo(
-    function getDatabaseAttachmentById() {
-      return new Map(
-        databaseAttachments.map(function toEntry(attachment) {
-          return [attachment.databaseId, attachment];
-        }),
-      );
-    },
-    [databaseAttachments],
   );
 
   const hasResources = services.length > 0 || databases.length > 0;
@@ -165,11 +150,9 @@ export default function ProjectStartPage() {
               </p>
 
               <div className="mt-8">
-                <Button asChild>
-                  <Link href={`/projects/${projectId}?create=service`}>
-                    <Plus className="h-4 w-4" />
-                    Create first service
-                  </Link>
+                <Button type="button" onClick={openCreateServiceModal}>
+                  <Plus className="h-4 w-4" />
+                  Create first service
                 </Button>
               </div>
             </div>
@@ -213,7 +196,6 @@ export default function ProjectStartPage() {
                 <DatabaseCard
                   key={database.id}
                   database={database}
-                  attachment={databaseAttachmentById.get(database.id) ?? null}
                   onOpen={openDatabase}
                 />
               );

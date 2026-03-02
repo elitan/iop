@@ -33,7 +33,6 @@ import {
 import {
   useCreateDatabaseTarget,
   useDatabase,
-  useDatabaseAttachments,
   useDatabaseTargets,
   useDeleteDatabaseTarget,
   useResetDatabaseTarget,
@@ -125,7 +124,6 @@ export default function DatabaseBranchesPage() {
 
   const { data: database } = useDatabase(databaseId);
   const { data: targets = [] } = useDatabaseTargets(databaseId);
-  const { data: attachments = [] } = useDatabaseAttachments(databaseId);
 
   const createTargetMutation = useCreateDatabaseTarget(databaseId, projectId);
   const resetTargetMutation = useResetDatabaseTarget(databaseId);
@@ -142,11 +140,6 @@ export default function DatabaseBranchesPage() {
     onSuccess: async function onSuccess() {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listDatabaseAttachments.key({
-          input: { databaseId },
-        }),
       });
     },
   });
@@ -170,24 +163,6 @@ export default function DatabaseBranchesPage() {
     [targets],
   );
 
-  const attachmentNamesByTargetId = useMemo(
-    function getAttachmentNamesByTargetId() {
-      const map = new Map<string, string[]>();
-      for (const attachment of attachments) {
-        const envNames = map.get(attachment.targetId) ?? [];
-        envNames.push(attachment.environmentName);
-        map.set(attachment.targetId, envNames);
-      }
-      for (const envNames of map.values()) {
-        envNames.sort(function sortEnvNames(a, b) {
-          return a.localeCompare(b);
-        });
-      }
-      return map;
-    },
-    [attachments],
-  );
-
   const rows = useMemo(
     function getRows() {
       const hierarchy = getHierarchyOrder(targets);
@@ -195,7 +170,6 @@ export default function DatabaseBranchesPage() {
         target: (typeof targets)[number];
         depth: number;
         parentName: string | null;
-        attachedEnvNames: string[];
       }> = [];
       for (const item of hierarchy) {
         const target = targetById.get(item.id);
@@ -209,12 +183,11 @@ export default function DatabaseBranchesPage() {
           target,
           depth: item.depth,
           parentName,
-          attachedEnvNames: attachmentNamesByTargetId.get(target.id) ?? [],
         });
       }
       return nextRows;
     },
-    [attachmentNamesByTargetId, targetById, targets],
+    [targetById, targets],
   );
 
   const renameTarget = renameTargetId ? targetById.get(renameTargetId) : null;
@@ -381,7 +354,6 @@ export default function DatabaseBranchesPage() {
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Parent</th>
                     <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Attached envs</th>
                     <th className="px-4 py-3 font-medium">Created</th>
                     <th className="px-4 py-3 font-medium" />
                   </tr>
@@ -439,11 +411,6 @@ export default function DatabaseBranchesPage() {
                           >
                             {row.target.lifecycleStatus}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-neutral-400">
-                          {row.attachedEnvNames.length === 0
-                            ? "-"
-                            : row.attachedEnvNames.join(", ")}
                         </td>
                         <td className="px-4 py-3 text-neutral-400">
                           {formatDate(row.target.createdAt)}

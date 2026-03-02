@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft,
@@ -42,7 +42,6 @@ import {
   getDatabaseLogoAlt,
   getDatabaseLogoUrl,
 } from "@/lib/database-logo";
-import { orpc } from "@/lib/orpc-client";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
 
@@ -131,7 +130,6 @@ export function CreateServiceModal({
   onServiceCreated,
   onDatabaseCreated,
 }: CreateServiceModalProps): React.ReactElement {
-  const queryClient = useQueryClient();
   const createMutation = useCreateService(environmentId);
   const createDatabaseMutation = useCreateDatabase(projectId);
   const scanMutation = useScanRepo();
@@ -387,22 +385,6 @@ export function CreateServiceModal({
       const result = await createDatabaseMutation.mutateAsync({
         name: nextName,
         engine: databaseEngine,
-      });
-      await orpc.databases.putAttachment.call({
-        envId: environmentId,
-        databaseId: result.database.id,
-        targetId: result.target.id,
-        mode: "managed",
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listEnvironmentAttachments.key({
-          input: { envId: environmentId },
-        }),
-      });
-      await queryClient.refetchQueries({
-        queryKey: orpc.environments.get.key({
-          input: { envId: environmentId },
-        }),
       });
       toast.success("Database created");
       resetState();

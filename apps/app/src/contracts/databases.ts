@@ -5,7 +5,6 @@ const databaseEngineSchema = z.enum(["postgres", "mysql"]);
 const databaseProviderSchema = z.enum(["postgres-docker", "mysql-docker"]);
 const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
-const attachmentModeSchema = z.enum(["managed", "manual"]);
 const databaseStorageBackendSchema = z.enum(["apfs", "zfs"]);
 const backupIntervalUnitSchema = z.enum(["minutes", "hours", "days"]);
 const backupS3ProviderSchema = z.enum([
@@ -102,41 +101,6 @@ const databaseWithMainTargetSchema = z.object({
   target: databaseTargetSchema,
 });
 
-const environmentAttachmentSchema = z.object({
-  id: z.string(),
-  environmentId: z.string(),
-  databaseId: z.string(),
-  targetId: z.string(),
-  mode: attachmentModeSchema,
-  createdAt: z.number(),
-  databaseName: z.string(),
-  databaseEngine: databaseEngineSchema,
-  targetName: z.string(),
-  targetLifecycleStatus: databaseTargetLifecycleSchema,
-});
-
-const databaseAttachmentSchema = z.object({
-  id: z.string(),
-  environmentId: z.string(),
-  databaseId: z.string(),
-  targetId: z.string(),
-  mode: attachmentModeSchema,
-  createdAt: z.number(),
-  environmentName: z.string(),
-  environmentType: z.enum(["production", "preview", "manual"]),
-  targetName: z.string(),
-});
-
-const serviceBindingSchema = z.object({
-  id: z.string(),
-  serviceId: z.string(),
-  databaseId: z.string(),
-  envVarKey: z.string(),
-  createdAt: z.number(),
-  databaseName: z.string(),
-  databaseEngine: databaseEngineSchema,
-});
-
 const databaseBackupConfigSchema = z.object({
   databaseId: z.string(),
   enabled: z.boolean(),
@@ -224,6 +188,16 @@ export const databasesContract = {
   get: oc
     .route({ method: "GET", path: "/databases/{databaseId}" })
     .input(z.object({ databaseId: z.string() }))
+    .output(databaseSchema),
+
+  patch: oc
+    .route({ method: "PATCH", path: "/databases/{databaseId}" })
+    .input(
+      z.object({
+        databaseId: z.string(),
+        name: z.string().min(1).optional(),
+      }),
+    )
     .output(databaseSchema),
 
   getBackup: oc
@@ -547,64 +521,4 @@ export const databasesContract = {
     })
     .input(targetParamsSchema)
     .output(z.array(databaseTargetDeploymentSchema)),
-
-  putAttachment: oc
-    .route({
-      method: "PUT",
-      path: "/environments/{envId}/databases/{databaseId}/attachment",
-    })
-    .input(
-      z.object({
-        envId: z.string(),
-        databaseId: z.string(),
-        targetId: z.string(),
-        mode: attachmentModeSchema,
-      }),
-    )
-    .output(z.object({ success: z.boolean() })),
-
-  listEnvironmentAttachments: oc
-    .route({
-      method: "GET",
-      path: "/environments/{envId}/database-attachments",
-    })
-    .input(z.object({ envId: z.string() }))
-    .output(z.array(environmentAttachmentSchema)),
-
-  deleteAttachment: oc
-    .route({
-      method: "DELETE",
-      path: "/environments/{envId}/databases/{databaseId}/attachment",
-    })
-    .input(z.object({ envId: z.string(), databaseId: z.string() }))
-    .output(z.object({ success: z.boolean() })),
-
-  createServiceBinding: oc
-    .route({ method: "POST", path: "/services/{serviceId}/database-bindings" })
-    .input(
-      z.object({
-        serviceId: z.string(),
-        databaseId: z.string(),
-        envVarKey: z.string().min(1),
-      }),
-    )
-    .output(z.object({ success: z.boolean() })),
-
-  listServiceBindings: oc
-    .route({ method: "GET", path: "/services/{serviceId}/database-bindings" })
-    .input(z.object({ serviceId: z.string() }))
-    .output(z.array(serviceBindingSchema)),
-
-  deleteServiceBinding: oc
-    .route({
-      method: "DELETE",
-      path: "/services/{serviceId}/database-bindings/{bindingId}",
-    })
-    .input(z.object({ serviceId: z.string(), bindingId: z.string() }))
-    .output(z.object({ success: z.boolean() })),
-
-  listDatabaseAttachments: oc
-    .route({ method: "GET", path: "/databases/{databaseId}/attachments" })
-    .input(z.object({ databaseId: z.string() }))
-    .output(z.array(databaseAttachmentSchema)),
 };
