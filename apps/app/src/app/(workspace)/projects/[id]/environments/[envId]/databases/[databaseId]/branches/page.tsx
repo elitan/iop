@@ -484,31 +484,18 @@ export default function DatabaseBranchesPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="target_name">Name</Label>
-              <Input
-                id="target_name"
-                name="target_name"
-                value={newTargetName}
-                onChange={function onTargetNameChange(event) {
-                  setNewTargetName(event.target.value);
-                }}
-                placeholder={
-                  database.engine === "postgres" ? "feature-branch" : "staging"
-                }
-                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                autoFocus
-              />
-            </div>
-
             {database.engine === "postgres" && (
               <div className="space-y-2">
-                <Label>Parent</Label>
+                <Label htmlFor="source_target_name">Parent</Label>
                 <Select
                   value={sourceTargetName}
                   onValueChange={setSourceTargetName}
                 >
-                  <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                  <SelectTrigger
+                    id="source_target_name"
+                    autoFocus
+                    className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                  >
                     <SelectValue placeholder="Select parent branch" />
                   </SelectTrigger>
                   <SelectContent className="border-neutral-700 bg-neutral-800">
@@ -527,6 +514,23 @@ export default function DatabaseBranchesPage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="target_name">Name</Label>
+              <Input
+                id="target_name"
+                name="target_name"
+                value={newTargetName}
+                onChange={function onTargetNameChange(event) {
+                  setNewTargetName(event.target.value);
+                }}
+                placeholder={
+                  database.engine === "postgres" ? "feature-branch" : "staging"
+                }
+                className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                autoFocus={database.engine !== "postgres"}
+              />
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button
