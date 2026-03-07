@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Circle, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,12 @@ function getStartImportLabel(job: DatabaseImportJob | null): string {
   return "Start import";
 }
 
+function isAtBottom(element: HTMLTextAreaElement): boolean {
+  const distance =
+    element.scrollHeight - element.scrollTop - element.clientHeight;
+  return distance <= 12;
+}
+
 export function DatabaseImportWizard({
   projectId,
   initialTargetName,
@@ -167,6 +173,8 @@ export function DatabaseImportWizard({
   const [sourceUrl, setSourceUrl] = useState("");
   const [currentJob, setCurrentJob] = useState<DatabaseImportJob | null>(null);
   const [externalHost, setExternalHost] = useState("127.0.0.1");
+  const [stickLogToBottom, setStickLogToBottom] = useState(true);
+  const logRef = useRef<HTMLTextAreaElement | null>(null);
 
   const createJobMutation = useCreateDatabaseImportJob(projectId);
   const jobQuery = useDatabaseImportJob(jobId);
@@ -180,6 +188,15 @@ export function DatabaseImportWizard({
       setExternalHost(window.location.hostname);
     }
   }, []);
+
+  const job = jobQuery.data ?? currentJob;
+
+  useEffect(function keepLogAtBottom() {
+    if (!stickLogToBottom || !logRef.current) {
+      return;
+    }
+    logRef.current.scrollTop = logRef.current.scrollHeight;
+  });
 
   async function handlePreflightSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -221,9 +238,9 @@ export function DatabaseImportWizard({
     setJobId("");
     setCurrentJob(null);
     setSourceUrl("");
+    setStickLogToBottom(true);
   }
 
-  const job = jobQuery.data ?? currentJob;
   const currentStepIndex = getStepIndex(job);
   const hasBlockedChecks = job
     ? hasBlockedImportChecks(job.checkResults)
@@ -493,8 +510,12 @@ export function DatabaseImportWizard({
                 </div>
               </div>
               <textarea
+                ref={logRef}
                 readOnly
                 value={job.logText}
+                onScroll={function onLogScroll(event) {
+                  setStickLogToBottom(isAtBottom(event.currentTarget));
+                }}
                 className="mt-3 h-48 w-full rounded-lg border border-neutral-800 bg-neutral-950 p-3 font-mono text-[11px] text-neutral-200 outline-none"
               />
               {job.stage === "failed" && canStartImportNow && (
