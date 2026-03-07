@@ -473,7 +473,7 @@ export function DatabaseBranchPanel({
 
   const branchContent =
     isOpen && branch ? (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-w-0 w-full flex-col">
         <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
           <div className="px-4 py-3">
             <div className="min-w-0">
@@ -550,7 +550,7 @@ export function DatabaseBranchPanel({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
           <StateTabs
             tabs={branchTabs}
             value={activeTab}
@@ -558,7 +558,7 @@ export function DatabaseBranchPanel({
             layoutId="database-branch-panel-tabs"
           />
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
+          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto p-4">
             {activeTab === "overview" && (
               <div className="mx-auto w-full max-w-[1200px]">
                 <div className="space-y-4">
