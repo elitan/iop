@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
@@ -121,30 +122,29 @@ export function GitHubSection() {
         )}
 
         {successParam === "true" && (
-          <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
-            <CheckCircle2 className="h-5 w-5" />
+          <StatusNotice
+            tone="success"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+          >
             GitHub connected successfully!
-          </div>
+          </StatusNotice>
         )}
 
         {errorParam && (
-          <div className="flex items-center gap-2 rounded-md bg-red-900/20 p-3 text-red-400">
-            <XCircle className="h-5 w-5" />
+          <StatusNotice tone="danger" icon={<XCircle className="h-5 w-5" />}>
             {decodeURIComponent(errorParam)}
-          </div>
+          </StatusNotice>
         )}
 
         {error && (
-          <div className="flex items-center gap-2 rounded-md bg-red-900/20 p-3 text-red-400">
-            <XCircle className="h-5 w-5" />
+          <StatusNotice tone="danger" icon={<XCircle className="h-5 w-5" />}>
             {error}
-          </div>
+          </StatusNotice>
         )}
 
         {!status?.hasDomain && (
-          <div className="rounded-md bg-yellow-900/20 p-4 text-yellow-400">
-            <p className="font-medium">Domain required</p>
-            <p className="mt-1 text-sm text-yellow-500">
+          <StatusNotice tone="warning" heading="Domain required">
+            <p>
               Configure a domain with SSL before connecting GitHub. Webhooks
               require a publicly accessible URL.
             </p>
@@ -154,7 +154,7 @@ export function GitHubSection() {
             >
               Configure domain →
             </Link>
-          </div>
+          </StatusNotice>
         )}
 
         {status?.hasDomain && !status?.connected && (
@@ -175,9 +175,8 @@ export function GitHubSection() {
         )}
 
         {status?.connected && !status?.installed && (
-          <div className="rounded-md bg-blue-900/20 p-4 text-blue-400">
-            <p className="font-medium">Installation required</p>
-            <p className="mt-1 text-sm text-blue-300">
+          <StatusNotice tone="info" heading="Installation required">
+            <p>
               Your GitHub App "{status.appName}" was created. Install it on your
               repositories to enable deployments.
             </p>
@@ -187,7 +186,7 @@ export function GitHubSection() {
             >
               Install on repositories →
             </a>
-          </div>
+          </StatusNotice>
         )}
 
         {status?.connected && status?.installed && (

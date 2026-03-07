@@ -4,9 +4,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { DeploymentStatusIndicator } from "@/components/deployment-status-indicator";
 import { EmptyState } from "@/components/empty-state";
 import { LogViewer } from "@/components/log-viewer";
-import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useBuildLogs } from "@/hooks/use-build-logs";
 import { useDeployments, useDeployService } from "@/hooks/use-services";
@@ -64,7 +64,9 @@ function ReplicaStatus({ deploymentId }: { deploymentId: string }) {
             className="flex items-center gap-3 text-xs text-neutral-500"
           >
             <span className="w-4 text-neutral-400">{r.replicaIndex}</span>
-            <StatusDot status={replicaStatusToDotStatus(r.status)} />
+            <DeploymentStatusIndicator
+              status={replicaStatusToDotStatus(r.status)}
+            />
             {r.hostPort && <span className="font-mono">:{r.hostPort}</span>}
             {r.containerId && (
               <span className="font-mono text-neutral-600">
@@ -210,7 +212,7 @@ export function SidebarDeployments({
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-neutral-200">Logs</span>
               <div className="flex items-center gap-2 text-xs text-neutral-500">
-                <StatusDot status={selectedDeployment.status} />
+                <DeploymentStatusIndicator status={selectedDeployment.status} />
                 <span className="font-mono">
                   {selectedDeployment.commitSha?.slice(0, 7) ||
                     selectedDeployment.id.slice(0, 7)}

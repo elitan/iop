@@ -7,6 +7,7 @@ import {
   hasDeploymentTimedOut,
 } from "./deployment-timeout";
 import { getContainerStatus, stopContainer } from "./docker";
+import { getServiceRuntimeState } from "./service-runtime-status";
 
 const IN_PROGRESS_DEPLOYMENT_STATUS_LIST = [
   "pending",
@@ -235,7 +236,13 @@ export async function addLatestDeploymentWithRuntimeStatus<
   T extends Selectable<Services>,
 >(
   service: T,
-): Promise<T & { latestDeployment: Selectable<Deployments> | null }> {
+): Promise<
+  T & {
+    latestDeployment: Selectable<Deployments> | null;
+    runtimeStatus: "not-deployed" | "starting" | "online" | "offline";
+    attentionStatus: "updating" | "last-deploy-failed" | null;
+  }
+> {
   const latestDeployment = await getLatestDeploymentWithRuntimeStatus(
     service.id,
   );
@@ -244,14 +251,33 @@ export async function addLatestDeploymentWithRuntimeStatus<
     service.currentDeploymentId === latestDeployment.id
       ? null
       : service.currentDeploymentId;
-  return { ...service, currentDeploymentId, latestDeployment };
+  const serviceRuntime = getServiceRuntimeState({
+    currentDeploymentId,
+    latestDeployment,
+  });
+
+  return {
+    ...service,
+    currentDeploymentId,
+    latestDeployment,
+    runtimeStatus: serviceRuntime.runtimeStatus,
+    attentionStatus: serviceRuntime.attentionStatus,
+  };
 }
 
 export async function addLatestDeploymentsWithRuntimeStatus<
   T extends Selectable<Services>,
 >(
   services: T[],
-): Promise<(T & { latestDeployment: Selectable<Deployments> | null })[]> {
+): Promise<
+  Array<
+    T & {
+      latestDeployment: Selectable<Deployments> | null;
+      runtimeStatus: "not-deployed" | "starting" | "online" | "offline";
+      attentionStatus: "updating" | "last-deploy-failed" | null;
+    }
+  >
+> {
   return Promise.all(services.map(addLatestDeploymentWithRuntimeStatus));
 }
 

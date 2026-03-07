@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,8 +165,10 @@ export function SslSection() {
         )}
 
         {sslStatus === "true" && currentDomain && (
-          <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
-            <CheckCircle2 className="h-5 w-5" />
+          <StatusNotice
+            tone="success"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+          >
             <span>
               SSL enabled for{" "}
               <a
@@ -177,27 +180,28 @@ export function SslSection() {
                 {currentDomain}
               </a>
             </span>
-          </div>
+          </StatusNotice>
         )}
 
         {sslStatus === "pending" && currentDomain && !pollingTimedOut && (
-          <div className="flex items-center gap-2 rounded-md bg-blue-900/20 p-3 text-blue-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <StatusNotice
+            tone="info"
+            icon={<Loader2 className="h-5 w-5 animate-spin" />}
+          >
             <span>Configuring SSL... This may take up to 60 seconds.</span>
-          </div>
+          </StatusNotice>
         )}
 
         {sslStatus === "pending" && pollingTimedOut && (
-          <div className="rounded-md bg-yellow-900/20 p-3 text-yellow-400">
+          <StatusNotice tone="warning">
             SSL is still being configured. Please wait a few minutes and refresh
             the page.
-          </div>
+          </StatusNotice>
         )}
 
         {success && (
-          <div className="rounded-md bg-green-900/20 p-3 text-green-400">
-            <p className="font-medium">SSL enabled successfully!</p>
-            <p className="mt-1 text-sm">
+          <StatusNotice tone="success" heading="SSL enabled successfully!">
+            <p>
               Your site is now available at{" "}
               <a
                 href={`https://${domain}`}
@@ -208,7 +212,7 @@ export function SslSection() {
                 https://{domain}
               </a>
             </p>
-          </div>
+          </StatusNotice>
         )}
 
         <div className="grid gap-2">
@@ -242,30 +246,26 @@ export function SslSection() {
         </div>
 
         {dnsStatus && (
-          <div
-            className={`flex items-start gap-2 rounded-md p-3 ${
-              dnsStatus.valid
-                ? "bg-green-900/20 text-green-400"
-                : "bg-red-900/20 text-red-400"
-            }`}
+          <StatusNotice
+            tone={dnsStatus.valid ? "success" : "danger"}
+            icon={
+              dnsStatus.valid ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )
+            }
           >
             {dnsStatus.valid ? (
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>DNS configured correctly</span>
             ) : (
-              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Domain points to {dnsStatus.domainIp || "nothing"}.
+                <br />
+                Expected: {dnsStatus.serverIp}
+              </span>
             )}
-            <div className="text-sm">
-              {dnsStatus.valid ? (
-                <span>DNS configured correctly</span>
-              ) : (
-                <span>
-                  Domain points to {dnsStatus.domainIp || "nothing"}.
-                  <br />
-                  Expected: {dnsStatus.serverIp}
-                </span>
-              )}
-            </div>
-          </div>
+          </StatusNotice>
         )}
 
         <div className="grid gap-2">

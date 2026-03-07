@@ -1,7 +1,7 @@
 "use client";
 
 import { GitBranch, Github, Package } from "lucide-react";
-import { StatusDot } from "@/components/status-dot";
+import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
 import type { Service } from "@/lib/api";
 import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
 import { getGitHubRepoFromUrl } from "@/lib/service-url";
@@ -32,7 +32,10 @@ export function ServiceContent({
           <div className="flex items-center justify-between">
             <p className="font-medium text-neutral-200">{service.name}</p>
             <div className="flex items-center gap-1.5">
-              <StatusDot status={deployment?.status || "pending"} />
+              <ServiceRuntimeIndicator
+                runtimeStatus={service.runtimeStatus}
+                attentionStatus={service.attentionStatus}
+              />
               {(service.replicaCount ?? 1) > 1 && (
                 <span className="text-[10px] font-medium text-neutral-500">
                   ×{service.replicaCount}

@@ -1,11 +1,12 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import { projectsSchema } from "@/lib/db-schemas";
 import {
-  deploymentsSchema,
-  projectsSchema,
-  servicesSchema,
-} from "@/lib/db-schemas";
-import { envVarSchema } from "./shared";
+  envVarSchema,
+  serviceAttentionStatusSchema,
+  serviceRuntimeStatusSchema,
+  serviceWithDeploymentSchema,
+} from "./shared";
 
 const latestDeploymentSchema = z.object({
   status: z.string(),
@@ -20,7 +21,8 @@ const projectListServiceSchema = z.object({
   icon: z.string().nullable(),
   imageUrl: z.string().nullable(),
   deployType: z.string(),
-  status: z.string().nullable(),
+  runtimeStatus: serviceRuntimeStatusSchema,
+  attentionStatus: serviceAttentionStatusSchema,
 });
 
 const projectListItemSchema = projectsSchema.extend({
@@ -29,10 +31,6 @@ const projectListItemSchema = projectsSchema.extend({
   repoUrl: z.string().nullable(),
   runningUrl: z.string().nullable(),
   services: z.array(projectListServiceSchema),
-});
-
-const serviceWithDeploymentSchema = servicesSchema.extend({
-  latestDeployment: deploymentsSchema.nullable(),
 });
 
 const projectWithServicesSchema = projectsSchema.extend({

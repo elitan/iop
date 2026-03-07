@@ -32,4 +32,22 @@ describe("getCurrentDeployment", () => {
 
     expect(result?.id).toBe("d-3");
   });
+
+  test("keeps older running deployment when latest deploy failed", () => {
+    const result = getCurrentDeployment({ currentDeploymentId: "d-1" }, [
+      deployment("d-2", "failed"),
+      deployment("d-1", "running"),
+    ]);
+
+    expect(result?.id).toBe("d-1");
+  });
+
+  test("returns in-progress deployment when current id is missing", () => {
+    const result = getCurrentDeployment({ currentDeploymentId: null }, [
+      deployment("d-2", "failed"),
+      deployment("d-3", "deploying"),
+    ]);
+
+    expect(result?.id).toBe("d-3");
+  });
 });

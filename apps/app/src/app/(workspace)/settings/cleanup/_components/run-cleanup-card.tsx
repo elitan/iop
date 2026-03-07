@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Loader2, Play, XCircle } from "lucide-react";
 import { SettingCard } from "@/components/setting-card";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import type { CleanupSettings } from "./use-cleanup-settings";
 
@@ -59,24 +60,18 @@ export function RunCleanupCard({
     >
       <div className="space-y-4">
         {settings.lastResult && (
-          <div
-            className={`rounded-md p-3 ${
-              settings.lastResult.success
-                ? "bg-green-900/20 text-green-400"
-                : "bg-red-900/20 text-red-400"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {settings.lastResult.success ? (
+          <StatusNotice
+            tone={settings.lastResult.success ? "success" : "danger"}
+            icon={
+              settings.lastResult.success ? (
                 <CheckCircle2 className="h-5 w-5" />
               ) : (
                 <XCircle className="h-5 w-5" />
-              )}
-              <span className="font-medium">
-                Last run: {formatDate(settings.lastRun)}
-              </span>
-            </div>
-            <div className="mt-2 text-sm">
+              )
+            }
+            heading={`Last run: ${formatDate(settings.lastRun)}`}
+          >
+            <div>
               <p>
                 Freed: {formatBytes(settings.lastResult.freedBytes)} •{" "}
                 {settings.lastResult.deletedImages.length} images •{" "}
@@ -96,7 +91,7 @@ export function RunCleanupCard({
                 </p>
               )}
             </div>
-          </div>
+          </StatusNotice>
         )}
 
         {!settings.lastResult && (

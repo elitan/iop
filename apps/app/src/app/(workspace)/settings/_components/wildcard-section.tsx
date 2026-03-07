@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,19 +175,21 @@ export function WildcardSection() {
         )}
 
         {config?.configured && config.wildcardDomain && (
-          <div className="flex items-center gap-2 rounded-md bg-green-900/20 p-3 text-green-400">
-            <CheckCircle2 className="h-5 w-5" />
+          <StatusNotice
+            tone="success"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+          >
             <span>
               Wildcard configured for <strong>*.{config.wildcardDomain}</strong>
             </span>
-          </div>
+          </StatusNotice>
         )}
 
         {success && (
-          <div className="rounded-md bg-green-900/20 p-3 text-green-400">
+          <StatusNotice tone="success">
             Wildcard domain configured successfully! New services will
             automatically get subdomains.
-          </div>
+          </StatusNotice>
         )}
 
         {settings?.serverIp && (
@@ -317,25 +320,22 @@ export function WildcardSection() {
         )}
 
         {tokenValid !== null && (
-          <div
-            className={`flex items-center gap-2 rounded-md p-3 ${
-              tokenValid
-                ? "bg-green-900/20 text-green-400"
-                : "bg-red-900/20 text-red-400"
-            }`}
-          >
-            {tokenValid ? (
-              <>
+          <StatusNotice
+            tone={tokenValid ? "success" : "danger"}
+            icon={
+              tokenValid ? (
                 <CheckCircle2 className="h-4 w-4" />
-                <span>API token is valid</span>
-              </>
-            ) : (
-              <>
+              ) : (
                 <XCircle className="h-4 w-4" />
-                <span>Invalid or inactive API token</span>
-              </>
-            )}
-          </div>
+              )
+            }
+          >
+            <span>
+              {tokenValid
+                ? "API token is valid"
+                : "Invalid or inactive API token"}
+            </span>
+          </StatusNotice>
         )}
 
         {error && <p className="text-sm text-red-400">{error}</p>}

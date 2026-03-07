@@ -42,7 +42,6 @@ export const projects = {
         const servicesWithDeployments =
           await addLatestDeploymentsWithRuntimeStatus(services);
 
-        const latestDeploymentByService: Record<string, string | null> = {};
         let latestDeployment: {
           status: string;
           commitMessage: string | null;
@@ -53,7 +52,6 @@ export const projects = {
 
         for (const service of servicesWithDeployments) {
           const deployment = service.latestDeployment;
-          latestDeploymentByService[service.id] = deployment?.status ?? null;
 
           if (deployment?.status === "running" && deployment.hostPort) {
             runningHostPort = deployment.hostPort;
@@ -95,13 +93,14 @@ export const projects = {
             : null,
           repoUrl,
           runningUrl,
-          services: services.map((s) => ({
-            id: s.id,
-            name: s.name,
-            icon: s.icon,
-            imageUrl: s.imageUrl,
-            deployType: s.deployType,
-            status: latestDeploymentByService[s.id] ?? null,
+          services: servicesWithDeployments.map((service) => ({
+            id: service.id,
+            name: service.name,
+            icon: service.icon,
+            imageUrl: service.imageUrl,
+            deployType: service.deployType,
+            runtimeStatus: service.runtimeStatus,
+            attentionStatus: service.attentionStatus,
           })),
         };
       }),

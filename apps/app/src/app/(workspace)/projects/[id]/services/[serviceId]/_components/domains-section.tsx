@@ -17,6 +17,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { StatusBadge } from "@/components/status-badge";
+import { StatusNotice } from "@/components/status-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -282,9 +284,9 @@ export function DomainsSection({
       </CardHeader>
       <CardContent>
         {!hasRunningDeployment && domains && domains.length > 0 && (
-          <div className="mb-4 rounded-md bg-yellow-900/20 p-3 text-sm text-yellow-400">
+          <StatusNotice tone="warning" className="mb-4">
             No running deployment. Domains won't work until service is deployed.
-          </div>
+          </StatusNotice>
         )}
 
         {showAddForm && (
@@ -552,20 +554,13 @@ function DomainStatusDisplay({
   onRetrySsl: () => void;
 }): React.ReactNode {
   if (isVerified && isActive) {
-    return (
-      <span className="text-xs text-neutral-400">Valid Configuration</span>
-    );
+    return <StatusBadge tone="success">Valid configuration</StatusBadge>;
   }
 
   if (isVerified && isFailed) {
     return (
       <span className="flex items-center gap-2">
-        <Badge
-          variant="outline"
-          className="border-red-800 bg-red-900/30 text-red-400 text-xs"
-        >
-          Certificate Failed
-        </Badge>
+        <StatusBadge tone="danger">Certificate failed</StatusBadge>
         <Button
           variant="ghost"
           size="sm"
@@ -581,10 +576,12 @@ function DomainStatusDisplay({
 
   if (isVerified) {
     return (
-      <span className="flex items-center gap-1 text-xs text-neutral-400">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Requesting certificate...
-      </span>
+      <StatusBadge tone="info">
+        <span className="flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Requesting certificate...
+        </span>
+      </StatusBadge>
     );
   }
 
@@ -594,10 +591,12 @@ function DomainStatusDisplay({
 
   if (verificationState?.isChecking) {
     return (
-      <span className="flex items-center gap-1 text-xs text-neutral-400">
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Checking DNS...
-      </span>
+      <StatusBadge tone="info">
+        <span className="flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Checking DNS...
+        </span>
+      </StatusBadge>
     );
   }
 
@@ -607,34 +606,23 @@ function DomainStatusDisplay({
 
   if (showAttemptCount && verificationState.lastError === "wrong_ip") {
     return (
-      <Badge
-        variant="outline"
-        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
-      >
+      <StatusBadge tone="warning">
         DNS points to {verificationState.domainIp}, expected {serverIp}
-      </Badge>
+      </StatusBadge>
     );
   }
 
   if (showAttemptCount) {
     return (
-      <Badge
-        variant="outline"
-        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
-      >
+      <StatusBadge tone="warning">
         Waiting for DNS propagation (attempt {verificationState.attemptCount})
-      </Badge>
+      </StatusBadge>
     );
   }
 
   return (
     <>
-      <Badge
-        variant="outline"
-        className="border-yellow-800 bg-yellow-900/30 text-yellow-400 text-xs"
-      >
-        Verification Needed
-      </Badge>
+      <StatusBadge tone="warning">Verification needed</StatusBadge>
       <Button
         variant="ghost"
         size="sm"
@@ -674,7 +662,7 @@ function DomainRow({
       <div className="flex items-center justify-between p-3">
         <div className="flex items-center gap-3">
           {isVerified ? (
-            <CheckCircle2 className="h-4 w-4 text-blue-500" />
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
           ) : (
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
           )}

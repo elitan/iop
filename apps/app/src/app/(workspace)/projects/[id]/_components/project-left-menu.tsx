@@ -8,10 +8,11 @@ import { BrandLockup } from "@/components/brand-lockup";
 import { EnvironmentPicker } from "@/components/environment-picker";
 import { LeftMenuFooter } from "@/components/left-menu-footer";
 import { ProjectPicker } from "@/components/project-picker";
+import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
 import { ShellTopRow } from "@/components/shell-top-row";
-import { StatusDot } from "@/components/status-dot";
 import { useDatabases } from "@/hooks/use-databases";
 import { useProject, useProjects } from "@/hooks/use-projects";
+import type { Service } from "@/lib/api";
 import { api } from "@/lib/api";
 import {
   DATABASE_LOGO_FALLBACK,
@@ -55,7 +56,8 @@ interface ResourceListItemProps {
   iconFallback: string;
   name: string;
   subtitle: string;
-  status: string;
+  runtimeStatus?: Service["runtimeStatus"];
+  attentionStatus?: Service["attentionStatus"];
 }
 
 function ResourceListItem({
@@ -65,7 +67,8 @@ function ResourceListItem({
   iconFallback,
   name,
   subtitle,
-  status,
+  runtimeStatus,
+  attentionStatus,
 }: ResourceListItemProps) {
   return (
     <Link href={href} className={getResourceItemClass(isActive)}>
@@ -83,7 +86,13 @@ function ResourceListItem({
           </span>
           <span className="truncate text-sm text-neutral-100">{name}</span>
         </div>
-        <StatusDot status={status} className="shrink-0" />
+        {runtimeStatus ? (
+          <ServiceRuntimeIndicator
+            runtimeStatus={runtimeStatus}
+            attentionStatus={attentionStatus}
+            className="shrink-0"
+          />
+        ) : null}
       </div>
       <p className="mt-1 truncate text-xs text-neutral-500">{subtitle}</p>
     </Link>
@@ -257,12 +266,11 @@ export function ProjectLeftMenu({
           {hasResources && (
             <div className="space-y-1">
               {services.map(function renderService(service) {
-                const deployment = service.latestDeployment;
                 const serviceIcon = getServiceIcon(service) ?? FALLBACK_ICON;
                 const url =
                   domains[service.id] ||
-                  (serverIp && deployment?.hostPort
-                    ? `${serverIp}:${deployment.hostPort}`
+                  (serverIp && service.latestDeployment?.hostPort
+                    ? `${serverIp}:${service.latestDeployment.hostPort}`
                     : null);
                 const href = currentEnvId
                   ? `/projects/${projectId}/environments/${currentEnvId}/services/${service.id}`
@@ -276,7 +284,8 @@ export function ProjectLeftMenu({
                     iconFallback={FALLBACK_ICON}
                     name={service.name}
                     subtitle={url ?? "no public url"}
-                    status={deployment?.status ?? "pending"}
+                    runtimeStatus={service.runtimeStatus}
+                    attentionStatus={service.attentionStatus}
                   />
                 );
               })}
@@ -294,7 +303,6 @@ export function ProjectLeftMenu({
                     iconFallback={DATABASE_LOGO_FALLBACK}
                     name={database.name}
                     subtitle={`${database.engine} · manual`}
-                    status="ok"
                   />
                 );
               })}

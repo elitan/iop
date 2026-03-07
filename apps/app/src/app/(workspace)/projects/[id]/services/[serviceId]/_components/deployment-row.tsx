@@ -1,5 +1,5 @@
 import { GitBranch, GitCommit, RotateCcw } from "lucide-react";
-import { StatusDot } from "@/components/status-dot";
+import { DeploymentStatusIndicator } from "@/components/deployment-status-indicator";
 import { formatDuration, getTimeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +107,7 @@ export function DeploymentRow({
       <div className="flex items-center gap-4">
         <div className="w-20 shrink-0">
           <div className="flex items-center gap-2">
-            <StatusDot status={status} showLabel />
+            <DeploymentStatusIndicator status={status} showLabel />
           </div>
           <div className="text-xs text-neutral-500 mt-0.5">
             {inProgress ? elapsed : duration}

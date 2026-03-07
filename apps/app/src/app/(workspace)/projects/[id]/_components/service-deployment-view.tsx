@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
+import { DeploymentStatusIndicator } from "@/components/deployment-status-indicator";
 import { LogViewer } from "@/components/log-viewer";
-import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBuildLogs } from "@/hooks/use-build-logs";
@@ -102,7 +102,7 @@ export function ServiceDeploymentView({
             {service.name}
           </p>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
-            <StatusDot status={deployment.status} />
+            <DeploymentStatusIndicator status={deployment.status} />
             <span className="font-mono">
               {deployment.commitSha?.slice(0, 7) || deployment.id.slice(0, 7)}
             </span>
@@ -114,7 +114,7 @@ export function ServiceDeploymentView({
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="mb-3 flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
           <div className="flex items-center gap-2 text-sm text-neutral-300">
-            <StatusDot status={deployment.status} showLabel />
+            <DeploymentStatusIndicator status={deployment.status} showLabel />
             <span className="text-neutral-500">Build logs</span>
           </div>
           {replicas.length > 1 && (
@@ -142,7 +142,7 @@ export function ServiceDeploymentView({
                     <span className="w-4 text-neutral-400">
                       {replica.replicaIndex}
                     </span>
-                    <StatusDot
+                    <DeploymentStatusIndicator
                       status={replicaStatusToDotStatus(replica.status)}
                     />
                     {replica.hostPort && (

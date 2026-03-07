@@ -11,6 +11,19 @@ export const volumeConfigSchema = z.object({
   path: z.string().startsWith("/"),
 });
 
+export const serviceRuntimeStatusSchema = z.enum([
+  "not-deployed",
+  "starting",
+  "online",
+  "offline",
+]);
+
+export const serviceAttentionStatusSchema = z
+  .enum(["updating", "last-deploy-failed"])
+  .nullable();
+
 export const serviceWithDeploymentSchema = servicesSchema.extend({
   latestDeployment: deploymentsSchema.nullable(),
+  runtimeStatus: serviceRuntimeStatusSchema,
+  attentionStatus: serviceAttentionStatusSchema,
 });

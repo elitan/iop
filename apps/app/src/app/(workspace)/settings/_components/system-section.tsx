@@ -14,6 +14,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DemoModeAlert } from "@/components/demo-mode-alert";
 import { SettingCard } from "@/components/setting-card";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
@@ -197,28 +198,26 @@ export function SystemSection() {
         )}
 
         {updateState === "restarting" && (
-          <div className="flex items-center gap-2 rounded-md bg-blue-900/20 p-3 text-blue-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <div>
-              <span>Server restarting...</span>
-              <p className="text-xs text-neutral-400">
-                This may take up to 2 minutes.
-              </p>
-            </div>
-          </div>
+          <StatusNotice
+            tone="info"
+            icon={<Loader2 className="h-5 w-5 animate-spin" />}
+            heading="Server restarting..."
+          >
+            <p>This may take up to 2 minutes.</p>
+          </StatusNotice>
         )}
 
         {updateState === "success" && (
-          <div className="rounded-md bg-green-900/20 p-3 text-green-400">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Update complete!</span>
-            </div>
+          <StatusNotice
+            tone="success"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            heading="Update complete!"
+          >
             {previousVersion &&
               (updateResult?.newVersion || status?.currentVersion) &&
               previousVersion !==
                 (updateResult?.newVersion || status?.currentVersion) && (
-                <p className="mt-1 text-sm">
+                <p>
                   v{previousVersion} → v
                   {updateResult?.newVersion || status?.currentVersion}
                 </p>
@@ -237,16 +236,16 @@ export function SystemSection() {
                 View update log
               </button>
             )}
-          </div>
+          </StatusNotice>
         )}
 
         {updateState === "failed" && (
-          <div className="rounded-md bg-red-900/20 p-3 text-red-400">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5" />
-              <span className="font-medium">Update failed</span>
-            </div>
-            {error && <p className="mt-1 text-sm">{error}</p>}
+          <StatusNotice
+            tone="danger"
+            icon={<XCircle className="h-5 w-5" />}
+            heading="Update failed"
+          >
+            {error ? <p>{error}</p> : null}
             {updateResult?.log && (
               <button
                 type="button"
@@ -261,7 +260,7 @@ export function SystemSection() {
                 View update log
               </button>
             )}
-          </div>
+          </StatusNotice>
         )}
 
         {showLog && updateResult?.log && (
@@ -301,13 +300,10 @@ export function SystemSection() {
             </div>
 
             {status?.updateAvailable && status.latestVersion && (
-              <div className="rounded-lg border border-blue-800 bg-blue-900/20 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-blue-400">
-                    Update Available: v{status.latestVersion}
-                  </p>
-                </div>
-
+              <StatusNotice
+                tone="info"
+                heading={`Update available: v${status.latestVersion}`}
+              >
                 {status.changelog?.includes("MIGRATIONS") && (
                   <div className="mt-3 flex items-start gap-2 rounded bg-yellow-900/30 p-2 text-yellow-400">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -317,16 +313,16 @@ export function SystemSection() {
                     </p>
                   </div>
                 )}
-              </div>
+              </StatusNotice>
             )}
 
             {status && !status.updateAvailable && (
-              <div className="flex items-center gap-2 text-green-400">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm">
-                  You're running the latest version
-                </span>
-              </div>
+              <StatusNotice
+                tone="success"
+                icon={<CheckCircle2 className="h-4 w-4" />}
+              >
+                <span>You're running the latest version</span>
+              </StatusNotice>
             )}
 
             {error && <p className="text-sm text-red-400">{error}</p>}

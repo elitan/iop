@@ -13,7 +13,8 @@ import {
   Rocket,
 } from "lucide-react";
 import { toast } from "sonner";
-import { StatusDot } from "@/components/status-dot";
+import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
+import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -92,6 +93,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
 
   const { data: deployments = [] } = useDeployments(service.id);
   const currentDeployment = getCurrentDeployment(service, deployments);
+  const latestDeployment = service.latestDeployment;
 
   const { data: tcpProxy } = useQuery({
     queryKey: ["tcp-proxy", service.id],
@@ -133,7 +135,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
 
   const githubRepo = getGitHubRepoFromUrl(service.repoUrl);
 
-  if (!currentDeployment) {
+  if (!latestDeployment) {
     return (
       <Card className="border-blue-500/30 bg-blue-950/20">
         <CardContent className="py-6">
@@ -170,13 +172,20 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
     );
   }
 
+  const visibleDeployment = currentDeployment ?? latestDeployment;
+
   return (
     <div className="space-y-4 ">
       <Card className="bg-neutral-800 border-neutral-700">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <StatusDot status={currentDeployment.status} showLabel />
+            <ServiceRuntimeIndicator
+              runtimeStatus={service.runtimeStatus}
+              attentionStatus={service.attentionStatus}
+              showLabel
+            />
             {service.serviceType !== "database" &&
+              currentDeployment &&
               (preferredDomain || currentDeployment.hostPort) && (
                 <a
                   href={
@@ -194,7 +203,25 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
               )}
           </div>
 
+          {!currentDeployment ? (
+            <StatusNotice
+              tone={service.runtimeStatus === "starting" ? "info" : "danger"}
+              heading={
+                service.runtimeStatus === "starting"
+                  ? "Deployment in progress"
+                  : "Service offline"
+              }
+              className="mb-3"
+            >
+              {service.runtimeStatus === "starting"
+                ? "Latest deployment is still starting."
+                : latestDeployment.errorMessage ||
+                  "No deployment is serving traffic right now."}
+            </StatusNotice>
+          ) : null}
+
           {service.serviceType !== "database" &&
+            currentDeployment &&
             (preferredDomain || currentDeployment.hostPort) && (
               <a
                 href={
@@ -226,26 +253,26 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
             </span>
           )}
 
-          {service.deployType === "repo" && currentDeployment.commitSha && (
+          {service.deployType === "repo" && visibleDeployment.commitSha && (
             <div className="mb-2">
               {githubRepo ? (
                 <a
-                  href={`https://github.com/${githubRepo}/commit/${currentDeployment.commitSha}`}
+                  href={`https://github.com/${githubRepo}/commit/${visibleDeployment.commitSha}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 font-mono text-xs text-neutral-500 hover:text-neutral-300"
                 >
-                  {currentDeployment.commitSha}
+                  {visibleDeployment.commitSha}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               ) : (
                 <span className="font-mono text-xs text-neutral-500">
-                  {currentDeployment.commitSha}
+                  {visibleDeployment.commitSha}
                 </span>
               )}
-              {currentDeployment.commitMessage && (
+              {visibleDeployment.commitMessage && (
                 <p className="mt-1 text-sm text-neutral-400">
-                  {currentDeployment.commitMessage}
+                  {visibleDeployment.commitMessage}
                 </p>
               )}
             </div>
@@ -253,7 +280,7 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
 
           <div className="flex items-center gap-1.5 text-xs text-neutral-500">
             <span>
-              Deployed {getTimeAgo(new Date(currentDeployment.createdAt))}
+              Deployed {getTimeAgo(new Date(visibleDeployment.createdAt))}
             </span>
             {service.deployType === "repo" && (
               <>
