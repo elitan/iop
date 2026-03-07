@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { promisify } from "node:util";
 
 import { db } from "./db";
+import { runCommand } from "./process-runner";
 import { buildDockerRunArgs, shellEscape } from "./shell-escape";
 
 const execAsync = promisify(exec);
@@ -31,6 +32,7 @@ export interface BuildImageOptions {
   envVars?: Record<string, string>;
   labels?: Record<string, string>;
   onData?: (chunk: string) => void;
+  timeoutMs?: number;
 }
 
 export async function buildImage(
@@ -57,66 +59,58 @@ export async function buildImage(
     envVars,
     labels,
     onData,
+    timeoutMs,
   } = options;
 
   if (await imageExists(imageName)) {
     await removeImage(imageName);
   }
 
-  return new Promise((resolve) => {
-    let log = "";
-    const contextPath = buildContext ? join(repoPath, buildContext) : repoPath;
-    const resolvedDockerfile = buildContext
-      ? relative(contextPath, join(repoPath, dockerfilePath))
-      : dockerfilePath;
-    const args = ["build", "-t", imageName, "-f", resolvedDockerfile];
-    if (envVars) {
-      for (const [key, value] of Object.entries(envVars)) {
-        args.push("--build-arg", `${key}=${value}`);
-      }
+  const contextPath = buildContext ? join(repoPath, buildContext) : repoPath;
+  const resolvedDockerfile = buildContext
+    ? relative(contextPath, join(repoPath, dockerfilePath))
+    : dockerfilePath;
+  const args = ["build", "-t", imageName, "-f", resolvedDockerfile];
+  if (envVars) {
+    for (const [key, value] of Object.entries(envVars)) {
+      args.push("--build-arg", `${key}=${value}`);
     }
-    if (labels) {
-      for (const [key, value] of Object.entries(labels)) {
-        args.push("--label", `${key}=${value}`);
-      }
+  }
+  if (labels) {
+    for (const [key, value] of Object.entries(labels)) {
+      args.push("--label", `${key}=${value}`);
     }
-    args.push(".");
-    const proc = spawn("docker", args, {
-      cwd: contextPath,
-    });
+  }
+  args.push(".");
 
-    proc.stdout.on("data", (data) => {
-      const chunk = data.toString();
-      log += chunk;
-      onData?.(chunk);
-    });
-
-    proc.stderr.on("data", (data) => {
-      const chunk = data.toString();
-      log += chunk;
-      onData?.(chunk);
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve({ success: true, imageName, log });
-      } else {
-        resolve({
-          success: false,
-          imageName,
-          log,
-          error: `Build exited with code ${code}`,
-        });
-      }
-    });
-
-    proc.on("error", (err) => {
-      resolve({ success: false, imageName, log, error: err.message });
-    });
+  const result = await runCommand({
+    command: "docker",
+    args,
+    cwd: contextPath,
+    timeoutMs,
+    onData,
   });
+
+  if (result.code === 0 && !result.timedOut) {
+    return { success: true, imageName, log: result.output };
+  }
+
+  return {
+    success: false,
+    imageName,
+    log: result.output,
+    error: result.error || `Build exited with code ${result.code}`,
+  };
 }
 
-export async function pullImage(imageName: string): Promise<BuildResult> {
+export interface PullImageOptions {
+  timeoutMs?: number;
+}
+
+export async function pullImage(
+  imageName: string,
+  options: PullImageOptions = {},
+): Promise<BuildResult> {
   const retryCount = parseEnvInt("FROST_IMAGE_PULL_RETRIES", 3, 1);
   const backoffMs = parseEnvInt("FROST_IMAGE_PULL_BACKOFF_MS", 2000, 0);
   const maxBackoffMs = parseEnvInt(
@@ -129,13 +123,29 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
   let combinedLog = "";
   let lastError = "Pull failed";
   let lastFailureClass = "unknown";
+  const startedAt = Date.now();
 
   for (let attempt = 1; attempt <= retryCount; attempt++) {
+    const remainingTimeoutMs = getRemainingTimeout(
+      options.timeoutMs,
+      startedAt,
+    );
+    if (remainingTimeoutMs !== undefined && remainingTimeoutMs <= 0) {
+      lastError = `Pull timed out after ${options.timeoutMs}ms`;
+      lastFailureClass = "infra/timeout";
+      combinedLog += `[pull-attempt ${attempt}/${retryCount}] failed class=${lastFailureClass} error=${lastError}\n`;
+      break;
+    }
+
     const pullCmd = hostPlatform
       ? `docker pull --platform ${hostPlatform} ${imageName}`
       : `docker pull ${imageName}`;
     combinedLog += `\n[pull-attempt ${attempt}/${retryCount}] ${pullCmd}\n`;
-    const attemptResult = await runDockerPull(imageName, hostPlatform);
+    const attemptResult = await runDockerPull(
+      imageName,
+      hostPlatform,
+      remainingTimeoutMs,
+    );
     const failureClass = classifyPullFailure(
       attemptResult.log,
       attemptResult.error,
@@ -203,41 +213,15 @@ export async function pullImage(imageName: string): Promise<BuildResult> {
 function runDockerPull(
   imageName: string,
   platform?: string | null,
+  timeoutMs?: number,
 ): Promise<{ success: boolean; log: string; error?: string; code?: number }> {
-  return new Promise((resolve) => {
-    let log = "";
-    const args = ["pull"];
-    if (platform) {
-      args.push("--platform", platform);
-    }
-    args.push(imageName);
-    const proc = spawn("docker", args);
+  const args = ["pull"];
+  if (platform) {
+    args.push("--platform", platform);
+  }
+  args.push(imageName);
 
-    proc.stdout.on("data", (data) => {
-      log += data.toString();
-    });
-
-    proc.stderr.on("data", (data) => {
-      log += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve({ success: true, log });
-      } else {
-        resolve({
-          success: false,
-          log,
-          error: `Pull exited with code ${code}`,
-          code: code ?? undefined,
-        });
-      }
-    });
-
-    proc.on("error", (err) => {
-      resolve({ success: false, log, error: err.message });
-    });
-  });
+  return runDockerCommand(args, timeoutMs);
 }
 
 export function classifyPullFailure(log: string, error?: string): string {
@@ -377,6 +361,39 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function getRemainingTimeout(
+  timeoutMs: number | undefined,
+  startedAt: number,
+): number | undefined {
+  if (!timeoutMs) {
+    return undefined;
+  }
+
+  return timeoutMs - (Date.now() - startedAt);
+}
+
+async function runDockerCommand(
+  args: string[],
+  timeoutMs?: number,
+): Promise<{ success: boolean; log: string; error?: string; code?: number }> {
+  const result = await runCommand({
+    command: "docker",
+    args,
+    timeoutMs,
+  });
+
+  if (result.code === 0 && !result.timedOut) {
+    return { success: true, log: result.output };
+  }
+
+  return {
+    success: false,
+    log: result.output,
+    error: result.error || `Command exited with code ${result.code}`,
+    code: result.code ?? undefined,
+  };
+}
+
 export function getRegistryUrl(type: string, customUrl: string | null): string {
   if (type === "ghcr") return "ghcr.io";
   if (type === "dockerhub") return "docker.io";
@@ -393,40 +410,24 @@ export async function dockerLogin(
   registryUrl: string,
   username: string,
   password: string,
+  timeoutMs?: number,
 ): Promise<DockerLoginResult> {
-  return new Promise((resolve) => {
-    const proc = spawn("docker", [
-      "login",
-      "-u",
-      username,
-      "--password-stdin",
-      registryUrl,
-    ]);
-
-    let stderr = "";
-
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    proc.stdin.write(password);
-    proc.stdin.end();
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve({ success: true });
-      } else {
-        resolve({
-          success: false,
-          error: stderr || `Login failed with code ${code}`,
-        });
-      }
-    });
-
-    proc.on("error", (err) => {
-      resolve({ success: false, error: err.message });
-    });
+  const result = await runCommand({
+    command: "docker",
+    args: ["login", "-u", username, "--password-stdin", registryUrl],
+    stdin: password,
+    timeoutMs,
   });
+
+  if (result.code === 0 && !result.timedOut) {
+    return { success: true };
+  }
+
+  return {
+    success: false,
+    error:
+      result.error || result.stderr || `Login failed with code ${result.code}`,
+  };
 }
 
 export interface VolumeMount {
@@ -455,40 +456,31 @@ export interface RunContainerOptions {
   memoryLimit?: string;
   cpuLimit?: number;
   shutdownTimeout?: number;
+  timeoutMs?: number;
 }
 
 export async function runContainer(
   options: RunContainerOptions,
 ): Promise<RunResult> {
   const args = buildDockerRunArgs(options);
-  return new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    const proc = spawn("docker", args);
-
-    proc.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-    proc.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve({ success: true, containerId: stdout.trim() });
-      } else {
-        resolve({
-          success: false,
-          containerId: "",
-          error: stderr || `docker run exited with code ${code}`,
-        });
-      }
-    });
-
-    proc.on("error", (err) => {
-      resolve({ success: false, containerId: "", error: err.message });
-    });
+  const result = await runCommand({
+    command: "docker",
+    args,
+    timeoutMs: options.timeoutMs,
   });
+
+  if (result.code === 0 && !result.timedOut) {
+    return { success: true, containerId: result.stdout.trim() };
+  }
+
+  return {
+    success: false,
+    containerId: "",
+    error:
+      result.error ||
+      result.stderr ||
+      `docker run exited with code ${result.code}`,
+  };
 }
 
 export async function stopContainer(name: string): Promise<void> {
@@ -824,7 +816,7 @@ export function streamContainerLogs(
     }
   });
 
-  proc.on("error", (err) => {
+  proc.on("error", (err: Error) => {
     onError(err);
   });
 

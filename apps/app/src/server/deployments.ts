@@ -1,6 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { db } from "@/lib/db";
 import { rollbackDeployment } from "@/lib/deployer";
+import {
+  reconcileDeploymentRuntimeStatus,
+  reconcileDeploymentsRuntimeStatus,
+} from "@/lib/deployment-runtime";
 import { imageExists } from "@/lib/docker";
 import { assertDemoWriteAllowed } from "./demo-guards";
 import { os } from "./orpc";
@@ -17,18 +21,27 @@ export const deployments = {
       throw new ORPCError("NOT_FOUND", { message: "Deployment not found" });
     }
 
-    return deployment;
+    const reconciled = await reconcileDeploymentRuntimeStatus(deployment);
+    if (!reconciled) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message: "Failed to load deployment",
+      });
+    }
+
+    return reconciled;
   }),
 
   listByEnvironment: os.deployments.listByEnvironment.handler(
     async ({ input }) => {
-      return db
+      const deployments = await db
         .selectFrom("deployments")
         .selectAll()
         .where("environmentId", "=", input.environmentId)
         .orderBy("createdAt", "desc")
         .limit(50)
         .execute();
+
+      return reconcileDeploymentsRuntimeStatus(deployments);
     },
   ),
 

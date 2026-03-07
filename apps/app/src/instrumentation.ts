@@ -22,6 +22,18 @@ export async function register() {
     const { persistUpdateResult } = await import("./lib/updater");
     await persistUpdateResult();
 
+    const { failStaleInProgressDeployments } = await import(
+      "./lib/deployment-runtime"
+    );
+    const staleDeployments = await failStaleInProgressDeployments();
+    if (staleDeployments > 0) {
+      console.log(
+        `[startup] deployments: failed ${staleDeployments} stale in-progress deployment(s)`,
+      );
+    } else {
+      console.log("[startup] deployments: no stale in-progress deployments");
+    }
+
     const { startMetricsCollector } = await import("./lib/metrics-collector");
     startMetricsCollector();
     console.log("[startup] metrics collector: started");

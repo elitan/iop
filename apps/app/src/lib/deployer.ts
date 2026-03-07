@@ -1,4 +1,4 @@
-import { exec, spawn } from "node:child_process";
+import { exec } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -8,6 +8,11 @@ import { emitBuildLogChunk } from "./build-log-stream";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
+import {
+  createRemainingDeployTimeoutMsGetter,
+  getDeployTimeoutError,
+  getDeployTimeoutMs,
+} from "./deployment-timeout";
 import {
   type BuildResult,
   buildImage,
@@ -40,6 +45,7 @@ import {
 } from "./github";
 import { detectIcon, detectIconFromImage } from "./icon-detector";
 import { newDeploymentId, newReplicaId } from "./id";
+import { runCommand } from "./process-runner";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
@@ -630,6 +636,7 @@ interface StartReplicasOptions {
   memoryLimit?: string;
   cpuLimit?: number;
   shutdownTimeout?: number;
+  getRemainingTimeoutMs: () => number;
 }
 
 async function startReplicas(
@@ -700,6 +707,7 @@ async function startReplicas(
             memoryLimit: opts.memoryLimit,
             cpuLimit: opts.cpuLimit,
             shutdownTimeout: opts.shutdownTimeout,
+            timeoutMs: opts.getRemainingTimeoutMs(),
           },
           async ({ port, attempt, reason }) => {
             if (reason === "port-conflict") {
@@ -771,8 +779,18 @@ async function healthCheckReplicas(
   replicaCount: number,
   healthCheckPath: string | null,
   healthCheckTimeout: number | null,
+  getRemainingTimeoutMs: () => number,
 ): Promise<void> {
   const healthCheckType = healthCheckPath ? `HTTP ${healthCheckPath}` : "TCP";
+  const configuredTimeoutSeconds = healthCheckTimeout ?? 60;
+  const timeoutSeconds = Math.max(
+    1,
+    Math.min(
+      configuredTimeoutSeconds,
+      Math.floor(getRemainingTimeoutMs() / 1000),
+    ),
+  );
+  const hitDeployTimeout = timeoutSeconds < configuredTimeoutSeconds;
 
   if (replicaCount > 1) {
     await appendLog(
@@ -792,7 +810,7 @@ async function healthCheckReplicas(
         containerId: r.containerId,
         port: r.hostPort,
         path: healthCheckPath,
-        timeoutSeconds: healthCheckTimeout ?? 60,
+        timeoutSeconds,
       });
       return { ...r, isHealthy };
     }),
@@ -800,6 +818,10 @@ async function healthCheckReplicas(
 
   const failedReplicas = healthResults.filter((r) => !r.isHealthy);
   if (failedReplicas.length > 0) {
+    if (hitDeployTimeout) {
+      throw new Error(getDeployTimeoutError());
+    }
+
     for (const failed of failedReplicas) {
       const containerStatus = await getContainerStatus(failed.containerId);
       await appendLog(
@@ -1092,6 +1114,12 @@ async function runServiceDeployment(
   options?: DeployOptions,
 ) {
   let currentCommitSha = options?.commitSha || "HEAD";
+  const deployStartedAt = Date.now();
+  const deployTimeoutMs = getDeployTimeoutMs();
+  const getRemainingTimeoutMs = createRemainingDeployTimeoutMsGetter(
+    deployStartedAt,
+    deployTimeoutMs,
+  );
   const containerName = sanitizeDockerName(
     `frost-${service.id}-${deploymentId}`,
   );
@@ -1141,6 +1169,7 @@ async function runServiceDeployment(
           registryUrl,
           registry.username,
           password,
+          getRemainingTimeoutMs(),
         );
         if (!loginResult.success) {
           throw new Error(`Registry login failed: ${loginResult.error}`);
@@ -1149,7 +1178,9 @@ async function runServiceDeployment(
 
       await appendLog(deploymentId, `Pulling image ${imageName}...\n`);
 
-      const pullResult = await pullImage(imageName);
+      const pullResult = await pullImage(imageName, {
+        timeoutMs: getRemainingTimeoutMs(),
+      });
       await appendLog(deploymentId, pullResult.log);
 
       if (!pullResult.success) {
@@ -1229,14 +1260,15 @@ async function runServiceDeployment(
       }
 
       const cloneLogAppender = createLogChunkAppender(deploymentId);
-      let cloneResult: { output: string; code: number | null } | null = null;
+      let cloneResult: {
+        output: string;
+        code: number | null;
+        error?: string;
+      } | null = null;
       try {
-        cloneResult = await new Promise<{
-          output: string;
-          code: number | null;
-        }>((resolve, reject) => {
-          let output = "";
-          const proc = spawn("git", [
+        const result = await runCommand({
+          command: "git",
+          args: [
             "clone",
             "--depth",
             "1",
@@ -1244,22 +1276,17 @@ async function runServiceDeployment(
             branch,
             cloneUrl,
             repoPath,
-          ]);
-          proc.stdout.on("data", (data) => {
-            const chunk = data.toString();
-            output += chunk;
+          ],
+          timeoutMs: getRemainingTimeoutMs(),
+          onData(chunk) {
             cloneLogAppender.append(chunk);
-          });
-          proc.stderr.on("data", (data) => {
-            const chunk = data.toString();
-            output += chunk;
-            cloneLogAppender.append(chunk);
-          });
-          proc.on("close", (code) => {
-            resolve({ output, code });
-          });
-          proc.on("error", reject);
+          },
         });
+        cloneResult = {
+          output: result.output,
+          code: result.code,
+          error: result.error,
+        };
       } finally {
         await cloneLogAppender.flush();
       }
@@ -1273,7 +1300,8 @@ async function runServiceDeployment(
       }
       if (cloneResult.code !== 0) {
         throw new Error(
-          cloneResult.output ||
+          cloneResult.error ||
+            cloneResult.output ||
             `git clone exited with code ${cloneResult.code}`,
         );
       }
@@ -1343,6 +1371,7 @@ async function runServiceDeployment(
           buildContext: service.buildContext ?? undefined,
           envVars,
           labels: baseLabels,
+          timeoutMs: getRemainingTimeoutMs(),
           onData(chunk) {
             buildLogAppender.append(chunk);
           },
@@ -1486,6 +1515,7 @@ async function runServiceDeployment(
       memoryLimit: effectiveService.memoryLimit ?? undefined,
       cpuLimit: effectiveService.cpuLimit ?? undefined,
       shutdownTimeout: service.shutdownTimeout ?? undefined,
+      getRemainingTimeoutMs,
     });
 
     await healthCheckReplicas(
@@ -1494,6 +1524,7 @@ async function runServiceDeployment(
       replicaCount,
       effectiveService.healthCheckPath,
       effectiveService.healthCheckTimeout,
+      getRemainingTimeoutMs,
     );
 
     const firstReplica = startedReplicas[0];
@@ -1720,6 +1751,12 @@ async function runRollbackDeployment(
   environment: Selectable<Environments>,
   project: Selectable<Projects>,
 ) {
+  const rollbackStartedAt = Date.now();
+  const rollbackTimeoutMs = getDeployTimeoutMs();
+  const getRemainingTimeoutMs = createRemainingDeployTimeoutMsGetter(
+    rollbackStartedAt,
+    rollbackTimeoutMs,
+  );
   const containerName = sanitizeDockerName(
     `frost-${service.id}-${deploymentId}`,
   );
@@ -1811,6 +1848,7 @@ async function runRollbackDeployment(
       memoryLimit: service.memoryLimit ?? undefined,
       cpuLimit: service.cpuLimit ?? undefined,
       shutdownTimeout: service.shutdownTimeout ?? undefined,
+      getRemainingTimeoutMs,
     });
 
     await healthCheckReplicas(
@@ -1819,6 +1857,7 @@ async function runRollbackDeployment(
       replicaCount,
       sourceDeployment.healthCheckPath,
       sourceDeployment.healthCheckTimeout,
+      getRemainingTimeoutMs,
     );
 
     const firstReplica = startedReplicas[0];
