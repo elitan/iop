@@ -365,10 +365,7 @@ describe("zero-downtime deploy", () => {
       });
 
       const deploy2Id = await deployService(ZD_SERVICE_ID);
-      const status2 = await waitForDeploymentStatus(deploy2Id, [
-        "running",
-        "failed",
-      ]);
+      const status2 = await waitForDeploymentStatus(deploy2Id, ["failed"]);
       expect(status2).toBe("failed");
 
       const service = await db
