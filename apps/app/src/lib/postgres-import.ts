@@ -985,7 +985,7 @@ async function listSupportedExtensions(image: string): Promise<Set<string>> {
       image,
       "sh",
       "-lc",
-      'for f in /usr/local/share/postgresql/extension/*.control; do basename "$f" .control; done | sort',
+      'find /usr/local/share/postgresql /usr/share/postgresql -path "*/extension/*.control" -print 2>/dev/null | while read -r f; do basename "$f" .control; done | sort -u',
     ]);
 
     const extensionNames = result.stdout

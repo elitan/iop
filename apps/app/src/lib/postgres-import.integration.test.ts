@@ -137,6 +137,7 @@ describe("postgres import integration", () => {
 
     try {
       await runSourceSql("DROP TABLE IF EXISTS import_users;");
+      await runSourceSql("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
       await runSourceSql(
         "CREATE TABLE import_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);",
       );
@@ -150,6 +151,11 @@ describe("postgres import integration", () => {
         sourceUrl,
       });
       expect(preflightJob.stage).toBe("preflight");
+      expect(
+        preflightJob.checkResults.find(function findCheck(check) {
+          return check.key === "extensions";
+        })?.status,
+      ).toBe("ok");
 
       const importJob = await triggerDatabaseImport(preflightJob.id);
       databaseId = importJob.databaseId;
@@ -195,6 +201,15 @@ describe("postgres import integration", () => {
         sql: "SELECT count(*) FROM import_users;",
       });
       expect(importedCount).toBe("2");
+
+      const importedExtension = await readTargetValue({
+        containerName: providerRef.containerName,
+        username: targetConnection.username,
+        password: targetConnection.password,
+        database: targetConnection.database,
+        sql: "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm';",
+      });
+      expect(importedExtension).toBe("pg_trgm");
     } finally {
       if (databaseId) {
         await deleteDatabase(databaseId).catch(function ignore() {});
