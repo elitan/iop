@@ -758,6 +758,127 @@ export type ServiceDatabaseBindingsUpdate = z.infer<
   typeof serviceDatabaseBindingsUpdateSchema
 >;
 
+export const databaseImportJobsSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  databaseId: z.string().nullable(),
+  targetName: z.string(),
+  engine: z.enum(["postgres"]),
+  strategy: z.enum(["dump-restore", "logical-replication"]),
+  sourceUrlEncrypted: z.string().nullable(),
+  sourceHost: z.string(),
+  sourcePort: z.number(),
+  sourceDatabase: z.string(),
+  sourceUsername: z.string(),
+  sourceSslMode: z.string(),
+  stage: z.enum([
+    "source",
+    "preflight",
+    "target",
+    "importing",
+    "imported",
+    "verifying",
+    "ready-for-cutover",
+    "completed",
+    "failed",
+  ]),
+  progressStep: z.string().nullable(),
+  sourceSummaryJson: z.string(),
+  checkResultsJson: z.string(),
+  verifyResultJson: z.string(),
+  logText: z.string(),
+  errorMessage: z.string().nullable(),
+  cutoverConfirmedAt: z.number().nullable(),
+  completedAt: z.number().nullable(),
+  failedAt: z.number().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+export const newDatabaseImportJobsSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  databaseId: z.string().nullable(),
+  targetName: z.string(),
+  engine: z.enum(["postgres"]).optional(),
+  strategy: z.enum(["dump-restore", "logical-replication"]).optional(),
+  sourceUrlEncrypted: z.string().nullable().optional(),
+  sourceHost: z.string(),
+  sourcePort: z.number(),
+  sourceDatabase: z.string(),
+  sourceUsername: z.string(),
+  sourceSslMode: z.string(),
+  stage: z
+    .enum([
+      "source",
+      "preflight",
+      "target",
+      "importing",
+      "imported",
+      "verifying",
+      "ready-for-cutover",
+      "completed",
+      "failed",
+    ])
+    .optional(),
+  progressStep: z.string().nullable().optional(),
+  sourceSummaryJson: z.string().optional(),
+  checkResultsJson: z.string().optional(),
+  verifyResultJson: z.string().optional(),
+  logText: z.string().optional(),
+  errorMessage: z.string().nullable().optional(),
+  cutoverConfirmedAt: z.number().nullable().optional(),
+  completedAt: z.number().nullable().optional(),
+  failedAt: z.number().nullable().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+export const databaseImportJobsUpdateSchema = z.object({
+  id: z.string().optional(),
+  projectId: z.string().optional(),
+  databaseId: z.string().nullable().optional(),
+  targetName: z.string().optional(),
+  engine: z.enum(["postgres"]).optional(),
+  strategy: z.enum(["dump-restore", "logical-replication"]).optional(),
+  sourceUrlEncrypted: z.string().nullable().optional(),
+  sourceHost: z.string().optional(),
+  sourcePort: z.number().optional(),
+  sourceDatabase: z.string().optional(),
+  sourceUsername: z.string().optional(),
+  sourceSslMode: z.string().optional(),
+  stage: z
+    .enum([
+      "source",
+      "preflight",
+      "target",
+      "importing",
+      "imported",
+      "verifying",
+      "ready-for-cutover",
+      "completed",
+      "failed",
+    ])
+    .optional(),
+  progressStep: z.string().nullable().optional(),
+  sourceSummaryJson: z.string().optional(),
+  checkResultsJson: z.string().optional(),
+  verifyResultJson: z.string().optional(),
+  logText: z.string().optional(),
+  errorMessage: z.string().nullable().optional(),
+  cutoverConfirmedAt: z.number().nullable().optional(),
+  completedAt: z.number().nullable().optional(),
+  failedAt: z.number().nullable().optional(),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
+});
+
+export type DatabaseImportJobs = z.infer<typeof databaseImportJobsSchema>;
+export type NewDatabaseImportJobs = z.infer<typeof newDatabaseImportJobsSchema>;
+export type DatabaseImportJobsUpdate = z.infer<
+  typeof databaseImportJobsUpdateSchema
+>;
+
 export const databaseBackupConfigsSchema = z.object({
   databaseId: z.string(),
   enabled: z.boolean(),

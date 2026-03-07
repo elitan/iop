@@ -59,6 +59,33 @@ export interface DatabaseBackupConfigs {
   updatedAt: number;
 }
 
+export interface DatabaseImportJobs {
+  id: string;
+  projectId: string;
+  databaseId: string | null;
+  targetName: string;
+  engine: 'postgres';
+  strategy: Generated<'dump-restore' | 'logical-replication'>;
+  sourceUrlEncrypted: string | null;
+  sourceHost: string;
+  sourcePort: number;
+  sourceDatabase: string;
+  sourceUsername: string;
+  sourceSslMode: string;
+  stage: 'source' | 'preflight' | 'target' | 'importing' | 'imported' | 'verifying' | 'ready-for-cutover' | 'completed' | 'failed';
+  progressStep: string | null;
+  sourceSummaryJson: Generated<string>;
+  checkResultsJson: Generated<string>;
+  verifyResultJson: Generated<string>;
+  logText: Generated<string>;
+  errorMessage: string | null;
+  cutoverConfirmedAt: number | null;
+  completedAt: number | null;
+  failedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DatabaseTargetDeployments {
   id: string;
   targetId: string;
@@ -291,6 +318,7 @@ export interface DB {
   _Migrations: Migrations;
   apiKeys: ApiKeys;
   databaseBackupConfigs: DatabaseBackupConfigs;
+  databaseImportJobs: DatabaseImportJobs;
   databaseTargetDeployments: DatabaseTargetDeployments;
   databaseTargets: DatabaseTargets;
   databases: Databases;

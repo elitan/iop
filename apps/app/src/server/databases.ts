@@ -28,6 +28,15 @@ import {
   runPostgresBackup,
   testPostgresBackupConnection,
 } from "@/lib/postgres-backup-runner";
+import {
+  createDatabaseImportJob,
+  createDatabaseImportTarget,
+  getDatabaseImportJob,
+  listDatabaseImportJobs,
+  markDatabaseImportCutover,
+  triggerDatabaseImport,
+  triggerDatabaseImportVerify,
+} from "@/lib/postgres-import";
 import { os } from "./orpc";
 
 function toApiError(error: unknown) {
@@ -251,6 +260,72 @@ export const databases = {
       throw toApiError(error);
     }
   }),
+
+  createImportJob: os.databases.createImportJob.handler(async ({ input }) => {
+    try {
+      return await createDatabaseImportJob({
+        projectId: input.projectId,
+        targetName: input.targetName,
+        sourceUrl: input.sourceUrl,
+      });
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  getImportJob: os.databases.getImportJob.handler(async ({ input }) => {
+    try {
+      return await getDatabaseImportJob(input.jobId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  listImportJobs: os.databases.listImportJobs.handler(async ({ input }) => {
+    try {
+      return await listDatabaseImportJobs({
+        databaseId: input.databaseId,
+      });
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  createImportTarget: os.databases.createImportTarget.handler(
+    async ({ input }) => {
+      try {
+        return await createDatabaseImportTarget(input.jobId);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+  ),
+
+  runImportJob: os.databases.runImportJob.handler(async ({ input }) => {
+    try {
+      return await triggerDatabaseImport(input.jobId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  runImportVerify: os.databases.runImportVerify.handler(async ({ input }) => {
+    try {
+      return await triggerDatabaseImportVerify(input.jobId);
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }),
+
+  markImportCutover: os.databases.markImportCutover.handler(
+    async ({ input }) => {
+      try {
+        return await markDatabaseImportCutover(input.jobId);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+  ),
 
   delete: os.databases.delete.handler(async ({ input }) => {
     try {

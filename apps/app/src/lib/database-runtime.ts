@@ -509,13 +509,15 @@ async function createTargetRuntime(input: {
   targetName: string;
   runtimeServiceId: string;
   engine: DatabaseEngine;
+  image?: string;
   memoryLimit?: string | null;
   cpuLimit?: number | null;
   templateRef?: ProviderRef;
   fixedHostPort?: number;
   storageMountPath?: string;
 }): Promise<ProviderRef> {
-  const image = input.templateRef?.image ?? getDefaultImage(input.engine);
+  const image =
+    input.image ?? input.templateRef?.image ?? getDefaultImage(input.engine);
   const port = input.templateRef?.port ?? getDefaultPort(input.engine);
   const username = input.templateRef?.username ?? "frost";
   const password = input.templateRef?.password ?? randomSecret();
@@ -918,6 +920,7 @@ export async function createDatabase(input: {
   projectId: string;
   name: string;
   engine: DatabaseEngine;
+  image?: string;
 }): Promise<DatabaseWithTarget> {
   assertDatabaseName(input.name);
 
@@ -991,6 +994,7 @@ export async function createDatabase(input: {
       targetName: "main",
       runtimeServiceId,
       engine: input.engine,
+      image: input.image,
       storageMountPath,
     });
     rollback.add(async () => {

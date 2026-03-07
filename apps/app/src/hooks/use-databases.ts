@@ -16,6 +16,22 @@ export function useDatabase(databaseId: string) {
   });
 }
 
+export function useDatabaseImportJob(jobId: string) {
+  return useQuery({
+    ...orpc.databases.getImportJob.queryOptions({ input: { jobId } }),
+    enabled: !!jobId,
+    refetchInterval: 2000,
+  });
+}
+
+export function useDatabaseImportJobs(databaseId: string) {
+  return useQuery({
+    ...orpc.databases.listImportJobs.queryOptions({ input: { databaseId } }),
+    enabled: !!databaseId,
+    refetchInterval: 5000,
+  });
+}
+
 export function useUpdateDatabase(databaseId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -104,6 +120,33 @@ export function useCreateDatabase(projectId: string) {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.list.key({ input: { projectId } }),
       });
+    },
+  });
+}
+
+export function useCreateDatabaseImportJob(projectId: string) {
+  return useMutation({
+    mutationFn: (
+      data: Omit<ContractInputs["databases"]["createImportJob"], "projectId">,
+    ) => orpc.databases.createImportJob.call({ projectId, ...data }),
+  });
+}
+
+export function useRunDatabaseImportJob(jobId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => orpc.databases.runImportJob.call({ jobId }),
+    onSuccess: async (result) => {
+      await queryClient.refetchQueries({
+        queryKey: orpc.databases.getImportJob.key({ input: { jobId } }),
+      });
+      if (result.databaseId) {
+        await queryClient.refetchQueries({
+          queryKey: orpc.databases.listImportJobs.key({
+            input: { databaseId: result.databaseId },
+          }),
+        });
+      }
     },
   });
 }

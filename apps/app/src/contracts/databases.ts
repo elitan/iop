@@ -7,6 +7,23 @@ const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
 const databaseStorageBackendSchema = z.enum(["apfs", "copy", "zfs"]);
 const backupIntervalUnitSchema = z.enum(["minutes", "hours", "days"]);
+const databaseImportStageSchema = z.enum([
+  "source",
+  "preflight",
+  "target",
+  "importing",
+  "imported",
+  "verifying",
+  "ready-for-cutover",
+  "completed",
+  "failed",
+]);
+const databaseImportStrategySchema = z.enum([
+  "dump-restore",
+  "logical-replication",
+]);
+const databaseImportCheckStatusSchema = z.enum(["ok", "warning", "blocked"]);
+const databaseImportVerifyStatusSchema = z.enum(["pass", "warning", "failed"]);
 const backupS3ProviderSchema = z.enum([
   "aws",
   "cloudflare",
@@ -163,6 +180,79 @@ const databaseBackupRestoreResultSchema = z.object({
   warnings: z.array(z.string()),
 });
 
+const databaseImportCheckResultSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  status: databaseImportCheckStatusSchema,
+  message: z.string(),
+});
+
+const databaseImportSourceSummarySchema = z.object({
+  host: z.string(),
+  port: z.number(),
+  database: z.string(),
+  username: z.string(),
+  sslMode: z.string(),
+  serverVersion: z.string().nullable(),
+  estimatedDowntimeMinutes: z.number().nullable(),
+  sizeBytes: z.number().nullable(),
+  tableCount: z.number().nullable(),
+  extensionNames: z.array(z.string()),
+  owner: z.string().nullable(),
+  currentUser: z.string().nullable(),
+  activeConnectionCount: z.number().nullable(),
+  longRunningConnectionCount: z.number().nullable(),
+  activeWriteConnectionCount: z.number().nullable(),
+  writeActivity: z.enum(["quiet", "active"]).nullable(),
+  unsupportedExtensions: z.array(z.string()),
+});
+
+const databaseImportVerifyCheckSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  status: databaseImportVerifyStatusSchema,
+  message: z.string(),
+});
+
+const databaseImportVerifyResultSchema = z.object({
+  status: databaseImportVerifyStatusSchema,
+  checks: z.array(databaseImportVerifyCheckSchema),
+  comparedAt: z.number().nullable(),
+});
+
+const databaseImportTargetConnectionSchema = z.object({
+  databaseId: z.string(),
+  targetId: z.string(),
+  internalHost: z.string(),
+  hostPort: z.number(),
+  username: z.string(),
+  password: z.string(),
+  database: z.string(),
+  ssl: z.boolean(),
+});
+
+const databaseImportJobSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  databaseId: z.string().nullable(),
+  targetName: z.string(),
+  engine: z.literal("postgres"),
+  strategy: databaseImportStrategySchema,
+  stage: databaseImportStageSchema,
+  progressStep: z.string().nullable(),
+  sourceSummary: databaseImportSourceSummarySchema,
+  checkResults: z.array(databaseImportCheckResultSchema),
+  verifyResult: databaseImportVerifyResultSchema,
+  logText: z.string(),
+  errorMessage: z.string().nullable(),
+  cutoverConfirmedAt: z.number().nullable(),
+  completedAt: z.number().nullable(),
+  failedAt: z.number().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  targetConnection: databaseImportTargetConnectionSchema.nullable(),
+});
+
 const targetParamsSchema = z.object({
   databaseId: z.string(),
   targetId: z.string(),
@@ -258,6 +348,68 @@ export const databasesContract = {
       }),
     )
     .output(databaseBackupRestoreResultSchema),
+
+  createImportJob: oc
+    .route({
+      method: "POST",
+      path: "/projects/{projectId}/database-import-jobs",
+    })
+    .input(
+      z.object({
+        projectId: z.string(),
+        targetName: z.string().min(1),
+        sourceUrl: z.string().min(1),
+      }),
+    )
+    .output(databaseImportJobSchema),
+
+  getImportJob: oc
+    .route({
+      method: "GET",
+      path: "/database-import-jobs/{jobId}",
+    })
+    .input(z.object({ jobId: z.string() }))
+    .output(databaseImportJobSchema),
+
+  listImportJobs: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/import-jobs",
+    })
+    .input(z.object({ databaseId: z.string() }))
+    .output(z.array(databaseImportJobSchema)),
+
+  createImportTarget: oc
+    .route({
+      method: "POST",
+      path: "/database-import-jobs/{jobId}/target",
+    })
+    .input(z.object({ jobId: z.string() }))
+    .output(databaseImportJobSchema),
+
+  runImportJob: oc
+    .route({
+      method: "POST",
+      path: "/database-import-jobs/{jobId}/import",
+    })
+    .input(z.object({ jobId: z.string() }))
+    .output(databaseImportJobSchema),
+
+  runImportVerify: oc
+    .route({
+      method: "POST",
+      path: "/database-import-jobs/{jobId}/verify",
+    })
+    .input(z.object({ jobId: z.string() }))
+    .output(databaseImportJobSchema),
+
+  markImportCutover: oc
+    .route({
+      method: "POST",
+      path: "/database-import-jobs/{jobId}/cutover",
+    })
+    .input(z.object({ jobId: z.string() }))
+    .output(databaseImportJobSchema),
 
   delete: oc
     .route({ method: "DELETE", path: "/databases/{databaseId}" })

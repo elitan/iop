@@ -43,6 +43,7 @@ import {
   getDatabaseLogoUrl,
 } from "@/lib/database-logo";
 import { RepoSelector } from "../services/new/_components/repo-selector";
+import { DatabaseImportWizard } from "./database-import-wizard";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
 
 function generateUniqueName(baseName: string, existingNames: string[]): string {
@@ -54,6 +55,7 @@ function generateUniqueName(baseName: string, existingNames: string[]): string {
 }
 
 type Step = "category" | "repo" | "scanning" | "staged" | "image" | "database";
+type DatabaseMode = "menu" | "create" | "import";
 
 interface CreateServiceModalProps {
   projectId: string;
@@ -150,6 +152,7 @@ export function CreateServiceModal({
   const [databaseEngine, setDatabaseEngine] = useState<"postgres" | "mysql">(
     "postgres",
   );
+  const [databaseMode, setDatabaseMode] = useState<DatabaseMode>("menu");
 
   const { data: serviceTemplates } = useQuery({
     queryKey: ["service-templates"],
@@ -167,6 +170,10 @@ export function CreateServiceModal({
   );
   const nextDatabaseName = generateUniqueName(
     databaseEngine,
+    existingDatabaseNames,
+  );
+  const nextImportDatabaseName = generateUniqueName(
+    "postgres",
     existingDatabaseNames,
   );
 
@@ -198,6 +205,7 @@ export function CreateServiceModal({
     setStagedServices([]);
     setSelectedRepo(null);
     setDatabaseEngine("postgres");
+    setDatabaseMode("menu");
   }
 
   function handleOpenChange(isOpen: boolean): void {
@@ -234,6 +242,9 @@ export function CreateServiceModal({
   function handleCategorySelect(id: string): void {
     setSearch("");
     setSelectedIndex(0);
+    if (id === "database") {
+      setDatabaseMode("menu");
+    }
     setStep(id as Step);
   }
 
@@ -394,6 +405,14 @@ export function CreateServiceModal({
       const message =
         err instanceof Error ? err.message : "Failed to create database";
       toast.error(message);
+    }
+  }
+
+  function handleImportFinished(databaseId: string): void {
+    resetState();
+    onOpenChange(false);
+    if (onDatabaseCreated) {
+      onDatabaseCreated(databaseId);
     }
   }
 
@@ -581,11 +600,71 @@ export function CreateServiceModal({
         );
 
       case "database":
+        if (databaseMode === "import") {
+          return (
+            <DatabaseImportWizard
+              projectId={projectId}
+              initialTargetName={nextImportDatabaseName}
+              onBack={function onBack() {
+                setDatabaseMode("menu");
+              }}
+              onFinished={handleImportFinished}
+            />
+          );
+        }
+
+        if (databaseMode === "menu") {
+          return (
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={resetState}
+                className="flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={function onCreateEmptyClick() {
+                    setDatabaseMode("create");
+                  }}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-3 text-left transition-colors hover:border-neutral-600"
+                >
+                  <p className="text-sm font-medium text-neutral-100">
+                    Create empty database
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-400">
+                    Start with a fresh Postgres or MySQL database
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={function onImportClick() {
+                    setDatabaseMode("import");
+                  }}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 p-3 text-left transition-colors hover:border-neutral-600"
+                >
+                  <p className="text-sm font-medium text-neutral-100">
+                    Import existing Postgres
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-400">
+                    Paste a database URL and let Frost move it
+                  </p>
+                </button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-4">
             <button
               type="button"
-              onClick={resetState}
+              onClick={function onBack() {
+                setDatabaseMode("menu");
+              }}
               className="flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -677,12 +756,30 @@ export function CreateServiceModal({
     }
   }
 
+  function getDialogTitle(): string {
+    if (step === "database") {
+      if (databaseMode === "import") {
+        return "Import Existing Postgres";
+      }
+      if (databaseMode === "menu") {
+        return "Database";
+      }
+    }
+    return STEP_TITLES[step];
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto border-neutral-800 bg-neutral-900 sm:max-w-md">
+      <DialogContent
+        className={`max-h-[85vh] overflow-y-auto border-neutral-800 bg-neutral-900 ${
+          step === "database" && databaseMode === "import"
+            ? "sm:max-w-3xl"
+            : "sm:max-w-md"
+        }`}
+      >
         <DialogHeader>
           <DialogTitle className="text-lg font-medium text-neutral-100">
-            {STEP_TITLES[step]}
+            {getDialogTitle()}
           </DialogTitle>
         </DialogHeader>
         {renderStepContent()}

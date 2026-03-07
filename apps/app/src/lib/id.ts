@@ -52,6 +52,10 @@ export function newDatabaseTargetDeploymentId(): string {
   return buildId("dtd");
 }
 
+export function newDatabaseImportJobId(): string {
+  return buildId("dbi");
+}
+
 export function newEnvironmentDatabaseAttachmentId(): string {
   return buildId("att");
 }
