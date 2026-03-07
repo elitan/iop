@@ -124,10 +124,10 @@ const TABLE_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const DEFAULT_TABLE_PAGE_SIZE = 50;
 const TABLE_SCROLL_FADE_THRESHOLD = 8;
 const TABLE_ACTION_RAIL_EDGE_CLASS =
-  "border-l border-neutral-800 shadow-[-12px_0_18px_-18px_rgba(0,0,0,0.55)] before:pointer-events-none before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-black/30 before:to-transparent before:content-['']";
-const TABLE_ACTION_HEADER_CLASS = `sticky top-0 right-0 z-30 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 text-xs font-medium text-neutral-300 ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
-const TABLE_ACTION_CELL_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 align-top group-hover:bg-[rgb(24,24,24)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
-const TABLE_ACTION_CELL_EDITING_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(28,28,28)] px-3 py-2 align-top ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
+  "border-l border-neutral-800 before:pointer-events-none before:absolute before:inset-y-0 before:-left-14 before:w-14 before:bg-gradient-to-r before:from-transparent before:content-['']";
+const TABLE_ACTION_HEADER_CLASS = `sticky top-0 right-0 z-30 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 text-xs font-medium text-neutral-300 before:to-[rgb(20,20,20)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
+const TABLE_ACTION_CELL_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 align-top before:to-[rgb(20,20,20)] group-hover:bg-[rgb(24,24,24)] group-hover:before:to-[rgb(24,24,24)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
+const TABLE_ACTION_CELL_EDITING_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(28,28,28)] px-3 py-2 align-top before:to-[rgb(28,28,28)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
 const CREATE_COLUMN_TYPE_OPTIONS = [
   "text",
   "integer",
