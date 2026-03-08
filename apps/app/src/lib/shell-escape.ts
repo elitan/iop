@@ -10,6 +10,7 @@ export function buildDockerRunArgs(options: RunContainerOptions): string[] {
     hostPort,
     containerPort = 8080,
     name,
+    entrypoint,
     envVars,
     network,
     hostname,
@@ -55,6 +56,9 @@ export function buildDockerRunArgs(options: RunContainerOptions): string[] {
   }
   if (hostname) {
     args.push("--hostname", hostname);
+  }
+  if (entrypoint) {
+    args.push("--entrypoint", entrypoint);
   }
 
   if (labels) {

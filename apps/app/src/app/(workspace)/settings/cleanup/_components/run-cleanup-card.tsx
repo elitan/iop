@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, Play, XCircle } from "lucide-react";
 import { SettingCard } from "@/components/setting-card";
 import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/time";
 import type { CleanupSettings } from "./use-cleanup-settings";
 
 interface RunCleanupCardProps {
@@ -23,7 +24,7 @@ function formatBytes(bytes: number): string {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Never";
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 export function RunCleanupCard({

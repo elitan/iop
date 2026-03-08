@@ -21,33 +21,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContractOutputs } from "@/contracts";
+import { useDatabasePublicHost } from "@/hooks/use-database-public-host";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
+  useDatabaseTargetConnection,
   useDatabaseTargetRuntime,
   useRunDatabaseTargetSql,
 } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
-import { getDatabaseBranchInternalHost } from "@/lib/database-hostname";
+import { buildPostgresConnectionString } from "@/lib/connection-strings";
 import { getDatabaseTargetStatus } from "@/lib/database-target-status";
 import { getTimeAgo } from "@/lib/time";
 import { DatabaseTableBrowser } from "./database-table-browser";
 import { RuntimeLogsPanel } from "./runtime-logs-panel";
 import { RuntimeMetricsCard } from "./runtime-metrics-card";
 
-export interface DatabaseProviderRef {
-  containerName: string;
-  hostPort: number;
-  username: string;
-  password: string;
-  database: string;
-  ssl: boolean;
-  image: string;
-  port: number;
-}
-
 interface Branch {
   id: string;
   name: string;
+  hostname: string;
   lifecycleStatus: "active" | "stopped" | "expired";
   stoppedReason: "idle" | "failed" | null;
   scaleToZeroMinutes: number | null;
@@ -80,7 +72,6 @@ interface DatabaseBranchPanelProps {
   parentBranchName: string | null;
   onOpenDatabaseSettings?: () => void;
   onGoToParent?: () => void;
-  providerRef: DatabaseProviderRef | null;
   onStart: () => Promise<void>;
   onDeploy: () => Promise<void>;
   onReset: () => Promise<void>;
@@ -105,18 +96,27 @@ function getConnectionString(input: {
   engine: "postgres" | "mysql";
   host: string;
   port: number;
-  providerRef: DatabaseProviderRef;
+  username: string;
+  password: string;
+  database: string;
+  ssl: boolean;
 }): string {
-  const user = encodeURIComponent(input.providerRef.username);
-  const pass = encodeURIComponent(input.providerRef.password);
-  const database = encodeURIComponent(input.providerRef.database);
-
   if (input.engine === "postgres") {
-    const sslSuffix = input.providerRef.ssl ? "?sslmode=require" : "";
-    return `postgres://${user}:${pass}@${input.host}:${input.port}/${database}${sslSuffix}`;
+    return buildPostgresConnectionString({
+      username: input.username,
+      password: input.password,
+      host: input.host,
+      port: input.port,
+      database: input.database,
+      ssl: input.ssl,
+    });
   }
 
-  return `mysql://${user}:${pass}@${input.host}:${input.port}/${database}`;
+  const user = encodeURIComponent(input.username);
+  const password = encodeURIComponent(input.password);
+  const database = encodeURIComponent(input.database);
+
+  return `mysql://${user}:${password}@${input.host}:${input.port}/${database}`;
 }
 
 function copyToClipboard(value: string) {
@@ -165,7 +165,6 @@ export function DatabaseBranchPanel({
   parentBranchName,
   onOpenDatabaseSettings,
   onGoToParent,
-  providerRef,
   onStart,
   onDeploy,
   onReset,
@@ -193,11 +192,16 @@ export function DatabaseBranchPanel({
     null,
   );
   const [sqlError, setSqlError] = useState<string | null>(null);
+  const publicHost = useDatabasePublicHost();
 
   const { logs, isConnected, error } = useDatabaseTargetLogs({
     databaseId,
     targetId: branch?.id ?? "",
   });
+  const { data: connection } = useDatabaseTargetConnection(
+    databaseId,
+    branch?.id ?? "",
+  );
   const { data: runtime } = useDatabaseTargetRuntime(
     databaseId,
     branch?.id ?? "",
@@ -256,41 +260,40 @@ export function DatabaseBranchPanel({
 
   const directConnectionString = useMemo(
     function getDirectConnectionString() {
-      if (!branch || !providerRef) {
+      if (!branch || !connection) {
         return null;
       }
+
       return getConnectionString({
         engine,
-        host: "127.0.0.1",
-        port: providerRef.hostPort,
-        providerRef,
+        host: publicHost,
+        port: connection.hostPort,
+        username: connection.username,
+        password: connection.password,
+        database: connection.database,
+        ssl: connection.ssl,
       });
     },
-    [branch, engine, providerRef],
+    [branch, connection, engine, publicHost],
   );
 
   const internalConnectionString = useMemo(
     function getInternalConnectionString() {
-      if (!branch || !providerRef) {
+      if (!branch || !connection) {
         return null;
       }
 
-      const host =
-        engine === "postgres"
-          ? getDatabaseBranchInternalHost(
-              databaseName,
-              runtime?.hostname ?? branch.name,
-            )
-          : `${runtime?.hostname ?? branch.name}.frost.internal`;
-
       return getConnectionString({
         engine,
-        host,
+        host: connection.internalHost,
         port: engine === "postgres" ? 5432 : 3306,
-        providerRef,
+        username: connection.username,
+        password: connection.password,
+        database: connection.database,
+        ssl: connection.ssl,
       });
     },
-    [branch, databaseName, engine, providerRef, runtime?.hostname],
+    [branch, connection, engine],
   );
 
   const isMainBranch = branch?.name === "main";

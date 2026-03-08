@@ -6,6 +6,7 @@ import {
   deleteDatabaseTarget,
   deployDatabaseTarget,
   getDatabase,
+  getDatabaseTargetConnectionInfo,
   getDatabaseTargetRuntime,
   listDatabasesWithRuntimeByProject,
   listDatabaseTargetDeployments,
@@ -383,6 +384,17 @@ export const databases = {
       throw toApiError(error);
     }
   }),
+
+  getTargetConnection: os.databases.getTargetConnection.handler(
+    async ({ input }) => {
+      try {
+        await getTargetByDatabase(input.databaseId, input.targetId);
+        return await getDatabaseTargetConnectionInfo(input);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+  ),
 
   runTargetSql: os.databases.runTargetSql.handler(async ({ input }) => {
     try {

@@ -176,6 +176,19 @@ describe("buildDockerRunArgs", () => {
     expect(args[imgIdx + 3]).toBe("echo hello");
   });
 
+  test("entrypoint is passed before image", () => {
+    const args = buildDockerRunArgs({
+      imageName: "myimage",
+      hostPort: 10000,
+      name: "test",
+      entrypoint: "/usr/local/bin/bootstrap.sh",
+    });
+    expect(args[args.indexOf("--entrypoint") + 1]).toBe(
+      "/usr/local/bin/bootstrap.sh",
+    );
+    expect(args[args.length - 1]).toBe("myimage");
+  });
+
   test("PORT env var defaults to containerPort", () => {
     const args = buildDockerRunArgs({
       imageName: "myimage",

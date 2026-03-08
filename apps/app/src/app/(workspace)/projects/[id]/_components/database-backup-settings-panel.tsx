@@ -25,6 +25,7 @@ import {
   useTestDatabaseBackupConnection,
   useUpsertDatabaseBackupConfig,
 } from "@/hooks/use-databases";
+import { formatDateTime } from "@/lib/time";
 
 type BackupIntervalUnit = "minutes" | "hours" | "days";
 type BackupProvider = "aws" | "cloudflare" | "backblaze" | "custom";
@@ -81,7 +82,7 @@ function parseBackblazeRegion(endpoint: string | null): string {
 }
 
 function formatDate(value: number): string {
-  return new Date(value).toLocaleString();
+  return formatDateTime(value);
 }
 
 function formatBackupLabel(input: {

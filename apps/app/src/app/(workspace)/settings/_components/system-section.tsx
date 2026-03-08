@@ -18,6 +18,7 @@ import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 type UpdateState = "idle" | "preparing" | "restarting" | "success" | "failed";
 
@@ -142,7 +143,7 @@ export function SystemSection() {
     if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-    return new Date(timestamp).toLocaleDateString();
+    return formatDateTime(timestamp);
   }
 
   const isUpdating =

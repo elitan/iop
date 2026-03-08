@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 export function ApiKeysSection() {
   const demoMode = useDemoMode();
@@ -71,11 +72,7 @@ export function ApiKeysSection() {
 
   function formatDate(dateStr: string | null) {
     if (!dateStr) return "Never";
-    return new Date(dateStr).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return formatDateTime(dateStr);
   }
 
   return (

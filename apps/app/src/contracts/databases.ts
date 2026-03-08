@@ -232,7 +232,7 @@ const databaseImportVerifyResultSchema = z.object({
   comparedAt: z.number().nullable(),
 });
 
-const databaseImportTargetConnectionSchema = z.object({
+const databaseTargetConnectionSchema = z.object({
   databaseId: z.string(),
   targetId: z.string(),
   internalHost: z.string(),
@@ -262,7 +262,7 @@ const databaseImportJobSchema = z.object({
   failedAt: z.number().nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
-  targetConnection: databaseImportTargetConnectionSchema.nullable(),
+  targetConnection: databaseTargetConnectionSchema.nullable(),
 });
 
 const targetParamsSchema = z.object({
@@ -475,6 +475,14 @@ export const databasesContract = {
     })
     .input(targetParamsSchema)
     .output(databaseTargetRuntimeSchema),
+
+  getTargetConnection: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/targets/{targetId}/connection",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetConnectionSchema),
 
   runTargetSql: oc
     .route({

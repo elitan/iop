@@ -49,12 +49,6 @@ export interface Template {
 
 export type DatabaseTemplate = Template;
 
-export interface TcpProxyStatus {
-  enabled: boolean;
-  port: number | null;
-  hostPort: number | null;
-}
-
 export interface ContainerStats {
   containerId: string;
   name: string;
@@ -148,23 +142,6 @@ export const api = {
     list: (): Promise<Template[]> =>
       fetch("/api/templates/services").then((r) =>
         handleResponse<Template[]>(r),
-      ),
-  },
-
-  tcpProxy: {
-    get: (serviceId: string): Promise<TcpProxyStatus> =>
-      fetch(`/api/services/${serviceId}/tcp-proxy`).then((r) =>
-        handleResponse<TcpProxyStatus>(r),
-      ),
-
-    enable: (serviceId: string): Promise<TcpProxyStatus> =>
-      fetch(`/api/services/${serviceId}/tcp-proxy`, { method: "POST" }).then(
-        (r) => handleResponse<TcpProxyStatus>(r),
-      ),
-
-    disable: (serviceId: string): Promise<TcpProxyStatus> =>
-      fetch(`/api/services/${serviceId}/tcp-proxy`, { method: "DELETE" }).then(
-        (r) => handleResponse<TcpProxyStatus>(r),
       ),
   },
 

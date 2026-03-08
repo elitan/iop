@@ -445,6 +445,7 @@ export interface RunContainerOptions {
   hostPort: number;
   containerPort?: number;
   name: string;
+  entrypoint?: string;
   envVars?: Record<string, string>;
   network?: string;
   hostname?: string;
