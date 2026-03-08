@@ -4,7 +4,6 @@ import { LayoutGrid, List, Plus, Rocket, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
-import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +12,7 @@ import type { ProjectListItem } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ProjectAvatar } from "./_components/project-avatar";
 import { ProjectCard } from "./_components/project-card";
+import { ProjectResourceBadges } from "./_components/project-resource-badges";
 
 type ProjectViewMode = "cards" | "list";
 
@@ -20,26 +20,7 @@ interface ProjectListRowProps {
   project: ProjectListItem;
 }
 
-function getProjectStatusCounts(project: ProjectListItem): {
-  serviceCount: number;
-  onlineCount: number;
-  attentionCount: number;
-} {
-  return {
-    serviceCount: project.services.length,
-    onlineCount: project.services.filter(function isOnline(service) {
-      return service.runtimeStatus === "online";
-    }).length,
-    attentionCount: project.services.filter(function hasAttention(service) {
-      return service.attentionStatus !== null;
-    }).length,
-  };
-}
-
 function ProjectListRow({ project }: ProjectListRowProps) {
-  const { serviceCount, onlineCount, attentionCount } =
-    getProjectStatusCounts(project);
-
   return (
     <Link
       href={`/projects/${project.id}`}
@@ -59,15 +40,7 @@ function ProjectListRow({ project }: ProjectListRowProps) {
         </div>
       </div>
       <div className="hidden shrink-0 items-center gap-4 text-sm text-neutral-400 md:flex">
-        <span>
-          {serviceCount} service{serviceCount === 1 ? "" : "s"}
-        </span>
-        <StatusBadge tone={onlineCount > 0 ? "success" : "neutral"}>
-          {onlineCount}/{serviceCount} online
-        </StatusBadge>
-        {attentionCount > 0 && (
-          <StatusBadge tone="warning">{attentionCount} attention</StatusBadge>
-        )}
+        <ProjectResourceBadges resourceSummary={project.resourceSummary} />
       </div>
     </Link>
   );
@@ -160,8 +133,6 @@ export default function Home() {
       return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map(function renderProject(project) {
-            const { serviceCount, onlineCount, attentionCount } =
-              getProjectStatusCounts(project);
             return (
               <ProjectCard
                 key={project.id}
@@ -170,9 +141,7 @@ export default function Home() {
                 runningUrl={project.runningUrl}
                 repoUrl={project.repoUrl}
                 latestDeployment={project.latestDeployment}
-                serviceCount={serviceCount}
-                onlineCount={onlineCount}
-                attentionCount={attentionCount}
+                resourceSummary={project.resourceSummary}
               />
             );
           })}

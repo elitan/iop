@@ -25,11 +25,20 @@ const projectListServiceSchema = z.object({
   attentionStatus: serviceAttentionStatusSchema,
 });
 
+const projectResourceSummarySchema = z.object({
+  serviceCount: z.number(),
+  databaseCount: z.number(),
+  totalCount: z.number(),
+  onlineCount: z.number(),
+  attentionCount: z.number(),
+});
+
 const projectListItemSchema = projectsSchema.extend({
   servicesCount: z.number(),
   latestDeployment: latestDeploymentSchema.nullable(),
   repoUrl: z.string().nullable(),
   runningUrl: z.string().nullable(),
+  resourceSummary: projectResourceSummarySchema,
   services: z.array(projectListServiceSchema),
 });
 

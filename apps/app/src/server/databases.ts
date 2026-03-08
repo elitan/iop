@@ -7,7 +7,7 @@ import {
   deployDatabaseTarget,
   getDatabase,
   getDatabaseTargetRuntime,
-  listDatabasesByProject,
+  listDatabasesWithRuntimeByProject,
   listDatabaseTargetDeployments,
   listDatabaseTargets,
   patchDatabase,
@@ -167,7 +167,7 @@ export const databases = {
   }),
 
   list: os.databases.list.handler(async ({ input }) => {
-    return listDatabasesByProject(input.projectId);
+    return listDatabasesWithRuntimeByProject(input.projectId);
   }),
 
   get: os.databases.get.handler(async ({ input }) => {

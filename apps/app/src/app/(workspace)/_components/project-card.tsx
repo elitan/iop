@@ -1,8 +1,8 @@
 import { GitBranch, Github } from "lucide-react";
 import Link from "next/link";
-import { StatusBadge } from "@/components/status-badge";
-import type { ProjectLatestDeployment } from "@/lib/api";
+import type { ProjectLatestDeployment, ProjectListItem } from "@/lib/api";
 import { ProjectAvatar } from "./project-avatar";
+import { ProjectResourceBadges } from "./project-resource-badges";
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -27,9 +27,7 @@ interface ProjectCardProps {
   runningUrl?: string | null;
   repoUrl?: string | null;
   latestDeployment?: ProjectLatestDeployment | null;
-  serviceCount: number;
-  onlineCount: number;
-  attentionCount: number;
+  resourceSummary: ProjectListItem["resourceSummary"];
 }
 
 export function ProjectCard({
@@ -38,9 +36,7 @@ export function ProjectCard({
   runningUrl,
   repoUrl,
   latestDeployment,
-  serviceCount,
-  onlineCount,
-  attentionCount,
+  resourceSummary,
 }: ProjectCardProps) {
   const repoPath = repoUrl ? extractRepoPath(repoUrl) : null;
 
@@ -59,14 +55,12 @@ export function ProjectCard({
         </div>
       </div>
 
-      {serviceCount > 0 && (
+      {resourceSummary.totalCount > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <StatusBadge tone={onlineCount > 0 ? "success" : "neutral"}>
-            {onlineCount}/{serviceCount} online
-          </StatusBadge>
-          {attentionCount > 0 && (
-            <StatusBadge tone="warning">{attentionCount} attention</StatusBadge>
-          )}
+          <ProjectResourceBadges
+            resourceSummary={resourceSummary}
+            breakdownClassName="text-xs text-neutral-400"
+          />
         </div>
       )}
 

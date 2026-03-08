@@ -303,6 +303,8 @@ export function ProjectLeftMenu({
                     iconFallback={DATABASE_LOGO_FALLBACK}
                     name={database.name}
                     subtitle={`${database.engine} · manual`}
+                    runtimeStatus={database.runtimeStatus}
+                    attentionStatus={database.attentionStatus}
                   />
                 );
               })}
