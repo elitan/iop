@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContractOutputs } from "@/contracts";
+import { useDatabasePublicHost } from "@/hooks/use-database-public-host";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
   useDatabaseTargetRuntime,
@@ -46,6 +47,7 @@ export interface DatabaseProviderRef {
 interface Branch {
   id: string;
   name: string;
+  hostname: string;
   lifecycleStatus: "active" | "stopped" | "expired";
   createdAt: number;
 }
@@ -189,6 +191,7 @@ export function DatabaseBranchPanel({
     null,
   );
   const [sqlError, setSqlError] = useState<string | null>(null);
+  const publicHost = useDatabasePublicHost();
 
   const { logs, isConnected, error } = useDatabaseTargetLogs({
     databaseId,
@@ -255,14 +258,15 @@ export function DatabaseBranchPanel({
       if (!branch || !providerRef) {
         return null;
       }
+
       return getConnectionString({
         engine,
-        host: "127.0.0.1",
+        host: publicHost,
         port: providerRef.hostPort,
         providerRef,
       });
     },
-    [branch, engine, providerRef],
+    [branch, engine, providerRef, publicHost],
   );
 
   const internalConnectionString = useMemo(
@@ -275,9 +279,9 @@ export function DatabaseBranchPanel({
         engine === "postgres"
           ? getDatabaseBranchInternalHost(
               databaseName,
-              runtime?.hostname ?? branch.name,
+              runtime?.hostname ?? branch.hostname,
             )
-          : `${runtime?.hostname ?? branch.name}.frost.internal`;
+          : `${runtime?.hostname ?? branch.hostname}.frost.internal`;
 
       return getConnectionString({
         engine,
