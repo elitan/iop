@@ -8,7 +8,6 @@ import {
   createDatabaseTarget,
   deleteDatabase,
   getDatabaseTargetConnectionInfo,
-  resolveContainerName,
 } from "./database-runtime";
 import { db } from "./db";
 import { runMigrations } from "./migrate";
@@ -18,15 +17,19 @@ import { getSSLDir } from "./ssl";
 const execAsync = promisify(exec);
 
 async function runTargetSql(input: {
-  containerName: string;
+  hostPort: number;
   username: string;
   password: string;
   database: string;
   sql: string;
 }): Promise<string> {
+  const dockerHostArgs =
+    process.platform === "linux"
+      ? "--add-host=host.docker.internal:host-gateway "
+      : "";
   const { stdout } = await execAsync(
-    `docker exec -e PGPASSWORD=${shellEscape(input.password)} ${shellEscape(input.containerName)} ` +
-      `psql "host=127.0.0.1 port=5432 user=${input.username} dbname=${input.database} sslmode=require" ` +
+    `docker run --rm ${dockerHostArgs}-e PGPASSWORD=${shellEscape(input.password)} postgres:17 ` +
+      `psql "host=host.docker.internal port=${input.hostPort} user=${input.username} dbname=${input.database} sslmode=require" ` +
       `-X -t -A -c ${shellEscape(input.sql)}`,
   );
 
@@ -68,10 +71,6 @@ describe("database runtime integration", () => {
         databaseId,
         targetId: mainTargetId,
       });
-      const mainContainerName = await resolveContainerName({
-        databaseId,
-        targetId: mainTargetId,
-      });
 
       expect(mainConnection.ssl).toBe(true);
       expect(mainConnection.hostPort).toBeGreaterThan(0);
@@ -82,7 +81,7 @@ describe("database runtime integration", () => {
       expect(existsSync(getSSLDir(mainTargetId))).toBe(true);
       expect(
         await runTargetSql({
-          containerName: mainContainerName,
+          hostPort: mainConnection.hostPort,
           username: mainConnection.username,
           password: mainConnection.password,
           database: mainConnection.database,
@@ -101,10 +100,6 @@ describe("database runtime integration", () => {
         databaseId,
         targetId: branchTargetId,
       });
-      const branchContainerName = await resolveContainerName({
-        databaseId,
-        targetId: branchTargetId,
-      });
 
       expect(branchConnection.ssl).toBe(true);
       expect(branchConnection.database).toBe("app_db");
@@ -112,7 +107,7 @@ describe("database runtime integration", () => {
       expect(existsSync(getSSLDir(branchTargetId))).toBe(true);
       expect(
         await runTargetSql({
-          containerName: branchContainerName,
+          hostPort: branchConnection.hostPort,
           username: branchConnection.username,
           password: branchConnection.password,
           database: branchConnection.database,

@@ -1,4 +1,4 @@
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
@@ -62,6 +62,7 @@ import { slugify } from "./slugify";
 import { preparePostgresSSLAssets, removeSSLCerts } from "./ssl";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
 
 export type DatabaseEngine = "postgres" | "mysql";
@@ -445,6 +446,50 @@ async function waitForPostgresReady(providerRef: ProviderRef): Promise<void> {
   );
 }
 
+function getDockerHostArgs(): string[] {
+  if (process.platform !== "linux") {
+    return [];
+  }
+
+  return ["--add-host", "host.docker.internal:host-gateway"];
+}
+
+async function waitForPostgresPublishedReady(
+  providerRef: ProviderRef,
+): Promise<void> {
+  const deadline = Date.now() + 120000;
+  const helperImage = providerRef.image || "postgres:17";
+
+  while (Date.now() < deadline) {
+    try {
+      const { stdout } = await execFileAsync("docker", [
+        "run",
+        "--rm",
+        ...getDockerHostArgs(),
+        "-e",
+        `PGPASSWORD=${providerRef.password}`,
+        helperImage,
+        "psql",
+        `host=host.docker.internal port=${providerRef.hostPort} user=${providerRef.username} dbname=${providerRef.database} sslmode=require connect_timeout=5`,
+        "-X",
+        "-t",
+        "-A",
+        "-c",
+        "select 1",
+      ]);
+      if (stdout.trim() === "1") {
+        return;
+      }
+    } catch {}
+
+    await sleep(1000);
+  }
+
+  throw new Error(
+    `Postgres target ${providerRef.containerName} did not accept published TLS connections`,
+  );
+}
+
 async function waitForTargetReady(
   engine: DatabaseEngine,
   providerRef: ProviderRef,
@@ -454,6 +499,7 @@ async function waitForTargetReady(
   }
 
   await waitForPostgresReady(providerRef);
+  await waitForPostgresPublishedReady(providerRef);
 }
 
 function parsePostgresRow(
