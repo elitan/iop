@@ -38,6 +38,7 @@ import {
   useResetDatabaseTarget,
 } from "@/hooks/use-databases";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 type HierarchyTarget = {
   id: string;
@@ -47,7 +48,7 @@ type HierarchyTarget = {
 
 function formatDate(value: number | null): string {
   if (!value) return "-";
-  return new Date(value).toLocaleString();
+  return formatDateTime(value);
 }
 
 function compareTargetNames(a: HierarchyTarget, b: HierarchyTarget): number {

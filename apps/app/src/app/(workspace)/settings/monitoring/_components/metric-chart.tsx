@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatDateTime, formatTimeOfDay } from "@/lib/time";
 
 interface DataPoint {
   timestamp: number;
@@ -22,9 +23,12 @@ interface MetricChartProps {
   height?: number;
 }
 
-function formatTime(label: unknown): string {
-  const date = new Date(Number(label));
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function formatAxisTime(label: unknown): string {
+  return formatTimeOfDay(Number(label));
+}
+
+function formatTooltipTime(label: unknown): string {
+  return formatDateTime(Number(label));
 }
 
 export function MetricChart({
@@ -66,7 +70,7 @@ export function MetricChart({
           </defs>
           <XAxis
             dataKey="timestamp"
-            tickFormatter={formatTime}
+            tickFormatter={formatAxisTime}
             tick={{ fill: "#737373", fontSize: 10 }}
             axisLine={{ stroke: "#404040" }}
             tickLine={false}
@@ -88,7 +92,7 @@ export function MetricChart({
               fontSize: "12px",
             }}
             labelStyle={{ color: "#a3a3a3" }}
-            labelFormatter={(label) => formatTime(label as number)}
+            labelFormatter={formatTooltipTime}
             formatter={(value) => [`${Number(value).toFixed(1)}${unit}`, label]}
           />
           <Area
