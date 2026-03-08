@@ -13,6 +13,7 @@ import {
   startDatabaseTargetGateway,
   stopDatabaseTargetGateway,
 } from "./database-target-gateway";
+import type { DatabaseTargetStoppedReason } from "./database-target-status";
 import { db } from "./db";
 import type {
   Databases,
@@ -109,6 +110,7 @@ export interface DatabaseTargetRuntimeInfo {
   hostname: string;
   runtimeServiceId: string;
   lifecycleStatus: DatabaseTargetLifecycle;
+  stoppedReason: DatabaseTargetStoppedReason | null;
   containerName: string;
   hostPort: number;
   runtimeHostPort: number;
@@ -362,6 +364,50 @@ function queueTargetActivityWrite(targetId: string): void {
 
 function clearTargetActivityWrite(targetId: string): void {
   targetActivityWriteAt.delete(targetId);
+}
+
+async function setTargetStoppedState(input: {
+  targetId: string;
+  stoppedReason: DatabaseTargetStoppedReason | null;
+}): Promise<void> {
+  await db
+    .updateTable("databaseTargets")
+    .set({
+      lifecycleStatus: "stopped",
+      stoppedReason: input.stoppedReason,
+    })
+    .where("id", "=", input.targetId)
+    .execute();
+}
+
+async function setTargetActiveState(input: {
+  targetId: string;
+  providerRef: ProviderRef;
+  sourceTargetId?: string;
+}): Promise<void> {
+  await db
+    .updateTable("databaseTargets")
+    .set({
+      ...(input.sourceTargetId === undefined
+        ? {}
+        : { sourceTargetId: input.sourceTargetId }),
+      lifecycleStatus: "active",
+      stoppedReason: null,
+      providerRefJson: toProviderRefJson(input.providerRef),
+      lastActivityAt: Date.now(),
+    })
+    .where("id", "=", input.targetId)
+    .execute();
+}
+
+function getTargetStopMessage(
+  stoppedReason: DatabaseTargetStoppedReason | null | undefined,
+): string {
+  if (stoppedReason === "idle") {
+    return "Target slept after idle timeout";
+  }
+
+  return "Target stopped";
 }
 
 async function recordTargetDeployment(input: {
@@ -1026,6 +1072,7 @@ export async function createDatabase(input: {
         sourceTargetId: null,
         runtimeServiceId,
         lifecycleStatus: "active",
+        stoppedReason: null,
         providerRefJson: toProviderRefJson(providerRef),
         ttlValue: null,
         ttlUnit: null,
@@ -1155,6 +1202,7 @@ export async function createDatabaseTarget(input: {
         sourceTargetId: sourceTarget?.id ?? null,
         runtimeServiceId,
         lifecycleStatus: "active",
+        stoppedReason: null,
         providerRefJson: toProviderRefJson(providerRef),
         ttlValue: null,
         ttlUnit: null,
@@ -1271,11 +1319,10 @@ export async function resetDatabaseTarget(input: {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reset failed while starting";
-    await db
-      .updateTable("databaseTargets")
-      .set({ lifecycleStatus: "stopped" })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
     await recordTargetDeployment({
       targetId: target.id,
       action: "reset",
@@ -1292,16 +1339,11 @@ export async function resetDatabaseTarget(input: {
     nextProviderRef: nextRef,
   });
 
-  await db
-    .updateTable("databaseTargets")
-    .set({
-      sourceTargetId: sourceTarget.id,
-      lifecycleStatus: "active",
-      providerRefJson: toProviderRefJson(nextRef),
-      lastActivityAt: Date.now(),
-    })
-    .where("id", "=", target.id)
-    .execute();
+  await setTargetActiveState({
+    targetId: target.id,
+    providerRef: nextRef,
+    sourceTargetId: sourceTarget.id,
+  });
 
   await recordTargetDeployment({
     targetId: target.id,
@@ -1325,48 +1367,60 @@ export async function startDatabaseTarget(input: {
     input.targetId,
   );
   const providerRef = parseProviderRef(target.providerRefJson);
-  const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
-  const nextRef = await recreateTargetRuntime({
-    database,
-    target,
-    providerRef,
-    fixedHostPort: runtimeHostPort,
-  });
-  if (database.engine === "postgres") {
-    await waitForPostgresReady(nextRef);
+  try {
+    const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
+    const nextRef = await recreateTargetRuntime({
+      database,
+      target,
+      providerRef,
+      fixedHostPort: runtimeHostPort,
+    });
+    if (database.engine === "postgres") {
+      await waitForPostgresReady(nextRef);
+    }
+    applyProviderRefRuntimePorts({
+      target,
+      previousProviderRef: providerRef,
+      nextProviderRef: nextRef,
+    });
+
+    await setTargetActiveState({
+      targetId: target.id,
+      providerRef: nextRef,
+    });
+
+    await recordTargetDeployment({
+      targetId: target.id,
+      action: "start",
+      status: "running",
+      message: "Target started",
+    });
+
+    const updated = await getTargetById(target.id);
+    await ensureTargetGateway(updated.id);
+    await reconnectPostgresDatabaseNetwork(database);
+    return updated;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Target failed to start";
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
+    await recordTargetDeployment({
+      targetId: target.id,
+      action: "start",
+      status: "failed",
+      message,
+    });
+    throw error;
   }
-  applyProviderRefRuntimePorts({
-    target,
-    previousProviderRef: providerRef,
-    nextProviderRef: nextRef,
-  });
-
-  await db
-    .updateTable("databaseTargets")
-    .set({
-      lifecycleStatus: "active",
-      providerRefJson: toProviderRefJson(nextRef),
-      lastActivityAt: Date.now(),
-    })
-    .where("id", "=", target.id)
-    .execute();
-
-  await recordTargetDeployment({
-    targetId: target.id,
-    action: "start",
-    status: "running",
-    message: "Target started",
-  });
-
-  const updated = await getTargetById(target.id);
-  await ensureTargetGateway(updated.id);
-  await reconnectPostgresDatabaseNetwork(database);
-  return updated;
 }
 
 export async function stopDatabaseTarget(input: {
   databaseId: string;
   targetId: string;
+  stoppedReason?: DatabaseTargetStoppedReason | null;
 }): Promise<Selectable<DatabaseTargets>> {
   const { target } = await resolveDatabaseWithTargetById(
     input.databaseId,
@@ -1374,18 +1428,16 @@ export async function stopDatabaseTarget(input: {
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   await stopContainer(providerRef.containerName);
-
-  await db
-    .updateTable("databaseTargets")
-    .set({ lifecycleStatus: "stopped" })
-    .where("id", "=", target.id)
-    .execute();
+  await setTargetStoppedState({
+    targetId: target.id,
+    stoppedReason: input.stoppedReason ?? null,
+  });
 
   await recordTargetDeployment({
     targetId: target.id,
     action: "stop",
     status: "stopped",
-    message: "Target stopped",
+    message: getTargetStopMessage(input.stoppedReason),
   });
 
   clearTargetActivityWrite(target.id);
@@ -1526,15 +1578,10 @@ export async function deployDatabaseTarget(
       nextProviderRef: nextRef,
     });
 
-    await db
-      .updateTable("databaseTargets")
-      .set({
-        lifecycleStatus: "active",
-        providerRefJson: toProviderRefJson(nextRef),
-        lastActivityAt: Date.now(),
-      })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetActiveState({
+      targetId: target.id,
+      providerRef: nextRef,
+    });
 
     await ensureTargetGateway(target.id);
     if (database.engine === "postgres") {
@@ -1550,11 +1597,10 @@ export async function deployDatabaseTarget(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Target failed to redeploy";
-    await db
-      .updateTable("databaseTargets")
-      .set({ lifecycleStatus: "stopped" })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
 
     return recordTargetDeployment({
       targetId: target.id,
@@ -1577,6 +1623,7 @@ export async function getDatabaseTargetRuntime(
     hostname: target.hostname,
     runtimeServiceId: target.runtimeServiceId,
     lifecycleStatus: target.lifecycleStatus as DatabaseTargetLifecycle,
+    stoppedReason: target.stoppedReason,
     containerName: providerRef.containerName,
     hostPort: providerRef.hostPort,
     runtimeHostPort: getTargetRuntimeHostPort(target, providerRef),
@@ -1677,7 +1724,6 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
   targetId: string;
   name?: string;
   hostname?: string;
-  lifecycleStatus?: "active" | "stopped";
   ttlValue?: number | null;
   ttlUnit?: "hours" | "days" | null;
   scaleToZeroMinutes?: number | null;
@@ -1925,20 +1971,6 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       })
       .where("id", "=", target.id)
       .execute();
-  }
-
-  if (input.lifecycleStatus === "active") {
-    await startDatabaseTarget({
-      databaseId: target.databaseId,
-      targetId: target.id,
-    });
-  }
-
-  if (input.lifecycleStatus === "stopped") {
-    await stopDatabaseTarget({
-      databaseId: target.databaseId,
-      targetId: target.id,
-    });
   }
 
   if (

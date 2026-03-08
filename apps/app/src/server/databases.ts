@@ -15,7 +15,6 @@ import {
   resetDatabaseTarget,
   runPostgresTargetSql,
   startDatabaseTarget,
-  stopDatabaseTarget,
 } from "@/lib/database-runtime";
 import { db } from "@/lib/db";
 import {
@@ -412,7 +411,6 @@ export const databases = {
           targetId: input.targetId,
           name: input.name,
           hostname: input.hostname,
-          lifecycleStatus: input.lifecycleStatus,
           ttlValue: input.ttlValue,
           ttlUnit: input.ttlUnit,
           scaleToZeroMinutes: input.scaleToZeroMinutes,
@@ -436,14 +434,6 @@ export const databases = {
   startTarget: os.databases.startTarget.handler(async ({ input }) => {
     try {
       return await startDatabaseTarget(input);
-    } catch (error) {
-      throw toApiError(error);
-    }
-  }),
-
-  stopTarget: os.databases.stopTarget.handler(async ({ input }) => {
-    try {
-      return await stopDatabaseTarget(input);
     } catch (error) {
       throw toApiError(error);
     }
@@ -499,7 +489,6 @@ export const databases = {
         targetId: input.targetId,
         name: input.name,
         hostname: input.hostname,
-        lifecycleStatus: input.lifecycleStatus,
         ttlValue: input.ttlValue,
         ttlUnit: input.ttlUnit,
         scaleToZeroMinutes: input.scaleToZeroMinutes,
@@ -534,15 +523,6 @@ export const databases = {
     try {
       await assertPostgresBranch(input.databaseId, input.targetId);
       return await startDatabaseTarget(input);
-    } catch (error) {
-      throw toApiError(error);
-    }
-  }),
-
-  stopBranch: os.databases.stopBranch.handler(async ({ input }) => {
-    try {
-      await assertPostgresBranch(input.databaseId, input.targetId);
-      return await stopDatabaseTarget(input);
     } catch (error) {
       throw toApiError(error);
     }

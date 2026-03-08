@@ -9,6 +9,7 @@ const databaseEngineSchema = z.enum(["postgres", "mysql"]);
 const databaseProviderSchema = z.enum(["postgres-docker", "mysql-docker"]);
 const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
+const databaseTargetStoppedReasonSchema = z.enum(["idle", "failed"]);
 const databaseStorageBackendSchema = z.enum(["apfs", "copy", "zfs"]);
 const backupIntervalUnitSchema = z.enum(["minutes", "hours", "days"]);
 const databaseImportStageSchema = z.enum([
@@ -58,6 +59,7 @@ export const databaseTargetSchema = z.object({
   sourceTargetId: z.string().nullable(),
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
+  stoppedReason: databaseTargetStoppedReasonSchema.nullable(),
   providerRefJson: z.string(),
   ttlValue: z.number().nullable(),
   ttlUnit: z.enum(["hours", "days"]).nullable(),
@@ -97,6 +99,7 @@ const databaseTargetRuntimeSchema = z.object({
   hostname: z.string(),
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
+  stoppedReason: databaseTargetStoppedReasonSchema.nullable(),
   containerName: z.string(),
   hostPort: z.number(),
   runtimeHostPort: z.number(),
@@ -497,7 +500,6 @@ export const databasesContract = {
           .string()
           .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
           .optional(),
-        lifecycleStatus: z.enum(["active", "stopped"]).optional(),
         memoryLimit: z
           .string()
           .regex(/^\d+[kmg]$/i)
@@ -535,14 +537,6 @@ export const databasesContract = {
     .route({
       method: "POST",
       path: "/databases/{databaseId}/targets/{targetId}/start",
-    })
-    .input(z.object({ databaseId: z.string(), targetId: z.string() }))
-    .output(databaseTargetSchema),
-
-  stopTarget: oc
-    .route({
-      method: "POST",
-      path: "/databases/{databaseId}/targets/{targetId}/stop",
     })
     .input(z.object({ databaseId: z.string(), targetId: z.string() }))
     .output(databaseTargetSchema),
@@ -591,7 +585,6 @@ export const databasesContract = {
           .string()
           .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
           .optional(),
-        lifecycleStatus: z.enum(["active", "stopped"]).optional(),
         memoryLimit: z
           .string()
           .regex(/^\d+[kmg]$/i)
@@ -631,14 +624,6 @@ export const databasesContract = {
     .route({
       method: "POST",
       path: "/databases/{databaseId}/branches/{targetId}/start",
-    })
-    .input(targetParamsSchema)
-    .output(databaseTargetSchema),
-
-  stopBranch: oc
-    .route({
-      method: "POST",
-      path: "/databases/{databaseId}/branches/{targetId}/stop",
     })
     .input(targetParamsSchema)
     .output(databaseTargetSchema),

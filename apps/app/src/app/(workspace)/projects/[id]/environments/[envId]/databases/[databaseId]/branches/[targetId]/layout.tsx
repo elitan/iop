@@ -89,7 +89,9 @@ export default function DatabaseBranchDetailLayout({
   const branchBasePath = `/projects/${projectId}/environments/${envId}/databases/${databaseId}/branches/${branchId}`;
 
   const { data: database } = useDatabase(databaseId);
-  const { data: targets = [] } = useDatabaseTargets(databaseId);
+  const { data: targets = [] } = useDatabaseTargets(databaseId, {
+    refetchInterval: 5000,
+  });
 
   const startTargetMutation = useStartDatabaseTarget(databaseId);
   const deployTargetMutation = useDeployDatabaseTarget(databaseId, branchId);

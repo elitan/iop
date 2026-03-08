@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ import {
   useDeleteDatabaseTarget,
   useResetDatabaseTarget,
 } from "@/hooks/use-databases";
+import { getDatabaseTargetStatus } from "@/lib/database-target-status";
 import { orpc } from "@/lib/orpc-client";
 
 type HierarchyTarget = {
@@ -123,7 +125,9 @@ export default function DatabaseBranchesPage() {
   const databaseId = params.databaseId as string;
 
   const { data: database } = useDatabase(databaseId);
-  const { data: targets = [] } = useDatabaseTargets(databaseId);
+  const { data: targets = [] } = useDatabaseTargets(databaseId, {
+    refetchInterval: 5000,
+  });
 
   const createTargetMutation = useCreateDatabaseTarget(databaseId, projectId);
   const resetTargetMutation = useResetDatabaseTarget(databaseId);
@@ -363,6 +367,12 @@ export default function DatabaseBranchesPage() {
                     const canReset =
                       row.target.name !== "main" && row.parentName !== null;
                     const canDelete = row.target.name !== "main";
+                    const status = getDatabaseTargetStatus({
+                      name: row.target.name,
+                      lifecycleStatus: row.target.lifecycleStatus,
+                      stoppedReason: row.target.stoppedReason,
+                      scaleToZeroMinutes: row.target.scaleToZeroMinutes,
+                    });
                     return (
                       <tr
                         key={row.target.id}
@@ -405,12 +415,16 @@ export default function DatabaseBranchesPage() {
                           {row.parentName ?? "-"}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge
-                            variant="outline"
-                            className="border-neutral-700 text-neutral-300"
-                          >
-                            {row.target.lifecycleStatus}
-                          </Badge>
+                          <div className="space-y-1">
+                            <StatusBadge tone={status.tone} className="w-fit">
+                              {status.label}
+                            </StatusBadge>
+                            {status.helperText ? (
+                              <p className="text-xs text-neutral-500">
+                                {status.helperText}
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-neutral-400">
                           {formatDate(row.target.createdAt)}

@@ -71,6 +71,7 @@ async function runScaleToZeroPolicy(now: number): Promise<void> {
       await stopDatabaseTarget({
         databaseId: target.databaseId,
         targetId: target.id,
+        stoppedReason: "idle",
       });
     } catch (error) {
       console.error(
