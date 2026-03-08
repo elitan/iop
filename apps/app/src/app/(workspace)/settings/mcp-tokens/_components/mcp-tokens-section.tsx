@@ -9,6 +9,7 @@ import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 export function McpTokensSection() {
   const demoMode = useDemoMode();
@@ -31,11 +32,7 @@ export function McpTokensSection() {
   );
 
   function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return formatDateTime(dateStr);
   }
 
   return (

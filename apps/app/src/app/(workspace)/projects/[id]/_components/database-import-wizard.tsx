@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ContractOutputs } from "@/contracts";
+import { useDatabasePublicHost } from "@/hooks/use-database-public-host";
 import {
   useCreateDatabaseImportJob,
   useDatabaseImportJob,
@@ -169,22 +170,13 @@ export function DatabaseImportWizard({
   const [jobId, setJobId] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [currentJob, setCurrentJob] = useState<DatabaseImportJob | null>(null);
-  const [externalHost, setExternalHost] = useState("127.0.0.1");
   const [stickLogToBottom, setStickLogToBottom] = useState(true);
   const logRef = useRef<HTMLTextAreaElement | null>(null);
+  const publicHost = useDatabasePublicHost();
 
   const createJobMutation = useCreateDatabaseImportJob(projectId);
   const jobQuery = useDatabaseImportJob(jobId);
   const runImportMutation = useRunDatabaseImportJob(jobId);
-
-  useEffect(function resolveExternalHost() {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (window.location.hostname) {
-      setExternalHost(window.location.hostname);
-    }
-  }, []);
 
   const job = jobQuery.data ?? currentJob;
 
@@ -266,7 +258,7 @@ export function DatabaseImportWizard({
     ? getConnectionString({
         username: job.targetConnection.username,
         password: job.targetConnection.password,
-        host: externalHost,
+        host: publicHost,
         port: job.targetConnection.hostPort,
         database: job.targetConnection.database,
         ssl: job.targetConnection.ssl,
