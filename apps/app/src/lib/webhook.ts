@@ -298,16 +298,31 @@ export interface BuildPRCommentParams {
   frostDomain: string | null;
 }
 
-function getStatusLabel(status: string): { label: string; icon: string } {
-  if (status === "running") return { label: "Ready", icon: "ready" };
-  if (status === "failed") return { label: "Failed", icon: "failed" };
-  return { label: "Building", icon: "building" };
+const STATUS_ICON_BASE_URL = "https://frost.build/static/status";
+
+function getStatusLabel(status: string): { label: string; iconFile: string } {
+  if (status === "running") {
+    return {
+      label: "Ready",
+      iconFile: "ready-dot.svg",
+    };
+  }
+  if (status === "failed") {
+    return {
+      label: "Failed",
+      iconFile: "failed-dot.svg",
+    };
+  }
+  return {
+    label: "Building",
+    iconFile: "building-dot.svg",
+  };
 }
 
 function getStatusCell(status: string, dashboardUrl: string | null): string {
-  const { label, icon } = getStatusLabel(status);
+  const { label, iconFile } = getStatusLabel(status);
   const linked = dashboardUrl ? `[${label}](${dashboardUrl})` : label;
-  return `![](https://frost.build/static/status/${icon}.svg) ${linked}`;
+  return `![](${STATUS_ICON_BASE_URL}/${iconFile}) ${linked}`;
 }
 
 export function buildPRCommentBody(params: BuildPRCommentParams): string {
