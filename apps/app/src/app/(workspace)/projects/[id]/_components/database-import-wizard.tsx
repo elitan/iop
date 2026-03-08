@@ -12,6 +12,7 @@ import {
   useDatabaseImportJob,
   useRunDatabaseImportJob,
 } from "@/hooks/use-databases";
+import { buildPostgresConnectionString } from "@/lib/connection-strings";
 
 type WizardStep = "source" | "preflight" | "import";
 
@@ -98,11 +99,7 @@ function getConnectionString(input: {
   database: string;
   ssl: boolean;
 }): string {
-  const user = encodeURIComponent(input.username);
-  const password = encodeURIComponent(input.password);
-  const database = encodeURIComponent(input.database);
-  const sslSuffix = input.ssl ? "?sslmode=require" : "";
-  return `postgres://${user}:${password}@${input.host}:${input.port}/${database}${sslSuffix}`;
+  return buildPostgresConnectionString(input);
 }
 
 function getProgressLabel(

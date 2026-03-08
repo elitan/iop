@@ -4,6 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 log "=== Database Services ==="
+PSQL_HOST="host.docker.internal"
 
 provider_ref_field() {
   local provider_ref_json="$1"
@@ -77,9 +78,14 @@ RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$TARGET_ID/runtime")
 HOST_PORT=$(require_field "$RUNTIME" '.hostPort' "get runtime hostPort") || fail "No host port: $RUNTIME"
 
 log "Verifying database is accepting connections..."
-PG_READY=$(remote "timeout 30 bash -c 'until pg_isready -h localhost -p $HOST_PORT -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done' && echo 'ready'" 2>&1 || echo "not ready")
-echo "$PG_READY" | grep -q "ready" || fail "Postgres not ready: $PG_READY"
+PG_READY=$(remote "for _ in \$(seq 1 30); do pg_isready -h localhost -p $HOST_PORT -U $POSTGRES_USER -d $POSTGRES_DB >/dev/null 2>&1 && echo ready && exit 0; sleep 1; done; exit 1" 2>&1 || true)
+[ "$PG_READY" = "ready" ] || fail "Postgres not ready: $PG_READY"
 log "Postgres accepting connections on $HOST_PORT"
+
+PG_TLS_RESULT=$(remote "docker run --rm --add-host=host.docker.internal:host-gateway -e PGPASSWORD='$POSTGRES_PASSWORD' postgres:17 psql \"host=$PSQL_HOST port=$HOST_PORT user=$POSTGRES_USER dbname=$POSTGRES_DB sslmode=require connect_timeout=10\" -tAc 'select current_database()'" 2>&1 || true)
+PG_TLS_VALUE=$(echo "$PG_TLS_RESULT" | tr -d '[:space:]')
+[ "$PG_TLS_VALUE" = "$POSTGRES_DB" ] || fail "Expected TLS query result $POSTGRES_DB, got: $PG_TLS_RESULT"
+log "Postgres TLS connection verified on $HOST_PORT"
 
 log "Creating branch from main..."
 DEV_TARGET=$(api -X POST "$BASE_URL/api/databases/$DB_ID/targets" \
@@ -122,7 +128,7 @@ DEV_STATUS=$(wait_for_branch_status "$DEV_TARGET_ID" "stopped" 36 5 || true)
 log "Branch auto-stopped after idle timeout"
 
 log "Connecting on same host port to auto-wake..."
-WAKE_RESULT=$(remote "timeout 90 docker run --rm --network host -e PGPASSWORD='$DEV_POSTGRES_PASSWORD' postgres:17 psql \"host=127.0.0.1 port=$DEV_HOST_PORT_AFTER user=$DEV_POSTGRES_USER dbname=$DEV_POSTGRES_DB sslmode=disable connect_timeout=70\" -tAc 'select 1'" 2>&1 || true)
+WAKE_RESULT=$(remote "docker run --rm --add-host=host.docker.internal:host-gateway -e PGPASSWORD='$DEV_POSTGRES_PASSWORD' postgres:17 psql \"host=$PSQL_HOST port=$DEV_HOST_PORT_AFTER user=$DEV_POSTGRES_USER dbname=$DEV_POSTGRES_DB sslmode=require connect_timeout=70\" -tAc 'select 1'" 2>&1 || true)
 WAKE_VALUE=$(echo "$WAKE_RESULT" | tr -d '[:space:]')
 [ "$WAKE_VALUE" = "1" ] || fail "Expected wake query result 1, got: $WAKE_RESULT"
 log "Wake query succeeded on same host port"

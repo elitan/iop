@@ -1,13 +1,12 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Copy,
   Database,
   ExternalLink,
   GitBranch,
   Github,
-  Globe,
   Loader2,
   Package,
   Rocket,
@@ -17,7 +16,6 @@ import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator"
 import { StatusNotice } from "@/components/status-notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { useDomains } from "@/hooks/use-domains";
 import { useDeployments, useDeployService } from "@/hooks/use-services";
 import type { EnvVar, Service } from "@/lib/api";
@@ -79,7 +77,6 @@ interface SidebarOverviewProps {
 }
 
 export function SidebarOverview({ service }: SidebarOverviewProps) {
-  const queryClient = useQueryClient();
   const deployMutation = useDeployService(service.id, service.environmentId);
 
   const { data: settings } = useQuery({
@@ -94,44 +91,6 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
   const { data: deployments = [] } = useDeployments(service.id);
   const currentDeployment = getCurrentDeployment(service, deployments);
   const latestDeployment = service.latestDeployment;
-
-  const { data: tcpProxy } = useQuery({
-    queryKey: ["tcp-proxy", service.id],
-    queryFn: () => api.tcpProxy.get(service.id),
-    enabled: service.serviceType === "database",
-  });
-
-  const enableTcpProxyMutation = useMutation({
-    mutationFn: () => api.tcpProxy.enable(service.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tcp-proxy", service.id] });
-      toast.success("External access enabled", {
-        description: "Redeploy required for changes to take effect",
-        duration: 10000,
-        action: {
-          label: "Redeploy",
-          onClick: () => deployMutation.mutateAsync(),
-        },
-      });
-    },
-    onError: () => toast.error("Failed to enable external access"),
-  });
-
-  const disableTcpProxyMutation = useMutation({
-    mutationFn: () => api.tcpProxy.disable(service.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tcp-proxy", service.id] });
-      toast.success("External access disabled", {
-        description: "Redeploy required for changes to take effect",
-        duration: 10000,
-        action: {
-          label: "Redeploy",
-          onClick: () => deployMutation.mutateAsync(),
-        },
-      });
-    },
-    onError: () => toast.error("Failed to disable external access"),
-  });
 
   const githubRepo = getGitHubRepoFromUrl(service.repoUrl);
 
@@ -305,81 +264,6 @@ export function SidebarOverview({ service }: SidebarOverviewProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <InternalConnectionString service={service} />
-
-            <div className="border-t border-neutral-700 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="flex items-center gap-2 text-sm text-neutral-300">
-                    <Globe className="h-4 w-4" />
-                    External Access
-                  </span>
-                  <p className="mt-0.5 text-xs text-neutral-500">
-                    Expose database to external connections
-                  </p>
-                </div>
-                <Switch
-                  checked={tcpProxy?.enabled ?? false}
-                  disabled={
-                    enableTcpProxyMutation.isPending ||
-                    disableTcpProxyMutation.isPending
-                  }
-                  onCheckedChange={(checked: boolean) => {
-                    if (checked) {
-                      enableTcpProxyMutation.mutate();
-                    } else {
-                      disableTcpProxyMutation.mutate();
-                    }
-                  }}
-                />
-              </div>
-
-              {tcpProxy?.enabled && tcpProxy.port && serverIp && (
-                <div className="mt-3">
-                  <p className="mb-1 text-xs text-neutral-500">
-                    External Connection
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 rounded bg-neutral-900 px-3 py-2 font-mono text-xs text-neutral-300 overflow-auto">
-                      {buildConnectionString(
-                        service.imageUrl?.split(":")[0] ?? "",
-                        serverIp,
-                        tcpProxy.port,
-                        JSON.parse(service.envVars || "[]").reduce(
-                          (acc: Record<string, string>, v: EnvVar) => {
-                            acc[v.key] = v.value;
-                            return acc;
-                          },
-                          {},
-                        ),
-                      )}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          buildConnectionString(
-                            service.imageUrl?.split(":")[0] ?? "",
-                            serverIp,
-                            tcpProxy.port!,
-                            JSON.parse(service.envVars || "[]").reduce(
-                              (acc: Record<string, string>, v: EnvVar) => {
-                                acc[v.key] = v.value;
-                                return acc;
-                              },
-                              {},
-                            ),
-                          ),
-                        );
-                        toast.success("Copied to clipboard");
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}

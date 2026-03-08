@@ -3,7 +3,10 @@ import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
-import { getDatabaseBranchAlias } from "./database-hostname";
+import {
+  getDatabaseBranchAlias,
+  getDatabaseBranchInternalHost,
+} from "./database-hostname";
 import {
   type DatabaseProvider,
   normalizeDatabaseProvider,
@@ -24,6 +27,7 @@ import {
   connectContainerToNetwork,
   createNetwork,
   disconnectContainerFromNetwork,
+  type FileMount,
   getAvailablePort,
   isPortConflictError,
   runContainer,
@@ -55,6 +59,7 @@ import type {
 } from "./service-runtime-status";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
+import { generateSelfSignedCert, getSSLPaths, removeSSLCerts } from "./ssl";
 
 const execAsync = promisify(exec);
 
@@ -96,6 +101,12 @@ export interface RuntimeConnection {
   password: string;
   database: string;
   ssl: boolean;
+}
+
+export interface DatabaseTargetConnectionInfo extends RuntimeConnection {
+  databaseId: string;
+  targetId: string;
+  internalHost: string;
 }
 
 export interface DatabaseWithTarget {
@@ -214,6 +225,47 @@ function getDatabaseNameSlug(name: string): string {
   const normalized = slugify(name).replace(/-/g, "_");
   const base = normalized.length > 0 ? normalized : "frostdb";
   return base.slice(0, 48);
+}
+
+function getDatabaseTargetInternalHost(input: {
+  engine: DatabaseEngine;
+  databaseName: string;
+  targetHostname: string;
+}): string {
+  if (input.engine === "postgres") {
+    return getDatabaseBranchInternalHost(
+      input.databaseName,
+      input.targetHostname,
+    );
+  }
+
+  return `${input.targetHostname}.frost.internal`;
+}
+
+function getPostgresTargetFileMounts(targetId: string): FileMount[] {
+  const sslPaths = getSSLPaths(targetId);
+  return [
+    {
+      hostPath: sslPaths.cert,
+      containerPath: "/etc/ssl/postgres/server.crt",
+    },
+    {
+      hostPath: sslPaths.key,
+      containerPath: "/etc/ssl/postgres/server.key",
+    },
+  ];
+}
+
+function getPostgresTargetCommand(): string[] {
+  return [
+    "postgres",
+    "-c",
+    "ssl=on",
+    "-c",
+    "ssl_cert_file=/etc/ssl/postgres/server.crt",
+    "-c",
+    "ssl_key_file=/etc/ssl/postgres/server.key",
+  ];
 }
 
 async function assertPostgresHostReady(): Promise<void> {
@@ -418,6 +470,17 @@ async function waitForPostgresReady(providerRef: ProviderRef): Promise<void> {
   );
 }
 
+async function waitForTargetReady(
+  engine: DatabaseEngine,
+  providerRef: ProviderRef,
+): Promise<void> {
+  if (engine !== "postgres") {
+    return;
+  }
+
+  await waitForPostgresReady(providerRef);
+}
+
 function parsePostgresRow(
   row: string,
   fieldSeparator: string,
@@ -515,6 +578,7 @@ async function updateTargetContainerResources(input: {
 
 async function createTargetRuntime(input: {
   databaseId: string;
+  targetId: string;
   databaseName: string;
   targetName: string;
   runtimeServiceId: string;
@@ -526,17 +590,14 @@ async function createTargetRuntime(input: {
   fixedHostPort?: number;
   storageMountPath?: string;
 }): Promise<ProviderRef> {
+  const isPostgres = input.engine === "postgres";
   const image =
     input.image ?? input.templateRef?.image ?? getDefaultImage(input.engine);
   const port = input.templateRef?.port ?? getDefaultPort(input.engine);
   const username = input.templateRef?.username ?? "frost";
   const password = input.templateRef?.password ?? randomSecret();
   const database =
-    input.templateRef?.database ??
-    `${getDatabaseNameSlug(input.databaseName)}_${input.targetName.replace(/-/g, "_")}`.slice(
-      0,
-      48,
-    );
+    input.templateRef?.database ?? getDatabaseNameSlug(input.databaseName);
   const containerName = sanitizeDockerName(
     `frost-db-${input.databaseId}-${input.targetName}`,
   );
@@ -548,23 +609,31 @@ async function createTargetRuntime(input: {
 
   await stopContainer(containerName);
 
-  if (input.engine === "postgres" && !input.storageMountPath) {
+  if (isPostgres && !input.storageMountPath) {
     throw new Error("Postgres target is missing storage mount path");
   }
 
-  const envVars: Record<string, string> =
-    input.engine === "postgres"
-      ? {
-          POSTGRES_USER: username,
-          POSTGRES_PASSWORD: password,
-          POSTGRES_DB: database,
-        }
-      : {
-          MYSQL_DATABASE: database,
-          MYSQL_USER: username,
-          MYSQL_PASSWORD: password,
-          MYSQL_ROOT_PASSWORD: randomSecret(),
-        };
+  let fileMounts: FileMount[] | undefined;
+  let command: string[] | undefined;
+
+  if (isPostgres) {
+    await generateSelfSignedCert(input.targetId);
+    fileMounts = getPostgresTargetFileMounts(input.targetId);
+    command = getPostgresTargetCommand();
+  }
+
+  const envVars: Record<string, string> = isPostgres
+    ? {
+        POSTGRES_USER: username,
+        POSTGRES_PASSWORD: password,
+        POSTGRES_DB: database,
+      }
+    : {
+        MYSQL_DATABASE: database,
+        MYSQL_USER: username,
+        MYSQL_PASSWORD: password,
+        MYSQL_ROOT_PASSWORD: randomSecret(),
+      };
 
   if (input.fixedHostPort !== undefined) {
     hostPortsToTry.push(input.fixedHostPort);
@@ -587,9 +656,11 @@ async function createTargetRuntime(input: {
       memoryLimit: memoryLimit ?? undefined,
       cpuLimit: cpuLimit ?? undefined,
       volumes:
-        input.engine === "postgres" && input.storageMountPath
+        isPostgres && input.storageMountPath
           ? [{ name: input.storageMountPath, path: "/var/lib/postgresql/data" }]
           : undefined,
+      fileMounts,
+      command,
       labels: {
         "frost.managed": "true",
         "frost.service.id": input.runtimeServiceId,
@@ -625,7 +696,7 @@ async function createTargetRuntime(input: {
       username,
       password,
       database,
-      ssl: false,
+      ssl: isPostgres,
       image,
       port,
       memoryLimit,
@@ -657,6 +728,7 @@ async function recreateTargetRuntime(input: {
 
   const nextRef = await createTargetRuntime({
     databaseId: input.database.id,
+    targetId: input.target.id,
     databaseName: input.database.name,
     targetName: input.target.name,
     runtimeServiceId: input.target.runtimeServiceId,
@@ -996,10 +1068,14 @@ export async function createDatabase(input: {
           storageRef: storageHandle.storageRef,
         });
       });
+      rollback.add(async () => {
+        await removeSSLCerts(targetId);
+      });
     }
 
     const providerRef = await createTargetRuntime({
       databaseId,
+      targetId,
       databaseName: input.name,
       targetName: "main",
       runtimeServiceId,
@@ -1007,6 +1083,7 @@ export async function createDatabase(input: {
       image: input.image,
       storageMountPath,
     });
+    await waitForTargetReady(input.engine, providerRef);
     rollback.add(async () => {
       await stopContainer(providerRef.containerName);
     });
@@ -1119,9 +1196,13 @@ export async function createDatabaseTarget(input: {
           storageRef: clonedStorage.storageRef,
         });
       });
+      rollback.add(async () => {
+        await removeSSLCerts(targetId);
+      });
 
       providerRef = await createTargetRuntime({
         databaseId: database.id,
+        targetId,
         databaseName: database.name,
         targetName: input.name,
         runtimeServiceId,
@@ -1133,12 +1214,14 @@ export async function createDatabaseTarget(input: {
     } else {
       providerRef = await createTargetRuntime({
         databaseId: database.id,
+        targetId,
         databaseName: database.name,
         targetName: input.name,
         runtimeServiceId,
         engine: database.engine as DatabaseEngine,
       });
     }
+    await waitForTargetReady(database.engine as DatabaseEngine, providerRef);
 
     rollback.add(async () => {
       await stopContainer(providerRef.containerName);
@@ -1259,6 +1342,7 @@ export async function resetDatabaseTarget(input: {
   try {
     nextRef = await createTargetRuntime({
       databaseId: database.id,
+      targetId: target.id,
       databaseName: database.name,
       targetName: target.name,
       runtimeServiceId: target.runtimeServiceId,
@@ -1267,7 +1351,7 @@ export async function resetDatabaseTarget(input: {
       fixedHostPort: getTargetRuntimeHostPort(target, currentRef),
       storageMountPath: liveMountPath,
     });
-    await waitForPostgresReady(nextRef);
+    await waitForTargetReady("postgres", nextRef);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reset failed while starting";
@@ -1332,9 +1416,7 @@ export async function startDatabaseTarget(input: {
     providerRef,
     fixedHostPort: runtimeHostPort,
   });
-  if (database.engine === "postgres") {
-    await waitForPostgresReady(nextRef);
-  }
+  await waitForTargetReady(database.engine as DatabaseEngine, nextRef);
   applyProviderRefRuntimePorts({
     target,
     previousProviderRef: providerRef,
@@ -1411,6 +1493,7 @@ export async function deleteDatabaseTarget(input: {
   await stopContainer(providerRef.containerName);
   if (database.engine === "postgres") {
     await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+    await removeSSLCerts(target.id);
   }
   await db.deleteFrom("databaseTargets").where("id", "=", target.id).execute();
 }
@@ -1430,6 +1513,7 @@ export async function deleteDatabase(databaseId: string): Promise<void> {
     await stopContainer(providerRef.containerName);
     if (database.engine === "postgres") {
       await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+      await removeSSLCerts(target.id);
     }
   }
 
@@ -1517,9 +1601,7 @@ export async function deployDatabaseTarget(
       providerRef,
       fixedHostPort: runtimeHostPort,
     });
-    if (database.engine === "postgres") {
-      await waitForPostgresReady(nextRef);
-    }
+    await waitForTargetReady(database.engine as DatabaseEngine, nextRef);
     applyProviderRefRuntimePorts({
       target,
       previousProviderRef: providerRef,
@@ -1847,6 +1929,7 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
           providerRef: currentProviderRef,
           fixedHostPort: runtimeHostPort,
         });
+        await waitForTargetReady(database.engine as DatabaseEngine, recreated);
         recreated.hostPort = currentProviderRef.hostPort;
         recreated.runtimeHostPort = runtimeHostPort;
         nextProviderRef = recreated;
@@ -1884,6 +1967,7 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
           providerRef: currentProviderRef,
           fixedHostPort: currentProviderRef.hostPort,
         });
+        await waitForTargetReady(database.engine as DatabaseEngine, recreated);
         recreated.runtimeHostPort = undefined;
         nextProviderRef = recreated;
       } else {
@@ -1965,12 +2049,33 @@ export async function resolveRuntimeConnection(input: {
   databaseId: string;
   targetId: string;
 }): Promise<RuntimeConnection> {
-  const { target } = await resolveDatabaseWithTargetById(
+  const connection = await getDatabaseTargetConnectionInfo(input);
+  return {
+    hostPort: connection.hostPort,
+    username: connection.username,
+    password: connection.password,
+    database: connection.database,
+    ssl: connection.ssl,
+  };
+}
+
+export async function getDatabaseTargetConnectionInfo(input: {
+  databaseId: string;
+  targetId: string;
+}): Promise<DatabaseTargetConnectionInfo> {
+  const { database, target } = await resolveDatabaseWithTargetById(
     input.databaseId,
     input.targetId,
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   return {
+    databaseId: database.id,
+    targetId: target.id,
+    internalHost: getDatabaseTargetInternalHost({
+      engine: database.engine as DatabaseEngine,
+      databaseName: database.name,
+      targetHostname: target.hostname,
+    }),
     hostPort: providerRef.hostPort,
     username: providerRef.username,
     password: providerRef.password,

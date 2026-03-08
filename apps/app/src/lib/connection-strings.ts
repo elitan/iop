@@ -1,3 +1,19 @@
+export function buildPostgresConnectionString(input: {
+  username: string;
+  password: string;
+  host: string;
+  port: number;
+  database: string;
+  ssl: boolean;
+}): string {
+  const user = encodeURIComponent(input.username);
+  const password = encodeURIComponent(input.password);
+  const database = encodeURIComponent(input.database);
+  const sslSuffix = input.ssl ? "?sslmode=require" : "";
+
+  return `postgres://${user}:${password}@${input.host}:${input.port}/${database}${sslSuffix}`;
+}
+
 export function buildConnectionString(
   imageUrl: string,
   host: string,
