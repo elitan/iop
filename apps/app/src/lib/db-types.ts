@@ -112,6 +112,7 @@ export interface DatabaseTargets {
   scaleToZeroMinutes: number | null;
   lastActivityAt: number | null;
   runtimeHostPort: number | null;
+  stoppedReason: 'idle' | 'failed' | null;
 }
 
 export interface Databases {
