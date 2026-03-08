@@ -4,6 +4,7 @@ import {
   clearTemplateCache,
   generateCredential,
   getDatabaseTemplates,
+  getManagedTemplateDatabases,
   getProjectTemplates,
   getServiceTemplates,
   getTemplate,
@@ -102,6 +103,34 @@ describe("generateCredential", () => {
   });
 });
 
+describe("getManagedTemplateDatabases", () => {
+  it("returns supported managed databases only", () => {
+    const template = getTemplate("plausible");
+    expect(template).toBeDefined();
+    if (!template) return;
+
+    const databases = getManagedTemplateDatabases(template);
+
+    expect(databases).toEqual([
+      {
+        name: "postgres",
+        engine: "postgres",
+        image: "postgres:16-alpine",
+      },
+    ]);
+  });
+
+  it("leaves mysql database services unmanaged", () => {
+    const template = getTemplate("wordpress");
+    expect(template).toBeDefined();
+    if (!template) return;
+
+    const databases = getManagedTemplateDatabases(template);
+
+    expect(databases).toEqual([]);
+  });
+});
+
 describe("resolveTemplateServices", () => {
   it("resolves a single-service template", () => {
     const template = getTemplate("postgres");
@@ -131,7 +160,9 @@ describe("resolveTemplateServices", () => {
   it("resolves cross-service references in project templates", () => {
     const template = getTemplate("plausible");
     expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    if (!template) return;
+
+    const resolved = resolveTemplateServices(template);
     expect(resolved.length).toBe(3);
 
     const plausibleSvc = resolved.find((s) => s.name === "plausible");
@@ -143,6 +174,54 @@ describe("resolveTemplateServices", () => {
     expect(dbUrlEnv).toBeDefined();
     expect(dbUrlEnv?.value).not.toContain("${");
     expect(dbUrlEnv?.value).toContain("postgres://postgres:");
+  });
+
+  it("can swap managed database refs into project templates", () => {
+    const template = getTemplate("plausible");
+    expect(template).toBeDefined();
+    if (!template) return;
+
+    const resolved = resolveTemplateServices(template, {
+      excludeServices: ["postgres"],
+      referenceValues: {
+        postgres: {
+          HOST: "postgres--main.frost.internal",
+          PORT: "5432",
+          USERNAME: "frost",
+          PASSWORD: "secret",
+          DATABASE: "postgres",
+          DATABASE_URL:
+            "postgres://frost:secret@postgres--main.frost.internal:5432/postgres?sslmode=require",
+          POSTGRES_USER: "frost",
+          POSTGRES_PASSWORD: "secret",
+          POSTGRES_DB: "postgres",
+        },
+      },
+    });
+
+    expect(resolved.map((service) => service.name)).toEqual([
+      "plausible",
+      "clickhouse",
+    ]);
+
+    const plausibleSvc = resolved.find(
+      (service) => service.name === "plausible",
+    );
+    expect(plausibleSvc).toBeDefined();
+
+    const dbUrlEnv = plausibleSvc?.envVars.find(
+      (envVar) => envVar.key === "DATABASE_URL",
+    );
+    const clickhouseUrlEnv = plausibleSvc?.envVars.find(
+      (envVar) => envVar.key === "CLICKHOUSE_DATABASE_URL",
+    );
+
+    expect(dbUrlEnv?.value).toBe(
+      "postgres://frost:secret@postgres--main.frost.internal:5432/postgres?sslmode=require",
+    );
+    expect(clickhouseUrlEnv?.value).toBe(
+      "http://clickhouse:8123/plausible_events_db",
+    );
   });
 
   it("sets main service correctly in project templates", () => {

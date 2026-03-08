@@ -10,10 +10,10 @@ services:
     main: true
     icon: wordpress
     environment:
-      WORDPRESS_DB_HOST: mysql
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: ${mysql.MYSQL_PASSWORD}
-      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_HOST: ${mysql.HOST}
+      WORDPRESS_DB_USER: ${mysql.USERNAME}
+      WORDPRESS_DB_PASSWORD: ${mysql.PASSWORD}
+      WORDPRESS_DB_NAME: ${mysql.DATABASE}
     volumes:
       - data:/var/www/html
     health_check:

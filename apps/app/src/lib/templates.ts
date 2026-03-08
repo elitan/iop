@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { nanoid } from "nanoid";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { buildPostgresConnectionString } from "./connection-strings";
 
 const generatedValueSchema = z.object({
   generated: z.enum(["password", "base64_32", "base64_64"]),
@@ -53,6 +54,10 @@ export interface Template {
   services: Record<string, ServiceDefinition>;
 }
 
+export interface TemplateReferenceValues {
+  [serviceName: string]: Record<string, string>;
+}
+
 export interface VolumeMount {
   name: string;
   path: string;
@@ -79,12 +84,69 @@ export interface ResolvedService {
   ssl: boolean;
 }
 
+export interface ResolveTemplateServicesOptions {
+  excludeServices?: string[];
+  referenceValues?: TemplateReferenceValues;
+}
+
+type TemplateDatabaseEngine = "postgres" | "mysql";
+
+export type ManagedTemplateDatabaseEngine = "postgres";
+
+export interface ManagedTemplateDatabase {
+  name: string;
+  engine: ManagedTemplateDatabaseEngine;
+  image: string;
+}
+
 function parseVolumeString(vol: string): VolumeMount {
   const parts = vol.split(":");
   if (parts.length !== 2) {
     throw new Error(`Invalid volume format: ${vol}`);
   }
   return { name: parts[0], path: parts[1] };
+}
+
+function detectTemplateDatabaseEngine(
+  image: string,
+): TemplateDatabaseEngine | null {
+  const normalized = image.toLowerCase();
+
+  if (normalized.includes("postgres")) {
+    return "postgres";
+  }
+
+  if (normalized.includes("mysql")) {
+    return "mysql";
+  }
+
+  return null;
+}
+
+function detectManagedTemplateDatabaseEngine(
+  image: string,
+): ManagedTemplateDatabaseEngine | null {
+  const engine = detectTemplateDatabaseEngine(image);
+
+  if (engine === "postgres") {
+    return engine;
+  }
+
+  return null;
+}
+
+function buildMysqlConnectionString(input: {
+  username: string;
+  password: string;
+  host: string;
+  port: number;
+  database: string;
+}): string {
+  const user = encodeURIComponent(input.username);
+  const password = encodeURIComponent(input.password);
+  const database = encodeURIComponent(input.database);
+
+  return `mysql://${user}:${password}@${input.host}:${input.port}/${database}`;
 }
 
 function loadTemplatesFromDir(dirPath: string, type: TemplateType): Template[] {
@@ -110,7 +172,12 @@ function loadTemplatesFromDir(dirPath: string, type: TemplateType): Template[] {
 }
 
 function getTemplatesDir(): string {
-  return join(process.cwd(), "templates");
+  const directDir = join(process.cwd(), "templates");
+  if (existsSync(directDir)) {
+    return directDir;
+  }
+
+  return join(process.cwd(), "apps", "app", "templates");
 }
 
 let cachedTemplates: Template[] | null = null;
@@ -176,25 +243,177 @@ export function isGeneratedValue(value: EnvValue): value is GeneratedValue {
   return typeof value === "object" && "generated" in value;
 }
 
-export function resolveTemplateServices(template: Template): ResolvedService[] {
-  const generatedValues: Record<string, Record<string, string>> = {};
+function buildTemplateEnvValues(template: Template): TemplateReferenceValues {
+  const envValuesByService: TemplateReferenceValues = {};
 
   for (const [serviceName, service] of Object.entries(template.services)) {
-    generatedValues[serviceName] = {};
+    envValuesByService[serviceName] = {};
+
     if (service.environment) {
       for (const [key, value] of Object.entries(service.environment)) {
         if (isGeneratedValue(value)) {
-          generatedValues[serviceName][key] = generateCredential(
+          envValuesByService[serviceName][key] = generateCredential(
             value.generated,
           );
+        } else {
+          envValuesByService[serviceName][key] = value;
         }
       }
     }
   }
 
+  return envValuesByService;
+}
+
+function buildServiceReferenceValues(
+  serviceName: string,
+  service: ServiceDefinition,
+  envValues: Record<string, string>,
+): Record<string, string> {
+  const refs = { ...envValues };
+
+  refs.HOST ??= serviceName;
+  refs.PORT ??= String(service.port);
+
+  const engine = detectTemplateDatabaseEngine(service.image);
+
+  if (engine === "postgres") {
+    const username = refs.POSTGRES_USER ?? "postgres";
+    const password = refs.POSTGRES_PASSWORD ?? "";
+    const database = refs.POSTGRES_DB ?? "postgres";
+
+    refs.USERNAME ??= username;
+    refs.PASSWORD ??= password;
+    refs.DATABASE ??= database;
+
+    if (password && refs.DATABASE_URL === undefined) {
+      refs.DATABASE_URL = buildPostgresConnectionString({
+        username,
+        password,
+        host: refs.HOST,
+        port: service.port,
+        database,
+        ssl: service.ssl ?? false,
+      });
+    }
+  }
+
+  if (engine === "mysql") {
+    const username = refs.MYSQL_USER ?? "root";
+    const password = refs.MYSQL_PASSWORD ?? refs.MYSQL_ROOT_PASSWORD ?? "";
+    const database = refs.MYSQL_DATABASE ?? "mysql";
+
+    refs.USERNAME ??= username;
+    refs.PASSWORD ??= password;
+    refs.DATABASE ??= database;
+
+    if (password && refs.DATABASE_URL === undefined) {
+      refs.DATABASE_URL = buildMysqlConnectionString({
+        username,
+        password,
+        host: refs.HOST,
+        port: service.port,
+        database,
+      });
+    }
+  }
+
+  return refs;
+}
+
+function buildTemplateReferenceValues(input: {
+  template: Template;
+  envValuesByService: TemplateReferenceValues;
+  overrideValues?: TemplateReferenceValues;
+}): TemplateReferenceValues {
+  const referenceValues: TemplateReferenceValues = {};
+
+  for (const [serviceName, service] of Object.entries(
+    input.template.services,
+  )) {
+    referenceValues[serviceName] = buildServiceReferenceValues(
+      serviceName,
+      service,
+      input.envValuesByService[serviceName] ?? {},
+    );
+  }
+
+  if (input.overrideValues) {
+    for (const [serviceName, values] of Object.entries(input.overrideValues)) {
+      referenceValues[serviceName] = {
+        ...(referenceValues[serviceName] ?? {}),
+        ...values,
+      };
+    }
+  }
+
+  return referenceValues;
+}
+
+function resolveTemplateValue(
+  value: string,
+  referenceValues: TemplateReferenceValues,
+): string {
+  let resolvedValue = value;
+  const refPattern = /\$\{([^.]+)\.([^}]+)\}/g;
+  const matches = value.matchAll(refPattern);
+
+  for (const match of matches) {
+    const [fullMatch, refService, refKey] = match;
+    const refValue = referenceValues[refService]?.[refKey];
+
+    if (refValue !== undefined) {
+      resolvedValue = resolvedValue.replace(fullMatch, refValue);
+    }
+  }
+
+  return resolvedValue;
+}
+
+export function getManagedTemplateDatabases(
+  template: Template,
+): ManagedTemplateDatabase[] {
+  const databases: ManagedTemplateDatabase[] = [];
+
+  for (const [serviceName, service] of Object.entries(template.services)) {
+    if (service.type !== "database") {
+      continue;
+    }
+
+    const engine = detectManagedTemplateDatabaseEngine(service.image);
+    if (!engine) {
+      continue;
+    }
+
+    databases.push({
+      name: serviceName,
+      engine,
+      image: service.image,
+    });
+  }
+
+  return databases;
+}
+
+export function resolveTemplateServices(
+  template: Template,
+  options: ResolveTemplateServicesOptions = {},
+): ResolvedService[] {
+  const envValuesByService = buildTemplateEnvValues(template);
+  const referenceValues = buildTemplateReferenceValues({
+    template,
+    envValuesByService,
+    overrideValues: options.referenceValues,
+  });
+  const excludedServices = new Set(options.excludeServices ?? []);
+
   const resolved: ResolvedService[] = [];
 
   for (const [serviceName, service] of Object.entries(template.services)) {
+    if (excludedServices.has(serviceName)) {
+      continue;
+    }
+
     const envVars: ResolvedEnvVar[] = [];
 
     if (service.environment) {
@@ -202,21 +421,17 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
         if (isGeneratedValue(value)) {
           envVars.push({
             key,
-            value: generatedValues[serviceName][key],
+            value: envValuesByService[serviceName][key],
             generated: true,
           });
         } else {
-          let resolvedValue = value;
-          const refPattern = /\$\{([^.]+)\.([^}]+)\}/g;
-          const matches = value.matchAll(refPattern);
-          for (const match of matches) {
-            const [fullMatch, refService, refKey] = match;
-            const refValue = generatedValues[refService]?.[refKey];
-            if (refValue) {
-              resolvedValue = resolvedValue.replace(fullMatch, refValue);
-            }
-          }
-          envVars.push({ key, value: resolvedValue });
+          envVars.push({
+            key,
+            value: resolveTemplateValue(
+              envValuesByService[serviceName][key],
+              referenceValues,
+            ),
+          });
         }
       }
     }
@@ -239,7 +454,9 @@ export function resolveTemplateServices(template: Template): ResolvedService[] {
     });
   }
 
-  const mainService = resolved.find((s) => s.isMain);
+  const mainService = resolved.find(function isMainService(service) {
+    return service.isMain;
+  });
   if (!mainService && resolved.length > 0) {
     resolved[0].isMain = true;
   }

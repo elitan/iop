@@ -20,4 +20,11 @@ Templates can auto-generate secure values for passwords and tokens. Fields like 
 
 ## Cross-Service References
 
-In project templates, services can reference each other's environment variables. For example, a web app template might reference the database password from the postgres service, so connection strings are configured automatically.
+In project templates, services can reference each other's environment variables. Database templates also get built-in refs like `HOST`, `PORT`, `USERNAME`, `PASSWORD`, `DATABASE`, and `DATABASE_URL`.
+
+Example:
+
+```yaml
+DATABASE_URL: ${postgres.DATABASE_URL}
+DB_HOST: ${postgres.HOST}
+```

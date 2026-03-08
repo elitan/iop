@@ -60,10 +60,23 @@ Use `generated` to auto-generate credentials:
 In project templates, reference other services' environment variables:
 
 ```yaml
-DATABASE_URL: postgres://user:${postgres.POSTGRES_PASSWORD}@postgres:5432/db
+DATABASE_URL: ${postgres.DATABASE_URL}
+DB_HOST: ${postgres.HOST}
+DB_USER: ${postgres.USERNAME}
 ```
 
 Format: `${service_name.ENV_VAR_NAME}`
+
+Built-in database refs:
+
+- `HOST`
+- `PORT`
+- `USERNAME`
+- `PASSWORD`
+- `DATABASE`
+- `DATABASE_URL`
+
+Project templates can keep services like `clickhouse` and `mysql` as normal services while `postgres` database services are created as Frost databases.
 
 ## Contributing
 

@@ -10,7 +10,7 @@ services:
     main: true
     icon: hasura
     environment:
-      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/hasura
+      HASURA_GRAPHQL_DATABASE_URL: ${postgres.DATABASE_URL}
       HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
       HASURA_GRAPHQL_DEV_MODE: "false"
       HASURA_GRAPHQL_ADMIN_SECRET:

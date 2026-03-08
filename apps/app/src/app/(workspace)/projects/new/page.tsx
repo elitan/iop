@@ -26,7 +26,7 @@ interface TemplateInfoProps {
   template:
     | {
         description: string;
-        services: Record<string, unknown>;
+        services: Record<string, { type?: "database" | "app" }>;
         docs?: string;
       }
     | undefined;
@@ -35,18 +35,30 @@ interface TemplateInfoProps {
 function TemplateInfo({ template }: TemplateInfoProps) {
   if (!template) return null;
 
-  const serviceNames = Object.keys(template.services);
-  const serviceCount = serviceNames.length;
+  const serviceNames = Object.entries(template.services)
+    .filter(([, service]) => service.type !== "database")
+    .map(([name]) => name);
+  const databaseNames = Object.entries(template.services)
+    .filter(([, service]) => service.type === "database")
+    .map(([name]) => name);
 
   return (
     <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-3 text-xs text-neutral-400">
       <p className="mb-2 font-medium text-neutral-300">
         {template.description}
       </p>
-      <p>
-        Creates {serviceCount} service{serviceCount > 1 ? "s" : ""}:{" "}
-        {serviceNames.join(", ")}
-      </p>
+      {serviceNames.length > 0 && (
+        <p>
+          Creates {serviceNames.length} service
+          {serviceNames.length > 1 ? "s" : ""}: {serviceNames.join(", ")}
+        </p>
+      )}
+      {databaseNames.length > 0 && (
+        <p className={serviceNames.length > 0 ? "mt-1" : undefined}>
+          Creates {databaseNames.length} database
+          {databaseNames.length > 1 ? "s" : ""}: {databaseNames.join(", ")}
+        </p>
+      )}
       {template.docs && (
         <p className="mt-2">
           <a

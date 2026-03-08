@@ -11,11 +11,11 @@ services:
     icon: strapi
     environment:
       DATABASE_CLIENT: postgres
-      DATABASE_HOST: postgres
-      DATABASE_PORT: "5432"
-      DATABASE_NAME: strapi
-      DATABASE_USERNAME: strapi
-      DATABASE_PASSWORD: ${postgres.POSTGRES_PASSWORD}
+      DATABASE_HOST: ${postgres.HOST}
+      DATABASE_PORT: ${postgres.PORT}
+      DATABASE_NAME: ${postgres.DATABASE}
+      DATABASE_USERNAME: ${postgres.USERNAME}
+      DATABASE_PASSWORD: ${postgres.PASSWORD}
       APP_KEYS:
         generated: base64_32
       API_TOKEN_SALT:
