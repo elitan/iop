@@ -11,11 +11,11 @@ services:
     icon: n8n
     environment:
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_PORT: "5432"
-      DB_POSTGRESDB_DATABASE: n8n
-      DB_POSTGRESDB_USER: n8n
-      DB_POSTGRESDB_PASSWORD: ${postgres.POSTGRES_PASSWORD}
+      DB_POSTGRESDB_HOST: ${postgres.HOST}
+      DB_POSTGRESDB_PORT: ${postgres.PORT}
+      DB_POSTGRESDB_DATABASE: ${postgres.DATABASE}
+      DB_POSTGRESDB_USER: ${postgres.USERNAME}
+      DB_POSTGRESDB_PASSWORD: ${postgres.PASSWORD}
       N8N_ENCRYPTION_KEY:
         generated: base64_32
     volumes:
