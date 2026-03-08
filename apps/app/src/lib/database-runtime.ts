@@ -59,7 +59,7 @@ import type {
 } from "./service-runtime-status";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
-import { generateSelfSignedCert, getSSLPaths, removeSSLCerts } from "./ssl";
+import { preparePostgresSSLAssets, removeSSLCerts } from "./ssl";
 
 const execAsync = promisify(exec);
 const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
@@ -241,32 +241,6 @@ function getDatabaseTargetInternalHost(input: {
   }
 
   return `${input.targetHostname}.frost.internal`;
-}
-
-function getPostgresTargetFileMounts(targetId: string): FileMount[] {
-  const sslPaths = getSSLPaths(targetId);
-  return [
-    {
-      hostPath: sslPaths.cert,
-      containerPath: "/etc/ssl/postgres/server.crt",
-    },
-    {
-      hostPath: sslPaths.key,
-      containerPath: "/etc/ssl/postgres/server.key",
-    },
-  ];
-}
-
-function getPostgresTargetCommand(): string[] {
-  return [
-    "postgres",
-    "-c",
-    "ssl=on",
-    "-c",
-    "ssl_cert_file=/etc/ssl/postgres/server.crt",
-    "-c",
-    "ssl_key_file=/etc/ssl/postgres/server.key",
-  ];
 }
 
 async function assertPostgresHostReady(): Promise<void> {
@@ -615,12 +589,28 @@ async function createTargetRuntime(input: {
   }
 
   let fileMounts: FileMount[] | undefined;
-  let command: string[] | undefined;
+  let entrypoint: string | undefined;
 
   if (isPostgres) {
-    await generateSelfSignedCert(input.targetId, POSTGRES_SSL_OWNER);
-    fileMounts = getPostgresTargetFileMounts(input.targetId);
-    command = getPostgresTargetCommand();
+    const sslAssets = await preparePostgresSSLAssets(
+      input.targetId,
+      POSTGRES_SSL_OWNER,
+    );
+    fileMounts = [
+      {
+        hostPath: sslAssets.cert,
+        containerPath: "/run/frost-postgres-ssl/server.crt",
+      },
+      {
+        hostPath: sslAssets.key,
+        containerPath: "/run/frost-postgres-ssl/server.key",
+      },
+      {
+        hostPath: sslAssets.bootstrap,
+        containerPath: `/usr/local/bin/frost-postgres-bootstrap-${input.targetId}.sh`,
+      },
+    ];
+    entrypoint = `/usr/local/bin/frost-postgres-bootstrap-${input.targetId}.sh`;
   }
 
   const envVars: Record<string, string> = isPostgres
@@ -653,6 +643,7 @@ async function createTargetRuntime(input: {
       hostPort,
       containerPort: port,
       name: containerName,
+      entrypoint,
       envVars,
       memoryLimit: memoryLimit ?? undefined,
       cpuLimit: cpuLimit ?? undefined,
@@ -661,7 +652,6 @@ async function createTargetRuntime(input: {
           ? [{ name: input.storageMountPath, path: "/var/lib/postgresql/data" }]
           : undefined,
       fileMounts,
-      command,
       labels: {
         "frost.managed": "true",
         "frost.service.id": input.runtimeServiceId,
