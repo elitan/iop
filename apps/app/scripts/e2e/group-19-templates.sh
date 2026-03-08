@@ -107,7 +107,8 @@ done
 DB_CONTAINER_ID=$(require_field "$DB_RUNTIME" '.containerName' "get db container") || fail "No db container"
 log "Postgres container: $DB_CONTAINER_ID"
 PG_READY=$(remote "for _ in \$(seq 1 30); do pg_isready -h localhost -p $DB_HOST_PORT -U $PG_USER -d $PG_DB >/dev/null 2>&1 && echo ready && exit 0; sleep 1; done; exit 1" 2>&1 || true)
-[ "$PG_READY" = "ready" ] || fail "postgres not ready: $PG_READY"
+[ "$PG_READY" = "ready" ] || PG_READY=$(wait_for_postgres_tls_value "host.docker.internal" "$DB_HOST_PORT" "$PG_USER" "$PG_PASS" "$PG_DB" "select 1" "1" 30 10 || true)
+[ "$PG_READY" = "ready" ] || [ "$PG_READY" = "1" ] || fail "postgres not ready: $PG_READY"
 log "postgres ready on port $DB_HOST_PORT"
 
 log "Checking postgres container state..."

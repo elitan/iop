@@ -78,13 +78,8 @@ RUNTIME=$(api "$BASE_URL/api/databases/$DB_ID/targets/$TARGET_ID/runtime")
 HOST_PORT=$(require_field "$RUNTIME" '.hostPort' "get runtime hostPort") || fail "No host port: $RUNTIME"
 
 log "Verifying database is accepting connections..."
-PG_READY=$(remote "for _ in \$(seq 1 30); do pg_isready -h localhost -p $HOST_PORT -U $POSTGRES_USER -d $POSTGRES_DB >/dev/null 2>&1 && echo ready && exit 0; sleep 1; done; exit 1" 2>&1 || true)
-[ "$PG_READY" = "ready" ] || fail "Postgres not ready: $PG_READY"
-log "Postgres accepting connections on $HOST_PORT"
-
-PG_TLS_RESULT=$(remote "docker run --rm --add-host=host.docker.internal:host-gateway -e PGPASSWORD='$POSTGRES_PASSWORD' postgres:17 psql \"host=$PSQL_HOST port=$HOST_PORT user=$POSTGRES_USER dbname=$POSTGRES_DB sslmode=require connect_timeout=10\" -tAc 'select current_database()'" 2>&1 || true)
-PG_TLS_VALUE=$(echo "$PG_TLS_RESULT" | tr -d '[:space:]')
-[ "$PG_TLS_VALUE" = "$POSTGRES_DB" ] || fail "Expected TLS query result $POSTGRES_DB, got: $PG_TLS_RESULT"
+PG_TLS_VALUE=$(wait_for_postgres_tls_value "$PSQL_HOST" "$HOST_PORT" "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" "select current_database()" "$POSTGRES_DB" 30 10 || true)
+[ "$PG_TLS_VALUE" = "$POSTGRES_DB" ] || fail "Expected TLS query result $POSTGRES_DB, got: $PG_TLS_VALUE"
 log "Postgres TLS connection verified on $HOST_PORT"
 
 log "Creating branch from main..."

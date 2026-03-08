@@ -7,7 +7,7 @@ import {
 
 const GATEWAY_START_TIMEOUT_MS = 60_000;
 const GATEWAY_BUFFER_LIMIT_BYTES = 1024 * 1024;
-const GATEWAY_LISTEN_RETRY_COUNT = 20;
+const GATEWAY_LISTEN_RETRY_COUNT = 60;
 const GATEWAY_LISTEN_RETRY_MS = 250;
 
 interface DatabaseTargetGatewayConfig {

@@ -609,6 +609,7 @@ async function createTargetRuntime(input: {
   cpuLimit?: number | null;
   templateRef?: ProviderRef;
   fixedHostPort?: number;
+  excludedHostPorts?: Set<number>;
   storageMountPath?: string;
 }): Promise<ProviderRef> {
   const isPostgres = input.engine === "postgres";
@@ -625,7 +626,7 @@ async function createTargetRuntime(input: {
   const memoryLimit =
     input.memoryLimit ?? input.templateRef?.memoryLimit ?? null;
   const cpuLimit = input.cpuLimit ?? input.templateRef?.cpuLimit ?? null;
-  const triedPorts = new Set<number>();
+  const triedPorts = new Set<number>(input.excludedHostPorts);
   const hostPortsToTry: number[] = [];
 
   await stopContainer(containerName);
@@ -754,6 +755,8 @@ async function recreateTargetRuntime(input: {
   target: Selectable<DatabaseTargets>;
   providerRef: ProviderRef;
   fixedHostPort?: number;
+  excludedHostPorts?: Set<number>;
+  preserveCurrentHostPort?: boolean;
 }): Promise<ProviderRef> {
   const storage =
     input.database.engine === "postgres"
@@ -771,7 +774,12 @@ async function recreateTargetRuntime(input: {
     runtimeServiceId: input.target.runtimeServiceId,
     engine: input.database.engine as DatabaseEngine,
     templateRef: input.providerRef,
-    fixedHostPort: input.fixedHostPort ?? input.providerRef.hostPort,
+    fixedHostPort:
+      input.fixedHostPort ??
+      (input.preserveCurrentHostPort === false
+        ? undefined
+        : input.providerRef.hostPort),
+    excludedHostPorts: input.excludedHostPorts,
     storageMountPath,
   });
 
@@ -1447,15 +1455,43 @@ export async function startDatabaseTarget(input: {
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
-  const nextRef = await recreateTargetRuntime({
-    database,
-    target,
-    providerRef,
-    fixedHostPort: runtimeHostPort,
-  });
+  let nextRef: ProviderRef;
+  let nextRuntimeHostPort = runtimeHostPort;
+
+  try {
+    nextRef = await recreateTargetRuntime({
+      database,
+      target,
+      providerRef,
+      fixedHostPort: runtimeHostPort,
+    });
+  } catch (error) {
+    if (
+      !isScaleToZeroEnabled(target) ||
+      !(error instanceof Error) ||
+      !isPortConflictError(error.message)
+    ) {
+      throw error;
+    }
+
+    nextRef = await recreateTargetRuntime({
+      database,
+      target,
+      providerRef,
+      excludedHostPorts: new Set([providerRef.hostPort]),
+      preserveCurrentHostPort: false,
+    });
+    nextRuntimeHostPort = nextRef.hostPort;
+  }
+
   await waitForTargetReady(database.engine as DatabaseEngine, nextRef);
   applyProviderRefRuntimePorts({
-    target,
+    target: {
+      ...target,
+      runtimeHostPort: isScaleToZeroEnabled(target)
+        ? nextRuntimeHostPort
+        : target.runtimeHostPort,
+    },
     previousProviderRef: providerRef,
     nextProviderRef: nextRef,
   });
@@ -1465,6 +1501,9 @@ export async function startDatabaseTarget(input: {
     .set({
       lifecycleStatus: "active",
       providerRefJson: toProviderRefJson(nextRef),
+      runtimeHostPort: isScaleToZeroEnabled(target)
+        ? nextRuntimeHostPort
+        : target.runtimeHostPort,
       lastActivityAt: Date.now(),
     })
     .where("id", "=", target.id)
@@ -1952,11 +1991,13 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       let nextProviderRef = currentProviderRef;
 
       if (runtimeHostPort === null) {
-        runtimeHostPort = await getAvailablePort(
-          10000,
-          20000,
-          new Set([currentProviderRef.hostPort]),
-        );
+        if (target.lifecycleStatus !== "active") {
+          runtimeHostPort = await getAvailablePort(
+            10000,
+            20000,
+            new Set([currentProviderRef.hostPort]),
+          );
+        }
       }
 
       if (target.lifecycleStatus === "active") {
@@ -1964,13 +2005,19 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
           database,
           target,
           providerRef: currentProviderRef,
-          fixedHostPort: runtimeHostPort,
+          fixedHostPort: runtimeHostPort ?? undefined,
+          excludedHostPorts: new Set([currentProviderRef.hostPort]),
+          preserveCurrentHostPort: false,
         });
         await waitForTargetReady(database.engine as DatabaseEngine, recreated);
+        runtimeHostPort = recreated.hostPort;
         recreated.hostPort = currentProviderRef.hostPort;
         recreated.runtimeHostPort = runtimeHostPort;
         nextProviderRef = recreated;
       } else {
+        if (runtimeHostPort === null) {
+          throw new Error("Scale to zero target is missing runtime host port");
+        }
         nextProviderRef = {
           ...currentProviderRef,
           runtimeHostPort,
