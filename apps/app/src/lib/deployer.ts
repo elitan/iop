@@ -54,6 +54,7 @@ import { buildVolumeName, createVolume } from "./volumes";
 import { updateEnvironmentPRComment } from "./webhook";
 
 const execAsync = promisify(exec);
+const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
 
 const REPOS_PATH = join(process.cwd(), "repos");
 
@@ -1432,11 +1433,13 @@ async function runServiceDeployment(
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
     if (service.serviceType === "database" && isPostgres && !service.command) {
       if (!sslCertsExist(service.id)) {
-        await generateSelfSignedCert(service.id);
+        await generateSelfSignedCert(service.id, POSTGRES_SSL_OWNER);
         await appendLog(
           deploymentId,
           "Generated SSL certificate for database\n",
         );
+      } else {
+        await generateSelfSignedCert(service.id, POSTGRES_SSL_OWNER);
       }
       const sslPaths = getSSLPaths(service.id);
       fileMounts = [

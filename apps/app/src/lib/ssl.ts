@@ -7,12 +7,35 @@ export { getSSLDir, getSSLPaths } from "./paths";
 
 const execAsync = promisify(exec);
 
+interface SSLOwner {
+  uid: number;
+  gid: number;
+}
+
 export function sslCertsExist(serviceId: string): boolean {
   const { cert, key } = getSSLPaths(serviceId);
   return existsSync(cert) && existsSync(key);
 }
 
-export async function generateSelfSignedCert(serviceId: string): Promise<void> {
+async function setSSLCertPermissions(
+  serviceId: string,
+  owner?: SSLOwner,
+): Promise<void> {
+  const { cert, key } = getSSLPaths(serviceId);
+
+  await execAsync(`chmod 600 "${key}"`);
+  try {
+    const nextOwner = owner ?? { uid: 70, gid: 70 };
+    await execAsync(
+      `chown ${nextOwner.uid}:${nextOwner.gid} "${key}" "${cert}"`,
+    );
+  } catch {}
+}
+
+export async function generateSelfSignedCert(
+  serviceId: string,
+  owner?: SSLOwner,
+): Promise<void> {
   const dir = getSSLDir(serviceId);
   const { cert, key } = getSSLPaths(serviceId);
 
@@ -20,20 +43,13 @@ export async function generateSelfSignedCert(serviceId: string): Promise<void> {
     mkdirSync(dir, { recursive: true });
   }
 
-  if (sslCertsExist(serviceId)) {
-    return;
+  if (!sslCertsExist(serviceId)) {
+    await execAsync(
+      `openssl req -new -x509 -days 3650 -nodes -out "${cert}" -keyout "${key}" -subj "/CN=postgres"`,
+    );
   }
 
-  await execAsync(
-    `openssl req -new -x509 -days 3650 -nodes -out "${cert}" -keyout "${key}" -subj "/CN=postgres"`,
-  );
-
-  await execAsync(`chmod 600 "${key}"`);
-  try {
-    await execAsync(`chown 70:70 "${key}" "${cert}"`);
-  } catch {
-    // chown requires root - on dev/CI this will fail but that's ok
-  }
+  await setSSLCertPermissions(serviceId, owner);
 }
 
 export async function removeSSLCerts(serviceId: string): Promise<void> {

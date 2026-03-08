@@ -62,6 +62,7 @@ import { slugify } from "./slugify";
 import { generateSelfSignedCert, getSSLPaths, removeSSLCerts } from "./ssl";
 
 const execAsync = promisify(exec);
+const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
 
 export type DatabaseEngine = "postgres" | "mysql";
 export type DatabaseTargetKind = "branch" | "instance";
@@ -617,7 +618,7 @@ async function createTargetRuntime(input: {
   let command: string[] | undefined;
 
   if (isPostgres) {
-    await generateSelfSignedCert(input.targetId);
+    await generateSelfSignedCert(input.targetId, POSTGRES_SSL_OWNER);
     fileMounts = getPostgresTargetFileMounts(input.targetId);
     command = getPostgresTargetCommand();
   }
