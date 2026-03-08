@@ -93,6 +93,19 @@ export function useDatabaseTargetRuntime(databaseId: string, targetId: string) {
   });
 }
 
+export function useDatabaseTargetConnection(
+  databaseId: string,
+  targetId: string,
+) {
+  return useQuery({
+    ...orpc.databases.getTargetConnection.queryOptions({
+      input: { databaseId, targetId },
+    }),
+    enabled: !!databaseId && !!targetId,
+    refetchInterval: 3000,
+  });
+}
+
 export function useRunDatabaseTargetSql(databaseId: string, targetId: string) {
   return useMutation({
     mutationFn: function mutationFn(

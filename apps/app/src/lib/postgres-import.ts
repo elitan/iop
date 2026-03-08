@@ -6,8 +6,11 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { Selectable } from "kysely";
 import { decrypt, encrypt } from "./crypto";
-import { getDatabaseBranchInternalHost } from "./database-hostname";
-import { createDatabase, startDatabaseTarget } from "./database-runtime";
+import {
+  createDatabase,
+  getDatabaseTargetConnectionInfo,
+  startDatabaseTarget,
+} from "./database-runtime";
 import { db } from "./db";
 import type {
   DatabaseImportJobs,
@@ -734,36 +737,21 @@ async function getImportTargetConnection(
     return null;
   }
 
-  const [database, target] = await Promise.all([
-    db
-      .selectFrom("databases")
-      .selectAll()
-      .where("id", "=", databaseId)
-      .executeTakeFirst(),
-    db
-      .selectFrom("databaseTargets")
-      .selectAll()
-      .where("databaseId", "=", databaseId)
-      .where("name", "=", "main")
-      .executeTakeFirst(),
-  ]);
+  const target = await db
+    .selectFrom("databaseTargets")
+    .select("id")
+    .where("databaseId", "=", databaseId)
+    .where("name", "=", "main")
+    .executeTakeFirst();
 
-  if (!database || !target) {
+  if (!target) {
     return null;
   }
 
-  const providerRef = parseDatabaseTargetProviderRef(target.providerRefJson);
-
-  return {
+  return getDatabaseTargetConnectionInfo({
     databaseId,
     targetId: target.id,
-    internalHost: getDatabaseBranchInternalHost(database.name, target.hostname),
-    hostPort: providerRef.hostPort,
-    username: providerRef.username,
-    password: providerRef.password,
-    database: providerRef.database,
-    ssl: providerRef.ssl,
-  };
+  });
 }
 
 async function toJobView(

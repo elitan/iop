@@ -130,6 +130,11 @@ export const services = {
           message: "Unknown service template",
         });
       }
+      if (template.type !== "service") {
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Template is not a service template",
+        });
+      }
       const resolved = resolveTemplateServices(template);
       const serviceConfig = resolved[0];
 

@@ -5,6 +5,8 @@ import { createWildcardDomain } from "./domains";
 import { newServiceId } from "./id";
 import { generateSelfSignedCert } from "./ssl";
 
+const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
+
 export interface CreateServiceInput {
   id?: string;
   environmentId: string;
@@ -81,7 +83,13 @@ export async function createService(
     .execute();
 
   if (input.ssl) {
-    await generateSelfSignedCert(id);
+    const isPostgresDatabase =
+      input.serviceType === "database" &&
+      (input.imageUrl?.includes("postgres") ?? false);
+    await generateSelfSignedCert(
+      id,
+      isPostgresDatabase ? POSTGRES_SSL_OWNER : undefined,
+    );
   }
 
   if (input.wildcardDomain) {
