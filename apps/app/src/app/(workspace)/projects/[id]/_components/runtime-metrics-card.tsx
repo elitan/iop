@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRuntimeMetrics } from "@/hooks/use-monitoring";
+import { formatDateTime, formatTimeOfDay } from "@/lib/time";
 
 interface RuntimeMetricsCardProps {
   runtimeServiceId: string;
@@ -23,9 +24,12 @@ const RANGES = [
   { value: "6h", label: "6h" },
 ];
 
-function formatTime(label: unknown): string {
-  const date = new Date(Number(label));
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function formatAxisTime(label: unknown): string {
+  return formatTimeOfDay(Number(label));
+}
+
+function formatTooltipTime(label: unknown): string {
+  return formatDateTime(Number(label));
 }
 
 function formatBytes(bytes: number): string {
@@ -134,7 +138,7 @@ export function RuntimeMetricsCard({
                     </defs>
                     <XAxis
                       dataKey="timestamp"
-                      tickFormatter={formatTime}
+                      tickFormatter={formatAxisTime}
                       tick={{ fill: "#737373", fontSize: 9 }}
                       axisLine={{ stroke: "#404040" }}
                       tickLine={false}
@@ -156,7 +160,7 @@ export function RuntimeMetricsCard({
                         fontSize: "11px",
                       }}
                       labelStyle={{ color: "#a3a3a3" }}
-                      labelFormatter={(label) => formatTime(label as number)}
+                      labelFormatter={formatTooltipTime}
                       formatter={(value) => [
                         `${Number(value).toFixed(1)}%`,
                         "CPU",
@@ -212,7 +216,7 @@ export function RuntimeMetricsCard({
                     </defs>
                     <XAxis
                       dataKey="timestamp"
-                      tickFormatter={formatTime}
+                      tickFormatter={formatAxisTime}
                       tick={{ fill: "#737373", fontSize: 9 }}
                       axisLine={{ stroke: "#404040" }}
                       tickLine={false}
@@ -234,7 +238,7 @@ export function RuntimeMetricsCard({
                         fontSize: "11px",
                       }}
                       labelStyle={{ color: "#a3a3a3" }}
-                      labelFormatter={(label) => formatTime(label as number)}
+                      labelFormatter={formatTooltipTime}
                       formatter={(value, _name, props) => {
                         const percent = `${Number(value).toFixed(1)}%`;
                         const bytes = props.payload?.bytes;

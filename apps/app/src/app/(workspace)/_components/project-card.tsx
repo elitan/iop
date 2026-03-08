@@ -1,6 +1,7 @@
 import { GitBranch, Github } from "lucide-react";
 import Link from "next/link";
 import type { ProjectLatestDeployment, ProjectListItem } from "@/lib/api";
+import { formatDateTime } from "@/lib/time";
 import { ProjectAvatar } from "./project-avatar";
 import { ProjectResourceBadges } from "./project-resource-badges";
 
@@ -12,7 +13,7 @@ function formatTimeAgo(timestamp: number): string {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
 
-  return new Date(timestamp).toLocaleDateString();
+  return formatDateTime(timestamp);
 }
 
 function extractRepoPath(url: string): string | null {

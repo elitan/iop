@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 interface RepoSelectorProps {
   onSelect: (repo: {
@@ -29,7 +30,7 @@ function formatTimeAgo(dateString: string): string {
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 30) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  return formatDateTime(date);
 }
 
 export function RepoSelector({ onSelect }: RepoSelectorProps) {
