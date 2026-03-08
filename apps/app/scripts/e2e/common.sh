@@ -155,6 +155,27 @@ remote() {
   fi
 }
 
+wait_for_network_http_body() {
+  local NETWORK_NAME=$1
+  local URL=$2
+  local EXPECTED=$3
+  local MAX=${4:-10}
+  local SLEEP_SEC=${5:-1}
+  local RESULT=""
+
+  for _ in $(seq 1 "$MAX"); do
+    RESULT=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf $URL" 2>&1 || true)
+    if echo "$RESULT" | grep -q "$EXPECTED"; then
+      echo "$RESULT"
+      return 0
+    fi
+    sleep "$SLEEP_SEC"
+  done
+
+  echo "$RESULT"
+  return 1
+}
+
 wait_for_postgres_tls_value() {
   local HOST=$1
   local PORT=$2
