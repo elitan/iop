@@ -8,6 +8,7 @@ import {
   type DatabaseProvider,
   normalizeDatabaseProvider,
 } from "./database-provider";
+import { getDatabaseRuntimeState } from "./database-runtime-status";
 import {
   startDatabaseTargetGateway,
   stopDatabaseTargetGateway,
@@ -48,6 +49,10 @@ import {
   resolvePostgresStorageMountPath,
   swapPostgresStorageFromStaged,
 } from "./postgres-branching/postgres-branch-runtime";
+import type {
+  ServiceAttentionStatus,
+  ServiceRuntimeStatus,
+} from "./service-runtime-status";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 
@@ -63,6 +68,11 @@ export type DatabaseTargetDeploymentAction =
   | "start"
   | "stop";
 export type DatabaseTargetDeploymentStatus = "running" | "failed" | "stopped";
+
+export interface DatabaseWithRuntimeState extends Selectable<Databases> {
+  runtimeStatus: ServiceRuntimeStatus;
+  attentionStatus: ServiceAttentionStatus;
+}
 
 interface ProviderRef {
   containerName: string;
@@ -1989,6 +1999,71 @@ export async function listDatabasesByProject(projectId: string) {
     .execute();
 
   return databases.map(normalizeDatabase);
+}
+
+export async function listDatabasesWithRuntimeByProject(
+  projectId: string,
+): Promise<DatabaseWithRuntimeState[]> {
+  const databases = await listDatabasesByProject(projectId);
+
+  if (databases.length === 0) {
+    return [];
+  }
+
+  const databaseIds = databases.map(function getDatabaseId(database) {
+    return database.id;
+  });
+
+  const mainTargets = await db
+    .selectFrom("databaseTargets")
+    .selectAll()
+    .where("databaseId", "in", databaseIds)
+    .where("name", "=", "main")
+    .execute();
+
+  const mainTargetIds = mainTargets.map(function getTargetId(target) {
+    return target.id;
+  });
+
+  const latestDeployments =
+    mainTargetIds.length > 0
+      ? await db
+          .selectFrom("databaseTargetDeployments")
+          .select(["targetId", "status", "createdAt"])
+          .where("targetId", "in", mainTargetIds)
+          .orderBy("createdAt", "desc")
+          .execute()
+      : [];
+
+  const mainTargetByDatabaseId = new Map(
+    mainTargets.map(function getEntry(target) {
+      return [target.databaseId, target] as const;
+    }),
+  );
+  const latestDeploymentByTargetId = new Map();
+
+  for (const deployment of latestDeployments) {
+    if (!latestDeploymentByTargetId.has(deployment.targetId)) {
+      latestDeploymentByTargetId.set(deployment.targetId, deployment);
+    }
+  }
+
+  return databases.map(function mapDatabase(database) {
+    const mainTarget = mainTargetByDatabaseId.get(database.id) ?? null;
+    const latestDeployment = mainTarget
+      ? (latestDeploymentByTargetId.get(mainTarget.id) ?? null)
+      : null;
+    const runtimeState = getDatabaseRuntimeState({
+      mainTarget,
+      latestDeployment,
+    });
+
+    return {
+      ...database,
+      runtimeStatus: runtimeState.runtimeStatus,
+      attentionStatus: runtimeState.attentionStatus,
+    };
+  });
 }
 
 export async function listDatabaseTargets(databaseId: string) {

@@ -1,5 +1,9 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import {
+  serviceAttentionStatusSchema,
+  serviceRuntimeStatusSchema,
+} from "./shared";
 
 const databaseEngineSchema = z.enum(["postgres", "mysql"]);
 const databaseProviderSchema = z.enum(["postgres-docker", "mysql-docker"]);
@@ -38,6 +42,11 @@ export const databaseSchema = z.object({
   engine: databaseEngineSchema,
   provider: databaseProviderSchema,
   createdAt: z.number(),
+});
+
+const databaseListItemSchema = databaseSchema.extend({
+  runtimeStatus: serviceRuntimeStatusSchema,
+  attentionStatus: serviceAttentionStatusSchema,
 });
 
 export const databaseTargetSchema = z.object({
@@ -273,7 +282,7 @@ export const databasesContract = {
   list: oc
     .route({ method: "GET", path: "/projects/{projectId}/databases" })
     .input(z.object({ projectId: z.string() }))
-    .output(z.array(databaseSchema)),
+    .output(z.array(databaseListItemSchema)),
 
   get: oc
     .route({ method: "GET", path: "/databases/{databaseId}" })

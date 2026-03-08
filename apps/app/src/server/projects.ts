@@ -1,10 +1,12 @@
 import { ORPCError } from "@orpc/server";
 import { getSetting } from "@/lib/auth";
+import { listDatabasesWithRuntimeByProject } from "@/lib/database-runtime";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { newEnvironmentId, newProjectId } from "@/lib/id";
 import { cleanupProject } from "@/lib/lifecycle";
+import { getProjectResourceSummary } from "@/lib/project-resource-summary";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
@@ -24,12 +26,15 @@ export const projects = {
 
     return Promise.all(
       projectRows.map(async (project) => {
-        const productionEnv = await db
-          .selectFrom("environments")
-          .select("id")
-          .where("projectId", "=", project.id)
-          .where("type", "=", "production")
-          .executeTakeFirst();
+        const [productionEnv, databases] = await Promise.all([
+          db
+            .selectFrom("environments")
+            .select("id")
+            .where("projectId", "=", project.id)
+            .where("type", "=", "production")
+            .executeTakeFirst(),
+          listDatabasesWithRuntimeByProject(project.id),
+        ]);
 
         const services = productionEnv
           ? await db
@@ -41,6 +46,10 @@ export const projects = {
 
         const servicesWithDeployments =
           await addLatestDeploymentsWithRuntimeStatus(services);
+        const resourceSummary = getProjectResourceSummary({
+          services: servicesWithDeployments,
+          databases,
+        });
 
         let latestDeployment: {
           status: string;
@@ -93,6 +102,7 @@ export const projects = {
             : null,
           repoUrl,
           runningUrl,
+          resourceSummary,
           services: servicesWithDeployments.map((service) => ({
             id: service.id,
             name: service.name,
