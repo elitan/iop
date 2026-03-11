@@ -1,18 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GitBranch, HardDrive } from "lucide-react";
+import { HardDrive } from "lucide-react";
 
 const upcoming = [
   {
     name: "S3 Storage",
     description: "Built-in object storage for your apps",
     icon: HardDrive,
-  },
-  {
-    name: "Postgres Branching",
-    description: "Branch databases like code",
-    icon: GitBranch,
   },
 ];
 
