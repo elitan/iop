@@ -22,7 +22,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
   lint:
@@ -32,7 +32,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run lint
 
   test:
@@ -42,7 +42,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Setup database
         run: bun run migrate
         env:
@@ -57,7 +57,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Build
         run: |
           for attempt in 1 2 3; do
@@ -245,8 +245,16 @@ jobs:
             set -euo pipefail
 
             if ! command -v zfs >/dev/null 2>&1 || ! command -v zpool >/dev/null 2>&1; then
-              apt-get update -qq
-              apt-get install -y -qq zfsutils-linux
+              systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+              for attempt in 1 2 3 4; do
+                if apt-get update -qq && apt-get install -y -qq zfsutils-linux; then
+                  break
+                fi
+                if [ "$attempt" -eq 4 ]; then
+                  exit 1
+                fi
+                sleep $((attempt * 10))
+              done
             fi
 
             LOOPBACK_FILE=/opt/frost/data/zfs-loopback.img
@@ -667,7 +675,7 @@ jobs:
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
-            bun install 2>&1 && \
+            bun install --frozen-lockfile 2>&1 && \
             (for attempt in 1 2 3; do if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then exit 0; fi; echo \"Build failed (attempt \$attempt/3), retrying...\"; rm -rf apps/app/.next; sleep 2; done; exit 1) && \
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \

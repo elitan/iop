@@ -417,7 +417,7 @@ if [ "$GIT_MODE" = true ]; then
   fi
 
   log "Installing dependencies..."
-  bun install 2>&1
+  bun install --frozen-lockfile 2>&1
 
   log "Building..."
   BUILD_OK=false
@@ -500,7 +500,7 @@ else
   rm /tmp/frost-update.tar.gz
 
   log "Installing dependencies..."
-  bun install --production 2>&1
+  bun install --production --frozen-lockfile 2>&1
 
   log "Running migrations..."
   bun run migrate 2>&1
