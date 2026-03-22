@@ -636,7 +636,12 @@ jobs:
         id: broken
         run: |
           BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}-${{ matrix.arch }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          TEMP_REPO=$(mktemp -d)
           echo "Creating broken branch: $BROKEN_BRANCH"
+
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
+          cd "$TEMP_REPO"
 
           git config user.email "ci@frost.dev"
           git config user.name "Frost CI"
@@ -651,7 +656,7 @@ jobs:
 
           sed -i "s|git fetch origin main|git fetch origin $BROKEN_BRANCH:refs/remotes/origin/main|g" update.sh
 
-          git add -A
+          git add fail-build.js package.json update.sh
           git commit -m "Intentionally broken build for e2e rollback test"
           git push origin "$BROKEN_BRANCH"
 
