@@ -34,8 +34,7 @@ wait_for_deployment "$DEPLOY_FRONTEND_ID" || fail "Frontend deployment failed"
 
 log "Verifying inter-service communication..."
 NETWORK_NAME=$(sanitize_name "frost-net-$PROJECT_ID-$ENV_ID")
-CURL_RESULT=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf http://backend:80")
-echo "$CURL_RESULT" | grep -q "nginx" || fail "Inter-service communication failed"
+CURL_RESULT=$(wait_for_network_http_body "$NETWORK_NAME" "http://backend:80" "nginx" 10 1) || fail "Inter-service communication failed: $CURL_RESULT"
 log "Inter-service communication works"
 
 log "Cleanup..."

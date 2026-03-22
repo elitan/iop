@@ -60,10 +60,8 @@ wait_for_deployment "$DEPLOY3_ID" || fail "Deployment 3 failed"
 
 log "Verifying inter-service communication with both hostnames..."
 NETWORK_NAME=$(sanitize_name "frost-net-$PROJECT_ID-$ENV_ID")
-CURL1=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf http://my-app:80")
-echo "$CURL1" | grep -q "nginx" || fail "Cannot reach my-app"
-CURL2=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf http://my-app-2:80")
-echo "$CURL2" | grep -q "nginx" || fail "Cannot reach my-app-2"
+CURL1=$(wait_for_network_http_body "$NETWORK_NAME" "http://my-app:80" "nginx" 10 1) || fail "Cannot reach my-app: $CURL1"
+CURL2=$(wait_for_network_http_body "$NETWORK_NAME" "http://my-app-2:80" "nginx" 10 1) || fail "Cannot reach my-app-2: $CURL2"
 log "Both hostnames resolve correctly"
 
 log "Cleanup..."

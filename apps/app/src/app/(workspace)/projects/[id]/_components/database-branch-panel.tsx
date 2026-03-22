@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SettingCard } from "@/components/setting-card";
 import { StateTabs } from "@/components/state-tabs";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,33 +21,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ContractOutputs } from "@/contracts";
+import { useDatabasePublicHost } from "@/hooks/use-database-public-host";
 import { useDatabaseTargetLogs } from "@/hooks/use-database-target-logs";
 import {
+  useDatabaseTargetConnection,
   useDatabaseTargetRuntime,
   useRunDatabaseTargetSql,
 } from "@/hooks/use-databases";
 import { api } from "@/lib/api";
-import { getDatabaseBranchInternalHost } from "@/lib/database-hostname";
+import { buildPostgresConnectionString } from "@/lib/connection-strings";
+import { getDatabaseTargetStatus } from "@/lib/database-target-status";
 import { getTimeAgo } from "@/lib/time";
 import { DatabaseTableBrowser } from "./database-table-browser";
 import { RuntimeLogsPanel } from "./runtime-logs-panel";
 import { RuntimeMetricsCard } from "./runtime-metrics-card";
 
-export interface DatabaseProviderRef {
-  containerName: string;
-  hostPort: number;
-  username: string;
-  password: string;
-  database: string;
-  ssl: boolean;
-  image: string;
-  port: number;
-}
-
 interface Branch {
   id: string;
   name: string;
+  hostname: string;
   lifecycleStatus: "active" | "stopped" | "expired";
+  stoppedReason: "idle" | "failed" | null;
+  scaleToZeroMinutes: number | null;
   createdAt: number;
 }
 
@@ -76,7 +72,6 @@ interface DatabaseBranchPanelProps {
   parentBranchName: string | null;
   onOpenDatabaseSettings?: () => void;
   onGoToParent?: () => void;
-  providerRef: DatabaseProviderRef | null;
   onStart: () => Promise<void>;
   onDeploy: () => Promise<void>;
   onReset: () => Promise<void>;
@@ -101,18 +96,27 @@ function getConnectionString(input: {
   engine: "postgres" | "mysql";
   host: string;
   port: number;
-  providerRef: DatabaseProviderRef;
+  username: string;
+  password: string;
+  database: string;
+  ssl: boolean;
 }): string {
-  const user = encodeURIComponent(input.providerRef.username);
-  const pass = encodeURIComponent(input.providerRef.password);
-  const database = encodeURIComponent(input.providerRef.database);
-
   if (input.engine === "postgres") {
-    const sslSuffix = input.providerRef.ssl ? "?sslmode=require" : "";
-    return `postgres://${user}:${pass}@${input.host}:${input.port}/${database}${sslSuffix}`;
+    return buildPostgresConnectionString({
+      username: input.username,
+      password: input.password,
+      host: input.host,
+      port: input.port,
+      database: input.database,
+      ssl: input.ssl,
+    });
   }
 
-  return `mysql://${user}:${pass}@${input.host}:${input.port}/${database}`;
+  const user = encodeURIComponent(input.username);
+  const password = encodeURIComponent(input.password);
+  const database = encodeURIComponent(input.database);
+
+  return `mysql://${user}:${password}@${input.host}:${input.port}/${database}`;
 }
 
 function copyToClipboard(value: string) {
@@ -161,7 +165,6 @@ export function DatabaseBranchPanel({
   parentBranchName,
   onOpenDatabaseSettings,
   onGoToParent,
-  providerRef,
   onStart,
   onDeploy,
   onReset,
@@ -189,11 +192,16 @@ export function DatabaseBranchPanel({
     null,
   );
   const [sqlError, setSqlError] = useState<string | null>(null);
+  const publicHost = useDatabasePublicHost();
 
   const { logs, isConnected, error } = useDatabaseTargetLogs({
     databaseId,
     targetId: branch?.id ?? "",
   });
+  const { data: connection } = useDatabaseTargetConnection(
+    databaseId,
+    branch?.id ?? "",
+  );
   const { data: runtime } = useDatabaseTargetRuntime(
     databaseId,
     branch?.id ?? "",
@@ -252,41 +260,40 @@ export function DatabaseBranchPanel({
 
   const directConnectionString = useMemo(
     function getDirectConnectionString() {
-      if (!branch || !providerRef) {
+      if (!branch || !connection) {
         return null;
       }
+
       return getConnectionString({
         engine,
-        host: "127.0.0.1",
-        port: providerRef.hostPort,
-        providerRef,
+        host: publicHost,
+        port: connection.hostPort,
+        username: connection.username,
+        password: connection.password,
+        database: connection.database,
+        ssl: connection.ssl,
       });
     },
-    [branch, engine, providerRef],
+    [branch, connection, engine, publicHost],
   );
 
   const internalConnectionString = useMemo(
     function getInternalConnectionString() {
-      if (!branch || !providerRef) {
+      if (!branch || !connection) {
         return null;
       }
 
-      const host =
-        engine === "postgres"
-          ? getDatabaseBranchInternalHost(
-              databaseName,
-              runtime?.hostname ?? branch.name,
-            )
-          : `${runtime?.hostname ?? branch.name}.frost.internal`;
-
       return getConnectionString({
         engine,
-        host,
+        host: connection.internalHost,
         port: engine === "postgres" ? 5432 : 3306,
-        providerRef,
+        username: connection.username,
+        password: connection.password,
+        database: connection.database,
+        ssl: connection.ssl,
       });
     },
-    [branch, databaseName, engine, providerRef, runtime?.hostname],
+    [branch, connection, engine],
   );
 
   const isMainBranch = branch?.name === "main";
@@ -295,6 +302,22 @@ export function DatabaseBranchPanel({
   const canRename = !isMainBranch;
   const runtimeUnit = engine === "postgres" ? "branch" : "instance";
   const runtimeUnitCapitalized = engine === "postgres" ? "Branch" : "Instance";
+  const branchName = runtime?.name ?? branch?.name ?? null;
+  const branchLifecycleStatus =
+    runtime?.lifecycleStatus ?? branch?.lifecycleStatus ?? null;
+  const branchStoppedReason =
+    runtime?.stoppedReason ?? branch?.stoppedReason ?? null;
+  const branchScaleToZeroMinutes =
+    runtime?.scaleToZeroMinutes ?? branch?.scaleToZeroMinutes ?? null;
+  const branchStatus = branch
+    ? getDatabaseTargetStatus({
+        name: branchName ?? branch.name,
+        lifecycleStatus: branchLifecycleStatus ?? branch.lifecycleStatus,
+        stoppedReason: branchStoppedReason,
+        scaleToZeroMinutes: branchScaleToZeroMinutes,
+      })
+    : null;
+  const isBranchActive = branchLifecycleStatus === "active";
   const nextBranchName = draftBranchName.trim();
   const canSaveBranchName =
     branch !== null &&
@@ -358,7 +381,7 @@ export function DatabaseBranchPanel({
   const showSqlTab = engine === "postgres";
   const canRunSql =
     showSqlTab &&
-    branch?.lifecycleStatus === "active" &&
+    isBranchActive &&
     sqlInput.trim().length > 0 &&
     !runSqlMutation.isPending;
   const branchTabs: { id: BranchPanelTab; label: string }[] = showSqlTab
@@ -374,7 +397,7 @@ export function DatabaseBranchPanel({
         { id: "logs", label: "Logs" },
         { id: "settings", label: "Settings" },
       ];
-  const showOverviewActions = branch?.lifecycleStatus !== "active";
+  const showOverviewActions = !isBranchActive;
 
   async function handleRunSql() {
     if (!canRunSql) {
@@ -473,7 +496,7 @@ export function DatabaseBranchPanel({
 
   const branchContent =
     isOpen && branch ? (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-w-0 w-full flex-col">
         <div className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 backdrop-blur">
           <div className="px-4 py-3">
             <div className="min-w-0">
@@ -488,9 +511,21 @@ export function DatabaseBranchPanel({
               </Button>
               <div className="mt-1 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="truncate text-lg font-semibold text-neutral-200">
-                    {branch.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-lg font-semibold text-neutral-200">
+                      {branch.name}
+                    </h3>
+                    {branchStatus ? (
+                      <StatusBadge tone={branchStatus.tone}>
+                        {branchStatus.label}
+                      </StatusBadge>
+                    ) : null}
+                  </div>
+                  {branchStatus?.helperText ? (
+                    <p className="mt-1 text-sm text-neutral-500">
+                      {branchStatus.helperText}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
@@ -500,9 +535,7 @@ export function DatabaseBranchPanel({
                       void onDeploy();
                     }}
                     className="border-neutral-700 text-neutral-300"
-                    disabled={
-                      isDeployPending || branch.lifecycleStatus !== "active"
-                    }
+                    disabled={isDeployPending || !isBranchActive}
                   >
                     {isDeployPending ? "Restarting..." : "Restart"}
                   </Button>
@@ -550,7 +583,7 @@ export function DatabaseBranchPanel({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
           <StateTabs
             tabs={branchTabs}
             value={activeTab}
@@ -558,7 +591,7 @@ export function DatabaseBranchPanel({
             layoutId="database-branch-panel-tabs"
           />
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
+          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto p-4">
             {activeTab === "overview" && (
               <div className="mx-auto w-full max-w-[1200px]">
                 <div className="space-y-4">
@@ -664,7 +697,7 @@ export function DatabaseBranchPanel({
                     <Card className="border-neutral-800 bg-neutral-900">
                       <CardContent className="space-y-3 p-4">
                         <div className="flex flex-wrap gap-2">
-                          {branch.lifecycleStatus !== "active" && (
+                          {!isBranchActive && (
                             <Button
                               variant="outline"
                               onClick={() => {
@@ -713,7 +746,7 @@ export function DatabaseBranchPanel({
                 databaseId={databaseId}
                 targetId={branch.id}
                 branchName={branch.name}
-                isBranchActive={branch.lifecycleStatus === "active"}
+                isBranchActive={isBranchActive}
               />
             )}
 
@@ -759,7 +792,7 @@ export function DatabaseBranchPanel({
                         )}
                       </Button>
                     </div>
-                    {branch.lifecycleStatus !== "active" && (
+                    {!isBranchActive && (
                       <p className="text-xs text-amber-400">
                         Start this branch before running SQL.
                       </p>

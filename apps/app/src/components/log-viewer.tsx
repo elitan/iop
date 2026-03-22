@@ -2,6 +2,7 @@
 
 import { ArrowDown, Circle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { formatDateTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 function parseLogLine(line: string): {
@@ -18,17 +19,7 @@ function parseLogLine(line: string): {
 }
 
 function formatTimestamp(iso: string): string {
-  try {
-    const date = new Date(iso);
-    return date.toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, iso);
 }
 
 interface LogViewerProps {

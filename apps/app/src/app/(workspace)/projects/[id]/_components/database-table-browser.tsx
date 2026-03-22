@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
   Database,
   Loader2,
   Pencil,
@@ -31,8 +36,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { ContractOutputs } from "@/contracts";
 import { useRunDatabaseTargetSql } from "@/hooks/use-databases";
+import {
+  buildTableCountQuery,
+  buildTableRowsQuery,
+  clampTablePage,
+  type DatabaseTableSortDirection,
+  getDatabaseTableIdentifier,
+  getNextTableSortState,
+  getTablePageCount,
+  quoteSqlIdentifier,
+  TABLE_ROW_ID_COLUMN,
+  TABLE_TOTAL_ROWS_COLUMN,
+} from "./database-table-browser-queries";
 
 interface DatabaseTableBrowserProps {
   databaseId: string;
@@ -96,7 +120,14 @@ const NUMBER_TYPES = new Set([
 ]);
 const JSON_TYPES = new Set(["json", "jsonb"]);
 const SQL_IDENTIFIER_PATTERN = /^[a-z_][a-z0-9_]*$/;
-const TABLE_DATA_ROW_LIMIT = 100;
+const TABLE_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const DEFAULT_TABLE_PAGE_SIZE = 50;
+const TABLE_SCROLL_FADE_THRESHOLD = 8;
+const TABLE_ACTION_RAIL_EDGE_CLASS =
+  "border-l border-neutral-800 before:pointer-events-none before:absolute before:inset-y-0 before:-left-14 before:w-14 before:bg-gradient-to-r before:from-transparent before:content-['']";
+const TABLE_ACTION_HEADER_CLASS = `sticky top-0 right-0 z-30 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 text-xs font-medium text-neutral-300 before:to-[rgb(20,20,20)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
+const TABLE_ACTION_CELL_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(20,20,20)] px-3 py-2 align-top before:to-[rgb(20,20,20)] group-hover:bg-[rgb(24,24,24)] group-hover:before:to-[rgb(24,24,24)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
+const TABLE_ACTION_CELL_EDITING_CLASS = `sticky right-0 z-10 w-28 min-w-28 bg-[rgb(28,28,28)] px-3 py-2 align-top before:to-[rgb(28,28,28)] ${TABLE_ACTION_RAIL_EDGE_CLASS}`;
 const CREATE_COLUMN_TYPE_OPTIONS = [
   "text",
   "integer",
@@ -118,20 +149,26 @@ function escapeSqlString(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function quoteIdentifier(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function getTableIdentifier(table: DatabaseTableItem): string {
-  return `${quoteIdentifier(table.schema)}.${quoteIdentifier(table.name)}`;
-}
-
 interface DraftWithId {
   id: string;
 }
 
+interface LoadSelectedTableDataOptions {
+  page: number;
+  pageSize: number;
+  sortColumn: string | null;
+  sortDirection: DatabaseTableSortDirection | null;
+  reloadMetadata: boolean;
+  metadataReloadKey: number;
+  tableDataReloadKey: number;
+}
+
 function createDraftId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getTableActionCellClassName(isEditing: boolean): string {
+  return isEditing ? TABLE_ACTION_CELL_EDITING_CLASS : TABLE_ACTION_CELL_CLASS;
 }
 
 function patchDraftById<T extends DraftWithId>(
@@ -318,7 +355,7 @@ function buildSqlFromFieldDrafts(
 
   const columnsSql = prepared
     .map(function getColumnSql(item) {
-      return quoteIdentifier(item.column.name);
+      return quoteSqlIdentifier(item.column.name);
     })
     .join(", ");
 
@@ -330,7 +367,7 @@ function buildSqlFromFieldDrafts(
 
   const setSql = prepared
     .map(function getSetSql(item) {
-      return `${quoteIdentifier(item.column.name)} = ${item.sqlValue}`;
+      return `${quoteSqlIdentifier(item.column.name)} = ${item.sqlValue}`;
     })
     .join(", ");
 
@@ -387,7 +424,7 @@ function parseColumns(result: DatabaseTargetSqlResult): DatabaseTableColumn[] {
 }
 
 function parseRows(result: DatabaseTargetSqlResult): DatabaseTableRow[] {
-  const ctidIndex = getColumnIndex(result.columns, "__frost_ctid");
+  const ctidIndex = getColumnIndex(result.columns, TABLE_ROW_ID_COLUMN);
   if (ctidIndex === -1) {
     return [];
   }
@@ -401,7 +438,7 @@ function parseRows(result: DatabaseTargetSqlResult): DatabaseTableRow[] {
     const values: Record<string, string> = {};
     for (let i = 0; i < result.columns.length; i += 1) {
       const columnName = result.columns[i];
-      if (columnName === "__frost_ctid") {
+      if (columnName === TABLE_ROW_ID_COLUMN) {
         continue;
       }
       values[columnName] = row[i] ?? "";
@@ -412,6 +449,24 @@ function parseRows(result: DatabaseTargetSqlResult): DatabaseTableRow[] {
     });
   }
   return rows;
+}
+
+function parseTotalRows(result: DatabaseTargetSqlResult): number {
+  const totalRowsIndex = getColumnIndex(
+    result.columns,
+    TABLE_TOTAL_ROWS_COLUMN,
+  );
+  if (totalRowsIndex === -1 || result.rows.length === 0) {
+    return 0;
+  }
+
+  const rawValue = result.rows[0][totalRowsIndex] ?? "0";
+  const totalRows = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(totalRows) || totalRows < 0) {
+    return 0;
+  }
+
+  return totalRows;
 }
 
 function TableFieldEditor({
@@ -538,6 +593,12 @@ export function DatabaseTableBrowser({
   const [selectedTableKey, setSelectedTableKey] = useState<string | null>(null);
   const [columns, setColumns] = useState<DatabaseTableColumn[]>([]);
   const [rows, setRows] = useState<DatabaseTableRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_TABLE_PAGE_SIZE);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] =
+    useState<DatabaseTableSortDirection | null>(null);
+  const [totalRows, setTotalRows] = useState(0);
   const [search, setSearch] = useState("");
   const [createTableName, setCreateTableName] = useState("");
   const [createColumns, setCreateColumns] = useState<CreateTableColumnDraft[]>([
@@ -552,6 +613,18 @@ export function DatabaseTableBrowser({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
+  const [isWaitingForTableData, setIsWaitingForTableData] = useState(false);
+  const [metadataReloadKey, setMetadataReloadKey] = useState(0);
+  const [tableDataReloadKey, setTableDataReloadKey] = useState(0);
+  const [showTableScrollLeftFade, setShowTableScrollLeftFade] = useState(false);
+  const [showTableScrollRightFade, setShowTableScrollRightFade] =
+    useState(false);
+  const columnsRef = useRef<DatabaseTableColumn[]>([]);
+  const totalRowsRef = useRef(0);
+  const tableDataRequestIdRef = useRef(0);
+  const lastMetadataTableKeyRef = useRef<string | null>(null);
+  const lastMetadataReloadKeyRef = useRef(0);
+  const tableScrollAreaRef = useRef<HTMLDivElement | null>(null);
 
   const selectedTable = useMemo(
     function findSelectedTable() {
@@ -577,6 +650,17 @@ export function DatabaseTableBrowser({
     [tables, search],
   );
 
+  const columnMetaByName = useMemo(
+    function buildColumnMetaByName() {
+      return new Map(
+        columns.map(function toEntry(column) {
+          return [column.name, column] as const;
+        }),
+      );
+    },
+    [columns],
+  );
+
   const dataColumns = useMemo(
     function buildDataColumns() {
       if (columns.length > 0) {
@@ -592,7 +676,22 @@ export function DatabaseTableBrowser({
     [columns, rows],
   );
 
+  const pageCount = useMemo(
+    function buildPageCount() {
+      return getTablePageCount(totalRows, pageSize);
+    },
+    [totalRows, pageSize],
+  );
+
+  const pageStartRow =
+    totalRows === 0 ? 0 : Math.min(totalRows, page * pageSize + 1);
+  const pageEndRow =
+    totalRows === 0 ? 0 : Math.min(totalRows, page * pageSize + rows.length);
+  const canGoToPreviousPage = page > 0;
+  const canGoToNextPage = page < pageCount - 1;
   const isBusy = runSqlMutation.isPending || isLoadingTables || isLoadingRows;
+  const shouldShowTableLoadingState =
+    !!selectedTable && dataColumns.length === 0 && isWaitingForTableData;
 
   useEffect(
     function syncRunSqlAsyncRef() {
@@ -607,8 +706,120 @@ export function DatabaseTableBrowser({
     return runSqlAsyncRef.current({ sql });
   }, []);
 
+  const updateTableScrollFades = useCallback(function updateTableScrollFades() {
+    const node = tableScrollAreaRef.current;
+    if (!node) {
+      setShowTableScrollLeftFade(false);
+      setShowTableScrollRightFade(false);
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth);
+    setShowTableScrollLeftFade(node.scrollLeft > TABLE_SCROLL_FADE_THRESHOLD);
+    setShowTableScrollRightFade(
+      maxScrollLeft > TABLE_SCROLL_FADE_THRESHOLD &&
+        node.scrollLeft < maxScrollLeft - TABLE_SCROLL_FADE_THRESHOLD,
+    );
+  }, []);
+
+  const handleTableScroll = useCallback(
+    function handleTableScroll() {
+      updateTableScrollFades();
+    },
+    [updateTableScrollFades],
+  );
+
+  useEffect(
+    function syncTableDataRefs() {
+      columnsRef.current = columns;
+      totalRowsRef.current = totalRows;
+    },
+    [columns, totalRows],
+  );
+
+  const resetActiveTableView = useCallback(function resetActiveTableView() {
+    setColumns([]);
+    setRows([]);
+    setPage(0);
+    setSortColumn(null);
+    setSortDirection(null);
+    setTotalRows(0);
+    setInsertFields([]);
+    setIsInsertDialogOpen(false);
+    setIsUpdateDialogOpen(false);
+    setEditFields([]);
+    setEditRowCtid(null);
+    setIsWaitingForTableData(false);
+    columnsRef.current = [];
+    totalRowsRef.current = 0;
+    lastMetadataTableKeyRef.current = null;
+    lastMetadataReloadKeyRef.current = 0;
+    setShowTableScrollLeftFade(false);
+    setShowTableScrollRightFade(false);
+  }, []);
+
+  useEffect(
+    function syncTableScrollFades() {
+      if (!selectedTable || dataColumns.length === 0) {
+        setShowTableScrollLeftFade(false);
+        setShowTableScrollRightFade(false);
+        return;
+      }
+
+      const frameId = window.requestAnimationFrame(updateTableScrollFades);
+      return function cleanup() {
+        window.cancelAnimationFrame(frameId);
+      };
+    },
+    [dataColumns.length, selectedTable, updateTableScrollFades],
+  );
+
+  useEffect(
+    function observeTableScrollAreaSize() {
+      if (!selectedTable || dataColumns.length === 0) {
+        return;
+      }
+
+      const node = tableScrollAreaRef.current;
+      if (!node || typeof ResizeObserver === "undefined") {
+        return;
+      }
+
+      const observer = new ResizeObserver(function handleResize() {
+        updateTableScrollFades();
+      });
+      observer.observe(node);
+
+      const contentNode = node.firstElementChild;
+      if (contentNode instanceof HTMLElement) {
+        observer.observe(contentNode);
+      }
+
+      return function cleanup() {
+        observer.disconnect();
+      };
+    },
+    [dataColumns.length, selectedTable, updateTableScrollFades],
+  );
+
+  const selectTableKey = useCallback(
+    function selectTableKey(nextTableKey: string) {
+      if (nextTableKey === selectedTableKey) {
+        return;
+      }
+      resetActiveTableView();
+      setErrorText(null);
+      setIsWaitingForTableData(true);
+      setSelectedTableKey(nextTableKey);
+    },
+    [resetActiveTableView, selectedTableKey],
+  );
+
   const loadTables = useCallback(
-    async function loadTables() {
+    async function loadTables(options?: {
+      preferredSelectedTableKey?: string;
+      reloadSelectedTableData?: boolean;
+    }) {
       setIsLoadingTables(true);
       setErrorText(null);
       try {
@@ -622,15 +833,27 @@ export function DatabaseTableBrowser({
         const nextTables = parseTables(result);
         setTables(nextTables);
         if (nextTables.length === 0) {
+          resetActiveTableView();
           setSelectedTableKey(null);
           return;
         }
-        setSelectedTableKey(function keepOrPickFirst(current) {
-          const hasCurrent = nextTables.some(function hasTable(table) {
-            return table.key === current;
-          });
-          return hasCurrent ? current : nextTables[0].key;
+
+        const preferredSelectedTableKey =
+          options?.preferredSelectedTableKey ?? selectedTableKey;
+        const hasPreferredSelection = nextTables.some(function hasTable(table) {
+          return table.key === preferredSelectedTableKey;
         });
+        const nextSelectedTableKey = hasPreferredSelection
+          ? (preferredSelectedTableKey ?? nextTables[0].key)
+          : nextTables[0].key;
+
+        if (nextSelectedTableKey !== selectedTableKey) {
+          selectTableKey(nextSelectedTableKey);
+        } else if (options?.reloadSelectedTableData) {
+          setMetadataReloadKey(function incrementReloadKey(current) {
+            return current + 1;
+          });
+        }
       } catch (error) {
         const message = getErrorMessage(error, "Failed to load tables");
         setErrorText(message);
@@ -638,44 +861,112 @@ export function DatabaseTableBrowser({
         setIsLoadingTables(false);
       }
     },
-    [runSql],
+    [resetActiveTableView, runSql, selectTableKey, selectedTableKey],
   );
 
   const loadSelectedTableData = useCallback(
-    async function loadSelectedTableData(table: DatabaseTableItem) {
+    async function loadSelectedTableData(
+      table: DatabaseTableItem,
+      options: LoadSelectedTableDataOptions,
+    ) {
+      const requestId = tableDataRequestIdRef.current + 1;
+      tableDataRequestIdRef.current = requestId;
+      setIsWaitingForTableData(true);
       setIsLoadingRows(true);
       setErrorText(null);
       try {
-        const safeSchema = escapeSqlString(table.schema);
-        const safeTable = escapeSqlString(table.name);
-        const tableIdentifier = getTableIdentifier(table);
+        let nextColumns = columnsRef.current;
+        let nextTotalRows = totalRowsRef.current;
+        let nextSortColumn = options.sortColumn;
+        let nextSortDirection = options.sortDirection;
 
-        const columnsResult = await runSql(`
-          select column_name, data_type
-          from information_schema.columns
-          where table_schema = '${safeSchema}'
-            and table_name = '${safeTable}'
-          order by ordinal_position;
-        `);
-        const nextColumns = parseColumns(columnsResult);
-        setColumns(nextColumns);
-        setInsertFields(createInsertFieldDrafts(nextColumns));
-        setEditFields(function syncEditFields(current) {
-          return syncFieldDraftsWithColumns(current, nextColumns, false);
-        });
+        if (options.reloadMetadata) {
+          const safeSchema = escapeSqlString(table.schema);
+          const safeTable = escapeSqlString(table.name);
 
-        const rowsResult = await runSql(`
-          select ctid::text as "__frost_ctid", *
-          from ${tableIdentifier}
-          limit ${TABLE_DATA_ROW_LIMIT};
-        `);
+          const columnsResult = await runSql(`
+            select column_name, data_type
+            from information_schema.columns
+            where table_schema = '${safeSchema}'
+              and table_name = '${safeTable}'
+            order by ordinal_position;
+          `);
+          if (requestId !== tableDataRequestIdRef.current) {
+            return;
+          }
+
+          nextColumns = parseColumns(columnsResult);
+
+          const totalRowsResult = await runSql(buildTableCountQuery(table));
+          if (requestId !== tableDataRequestIdRef.current) {
+            return;
+          }
+
+          nextTotalRows = parseTotalRows(totalRowsResult);
+
+          if (
+            nextSortColumn &&
+            !nextColumns.some(function hasColumn(column) {
+              return column.name === nextSortColumn;
+            })
+          ) {
+            nextSortColumn = null;
+            nextSortDirection = null;
+          }
+        }
+
+        const nextPage = clampTablePage(
+          options.page,
+          nextTotalRows,
+          options.pageSize,
+        );
+        const rowsResult = await runSql(
+          buildTableRowsQuery({
+            table,
+            page: nextPage,
+            pageSize: options.pageSize,
+            sortColumn: nextSortColumn,
+            sortDirection: nextSortDirection,
+          }),
+        );
+        if (requestId !== tableDataRequestIdRef.current) {
+          return;
+        }
+
+        if (options.reloadMetadata) {
+          columnsRef.current = nextColumns;
+          totalRowsRef.current = nextTotalRows;
+          setColumns(nextColumns);
+          setInsertFields(createInsertFieldDrafts(nextColumns));
+          setEditFields(function syncEditFields(current) {
+            return syncFieldDraftsWithColumns(current, nextColumns, false);
+          });
+          setTotalRows(nextTotalRows);
+          lastMetadataTableKeyRef.current = table.key;
+          lastMetadataReloadKeyRef.current = options.metadataReloadKey;
+
+          if (nextSortColumn !== options.sortColumn) {
+            setSortColumn(nextSortColumn);
+          }
+          if (nextSortDirection !== options.sortDirection) {
+            setSortDirection(nextSortDirection);
+          }
+        }
+
         setRows(parseRows(rowsResult));
         setEditRowCtid(null);
+
+        if (nextPage !== options.page) {
+          setPage(nextPage);
+        }
       } catch (error) {
         const message = getErrorMessage(error, "Failed to load table data");
         setErrorText(message);
       } finally {
-        setIsLoadingRows(false);
+        if (requestId === tableDataRequestIdRef.current) {
+          setIsWaitingForTableData(false);
+          setIsLoadingRows(false);
+        }
       }
     },
     [runSql],
@@ -685,30 +976,27 @@ export function DatabaseTableBrowser({
     function loadWhenTargetChanges() {
       if (!targetId || !isBranchActive) {
         setTables([]);
+        resetActiveTableView();
         setSelectedTableKey(null);
-        setColumns([]);
-        setRows([]);
         setErrorText(null);
         setCreateTableName("");
         setCreateColumns([createCreateTableColumnDraft()]);
-        setInsertFields([]);
         setIsCreateTableDialogOpen(false);
-        setIsInsertDialogOpen(false);
-        setIsUpdateDialogOpen(false);
-        setEditFields([]);
-        setEditRowCtid(null);
         return;
       }
       void loadTables();
     },
-    [targetId, isBranchActive, loadTables],
+    [isBranchActive, loadTables, resetActiveTableView, targetId],
   );
 
   useEffect(
-    function loadWhenTableChanges() {
+    function loadWhenTableDataChanges() {
       if (!selectedTable || !isBranchActive) {
+        columnsRef.current = [];
+        totalRowsRef.current = 0;
         setColumns([]);
         setRows([]);
+        setTotalRows(0);
         setInsertFields([]);
         setIsInsertDialogOpen(false);
         setIsUpdateDialogOpen(false);
@@ -716,9 +1004,32 @@ export function DatabaseTableBrowser({
         setEditRowCtid(null);
         return;
       }
-      void loadSelectedTableData(selectedTable);
+
+      const shouldReloadMetadata =
+        lastMetadataTableKeyRef.current !== selectedTable.key ||
+        lastMetadataReloadKeyRef.current !== metadataReloadKey;
+
+      void loadSelectedTableData(selectedTable, {
+        page,
+        pageSize,
+        sortColumn,
+        sortDirection,
+        reloadMetadata: shouldReloadMetadata,
+        metadataReloadKey,
+        tableDataReloadKey,
+      });
     },
-    [selectedTable, isBranchActive, loadSelectedTableData],
+    [
+      isBranchActive,
+      loadSelectedTableData,
+      metadataReloadKey,
+      page,
+      pageSize,
+      selectedTable,
+      sortColumn,
+      sortDirection,
+      tableDataReloadKey,
+    ],
   );
 
   function handleAddCreateColumn() {
@@ -840,21 +1151,22 @@ export function DatabaseTableBrowser({
     const columnsSql = validColumns
       .map(function buildColumnSql(column) {
         const nullableSql = column.nullable ? "" : " not null";
-        return `${quoteIdentifier(column.name)} ${column.type}${nullableSql}`;
+        return `${quoteSqlIdentifier(column.name)} ${column.type}${nullableSql}`;
       })
       .join(", ");
 
     try {
       setErrorText(null);
       await runSql(
-        `create table ${quoteIdentifier("public")}.${quoteIdentifier(tableName)} (${columnsSql});`,
+        `create table ${quoteSqlIdentifier("public")}.${quoteSqlIdentifier(tableName)} (${columnsSql});`,
       );
       toast.success(`Table ${tableName} created`);
       setCreateTableName("");
       setCreateColumns([createCreateTableColumnDraft()]);
       setIsCreateTableDialogOpen(false);
-      await loadTables();
-      setSelectedTableKey(`public::${tableName}`);
+      await loadTables({
+        preferredSelectedTableKey: `public::${tableName}`,
+      });
     } catch (error) {
       const message = getErrorMessage(error, "Failed to create table");
       setErrorText(message);
@@ -895,6 +1207,40 @@ export function DatabaseTableBrowser({
     });
   }
 
+  function handleSort(columnName: string) {
+    const nextSortState = getNextTableSortState(
+      {
+        sortColumn,
+        sortDirection,
+      },
+      columnName,
+    );
+    setPage(0);
+    setSortColumn(nextSortState.sortColumn);
+    setSortDirection(nextSortState.sortDirection);
+  }
+
+  function handlePageSizeChange(value: string) {
+    const nextPageSize = Number.parseInt(value, 10);
+    if (!TABLE_PAGE_SIZE_OPTIONS.includes(nextPageSize as 25 | 50 | 100)) {
+      return;
+    }
+    setPage(0);
+    setPageSize(nextPageSize);
+  }
+
+  function handleGoToPreviousPage() {
+    setPage(function goToPreviousPage(current) {
+      return Math.max(0, current - 1);
+    });
+  }
+
+  function handleGoToNextPage() {
+    setPage(function goToNextPage(current) {
+      return Math.min(pageCount - 1, current + 1);
+    });
+  }
+
   function openEditRow(row: DatabaseTableRow) {
     const nextFields = dataColumns.map(function buildField(columnName) {
       const value = row.values[columnName] ?? "";
@@ -912,7 +1258,7 @@ export function DatabaseTableBrowser({
       return;
     }
     try {
-      const tableIdentifier = getTableIdentifier(selectedTable);
+      const tableIdentifier = getDatabaseTableIdentifier(selectedTable);
       const sqlParts = buildSqlFromFieldDrafts(insertFields, columns);
       await runSql(
         `insert into ${tableIdentifier} (${sqlParts.columnsSql}) values (${sqlParts.valuesSql});`,
@@ -928,7 +1274,9 @@ export function DatabaseTableBrowser({
         });
       });
       setIsInsertDialogOpen(false);
-      await loadSelectedTableData(selectedTable);
+      setMetadataReloadKey(function incrementReloadKey(current) {
+        return current + 1;
+      });
     } catch (error) {
       const message = getErrorMessage(error, "Insert failed");
       setErrorText(message);
@@ -941,7 +1289,7 @@ export function DatabaseTableBrowser({
       return;
     }
     try {
-      const tableIdentifier = getTableIdentifier(selectedTable);
+      const tableIdentifier = getDatabaseTableIdentifier(selectedTable);
       const sqlParts = buildSqlFromFieldDrafts(editFields, columns);
       await runSql(
         `update ${tableIdentifier} set ${sqlParts.setSql} where ctid = '${escapeSqlString(editRowCtid)}'::tid;`,
@@ -950,7 +1298,9 @@ export function DatabaseTableBrowser({
       setEditRowCtid(null);
       setEditFields([]);
       setIsUpdateDialogOpen(false);
-      await loadSelectedTableData(selectedTable);
+      setTableDataReloadKey(function incrementReloadKey(current) {
+        return current + 1;
+      });
     } catch (error) {
       const message = getErrorMessage(error, "Update failed");
       setErrorText(message);
@@ -966,7 +1316,7 @@ export function DatabaseTableBrowser({
       return;
     }
     try {
-      const tableIdentifier = getTableIdentifier(selectedTable);
+      const tableIdentifier = getDatabaseTableIdentifier(selectedTable);
       await runSql(
         `delete from ${tableIdentifier} where ctid = '${escapeSqlString(row.ctid)}'::tid;`,
       );
@@ -976,7 +1326,9 @@ export function DatabaseTableBrowser({
         setEditRowCtid(null);
         setEditFields([]);
       }
-      await loadSelectedTableData(selectedTable);
+      setMetadataReloadKey(function incrementReloadKey(current) {
+        return current + 1;
+      });
     } catch (error) {
       const message = getErrorMessage(error, "Delete failed");
       setErrorText(message);
@@ -985,10 +1337,9 @@ export function DatabaseTableBrowser({
   }
 
   async function handleRefresh() {
-    await loadTables();
-    if (selectedTable) {
-      await loadSelectedTableData(selectedTable);
-    }
+    await loadTables({
+      reloadSelectedTableData: true,
+    });
   }
 
   if (!isBranchActive) {
@@ -1003,7 +1354,7 @@ export function DatabaseTableBrowser({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 gap-4 overflow-hidden">
         <Card className="w-72 min-h-0 border-neutral-800 bg-neutral-900">
           <CardContent className="flex h-full min-h-0 flex-col p-0">
             <div className="space-y-3 border-b border-neutral-800 p-3">
@@ -1061,10 +1412,7 @@ export function DatabaseTableBrowser({
                         type="button"
                         key={table.key}
                         onClick={() => {
-                          setSelectedTableKey(table.key);
-                          setIsUpdateDialogOpen(false);
-                          setEditRowCtid(null);
-                          setEditFields([]);
+                          selectTableKey(table.key);
                         }}
                         className={
                           selected
@@ -1087,8 +1435,8 @@ export function DatabaseTableBrowser({
           </CardContent>
         </Card>
 
-        <Card className="min-h-0 flex-1 border-neutral-800 bg-neutral-900">
-          <CardContent className="flex h-full min-h-0 flex-col p-0">
+        <Card className="min-h-0 min-w-0 flex-1 border-neutral-800 bg-neutral-900">
+          <CardContent className="flex h-full min-h-0 min-w-0 flex-col p-0">
             <div className="space-y-3 border-b border-neutral-800 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {selectedTable ? (
@@ -1107,11 +1455,6 @@ export function DatabaseTableBrowser({
                 ) : (
                   <span className="text-sm text-neutral-400">
                     Select a table
-                  </span>
-                )}
-                {selectedTable && (
-                  <span className="text-xs text-neutral-500">
-                    showing first {TABLE_DATA_ROW_LIMIT} rows
                   </span>
                 )}
                 <div className="flex items-center gap-2">
@@ -1145,117 +1488,230 @@ export function DatabaseTableBrowser({
               )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               {!selectedTable ? (
                 <div className="flex h-full items-center justify-center text-sm text-neutral-500">
                   Pick a table from the left.
+                </div>
+              ) : shouldShowTableLoadingState ? (
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-neutral-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading table...
                 </div>
               ) : dataColumns.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-sm text-neutral-500">
                   No columns found.
                 </div>
               ) : (
-                <table className="min-w-full text-left">
-                  <thead className="sticky top-0 z-10 bg-neutral-900">
-                    <tr className="border-b border-neutral-800">
-                      {dataColumns.map(function renderColumn(columnName) {
-                        const meta = columns.find(function findMeta(column) {
-                          return column.name === columnName;
-                        });
-                        return (
-                          <th
-                            key={columnName}
-                            className="px-3 py-2 text-xs font-medium text-neutral-400"
-                          >
-                            <div>{columnName}</div>
-                            {meta && (
-                              <div className="font-normal text-[10px] uppercase tracking-wide text-neutral-600">
-                                {meta.dataType}
-                              </div>
-                            )}
-                          </th>
-                        );
-                      })}
-                      <th className="w-28 px-3 py-2 text-xs font-medium text-neutral-400">
-                        actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={dataColumns.length + 1}
-                          className="px-3 py-8 text-center text-sm text-neutral-500"
-                        >
-                          No rows.
-                        </td>
-                      </tr>
-                    ) : (
-                      rows.map(function renderRow(row) {
-                        const isEditing = editRowCtid === row.ctid;
-                        return (
-                          <tr
-                            key={row.ctid}
-                            className={
-                              isEditing
-                                ? "border-b border-neutral-800 bg-neutral-800/60"
-                                : "border-b border-neutral-800 hover:bg-neutral-800/30"
-                            }
-                          >
-                            {dataColumns.map(function renderCell(columnName) {
-                              const value = row.values[columnName] ?? "";
-                              return (
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <div className="relative min-h-0 min-w-0 flex-1">
+                    <div
+                      ref={tableScrollAreaRef}
+                      onScroll={handleTableScroll}
+                      className="h-full min-h-0 min-w-0 overflow-auto"
+                    >
+                      <div className="min-w-max">
+                        <table className="min-w-full text-left">
+                          <thead className="sticky top-0 z-20 bg-neutral-900">
+                            <tr className="border-b border-neutral-800">
+                              {dataColumns.map(
+                                function renderColumn(columnName) {
+                                  const meta = columnMetaByName.get(columnName);
+                                  const isSorted = sortColumn === columnName;
+                                  return (
+                                    <th
+                                      key={columnName}
+                                      className="min-w-56 px-3 py-2 text-xs font-medium text-neutral-400"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSort(columnName)}
+                                        disabled={isBusy}
+                                        className="flex w-full items-start justify-between gap-3 text-left"
+                                      >
+                                        <span className="space-y-0.5">
+                                          <div>{columnName}</div>
+                                          {meta && (
+                                            <div className="font-normal text-[10px] uppercase tracking-wide text-neutral-600">
+                                              {meta.dataType}
+                                            </div>
+                                          )}
+                                        </span>
+                                        {isSorted ? (
+                                          sortDirection === "asc" ? (
+                                            <ArrowUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-300" />
+                                          ) : (
+                                            <ArrowDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-300" />
+                                          )
+                                        ) : (
+                                          <ArrowUpDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-600" />
+                                        )}
+                                      </button>
+                                    </th>
+                                  );
+                                },
+                              )}
+                              <th className={TABLE_ACTION_HEADER_CLASS}>
+                                actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.length === 0 ? (
+                              <tr>
                                 <td
-                                  key={`${row.ctid}-${columnName}`}
-                                  className="max-w-96 px-3 py-2 font-mono text-xs text-neutral-200"
+                                  colSpan={dataColumns.length + 1}
+                                  className="px-3 py-8 text-center text-sm text-neutral-500"
                                 >
-                                  <div className="truncate">
-                                    {value === "NULL" ? (
-                                      <span className="text-neutral-500">
-                                        NULL
-                                      </span>
-                                    ) : value.length === 0 ? (
-                                      <span className="text-neutral-600">
-                                        ""
-                                      </span>
-                                    ) : (
-                                      value
-                                    )}
-                                  </div>
+                                  No rows.
                                 </td>
+                              </tr>
+                            ) : (
+                              rows.map(function renderRow(row) {
+                                const isEditing = editRowCtid === row.ctid;
+                                return (
+                                  <tr
+                                    key={row.ctid}
+                                    className={
+                                      isEditing
+                                        ? "group border-b border-neutral-800 bg-neutral-800/60"
+                                        : "group border-b border-neutral-800 hover:bg-neutral-800/30"
+                                    }
+                                  >
+                                    {dataColumns.map(
+                                      function renderCell(columnName) {
+                                        const value =
+                                          row.values[columnName] ?? "";
+                                        return (
+                                          <td
+                                            key={`${row.ctid}-${columnName}`}
+                                            className="min-w-56 max-w-80 px-3 py-2 align-top font-mono text-xs text-neutral-200"
+                                          >
+                                            <div className="truncate">
+                                              {value === "NULL" ? (
+                                                <span className="text-neutral-500">
+                                                  NULL
+                                                </span>
+                                              ) : value.length === 0 ? (
+                                                <span className="text-neutral-600">
+                                                  ""
+                                                </span>
+                                              ) : (
+                                                value
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      },
+                                    )}
+                                    <td
+                                      className={getTableActionCellClassName(
+                                        isEditing,
+                                      )}
+                                    >
+                                      <div className="flex gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={() => openEditRow(row)}
+                                          disabled={isBusy}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-red-300 hover:text-red-200"
+                                          onClick={() => {
+                                            void handleDeleteRow(row);
+                                          }}
+                                          disabled={isBusy}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-neutral-900 to-transparent transition-opacity duration-200 ${
+                        showTableScrollLeftFade ? "opacity-100" : "opacity-0"
+                      }`}
+                    />
+                    <div
+                      className={`pointer-events-none absolute inset-y-0 right-28 z-10 w-14 bg-gradient-to-r from-transparent to-[rgb(20,20,20)] transition-opacity duration-200 ${
+                        showTableScrollRightFade ? "opacity-100" : "opacity-0"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="sticky bottom-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-neutral-800 bg-neutral-900/95 px-3 py-2 backdrop-blur">
+                    <div className="text-xs text-neutral-500">
+                      {totalRows === 0
+                        ? "0 rows"
+                        : `${pageStartRow}-${pageEndRow} of ${totalRows} rows`}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-neutral-500">
+                        Rows/page
+                      </span>
+                      <Select
+                        value={String(pageSize)}
+                        onValueChange={handlePageSizeChange}
+                      >
+                        <SelectTrigger
+                          className="h-8 w-20 border-neutral-700 bg-neutral-900 text-xs text-neutral-200"
+                          disabled={isBusy}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TABLE_PAGE_SIZE_OPTIONS.map(
+                            function renderPageSize(option) {
+                              return (
+                                <SelectItem key={option} value={String(option)}>
+                                  {option}
+                                </SelectItem>
                               );
-                            })}
-                            <td className="px-3 py-2 align-top">
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => openEditRow(row)}
-                                  disabled={isBusy}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-red-300 hover:text-red-200"
-                                  onClick={() => {
-                                    void handleDeleteRow(row);
-                                  }}
-                                  disabled={isBusy}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                            },
+                          )}
+                        </SelectContent>
+                      </Select>
+
+                      <span className="text-xs text-neutral-500">
+                        Page {page + 1} of {pageCount}
+                      </span>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGoToPreviousPage}
+                        disabled={!canGoToPreviousPage || isBusy}
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGoToNextPage}
+                        disabled={!canGoToNextPage || isBusy}
+                      >
+                        Next
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>

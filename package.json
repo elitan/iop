@@ -1,6 +1,6 @@
 {
   "name": "frost",
-  "version": "0.20.0",
+  "version": "0.20.2",
   "description": "Open Source Alternative to Vercel, Netlify, Railway, Render and Neon.",
   "private": true,
   "workspaces": [

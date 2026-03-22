@@ -96,7 +96,7 @@ if [ "${E2E_SKIP_PREPULL:-0}" != "1" ]; then
   if [ -n "${E2E_PREPULL_IMAGES:-}" ]; then
     read -r -a PREPULL_IMAGES <<< "$E2E_PREPULL_IMAGES"
   else
-    PREPULL_IMAGES=("nginx:alpine" "httpd:alpine" "postgres:17" "node:20-alpine" "mariadb:11")
+    PREPULL_IMAGES=("nginx:alpine" "httpd:alpine" "postgres:17" "node:20-alpine" "mariadb:11" "curlimages/curl")
   fi
 
   if [ "${#PREPULL_IMAGES[@]}" -gt 0 ]; then

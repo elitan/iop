@@ -1,17 +1,22 @@
-import { exec } from "node:child_process";
+import { exec, execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { nanoid } from "nanoid";
-import { getDatabaseBranchAlias } from "./database-hostname";
+import {
+  getDatabaseBranchAlias,
+  getDatabaseBranchInternalHost,
+} from "./database-hostname";
 import {
   type DatabaseProvider,
   normalizeDatabaseProvider,
 } from "./database-provider";
+import { getDatabaseRuntimeState } from "./database-runtime-status";
 import {
   startDatabaseTargetGateway,
   stopDatabaseTargetGateway,
 } from "./database-target-gateway";
+import type { DatabaseTargetStoppedReason } from "./database-target-status";
 import { db } from "./db";
 import type {
   Databases,
@@ -23,6 +28,7 @@ import {
   connectContainerToNetwork,
   createNetwork,
   disconnectContainerFromNetwork,
+  type FileMount,
   getAvailablePort,
   isPortConflictError,
   runContainer,
@@ -48,10 +54,17 @@ import {
   resolvePostgresStorageMountPath,
   swapPostgresStorageFromStaged,
 } from "./postgres-branching/postgres-branch-runtime";
+import type {
+  ServiceAttentionStatus,
+  ServiceRuntimeStatus,
+} from "./service-runtime-status";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
+import { preparePostgresSSLAssets, removeSSLCerts } from "./ssl";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
 
 export type DatabaseEngine = "postgres" | "mysql";
 export type DatabaseTargetKind = "branch" | "instance";
@@ -63,6 +76,11 @@ export type DatabaseTargetDeploymentAction =
   | "start"
   | "stop";
 export type DatabaseTargetDeploymentStatus = "running" | "failed" | "stopped";
+
+export interface DatabaseWithRuntimeState extends Selectable<Databases> {
+  runtimeStatus: ServiceRuntimeStatus;
+  attentionStatus: ServiceAttentionStatus;
+}
 
 interface ProviderRef {
   containerName: string;
@@ -88,6 +106,12 @@ export interface RuntimeConnection {
   ssl: boolean;
 }
 
+export interface DatabaseTargetConnectionInfo extends RuntimeConnection {
+  databaseId: string;
+  targetId: string;
+  internalHost: string;
+}
+
 export interface DatabaseWithTarget {
   database: Selectable<Databases>;
   target: Selectable<DatabaseTargets>;
@@ -99,6 +123,7 @@ export interface DatabaseTargetRuntimeInfo {
   hostname: string;
   runtimeServiceId: string;
   lifecycleStatus: DatabaseTargetLifecycle;
+  stoppedReason: DatabaseTargetStoppedReason | null;
   containerName: string;
   hostPort: number;
   runtimeHostPort: number;
@@ -204,6 +229,21 @@ function getDatabaseNameSlug(name: string): string {
   const normalized = slugify(name).replace(/-/g, "_");
   const base = normalized.length > 0 ? normalized : "frostdb";
   return base.slice(0, 48);
+}
+
+function getDatabaseTargetInternalHost(input: {
+  engine: DatabaseEngine;
+  databaseName: string;
+  targetHostname: string;
+}): string {
+  if (input.engine === "postgres") {
+    return getDatabaseBranchInternalHost(
+      input.databaseName,
+      input.targetHostname,
+    );
+  }
+
+  return `${input.targetHostname}.frost.internal`;
 }
 
 async function assertPostgresHostReady(): Promise<void> {
@@ -354,6 +394,54 @@ function clearTargetActivityWrite(targetId: string): void {
   targetActivityWriteAt.delete(targetId);
 }
 
+async function setTargetStoppedState(input: {
+  targetId: string;
+  stoppedReason: DatabaseTargetStoppedReason | null;
+}): Promise<void> {
+  await db
+    .updateTable("databaseTargets")
+    .set({
+      lifecycleStatus: "stopped",
+      stoppedReason: input.stoppedReason,
+    })
+    .where("id", "=", input.targetId)
+    .execute();
+}
+
+async function setTargetActiveState(input: {
+  targetId: string;
+  providerRef: ProviderRef;
+  sourceTargetId?: string;
+  runtimeHostPort?: number | null;
+}): Promise<void> {
+  await db
+    .updateTable("databaseTargets")
+    .set({
+      ...(input.sourceTargetId === undefined
+        ? {}
+        : { sourceTargetId: input.sourceTargetId }),
+      ...(input.runtimeHostPort === undefined
+        ? {}
+        : { runtimeHostPort: input.runtimeHostPort }),
+      lifecycleStatus: "active",
+      stoppedReason: null,
+      providerRefJson: toProviderRefJson(input.providerRef),
+      lastActivityAt: Date.now(),
+    })
+    .where("id", "=", input.targetId)
+    .execute();
+}
+
+function getTargetStopMessage(
+  stoppedReason: DatabaseTargetStoppedReason | null | undefined,
+): string {
+  if (stoppedReason === "idle") {
+    return "Target slept after idle timeout";
+  }
+
+  return "Target stopped";
+}
+
 async function recordTargetDeployment(input: {
   targetId: string;
   action: DatabaseTargetDeploymentAction;
@@ -406,6 +494,62 @@ async function waitForPostgresReady(providerRef: ProviderRef): Promise<void> {
   throw new Error(
     `Postgres target ${providerRef.containerName} did not become ready`,
   );
+}
+
+function getDockerHostArgs(): string[] {
+  if (process.platform !== "linux") {
+    return [];
+  }
+
+  return ["--add-host", "host.docker.internal:host-gateway"];
+}
+
+async function waitForPostgresPublishedReady(
+  providerRef: ProviderRef,
+): Promise<void> {
+  const deadline = Date.now() + 120000;
+  const helperImage = providerRef.image || "postgres:17";
+
+  while (Date.now() < deadline) {
+    try {
+      const { stdout } = await execFileAsync("docker", [
+        "run",
+        "--rm",
+        ...getDockerHostArgs(),
+        "-e",
+        `PGPASSWORD=${providerRef.password}`,
+        helperImage,
+        "psql",
+        `host=host.docker.internal port=${providerRef.hostPort} user=${providerRef.username} dbname=${providerRef.database} sslmode=require connect_timeout=5`,
+        "-X",
+        "-t",
+        "-A",
+        "-c",
+        "select 1",
+      ]);
+      if (stdout.trim() === "1") {
+        return;
+      }
+    } catch {}
+
+    await sleep(1000);
+  }
+
+  throw new Error(
+    `Postgres target ${providerRef.containerName} did not accept published TLS connections`,
+  );
+}
+
+async function waitForTargetReady(
+  engine: DatabaseEngine,
+  providerRef: ProviderRef,
+): Promise<void> {
+  if (engine !== "postgres") {
+    return;
+  }
+
+  await waitForPostgresReady(providerRef);
+  await waitForPostgresPublishedReady(providerRef);
 }
 
 function parsePostgresRow(
@@ -505,6 +649,7 @@ async function updateTargetContainerResources(input: {
 
 async function createTargetRuntime(input: {
   databaseId: string;
+  targetId: string;
   databaseName: string;
   targetName: string;
   runtimeServiceId: string;
@@ -514,47 +659,69 @@ async function createTargetRuntime(input: {
   cpuLimit?: number | null;
   templateRef?: ProviderRef;
   fixedHostPort?: number;
+  excludedHostPorts?: Set<number>;
   storageMountPath?: string;
 }): Promise<ProviderRef> {
+  const isPostgres = input.engine === "postgres";
   const image =
     input.image ?? input.templateRef?.image ?? getDefaultImage(input.engine);
   const port = input.templateRef?.port ?? getDefaultPort(input.engine);
   const username = input.templateRef?.username ?? "frost";
   const password = input.templateRef?.password ?? randomSecret();
   const database =
-    input.templateRef?.database ??
-    `${getDatabaseNameSlug(input.databaseName)}_${input.targetName.replace(/-/g, "_")}`.slice(
-      0,
-      48,
-    );
+    input.templateRef?.database ?? getDatabaseNameSlug(input.databaseName);
   const containerName = sanitizeDockerName(
     `frost-db-${input.databaseId}-${input.targetName}`,
   );
   const memoryLimit =
     input.memoryLimit ?? input.templateRef?.memoryLimit ?? null;
   const cpuLimit = input.cpuLimit ?? input.templateRef?.cpuLimit ?? null;
-  const triedPorts = new Set<number>();
+  const triedPorts = new Set<number>(input.excludedHostPorts);
   const hostPortsToTry: number[] = [];
 
   await stopContainer(containerName);
 
-  if (input.engine === "postgres" && !input.storageMountPath) {
+  if (isPostgres && !input.storageMountPath) {
     throw new Error("Postgres target is missing storage mount path");
   }
 
-  const envVars: Record<string, string> =
-    input.engine === "postgres"
-      ? {
-          POSTGRES_USER: username,
-          POSTGRES_PASSWORD: password,
-          POSTGRES_DB: database,
-        }
-      : {
-          MYSQL_DATABASE: database,
-          MYSQL_USER: username,
-          MYSQL_PASSWORD: password,
-          MYSQL_ROOT_PASSWORD: randomSecret(),
-        };
+  let fileMounts: FileMount[] | undefined;
+  let entrypoint: string | undefined;
+
+  if (isPostgres) {
+    const sslAssets = await preparePostgresSSLAssets(
+      input.targetId,
+      POSTGRES_SSL_OWNER,
+    );
+    fileMounts = [
+      {
+        hostPath: sslAssets.cert,
+        containerPath: "/run/frost-postgres-ssl/server.crt",
+      },
+      {
+        hostPath: sslAssets.key,
+        containerPath: "/run/frost-postgres-ssl/server.key",
+      },
+      {
+        hostPath: sslAssets.bootstrap,
+        containerPath: `/usr/local/bin/frost-postgres-bootstrap-${input.targetId}.sh`,
+      },
+    ];
+    entrypoint = `/usr/local/bin/frost-postgres-bootstrap-${input.targetId}.sh`;
+  }
+
+  const envVars: Record<string, string> = isPostgres
+    ? {
+        POSTGRES_USER: username,
+        POSTGRES_PASSWORD: password,
+        POSTGRES_DB: database,
+      }
+    : {
+        MYSQL_DATABASE: database,
+        MYSQL_USER: username,
+        MYSQL_PASSWORD: password,
+        MYSQL_ROOT_PASSWORD: randomSecret(),
+      };
 
   if (input.fixedHostPort !== undefined) {
     hostPortsToTry.push(input.fixedHostPort);
@@ -573,13 +740,15 @@ async function createTargetRuntime(input: {
       hostPort,
       containerPort: port,
       name: containerName,
+      entrypoint,
       envVars,
       memoryLimit: memoryLimit ?? undefined,
       cpuLimit: cpuLimit ?? undefined,
       volumes:
-        input.engine === "postgres" && input.storageMountPath
+        isPostgres && input.storageMountPath
           ? [{ name: input.storageMountPath, path: "/var/lib/postgresql/data" }]
           : undefined,
+      fileMounts,
       labels: {
         "frost.managed": "true",
         "frost.service.id": input.runtimeServiceId,
@@ -615,7 +784,7 @@ async function createTargetRuntime(input: {
       username,
       password,
       database,
-      ssl: false,
+      ssl: isPostgres,
       image,
       port,
       memoryLimit,
@@ -636,6 +805,8 @@ async function recreateTargetRuntime(input: {
   target: Selectable<DatabaseTargets>;
   providerRef: ProviderRef;
   fixedHostPort?: number;
+  excludedHostPorts?: Set<number>;
+  preserveCurrentHostPort?: boolean;
 }): Promise<ProviderRef> {
   const storage =
     input.database.engine === "postgres"
@@ -647,12 +818,18 @@ async function recreateTargetRuntime(input: {
 
   const nextRef = await createTargetRuntime({
     databaseId: input.database.id,
+    targetId: input.target.id,
     databaseName: input.database.name,
     targetName: input.target.name,
     runtimeServiceId: input.target.runtimeServiceId,
     engine: input.database.engine as DatabaseEngine,
     templateRef: input.providerRef,
-    fixedHostPort: input.fixedHostPort ?? input.providerRef.hostPort,
+    fixedHostPort:
+      input.fixedHostPort ??
+      (input.preserveCurrentHostPort === false
+        ? undefined
+        : input.providerRef.hostPort),
+    excludedHostPorts: input.excludedHostPorts,
     storageMountPath,
   });
 
@@ -986,10 +1163,14 @@ export async function createDatabase(input: {
           storageRef: storageHandle.storageRef,
         });
       });
+      rollback.add(async () => {
+        await removeSSLCerts(targetId);
+      });
     }
 
     const providerRef = await createTargetRuntime({
       databaseId,
+      targetId,
       databaseName: input.name,
       targetName: "main",
       runtimeServiceId,
@@ -997,6 +1178,7 @@ export async function createDatabase(input: {
       image: input.image,
       storageMountPath,
     });
+    await waitForTargetReady(input.engine, providerRef);
     rollback.add(async () => {
       await stopContainer(providerRef.containerName);
     });
@@ -1016,6 +1198,7 @@ export async function createDatabase(input: {
         sourceTargetId: null,
         runtimeServiceId,
         lifecycleStatus: "active",
+        stoppedReason: null,
         providerRefJson: toProviderRefJson(providerRef),
         ttlValue: null,
         ttlUnit: null,
@@ -1109,9 +1292,13 @@ export async function createDatabaseTarget(input: {
           storageRef: clonedStorage.storageRef,
         });
       });
+      rollback.add(async () => {
+        await removeSSLCerts(targetId);
+      });
 
       providerRef = await createTargetRuntime({
         databaseId: database.id,
+        targetId,
         databaseName: database.name,
         targetName: input.name,
         runtimeServiceId,
@@ -1123,12 +1310,14 @@ export async function createDatabaseTarget(input: {
     } else {
       providerRef = await createTargetRuntime({
         databaseId: database.id,
+        targetId,
         databaseName: database.name,
         targetName: input.name,
         runtimeServiceId,
         engine: database.engine as DatabaseEngine,
       });
     }
+    await waitForTargetReady(database.engine as DatabaseEngine, providerRef);
 
     rollback.add(async () => {
       await stopContainer(providerRef.containerName);
@@ -1145,6 +1334,7 @@ export async function createDatabaseTarget(input: {
         sourceTargetId: sourceTarget?.id ?? null,
         runtimeServiceId,
         lifecycleStatus: "active",
+        stoppedReason: null,
         providerRefJson: toProviderRefJson(providerRef),
         ttlValue: null,
         ttlUnit: null,
@@ -1249,6 +1439,7 @@ export async function resetDatabaseTarget(input: {
   try {
     nextRef = await createTargetRuntime({
       databaseId: database.id,
+      targetId: target.id,
       databaseName: database.name,
       targetName: target.name,
       runtimeServiceId: target.runtimeServiceId,
@@ -1257,15 +1448,14 @@ export async function resetDatabaseTarget(input: {
       fixedHostPort: getTargetRuntimeHostPort(target, currentRef),
       storageMountPath: liveMountPath,
     });
-    await waitForPostgresReady(nextRef);
+    await waitForTargetReady("postgres", nextRef);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reset failed while starting";
-    await db
-      .updateTable("databaseTargets")
-      .set({ lifecycleStatus: "stopped" })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
     await recordTargetDeployment({
       targetId: target.id,
       action: "reset",
@@ -1282,16 +1472,11 @@ export async function resetDatabaseTarget(input: {
     nextProviderRef: nextRef,
   });
 
-  await db
-    .updateTable("databaseTargets")
-    .set({
-      sourceTargetId: sourceTarget.id,
-      lifecycleStatus: "active",
-      providerRefJson: toProviderRefJson(nextRef),
-      lastActivityAt: Date.now(),
-    })
-    .where("id", "=", target.id)
-    .execute();
+  await setTargetActiveState({
+    targetId: target.id,
+    providerRef: nextRef,
+    sourceTargetId: sourceTarget.id,
+  });
 
   await recordTargetDeployment({
     targetId: target.id,
@@ -1316,47 +1501,88 @@ export async function startDatabaseTarget(input: {
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   const runtimeHostPort = getTargetRuntimeHostPort(target, providerRef);
-  const nextRef = await recreateTargetRuntime({
-    database,
-    target,
-    providerRef,
-    fixedHostPort: runtimeHostPort,
-  });
-  if (database.engine === "postgres") {
-    await waitForPostgresReady(nextRef);
+  let nextRef: ProviderRef;
+  let nextRuntimeHostPort = runtimeHostPort;
+
+  try {
+    try {
+      nextRef = await recreateTargetRuntime({
+        database,
+        target,
+        providerRef,
+        fixedHostPort: runtimeHostPort,
+      });
+    } catch (error) {
+      if (
+        !isScaleToZeroEnabled(target) ||
+        !(error instanceof Error) ||
+        !isPortConflictError(error.message)
+      ) {
+        throw error;
+      }
+
+      nextRef = await recreateTargetRuntime({
+        database,
+        target,
+        providerRef,
+        excludedHostPorts: new Set([providerRef.hostPort]),
+        preserveCurrentHostPort: false,
+      });
+      nextRuntimeHostPort = nextRef.hostPort;
+    }
+
+    await waitForTargetReady(database.engine as DatabaseEngine, nextRef);
+    const persistedRuntimeHostPort = isScaleToZeroEnabled(target)
+      ? nextRuntimeHostPort
+      : target.runtimeHostPort;
+
+    applyProviderRefRuntimePorts({
+      target: {
+        ...target,
+        runtimeHostPort: persistedRuntimeHostPort,
+      },
+      previousProviderRef: providerRef,
+      nextProviderRef: nextRef,
+    });
+
+    await setTargetActiveState({
+      targetId: target.id,
+      providerRef: nextRef,
+      runtimeHostPort: persistedRuntimeHostPort,
+    });
+
+    await recordTargetDeployment({
+      targetId: target.id,
+      action: "start",
+      status: "running",
+      message: "Target started",
+    });
+
+    const updated = await getTargetById(target.id);
+    await ensureTargetGateway(updated.id);
+    await reconnectPostgresDatabaseNetwork(database);
+    return updated;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Target failed to start";
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
+    await recordTargetDeployment({
+      targetId: target.id,
+      action: "start",
+      status: "failed",
+      message,
+    });
+    throw error;
   }
-  applyProviderRefRuntimePorts({
-    target,
-    previousProviderRef: providerRef,
-    nextProviderRef: nextRef,
-  });
-
-  await db
-    .updateTable("databaseTargets")
-    .set({
-      lifecycleStatus: "active",
-      providerRefJson: toProviderRefJson(nextRef),
-      lastActivityAt: Date.now(),
-    })
-    .where("id", "=", target.id)
-    .execute();
-
-  await recordTargetDeployment({
-    targetId: target.id,
-    action: "start",
-    status: "running",
-    message: "Target started",
-  });
-
-  const updated = await getTargetById(target.id);
-  await ensureTargetGateway(updated.id);
-  await reconnectPostgresDatabaseNetwork(database);
-  return updated;
 }
 
 export async function stopDatabaseTarget(input: {
   databaseId: string;
   targetId: string;
+  stoppedReason?: DatabaseTargetStoppedReason | null;
 }): Promise<Selectable<DatabaseTargets>> {
   const { target } = await resolveDatabaseWithTargetById(
     input.databaseId,
@@ -1364,18 +1590,16 @@ export async function stopDatabaseTarget(input: {
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   await stopContainer(providerRef.containerName);
-
-  await db
-    .updateTable("databaseTargets")
-    .set({ lifecycleStatus: "stopped" })
-    .where("id", "=", target.id)
-    .execute();
+  await setTargetStoppedState({
+    targetId: target.id,
+    stoppedReason: input.stoppedReason ?? null,
+  });
 
   await recordTargetDeployment({
     targetId: target.id,
     action: "stop",
     status: "stopped",
-    message: "Target stopped",
+    message: getTargetStopMessage(input.stoppedReason),
   });
 
   clearTargetActivityWrite(target.id);
@@ -1401,6 +1625,7 @@ export async function deleteDatabaseTarget(input: {
   await stopContainer(providerRef.containerName);
   if (database.engine === "postgres") {
     await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+    await removeSSLCerts(target.id);
   }
   await db.deleteFrom("databaseTargets").where("id", "=", target.id).execute();
 }
@@ -1420,6 +1645,7 @@ export async function deleteDatabase(databaseId: string): Promise<void> {
     await stopContainer(providerRef.containerName);
     if (database.engine === "postgres") {
       await removePostgresStorage(getPostgresStorageMetadata(providerRef));
+      await removeSSLCerts(target.id);
     }
   }
 
@@ -1507,24 +1733,17 @@ export async function deployDatabaseTarget(
       providerRef,
       fixedHostPort: runtimeHostPort,
     });
-    if (database.engine === "postgres") {
-      await waitForPostgresReady(nextRef);
-    }
+    await waitForTargetReady(database.engine as DatabaseEngine, nextRef);
     applyProviderRefRuntimePorts({
       target,
       previousProviderRef: providerRef,
       nextProviderRef: nextRef,
     });
 
-    await db
-      .updateTable("databaseTargets")
-      .set({
-        lifecycleStatus: "active",
-        providerRefJson: toProviderRefJson(nextRef),
-        lastActivityAt: Date.now(),
-      })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetActiveState({
+      targetId: target.id,
+      providerRef: nextRef,
+    });
 
     await ensureTargetGateway(target.id);
     if (database.engine === "postgres") {
@@ -1540,11 +1759,10 @@ export async function deployDatabaseTarget(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Target failed to redeploy";
-    await db
-      .updateTable("databaseTargets")
-      .set({ lifecycleStatus: "stopped" })
-      .where("id", "=", target.id)
-      .execute();
+    await setTargetStoppedState({
+      targetId: target.id,
+      stoppedReason: "failed",
+    });
 
     return recordTargetDeployment({
       targetId: target.id,
@@ -1567,6 +1785,7 @@ export async function getDatabaseTargetRuntime(
     hostname: target.hostname,
     runtimeServiceId: target.runtimeServiceId,
     lifecycleStatus: target.lifecycleStatus as DatabaseTargetLifecycle,
+    stoppedReason: target.stoppedReason,
     containerName: providerRef.containerName,
     hostPort: providerRef.hostPort,
     runtimeHostPort: getTargetRuntimeHostPort(target, providerRef),
@@ -1667,7 +1886,6 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
   targetId: string;
   name?: string;
   hostname?: string;
-  lifecycleStatus?: "active" | "stopped";
   ttlValue?: number | null;
   ttlUnit?: "hours" | "days" | null;
   scaleToZeroMinutes?: number | null;
@@ -1823,11 +2041,13 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       let nextProviderRef = currentProviderRef;
 
       if (runtimeHostPort === null) {
-        runtimeHostPort = await getAvailablePort(
-          10000,
-          20000,
-          new Set([currentProviderRef.hostPort]),
-        );
+        if (target.lifecycleStatus !== "active") {
+          runtimeHostPort = await getAvailablePort(
+            10000,
+            20000,
+            new Set([currentProviderRef.hostPort]),
+          );
+        }
       }
 
       if (target.lifecycleStatus === "active") {
@@ -1835,12 +2055,19 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
           database,
           target,
           providerRef: currentProviderRef,
-          fixedHostPort: runtimeHostPort,
+          fixedHostPort: runtimeHostPort ?? undefined,
+          excludedHostPorts: new Set([currentProviderRef.hostPort]),
+          preserveCurrentHostPort: false,
         });
+        await waitForTargetReady(database.engine as DatabaseEngine, recreated);
+        runtimeHostPort = recreated.hostPort;
         recreated.hostPort = currentProviderRef.hostPort;
         recreated.runtimeHostPort = runtimeHostPort;
         nextProviderRef = recreated;
       } else {
+        if (runtimeHostPort === null) {
+          throw new Error("Scale to zero target is missing runtime host port");
+        }
         nextProviderRef = {
           ...currentProviderRef,
           runtimeHostPort,
@@ -1874,6 +2101,7 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
           providerRef: currentProviderRef,
           fixedHostPort: currentProviderRef.hostPort,
         });
+        await waitForTargetReady(database.engine as DatabaseEngine, recreated);
         recreated.runtimeHostPort = undefined;
         nextProviderRef = recreated;
       } else {
@@ -1917,20 +2145,6 @@ export async function patchDatabaseTargetRuntimeSettings(input: {
       .execute();
   }
 
-  if (input.lifecycleStatus === "active") {
-    await startDatabaseTarget({
-      databaseId: target.databaseId,
-      targetId: target.id,
-    });
-  }
-
-  if (input.lifecycleStatus === "stopped") {
-    await stopDatabaseTarget({
-      databaseId: target.databaseId,
-      targetId: target.id,
-    });
-  }
-
   if (
     database.engine === "postgres" &&
     (nameChanged || hostnameChanged || scaleToZeroChanged)
@@ -1955,12 +2169,33 @@ export async function resolveRuntimeConnection(input: {
   databaseId: string;
   targetId: string;
 }): Promise<RuntimeConnection> {
-  const { target } = await resolveDatabaseWithTargetById(
+  const connection = await getDatabaseTargetConnectionInfo(input);
+  return {
+    hostPort: connection.hostPort,
+    username: connection.username,
+    password: connection.password,
+    database: connection.database,
+    ssl: connection.ssl,
+  };
+}
+
+export async function getDatabaseTargetConnectionInfo(input: {
+  databaseId: string;
+  targetId: string;
+}): Promise<DatabaseTargetConnectionInfo> {
+  const { database, target } = await resolveDatabaseWithTargetById(
     input.databaseId,
     input.targetId,
   );
   const providerRef = parseProviderRef(target.providerRefJson);
   return {
+    databaseId: database.id,
+    targetId: target.id,
+    internalHost: getDatabaseTargetInternalHost({
+      engine: database.engine as DatabaseEngine,
+      databaseName: database.name,
+      targetHostname: target.hostname,
+    }),
     hostPort: providerRef.hostPort,
     username: providerRef.username,
     password: providerRef.password,
@@ -1989,6 +2224,71 @@ export async function listDatabasesByProject(projectId: string) {
     .execute();
 
   return databases.map(normalizeDatabase);
+}
+
+export async function listDatabasesWithRuntimeByProject(
+  projectId: string,
+): Promise<DatabaseWithRuntimeState[]> {
+  const databases = await listDatabasesByProject(projectId);
+
+  if (databases.length === 0) {
+    return [];
+  }
+
+  const databaseIds = databases.map(function getDatabaseId(database) {
+    return database.id;
+  });
+
+  const mainTargets = await db
+    .selectFrom("databaseTargets")
+    .selectAll()
+    .where("databaseId", "in", databaseIds)
+    .where("name", "=", "main")
+    .execute();
+
+  const mainTargetIds = mainTargets.map(function getTargetId(target) {
+    return target.id;
+  });
+
+  const latestDeployments =
+    mainTargetIds.length > 0
+      ? await db
+          .selectFrom("databaseTargetDeployments")
+          .select(["targetId", "status", "createdAt"])
+          .where("targetId", "in", mainTargetIds)
+          .orderBy("createdAt", "desc")
+          .execute()
+      : [];
+
+  const mainTargetByDatabaseId = new Map(
+    mainTargets.map(function getEntry(target) {
+      return [target.databaseId, target] as const;
+    }),
+  );
+  const latestDeploymentByTargetId = new Map();
+
+  for (const deployment of latestDeployments) {
+    if (!latestDeploymentByTargetId.has(deployment.targetId)) {
+      latestDeploymentByTargetId.set(deployment.targetId, deployment);
+    }
+  }
+
+  return databases.map(function mapDatabase(database) {
+    const mainTarget = mainTargetByDatabaseId.get(database.id) ?? null;
+    const latestDeployment = mainTarget
+      ? (latestDeploymentByTargetId.get(mainTarget.id) ?? null)
+      : null;
+    const runtimeState = getDatabaseRuntimeState({
+      mainTarget,
+      latestDeployment,
+    });
+
+    return {
+      ...database,
+      runtimeStatus: runtimeState.runtimeStatus,
+      attentionStatus: runtimeState.attentionStatus,
+    };
+  });
 }
 
 export async function listDatabaseTargets(databaseId: string) {

@@ -63,10 +63,16 @@ export function useListDatabaseBackups(databaseId: string) {
   });
 }
 
-export function useDatabaseTargets(databaseId: string) {
+export function useDatabaseTargets(
+  databaseId: string,
+  options?: {
+    refetchInterval?: number;
+  },
+) {
   return useQuery({
     ...orpc.databases.listTargets.queryOptions({ input: { databaseId } }),
     enabled: !!databaseId,
+    refetchInterval: options?.refetchInterval,
   });
 }
 
@@ -86,6 +92,19 @@ export function useDatabaseTargetDeployments(
 export function useDatabaseTargetRuntime(databaseId: string, targetId: string) {
   return useQuery({
     ...orpc.databases.getTargetRuntime.queryOptions({
+      input: { databaseId, targetId },
+    }),
+    enabled: !!databaseId && !!targetId,
+    refetchInterval: 3000,
+  });
+}
+
+export function useDatabaseTargetConnection(
+  databaseId: string,
+  targetId: string,
+) {
+  return useQuery({
+    ...orpc.databases.getTargetConnection.queryOptions({
       input: { databaseId, targetId },
     }),
     enabled: !!databaseId && !!targetId,
@@ -270,19 +289,6 @@ export function useStartDatabaseTarget(databaseId: string) {
   return useMutation({
     mutationFn: ({ targetId }: { targetId: string }) =>
       orpc.databases.startTarget.call({ databaseId, targetId }),
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),
-      });
-    },
-  });
-}
-
-export function useStopDatabaseTarget(databaseId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ targetId }: { targetId: string }) =>
-      orpc.databases.stopTarget.call({ databaseId, targetId }),
     onSuccess: async () => {
       await queryClient.refetchQueries({
         queryKey: orpc.databases.listTargets.key({ input: { databaseId } }),

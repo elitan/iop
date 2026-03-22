@@ -159,7 +159,7 @@ export default function WorkspaceLayout({
   );
 
   const bodyClassName = cn(
-    "min-h-0 flex-1",
+    "min-h-0 min-w-0 flex-1",
     isResourceDetailPage
       ? "overflow-hidden bg-neutral-950/20"
       : "overflow-auto p-6",
@@ -204,7 +204,7 @@ export default function WorkspaceLayout({
           <WorkspaceLeftMenu />
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col bg-neutral-950/20">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-neutral-950/20">
           {showMainContentHeader && (
             <MainContentHeader title={mainHeaderTitle} />
           )}

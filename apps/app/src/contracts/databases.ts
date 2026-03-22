@@ -1,10 +1,15 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import {
+  serviceAttentionStatusSchema,
+  serviceRuntimeStatusSchema,
+} from "./shared";
 
 const databaseEngineSchema = z.enum(["postgres", "mysql"]);
 const databaseProviderSchema = z.enum(["postgres-docker", "mysql-docker"]);
 const databaseTargetKindSchema = z.enum(["branch", "instance"]);
 const databaseTargetLifecycleSchema = z.enum(["active", "stopped", "expired"]);
+const databaseTargetStoppedReasonSchema = z.enum(["idle", "failed"]);
 const databaseStorageBackendSchema = z.enum(["apfs", "copy", "zfs"]);
 const backupIntervalUnitSchema = z.enum(["minutes", "hours", "days"]);
 const databaseImportStageSchema = z.enum([
@@ -40,6 +45,11 @@ export const databaseSchema = z.object({
   createdAt: z.number(),
 });
 
+const databaseListItemSchema = databaseSchema.extend({
+  runtimeStatus: serviceRuntimeStatusSchema,
+  attentionStatus: serviceAttentionStatusSchema,
+});
+
 export const databaseTargetSchema = z.object({
   id: z.string(),
   databaseId: z.string(),
@@ -49,6 +59,7 @@ export const databaseTargetSchema = z.object({
   sourceTargetId: z.string().nullable(),
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
+  stoppedReason: databaseTargetStoppedReasonSchema.nullable(),
   providerRefJson: z.string(),
   ttlValue: z.number().nullable(),
   ttlUnit: z.enum(["hours", "days"]).nullable(),
@@ -88,6 +99,7 @@ const databaseTargetRuntimeSchema = z.object({
   hostname: z.string(),
   runtimeServiceId: z.string(),
   lifecycleStatus: databaseTargetLifecycleSchema,
+  stoppedReason: databaseTargetStoppedReasonSchema.nullable(),
   containerName: z.string(),
   hostPort: z.number(),
   runtimeHostPort: z.number(),
@@ -220,7 +232,7 @@ const databaseImportVerifyResultSchema = z.object({
   comparedAt: z.number().nullable(),
 });
 
-const databaseImportTargetConnectionSchema = z.object({
+const databaseTargetConnectionSchema = z.object({
   databaseId: z.string(),
   targetId: z.string(),
   internalHost: z.string(),
@@ -250,7 +262,7 @@ const databaseImportJobSchema = z.object({
   failedAt: z.number().nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
-  targetConnection: databaseImportTargetConnectionSchema.nullable(),
+  targetConnection: databaseTargetConnectionSchema.nullable(),
 });
 
 const targetParamsSchema = z.object({
@@ -273,7 +285,7 @@ export const databasesContract = {
   list: oc
     .route({ method: "GET", path: "/projects/{projectId}/databases" })
     .input(z.object({ projectId: z.string() }))
-    .output(z.array(databaseSchema)),
+    .output(z.array(databaseListItemSchema)),
 
   get: oc
     .route({ method: "GET", path: "/databases/{databaseId}" })
@@ -464,6 +476,14 @@ export const databasesContract = {
     .input(targetParamsSchema)
     .output(databaseTargetRuntimeSchema),
 
+  getTargetConnection: oc
+    .route({
+      method: "GET",
+      path: "/databases/{databaseId}/targets/{targetId}/connection",
+    })
+    .input(targetParamsSchema)
+    .output(databaseTargetConnectionSchema),
+
   runTargetSql: oc
     .route({
       method: "POST",
@@ -488,7 +508,6 @@ export const databasesContract = {
           .string()
           .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
           .optional(),
-        lifecycleStatus: z.enum(["active", "stopped"]).optional(),
         memoryLimit: z
           .string()
           .regex(/^\d+[kmg]$/i)
@@ -526,14 +545,6 @@ export const databasesContract = {
     .route({
       method: "POST",
       path: "/databases/{databaseId}/targets/{targetId}/start",
-    })
-    .input(z.object({ databaseId: z.string(), targetId: z.string() }))
-    .output(databaseTargetSchema),
-
-  stopTarget: oc
-    .route({
-      method: "POST",
-      path: "/databases/{databaseId}/targets/{targetId}/stop",
     })
     .input(z.object({ databaseId: z.string(), targetId: z.string() }))
     .output(databaseTargetSchema),
@@ -582,7 +593,6 @@ export const databasesContract = {
           .string()
           .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
           .optional(),
-        lifecycleStatus: z.enum(["active", "stopped"]).optional(),
         memoryLimit: z
           .string()
           .regex(/^\d+[kmg]$/i)
@@ -622,14 +632,6 @@ export const databasesContract = {
     .route({
       method: "POST",
       path: "/databases/{databaseId}/branches/{targetId}/start",
-    })
-    .input(targetParamsSchema)
-    .output(databaseTargetSchema),
-
-  stopBranch: oc
-    .route({
-      method: "POST",
-      path: "/databases/{databaseId}/branches/{targetId}/stop",
     })
     .input(targetParamsSchema)
     .output(databaseTargetSchema),

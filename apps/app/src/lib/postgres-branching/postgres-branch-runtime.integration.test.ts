@@ -48,7 +48,7 @@ describe("buildPostgresCheckpointCommand", () => {
       containerName: "pg-main",
       username: "frost",
       password: "secret",
-      database: "frost_main",
+      database: "frost",
     });
 
     expect(command).toContain("docker exec");

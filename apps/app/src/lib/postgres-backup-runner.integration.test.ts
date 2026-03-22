@@ -173,6 +173,7 @@ describe("postgres backup runner integration", () => {
           sourceTargetId: null,
           runtimeServiceId,
           lifecycleStatus: "active",
+          stoppedReason: null,
           providerRefJson: JSON.stringify({
             containerName: POSTGRES_CONTAINER,
             hostPort: POSTGRES_PORT,

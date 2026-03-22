@@ -17,29 +17,7 @@ import {
 import {
   type BranchPanelTab,
   DatabaseBranchPanel,
-  type DatabaseProviderRef,
 } from "../../../../../../_components/database-branch-panel";
-
-function parseProviderRef(json: string): DatabaseProviderRef | null {
-  try {
-    const value = JSON.parse(json) as Partial<DatabaseProviderRef>;
-    if (
-      typeof value.containerName !== "string" ||
-      typeof value.hostPort !== "number" ||
-      typeof value.username !== "string" ||
-      typeof value.password !== "string" ||
-      typeof value.database !== "string" ||
-      typeof value.ssl !== "boolean" ||
-      typeof value.image !== "string" ||
-      typeof value.port !== "number"
-    ) {
-      return null;
-    }
-    return value as DatabaseProviderRef;
-  } catch {
-    return null;
-  }
-}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -89,7 +67,9 @@ export default function DatabaseBranchDetailLayout({
   const branchBasePath = `/projects/${projectId}/environments/${envId}/databases/${databaseId}/branches/${branchId}`;
 
   const { data: database } = useDatabase(databaseId);
-  const { data: targets = [] } = useDatabaseTargets(databaseId);
+  const { data: targets = [] } = useDatabaseTargets(databaseId, {
+    refetchInterval: 5000,
+  });
 
   const startTargetMutation = useStartDatabaseTarget(databaseId);
   const deployTargetMutation = useDeployDatabaseTarget(databaseId, branchId);
@@ -129,16 +109,6 @@ export default function DatabaseBranchDetailLayout({
       return parent?.id ?? null;
     },
     [branch, targets],
-  );
-
-  const branchProviderRef = useMemo(
-    function getBranchProviderRef() {
-      if (!branch) {
-        return null;
-      }
-      return parseProviderRef(branch.providerRefJson);
-    },
-    [branch],
   );
 
   const activeTab = getActiveTab(pathname, branchBasePath);
@@ -194,7 +164,6 @@ export default function DatabaseBranchDetailLayout({
               }
             : undefined
         }
-        providerRef={branchProviderRef}
         onStart={async function onStart() {
           try {
             await startTargetMutation.mutateAsync({ targetId: branch.id });

@@ -175,6 +175,8 @@ describe("postgres import integration", () => {
       if (!databaseId) {
         throw new Error("Database id missing");
       }
+      expect(targetConnection.ssl).toBe(true);
+      expect(targetConnection.database).toBe("prod_db");
 
       const target = await db
         .selectFrom("databaseTargets")

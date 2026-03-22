@@ -1,3 +1,45 @@
+function padTimePart(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function toValidDate(value: number | string | Date): Date | null {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function formatDatePart(date: Date): string {
+  return `${date.getFullYear()}-${padTimePart(date.getMonth() + 1)}-${padTimePart(date.getDate())}`;
+}
+
+function formatTimePart(date: Date): string {
+  return `${padTimePart(date.getHours())}:${padTimePart(date.getMinutes())}:${padTimePart(date.getSeconds())}`;
+}
+
+function formatTimeOfDayPart(date: Date): string {
+  return `${padTimePart(date.getHours())}:${padTimePart(date.getMinutes())}`;
+}
+
+export function formatDateTime(
+  value: number | string | Date,
+  fallback = "-",
+): string {
+  const date = toValidDate(value);
+  if (!date) return fallback;
+
+  return `${formatDatePart(date)} ${formatTimePart(date)}`;
+}
+
+export function formatTimeOfDay(
+  value: number | string | Date,
+  fallback = "-",
+): string {
+  const date = toValidDate(value);
+  if (!date) return fallback;
+
+  return formatTimeOfDayPart(date);
+}
+
 export function getTimeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return "just now";

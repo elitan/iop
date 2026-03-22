@@ -106,8 +106,9 @@ done
 [ -z "$DB_HOST_PORT" ] && fail "No postgres runtime host port: $DB_RUNTIME"
 DB_CONTAINER_ID=$(require_field "$DB_RUNTIME" '.containerName' "get db container") || fail "No db container"
 log "Postgres container: $DB_CONTAINER_ID"
-PG_READY=$(remote "timeout 30 bash -c 'until pg_isready -h localhost -p $DB_HOST_PORT -U $PG_USER -d $PG_DB; do sleep 1; done' && echo 'ready'" 2>&1 || echo "not ready")
-echo "$PG_READY" | grep -q "ready" || fail "postgres not ready"
+PG_READY=$(remote "for _ in \$(seq 1 30); do pg_isready -h localhost -p $DB_HOST_PORT -U $PG_USER -d $PG_DB >/dev/null 2>&1 && echo ready && exit 0; sleep 1; done; exit 1" 2>&1 || true)
+[ "$PG_READY" = "ready" ] || PG_READY=$(wait_for_postgres_tls_value "host.docker.internal" "$DB_HOST_PORT" "$PG_USER" "$PG_PASS" "$PG_DB" "select 1" "1" 30 10 || true)
+[ "$PG_READY" = "ready" ] || [ "$PG_READY" = "1" ] || fail "postgres not ready: $PG_READY"
 log "postgres ready on port $DB_HOST_PORT"
 
 log "Checking postgres container state..."
@@ -193,14 +194,49 @@ log "Services on shared network: $NETWORK_NAME"
 log "Cleanup..."
 api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 
-log "=== Project Template Restrictions ==="
+log "=== Project Templates ==="
 
-log "Verifying wordpress project template is rejected..."
-WORDPRESS_TEMPLATE_RESP=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-proj-template","templateId":"wordpress"}')
-WORDPRESS_TEMPLATE_ID=$(echo "$WORDPRESS_TEMPLATE_RESP" | jq -r '.id // empty')
-[ -z "$WORDPRESS_TEMPLATE_ID" ] || fail "Wordpress template should not create a project: $WORDPRESS_TEMPLATE_RESP"
-echo "$WORDPRESS_TEMPLATE_RESP" | grep -qi "not supported\|database services" || fail "Expected unsupported template error: $WORDPRESS_TEMPLATE_RESP"
-log "Wordpress template correctly rejected"
+log "Creating hasura project template..."
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-proj-template","templateId":"hasura"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create template project") || fail "Failed: $PROJECT"
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+
+log "Checking template project services..."
+PROJECT_DATA=$(api "$BASE_URL/api/projects/$PROJECT_ID")
+HASURA_SERVICE_ID=$(echo "$PROJECT_DATA" | jq -r '.services[] | select(.name == "hasura") | .id')
+POSTGRES_SERVICE_ID=$(echo "$PROJECT_DATA" | jq -r '.services[] | select(.name == "postgres") | .id')
+[ -n "$HASURA_SERVICE_ID" ] || fail "hasura service missing: $PROJECT_DATA"
+[ -z "$POSTGRES_SERVICE_ID" ] || fail "postgres should be a managed database, not a service: $PROJECT_DATA"
+
+log "Checking managed databases..."
+DATABASES=$(api "$BASE_URL/api/projects/$PROJECT_ID/databases")
+POSTGRES_DB_ID=$(echo "$DATABASES" | jq -r '.[] | select(.name == "postgres") | .id')
+[ -n "$POSTGRES_DB_ID" ] || fail "managed postgres database missing: $DATABASES"
+DB_COUNT=$(echo "$DATABASES" | jq -r 'length')
+[ "$DB_COUNT" = "1" ] || fail "expected 1 managed database, got: $DATABASES"
+
+log "Waiting for hasura deployment..."
+HASURA_DEPLOY_ID=$(wait_for_service_deployment_id "$HASURA_SERVICE_ID" 45 1) || fail "No deployment found for hasura service"
+wait_for_deployment "$HASURA_DEPLOY_ID" 120 || fail "hasura deployment failed"
+
+HASURA_DEPLOY=$(api "$BASE_URL/api/deployments/$HASURA_DEPLOY_ID")
+HASURA_HOST_PORT=$(require_field "$HASURA_DEPLOY" '.hostPort' "get hasura hostPort") || fail "No hostPort"
+HASURA_HEALTH=$(remote "curl -sf --max-time 10 http://localhost:$HASURA_HOST_PORT/healthz" 2>&1 || echo "failed")
+echo "$HASURA_HEALTH" | grep -qi "ok" || fail "hasura health failed: $HASURA_HEALTH"
+log "Project template uses managed postgres and boots"
+
+log "Verifying database template is rejected from service template create..."
+api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
+PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-db-template-reject"}')
+PROJECT_ID=$(require_field "$PROJECT" '.id' "create project") || fail "Failed: $PROJECT"
+ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
+DB_TEMPLATE_RESP=$(api -X POST "$BASE_URL/api/environments/$ENV_ID/services" \
+  -d '{"name":"postgres-template","deployType":"image","serviceTemplateId":"postgres"}')
+DB_TEMPLATE_ID=$(echo "$DB_TEMPLATE_RESP" | jq -r '.id // empty')
+[ -z "$DB_TEMPLATE_ID" ] || fail "Database template should not create a service: $DB_TEMPLATE_RESP"
+echo "$DB_TEMPLATE_RESP" | grep -qi "service template" || fail "Expected service template error: $DB_TEMPLATE_RESP"
+api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
+log "Database template correctly rejected from service creation"
 
 log "=== Edge Cases ==="
 

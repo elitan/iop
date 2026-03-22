@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
 import { Badge } from "@/components/ui/badge";
+import type { Service } from "@/lib/api";
 import {
   DATABASE_LOGO_FALLBACK,
   getDatabaseLogoAlt,
@@ -13,6 +15,8 @@ export interface CanvasDatabase {
   name: string;
   engine: "postgres" | "mysql";
   provider: "postgres-docker" | "mysql-docker";
+  runtimeStatus?: Service["runtimeStatus"];
+  attentionStatus?: Service["attentionStatus"];
 }
 
 interface DatabaseContentProps {
@@ -55,9 +59,18 @@ export function DatabaseContent({ database }: DatabaseContentProps) {
           />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-neutral-200">
-            {database.name}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-medium text-neutral-200">
+              {database.name}
+            </p>
+            {database.runtimeStatus && (
+              <ServiceRuntimeIndicator
+                runtimeStatus={database.runtimeStatus}
+                attentionStatus={database.attentionStatus ?? null}
+                className="shrink-0"
+              />
+            )}
+          </div>
           <p className="truncate text-xs text-neutral-500">
             {getDatabaseSubtitle(database.engine)}
           </p>

@@ -1,19 +1,58 @@
 import { ORPCError } from "@orpc/server";
 import { getSetting } from "@/lib/auth";
+import { buildPostgresConnectionString } from "@/lib/connection-strings";
+import {
+  createDatabase,
+  getDatabaseTargetConnectionInfo,
+  listDatabasesWithRuntimeByProject,
+} from "@/lib/database-runtime";
 import { db } from "@/lib/db";
 import { deployProject, deployService } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { newEnvironmentId, newProjectId } from "@/lib/id";
 import { cleanupProject } from "@/lib/lifecycle";
+import { getProjectResourceSummary } from "@/lib/project-resource-summary";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
-import { getTemplate, resolveTemplateServices } from "@/lib/templates";
+import {
+  getManagedTemplateDatabases,
+  getTemplate,
+  resolveTemplateServices,
+  type TemplateReferenceValues,
+} from "@/lib/templates";
 import {
   assertDemoDeployRateLimit,
   assertDemoProjectCreateAllowed,
   assertDemoServiceCreateAllowed,
 } from "./demo-guards";
 import { os } from "./orpc";
+
+function buildManagedDatabaseReferenceValues(input: {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+}): Record<string, string> {
+  return {
+    HOST: input.host,
+    PORT: String(input.port),
+    USERNAME: input.username,
+    PASSWORD: input.password,
+    DATABASE: input.database,
+    DATABASE_URL: buildPostgresConnectionString({
+      username: input.username,
+      password: input.password,
+      host: input.host,
+      port: input.port,
+      database: input.database,
+      ssl: true,
+    }),
+    POSTGRES_USER: input.username,
+    POSTGRES_PASSWORD: input.password,
+    POSTGRES_DB: input.database,
+  };
+}
 
 export const projects = {
   list: os.projects.list.handler(async () => {
@@ -24,12 +63,15 @@ export const projects = {
 
     return Promise.all(
       projectRows.map(async (project) => {
-        const productionEnv = await db
-          .selectFrom("environments")
-          .select("id")
-          .where("projectId", "=", project.id)
-          .where("type", "=", "production")
-          .executeTakeFirst();
+        const [productionEnv, databases] = await Promise.all([
+          db
+            .selectFrom("environments")
+            .select("id")
+            .where("projectId", "=", project.id)
+            .where("type", "=", "production")
+            .executeTakeFirst(),
+          listDatabasesWithRuntimeByProject(project.id),
+        ]);
 
         const services = productionEnv
           ? await db
@@ -41,6 +83,10 @@ export const projects = {
 
         const servicesWithDeployments =
           await addLatestDeploymentsWithRuntimeStatus(services);
+        const resourceSummary = getProjectResourceSummary({
+          services: servicesWithDeployments,
+          databases,
+        });
 
         let latestDeployment: {
           status: string;
@@ -93,6 +139,7 @@ export const projects = {
             : null,
           repoUrl,
           runningUrl,
+          resourceSummary,
           services: servicesWithDeployments.map((service) => ({
             id: service.id,
             name: service.name,
@@ -143,8 +190,9 @@ export const projects = {
     await assertDemoProjectCreateAllowed();
 
     let template: ReturnType<typeof getTemplate> | null = null;
-    let resolvedTemplateServices: ReturnType<typeof resolveTemplateServices> =
-      [];
+    let managedTemplateDatabases: ReturnType<
+      typeof getManagedTemplateDatabases
+    > = [];
 
     if (input.templateId) {
       template = getTemplate(input.templateId);
@@ -159,17 +207,7 @@ export const projects = {
         });
       }
 
-      resolvedTemplateServices = resolveTemplateServices(template);
-      if (
-        resolvedTemplateServices.some(function hasDatabaseService(svc) {
-          return svc.isDatabase;
-        })
-      ) {
-        throw new ORPCError("BAD_REQUEST", {
-          message:
-            "Project templates with database services are not supported in this version",
-        });
-      }
+      managedTemplateDatabases = getManagedTemplateDatabases(template);
     }
 
     const id = newProjectId();
@@ -213,35 +251,74 @@ export const projects = {
     }
 
     if (template) {
-      await assertDemoServiceCreateAllowed(
-        envId,
-        resolvedTemplateServices.length,
-      );
+      try {
+        const excludedServices = managedTemplateDatabases.map(
+          function getName(database) {
+            return database.name;
+          },
+        );
+        const templateReferenceValues: TemplateReferenceValues = {};
 
-      for (const svc of resolvedTemplateServices) {
-        const serviceHostname = slugify(svc.name);
+        for (const databaseTemplate of managedTemplateDatabases) {
+          const createdDatabase = await createDatabase({
+            projectId: id,
+            name: databaseTemplate.name,
+            engine: databaseTemplate.engine,
+            image: databaseTemplate.image,
+          });
+          const connection = await getDatabaseTargetConnectionInfo({
+            databaseId: createdDatabase.database.id,
+            targetId: createdDatabase.target.id,
+          });
 
-        const service = await createService({
-          environmentId: envId,
-          name: svc.name,
-          hostname: serviceHostname,
-          deployType: "image",
-          serviceType: "app",
-          imageUrl: svc.image,
-          envVars: svc.envVars,
-          containerPort: svc.port,
-          healthCheckPath: svc.healthCheckPath,
-          healthCheckTimeout: svc.healthCheckTimeout,
-          volumes: svc.volumes,
-          command: svc.command,
-          icon: svc.icon,
-          ssl: svc.ssl,
-          wildcardDomain: { projectHostname: hostname },
+          templateReferenceValues[databaseTemplate.name] =
+            buildManagedDatabaseReferenceValues({
+              host: connection.internalHost,
+              port: 5432,
+              username: connection.username,
+              password: connection.password,
+              database: connection.database,
+            });
+        }
+
+        const resolvedTemplateServices = resolveTemplateServices(template, {
+          excludeServices: excludedServices,
+          referenceValues: templateReferenceValues,
         });
 
-        deployService(service.id).catch((err) => {
-          console.error(`Auto-deploy failed for service ${service.id}:`, err);
-        });
+        await assertDemoServiceCreateAllowed(
+          envId,
+          resolvedTemplateServices.length,
+        );
+
+        for (const svc of resolvedTemplateServices) {
+          const serviceHostname = slugify(svc.name);
+
+          const service = await createService({
+            environmentId: envId,
+            name: svc.name,
+            hostname: serviceHostname,
+            deployType: "image",
+            serviceType: svc.isDatabase ? "database" : "app",
+            imageUrl: svc.image,
+            envVars: svc.envVars,
+            containerPort: svc.port,
+            healthCheckPath: svc.healthCheckPath,
+            healthCheckTimeout: svc.healthCheckTimeout,
+            volumes: svc.volumes,
+            command: svc.command,
+            icon: svc.icon,
+            ssl: svc.ssl,
+            wildcardDomain: { projectHostname: hostname },
+          });
+
+          deployService(service.id).catch((err) => {
+            console.error(`Auto-deploy failed for service ${service.id}:`, err);
+          });
+        }
+      } catch (error) {
+        await cleanupProject(id);
+        throw error;
       }
     }
 

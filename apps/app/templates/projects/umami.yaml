@@ -10,7 +10,7 @@ services:
     main: true
     icon: umami
     environment:
-      DATABASE_URL: postgres://postgres:${postgres.POSTGRES_PASSWORD}@postgres:5432/umami
+      DATABASE_URL: ${postgres.DATABASE_URL}
       APP_SECRET:
         generated: base64_32
     health_check:

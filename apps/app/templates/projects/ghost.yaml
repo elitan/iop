@@ -12,10 +12,10 @@ services:
     environment:
       url: http://localhost:2368
       database__client: mysql
-      database__connection__host: mysql
-      database__connection__user: ghost
-      database__connection__password: ${mysql.MYSQL_PASSWORD}
-      database__connection__database: ghost
+      database__connection__host: ${mysql.HOST}
+      database__connection__user: ${mysql.USERNAME}
+      database__connection__password: ${mysql.PASSWORD}
+      database__connection__database: ${mysql.DATABASE}
     volumes:
       - data:/var/lib/ghost/content
     health_check:

@@ -155,6 +155,54 @@ remote() {
   fi
 }
 
+wait_for_network_http_body() {
+  local NETWORK_NAME=$1
+  local URL=$2
+  local EXPECTED=$3
+  local MAX=${4:-10}
+  local SLEEP_SEC=${5:-1}
+  local RESULT=""
+
+  for _ in $(seq 1 "$MAX"); do
+    RESULT=$(remote "docker run --rm --network $NETWORK_NAME curlimages/curl -sf $URL" 2>&1 || true)
+    if echo "$RESULT" | grep -q "$EXPECTED"; then
+      echo "$RESULT"
+      return 0
+    fi
+    sleep "$SLEEP_SEC"
+  done
+
+  echo "$RESULT"
+  return 1
+}
+
+wait_for_postgres_tls_value() {
+  local HOST=$1
+  local PORT=$2
+  local USERNAME=$3
+  local PASSWORD=$4
+  local DATABASE=$5
+  local SQL=$6
+  local EXPECTED=$7
+  local MAX=${8:-30}
+  local CONNECT_TIMEOUT=${9:-10}
+  local RESULT=""
+  local VALUE=""
+
+  for _ in $(seq 1 "$MAX"); do
+    RESULT=$(remote "docker run --rm --add-host=host.docker.internal:host-gateway -e PGPASSWORD='$PASSWORD' postgres:17 psql \"host=$HOST port=$PORT user=$USERNAME dbname=$DATABASE sslmode=require connect_timeout=$CONNECT_TIMEOUT\" -tAc \"$SQL\"" 2>&1 || true)
+    VALUE=$(echo "$RESULT" | tr -d '[:space:]')
+    if [ "$VALUE" = "$EXPECTED" ]; then
+      echo "$VALUE"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "$RESULT"
+  return 1
+}
+
 get_default_environment() {
   local PROJECT_ID=$1
   local ENVS=$(api "$BASE_URL/api/projects/$PROJECT_ID/environments")

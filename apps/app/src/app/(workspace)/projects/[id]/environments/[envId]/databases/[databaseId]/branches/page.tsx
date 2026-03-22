@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,9 @@ import {
   useDeleteDatabaseTarget,
   useResetDatabaseTarget,
 } from "@/hooks/use-databases";
+import { getDatabaseTargetStatus } from "@/lib/database-target-status";
 import { orpc } from "@/lib/orpc-client";
+import { formatDateTime } from "@/lib/time";
 
 type HierarchyTarget = {
   id: string;
@@ -47,7 +50,7 @@ type HierarchyTarget = {
 
 function formatDate(value: number | null): string {
   if (!value) return "-";
-  return new Date(value).toLocaleString();
+  return formatDateTime(value);
 }
 
 function compareTargetNames(a: HierarchyTarget, b: HierarchyTarget): number {
@@ -123,7 +126,9 @@ export default function DatabaseBranchesPage() {
   const databaseId = params.databaseId as string;
 
   const { data: database } = useDatabase(databaseId);
-  const { data: targets = [] } = useDatabaseTargets(databaseId);
+  const { data: targets = [] } = useDatabaseTargets(databaseId, {
+    refetchInterval: 5000,
+  });
 
   const createTargetMutation = useCreateDatabaseTarget(databaseId, projectId);
   const resetTargetMutation = useResetDatabaseTarget(databaseId);
@@ -363,6 +368,12 @@ export default function DatabaseBranchesPage() {
                     const canReset =
                       row.target.name !== "main" && row.parentName !== null;
                     const canDelete = row.target.name !== "main";
+                    const status = getDatabaseTargetStatus({
+                      name: row.target.name,
+                      lifecycleStatus: row.target.lifecycleStatus,
+                      stoppedReason: row.target.stoppedReason,
+                      scaleToZeroMinutes: row.target.scaleToZeroMinutes,
+                    });
                     return (
                       <tr
                         key={row.target.id}
@@ -405,12 +416,16 @@ export default function DatabaseBranchesPage() {
                           {row.parentName ?? "-"}
                         </td>
                         <td className="px-4 py-3">
-                          <Badge
-                            variant="outline"
-                            className="border-neutral-700 text-neutral-300"
-                          >
-                            {row.target.lifecycleStatus}
-                          </Badge>
+                          <div className="space-y-1">
+                            <StatusBadge tone={status.tone} className="w-fit">
+                              {status.label}
+                            </StatusBadge>
+                            {status.helperText ? (
+                              <p className="text-xs text-neutral-500">
+                                {status.helperText}
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-neutral-400">
                           {formatDate(row.target.createdAt)}
@@ -484,31 +499,18 @@ export default function DatabaseBranchesPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="target_name">Name</Label>
-              <Input
-                id="target_name"
-                name="target_name"
-                value={newTargetName}
-                onChange={function onTargetNameChange(event) {
-                  setNewTargetName(event.target.value);
-                }}
-                placeholder={
-                  database.engine === "postgres" ? "feature-branch" : "staging"
-                }
-                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-                autoFocus
-              />
-            </div>
-
             {database.engine === "postgres" && (
               <div className="space-y-2">
-                <Label>Parent</Label>
+                <Label htmlFor="source_target_name">Parent</Label>
                 <Select
                   value={sourceTargetName}
                   onValueChange={setSourceTargetName}
                 >
-                  <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
+                  <SelectTrigger
+                    id="source_target_name"
+                    autoFocus
+                    className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                  >
                     <SelectValue placeholder="Select parent branch" />
                   </SelectTrigger>
                   <SelectContent className="border-neutral-700 bg-neutral-800">
@@ -527,6 +529,23 @@ export default function DatabaseBranchesPage() {
                 </Select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="target_name">Name</Label>
+              <Input
+                id="target_name"
+                name="target_name"
+                value={newTargetName}
+                onChange={function onTargetNameChange(event) {
+                  setNewTargetName(event.target.value);
+                }}
+                placeholder={
+                  database.engine === "postgres" ? "feature-branch" : "staging"
+                }
+                className="border-neutral-700 bg-neutral-800 text-neutral-100"
+                autoFocus={database.engine !== "postgres"}
+              />
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button

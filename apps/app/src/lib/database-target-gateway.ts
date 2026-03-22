@@ -7,6 +7,8 @@ import {
 
 const GATEWAY_START_TIMEOUT_MS = 60_000;
 const GATEWAY_BUFFER_LIMIT_BYTES = 1024 * 1024;
+const GATEWAY_LISTEN_RETRY_COUNT = 60;
+const GATEWAY_LISTEN_RETRY_MS = 250;
 
 interface DatabaseTargetGatewayConfig {
   targetId: string;
@@ -214,6 +216,76 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(function sleepPromise(resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+function shouldRetryGatewayListen(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = "code" in error ? error.code : undefined;
+
+  return (
+    code === "EADDRINUSE" ||
+    code === "EACCES" ||
+    error.message.includes("Failed to listen")
+  );
+}
+
+function listenServer(server: Server, listenPort: number): Promise<void> {
+  return new Promise(function startServer(resolve, reject) {
+    server.once("error", reject);
+    server.listen(listenPort, "0.0.0.0", function onListen() {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+}
+
+function createGatewayServer(targetId: string): Server {
+  return createServer(function onConnection(clientSocket) {
+    const entry = gatewayEntries.get(targetId);
+    if (!entry) {
+      clientSocket.destroy();
+      return;
+    }
+    handleGatewayConnection(entry, clientSocket);
+  });
+}
+
+async function createListeningGatewayServer(
+  config: DatabaseTargetGatewayConfig,
+): Promise<Server> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < GATEWAY_LISTEN_RETRY_COUNT; attempt += 1) {
+    const server = createGatewayServer(config.targetId);
+
+    try {
+      await listenServer(server, config.listenPort);
+      return server;
+    } catch (error) {
+      lastError = error;
+      server.close();
+      if (
+        attempt === GATEWAY_LISTEN_RETRY_COUNT - 1 ||
+        !shouldRetryGatewayListen(error)
+      ) {
+        break;
+      }
+      await sleep(GATEWAY_LISTEN_RETRY_MS);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to start database target gateway");
+}
+
 export async function startDatabaseTargetGateway(
   config: DatabaseTargetGatewayConfig,
 ): Promise<void> {
@@ -229,22 +301,7 @@ export async function startDatabaseTargetGateway(
     await stopDatabaseTargetGateway(config.targetId);
   }
 
-  const server = createServer(function onConnection(clientSocket) {
-    const entry = gatewayEntries.get(config.targetId);
-    if (!entry) {
-      clientSocket.destroy();
-      return;
-    }
-    handleGatewayConnection(entry, clientSocket);
-  });
-
-  await new Promise<void>(function startServer(resolve, reject) {
-    server.once("error", reject);
-    server.listen(config.listenPort, "0.0.0.0", function onListen() {
-      server.off("error", reject);
-      resolve();
-    });
-  });
+  const server = await createListeningGatewayServer(config);
 
   gatewayEntries.set(config.targetId, {
     targetId: config.targetId,

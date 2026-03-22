@@ -48,7 +48,7 @@ import { newDeploymentId, newReplicaId } from "./id";
 import { runCommand } from "./process-runner";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
-import { generateSelfSignedCert, getSSLPaths, sslCertsExist } from "./ssl";
+import { preparePostgresSSLAssets } from "./ssl";
 import type { EnvVar } from "./types";
 import { buildVolumeName, createVolume } from "./volumes";
 import { updateEnvironmentPRComment } from "./webhook";
@@ -632,6 +632,7 @@ interface StartReplicasOptions {
   baseLabels: Record<string, string>;
   volumes?: VolumeMount[];
   fileMounts?: FileMount[];
+  entrypoint?: string;
   command?: string[];
   memoryLimit?: string;
   cpuLimit?: number;
@@ -703,6 +704,7 @@ async function startReplicas(
             },
             volumes: opts.volumes,
             fileMounts: opts.fileMounts,
+            entrypoint: opts.entrypoint,
             command: opts.command,
             memoryLimit: opts.memoryLimit,
             cpuLimit: opts.cpuLimit,
@@ -1423,6 +1425,7 @@ async function runServiceDeployment(
     }
 
     let fileMounts: FileMount[] | undefined;
+    let entrypoint: string | undefined;
     let command: string[] | undefined;
 
     if (service.command) {
@@ -1431,33 +1434,22 @@ async function runServiceDeployment(
 
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
     if (service.serviceType === "database" && isPostgres && !service.command) {
-      if (!sslCertsExist(service.id)) {
-        await generateSelfSignedCert(service.id);
-        await appendLog(
-          deploymentId,
-          "Generated SSL certificate for database\n",
-        );
-      }
-      const sslPaths = getSSLPaths(service.id);
+      const sslAssets = await preparePostgresSSLAssets(service.id);
       fileMounts = [
         {
-          hostPath: sslPaths.cert,
-          containerPath: "/etc/ssl/postgres/server.crt",
+          hostPath: sslAssets.cert,
+          containerPath: "/run/frost-postgres-ssl/server.crt",
         },
         {
-          hostPath: sslPaths.key,
-          containerPath: "/etc/ssl/postgres/server.key",
+          hostPath: sslAssets.key,
+          containerPath: "/run/frost-postgres-ssl/server.key",
+        },
+        {
+          hostPath: sslAssets.bootstrap,
+          containerPath: "/usr/local/bin/frost-postgres-bootstrap.sh",
         },
       ];
-      command = [
-        "postgres",
-        "-c",
-        "ssl=on",
-        "-c",
-        "ssl_cert_file=/etc/ssl/postgres/server.crt",
-        "-c",
-        "ssl_key_file=/etc/ssl/postgres/server.key",
-      ];
+      entrypoint = "/usr/local/bin/frost-postgres-bootstrap.sh";
       await appendLog(deploymentId, "SSL enabled for postgres\n");
     }
 
@@ -1511,6 +1503,7 @@ async function runServiceDeployment(
       baseLabels,
       volumes,
       fileMounts,
+      entrypoint,
       command,
       memoryLimit: effectiveService.memoryLimit ?? undefined,
       cpuLimit: effectiveService.cpuLimit ?? undefined,
