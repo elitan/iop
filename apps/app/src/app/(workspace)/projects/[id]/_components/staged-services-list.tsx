@@ -27,6 +27,12 @@ interface StagedServicesListProps {
   isLoading?: boolean;
 }
 
+function getRepoFolder(path: string): string {
+  const lastSlash = path.lastIndexOf("/");
+  if (lastSlash === -1) return "repo root";
+  return path.slice(0, lastSlash);
+}
+
 export function StagedServicesList({
   services,
   onChange,
@@ -129,20 +135,35 @@ export function StagedServicesList({
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-neutral-500">
-                    <div className="flex items-center gap-1.5">
-                      <File className="h-3 w-3" />
-                      <span className="font-mono">
-                        {service.dockerfilePath}
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-start gap-2 text-neutral-400">
+                      <File className="mt-0.5 h-3 w-3 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                          Dockerfile path
+                        </div>
+                        <div className="font-mono break-all text-neutral-300">
+                          {service.dockerfilePath}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-neutral-500">
+                      Folder:{" "}
+                      <span className="font-mono text-neutral-300">
+                        {getRepoFolder(service.dockerfilePath)}
                       </span>
                     </div>
                     {service.frostFilePath && (
-                      <div
-                        className="flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-blue-400"
-                        title={`Config from ${service.frostFilePath}`}
-                      >
+                      <div className="flex items-start gap-2 text-blue-400">
                         <Snowflake className="h-3 w-3" />
-                        <span>frost.yaml</span>
+                        <div className="min-w-0">
+                          <div className="text-[11px] uppercase tracking-wide text-blue-400/80">
+                            Config file
+                          </div>
+                          <div className="font-mono break-all text-blue-300">
+                            {service.frostFilePath}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
