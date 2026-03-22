@@ -23,7 +23,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
   lint:
@@ -33,7 +33,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run lint
 
   test:
@@ -43,7 +43,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Setup database
         run: bun run migrate
         env:
@@ -58,7 +58,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - name: Build
         run: |
           for attempt in 1 2 3; do
@@ -246,8 +246,16 @@ jobs:
             set -euo pipefail
 
             if ! command -v zfs >/dev/null 2>&1 || ! command -v zpool >/dev/null 2>&1; then
-              apt-get update -qq
-              apt-get install -y -qq zfsutils-linux
+              systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+              for attempt in 1 2 3 4; do
+                if apt-get update -qq && apt-get install -y -qq zfsutils-linux; then
+                  break
+                fi
+                if [ "$attempt" -eq 4 ]; then
+                  exit 1
+                fi
+                sleep $((attempt * 10))
+              done
             fi
 
             LOOPBACK_FILE=/opt/frost/data/zfs-loopback.img
@@ -491,16 +499,15 @@ jobs:
         id: install
         run: |
           TAG="${{ steps.release.outputs.tag }}"
-          INSTALL_URL="https://raw.githubusercontent.com/${{ github.repository }}/${TAG}/install.sh"
-
-          echo "Installing Frost $TAG from: $INSTALL_URL"
+          echo "Installing Frost $TAG from source checkout using current install.sh"
 
           ssh root@${{ steps.server.outputs.ip }} "systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true"
+          scp ./install.sh root@${{ steps.server.outputs.ip }}:/tmp/install.sh
 
           API_KEY=""
           for attempt in 1 2 3 4; do
             echo "Install attempt $attempt/4"
-            ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "curl -fsSL '$INSTALL_URL' -o /tmp/install.sh && chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -v '$TAG' --create-api-key" 2>&1 | tee /tmp/install-output.txt || true
+            ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "chmod +x /tmp/install.sh && echo '${{ secrets.FROST_TEST_PASSWORD }}' | /tmp/install.sh -b '$TAG' --create-api-key" 2>&1 | tee /tmp/install-output.txt || true
 
             API_KEY=$(cat /tmp/install-output.txt | sed 's/\x1b\[[0-9;]*m//g' | grep "API Key:" | awk '{print $3}')
             if [ -n "$API_KEY" ]; then
@@ -630,7 +637,12 @@ jobs:
         id: broken
         run: |
           BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}-${{ matrix.arch }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          TEMP_REPO=$(mktemp -d)
           echo "Creating broken branch: $BROKEN_BRANCH"
+
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
+          cd "$TEMP_REPO"
 
           git config user.email "ci@frost.dev"
           git config user.name "Frost CI"
@@ -645,7 +657,7 @@ jobs:
 
           sed -i "s|git fetch origin main|git fetch origin $BROKEN_BRANCH:refs/remotes/origin/main|g" update.sh
 
-          git add -A
+          git add fail-build.js package.json update.sh
           git commit -m "Intentionally broken build for e2e rollback test"
           git push origin "$BROKEN_BRANCH"
 
@@ -668,7 +680,7 @@ jobs:
             git clean -fdx -e data -e .env && \
             export BUN_INSTALL=\"\$HOME/.bun\" && \
             export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
-            bun install 2>&1 && \
+            bun install --frozen-lockfile 2>&1 && \
             (for attempt in 1 2 3; do if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then exit 0; fi; echo \"Build failed (attempt \$attempt/3), retrying...\"; rm -rf apps/app/.next; sleep 2; done; exit 1) && \
             bun run migrate 2>&1 && \
             sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \

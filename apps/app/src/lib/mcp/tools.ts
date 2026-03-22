@@ -1,794 +1,812 @@
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import {
-  deployProject,
-  deployService,
-  rollbackDeployment,
-} from "@/lib/deployer";
-import {
-  addDomain,
-  getDomain,
-  getDomainByName,
-  removeDomain,
-  syncCaddyConfig,
-} from "@/lib/domains";
-import { newEnvironmentId, newProjectId } from "@/lib/id";
-import { cleanupProject, cleanupService } from "@/lib/lifecycle";
-import { createService } from "@/lib/services";
-import { shellEscape } from "@/lib/shell-escape";
-import { slugify } from "@/lib/slugify";
-import type { EnvVar } from "@/lib/types";
+import type {
+  OpenApiMethod,
+  OpenApiOperation,
+  OpenApiParameter,
+  OpenApiRequestBody,
+  OpenApiSchema,
+  OpenApiSpec,
+} from "@/lib/openapi";
+import { getOpenApiSpec, handleOpenApiRequest } from "@/lib/openapi";
 
-const execAsync = promisify(exec);
+type ToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+};
 
-async function getProductionEnvironmentId(projectId: string): Promise<string> {
-  const env = await db
-    .selectFrom("environments")
-    .select("id")
-    .where("projectId", "=", projectId)
-    .where("type", "=", "production")
-    .executeTakeFirst();
+type SearchResult = {
+  operationId: string | null;
+  title: string;
+  method: string;
+  path: string;
+  tags: string[];
+  description: string | null;
+  pathParams: Array<{
+    name: string;
+    required: boolean;
+    schema: Record<string, unknown> | null;
+  }>;
+  queryParams: Array<{
+    name: string;
+    required: boolean;
+    schema: Record<string, unknown> | null;
+  }>;
+  body: {
+    required: boolean;
+    contentTypes: string[];
+    schema: unknown;
+  } | null;
+};
 
-  if (!env) {
-    throw new Error(`No production environment found for project ${projectId}`);
-  }
+type OperationMatch = {
+  method: OpenApiMethod;
+  path: string;
+  operation: OpenApiOperation;
+};
 
-  return env.id;
-}
+const methodSchema = z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+const scalarSchema = z.union([z.string(), z.number(), z.boolean()]);
+const queryValueSchema = z.union([
+  scalarSchema,
+  z.null(),
+  z.array(z.union([scalarSchema, z.null()])),
+]);
 
-function textResult(data: unknown) {
+function textResult(data: unknown): ToolResult {
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
   };
 }
 
-function errorResult(message: string) {
-  return { content: [{ type: "text" as const, text: message }], isError: true };
+function errorResult(
+  message: string,
+  details?: Record<string, unknown>,
+): ToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({ error: message, ...(details ?? {}) }, null, 2),
+      },
+    ],
+    isError: true,
+  };
+}
+
+function normalizeText(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
+function tokenize(value: string): string[] {
+  return normalizeText(value).split(/\s+/).filter(Boolean);
+}
+
+function normalizeApiPath(path: string): string {
+  if (!path.startsWith("/")) {
+    path = `/${path}`;
+  }
+
+  if (path === "/api") {
+    return "/";
+  }
+
+  if (path.startsWith("/api/")) {
+    return path.slice(4);
+  }
+
+  return path;
+}
+
+function getRefValue(spec: OpenApiSpec, ref: string): unknown {
+  if (!ref.startsWith("#/")) {
+    return null;
+  }
+
+  let current: unknown = spec;
+  const parts = ref.slice(2).split("/");
+
+  for (const part of parts) {
+    if (!current || typeof current !== "object") {
+      return null;
+    }
+
+    current = (current as Record<string, unknown>)[decodeURIComponent(part)];
+  }
+
+  return current;
+}
+
+function resolveSchema(
+  schema: OpenApiSchema | undefined,
+  spec: OpenApiSpec,
+  seen: Set<string> = new Set(),
+): OpenApiSchema | null {
+  if (!schema) {
+    return null;
+  }
+
+  if (schema.$ref) {
+    if (seen.has(schema.$ref)) {
+      return null;
+    }
+
+    seen.add(schema.$ref);
+    const resolved = getRefValue(spec, schema.$ref);
+    if (!resolved || typeof resolved !== "object") {
+      return null;
+    }
+
+    return resolveSchema(resolved as OpenApiSchema, spec, seen);
+  }
+
+  return schema;
+}
+
+function resolveParameter(
+  parameter: OpenApiParameter,
+  spec: OpenApiSpec,
+  seen: Set<string> = new Set(),
+): OpenApiParameter | null {
+  if (parameter.$ref) {
+    if (seen.has(parameter.$ref)) {
+      return null;
+    }
+
+    seen.add(parameter.$ref);
+    const resolved = getRefValue(spec, parameter.$ref);
+    if (!resolved || typeof resolved !== "object") {
+      return null;
+    }
+
+    return resolveParameter(resolved as OpenApiParameter, spec, seen);
+  }
+
+  return parameter;
+}
+
+function mergeObjectSchemas(
+  schemas: OpenApiSchema[],
+  spec: OpenApiSpec,
+): OpenApiSchema {
+  const merged: OpenApiSchema = {
+    type: "object",
+    properties: {},
+    required: [],
+  };
+
+  for (const schema of schemas) {
+    const resolved = resolveSchema(schema, spec);
+    if (!resolved) {
+      continue;
+    }
+
+    const nested =
+      resolved.allOf && resolved.allOf.length > 0
+        ? mergeObjectSchemas(resolved.allOf, spec)
+        : resolved;
+
+    if (nested.properties) {
+      merged.properties = {
+        ...(merged.properties ?? {}),
+        ...nested.properties,
+      };
+    }
+
+    if (nested.required) {
+      merged.required = Array.from(
+        new Set([...(merged.required ?? []), ...nested.required]),
+      );
+    }
+  }
+
+  return merged;
+}
+
+function getSchemaType(schema: OpenApiSchema): string | null {
+  if (typeof schema.type === "string") {
+    return schema.type;
+  }
+
+  if (Array.isArray(schema.type) && schema.type.length > 0) {
+    return schema.type.join(" | ");
+  }
+
+  if (schema.properties) {
+    return "object";
+  }
+
+  if (schema.items) {
+    return "array";
+  }
+
+  return null;
+}
+
+function summarizeLeafSchema(
+  schema: OpenApiSchema | undefined,
+  spec: OpenApiSpec,
+): Record<string, unknown> | null {
+  const resolved = resolveSchema(schema, spec);
+  if (!resolved) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  const type = getSchemaType(resolved);
+
+  if (type) {
+    result.type = type;
+  }
+
+  if (resolved.format) {
+    result.format = resolved.format;
+  }
+
+  if (resolved.enum && resolved.enum.length > 0) {
+    result.enum = resolved.enum.slice(0, 10);
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+function summarizeSchema(
+  schema: OpenApiSchema | undefined,
+  spec: OpenApiSpec,
+  depth = 0,
+): unknown {
+  const resolved = resolveSchema(schema, spec);
+  if (!resolved) {
+    return null;
+  }
+
+  if (resolved.allOf && resolved.allOf.length > 0) {
+    return summarizeSchema(
+      mergeObjectSchemas(resolved.allOf, spec),
+      spec,
+      depth,
+    );
+  }
+
+  if (resolved.oneOf && resolved.oneOf.length > 0) {
+    return {
+      oneOf: resolved.oneOf.slice(0, 5).map(function mapOneOf(item) {
+        return summarizeSchema(item, spec, depth + 1);
+      }),
+    };
+  }
+
+  if (resolved.anyOf && resolved.anyOf.length > 0) {
+    return {
+      anyOf: resolved.anyOf.slice(0, 5).map(function mapAnyOf(item) {
+        return summarizeSchema(item, spec, depth + 1);
+      }),
+    };
+  }
+
+  const type = getSchemaType(resolved);
+
+  if (type === "array" || resolved.items) {
+    return {
+      type: "array",
+      items: summarizeSchema(resolved.items, spec, depth + 1),
+    };
+  }
+
+  if (type === "object" || resolved.properties) {
+    const properties = resolved.properties ?? {};
+    const propertyEntries = Object.entries(properties);
+
+    if (depth >= 2) {
+      const compact: Record<string, unknown> = {
+        type: "object",
+      };
+
+      if ((resolved.required ?? []).length > 0) {
+        compact.required = resolved.required;
+      }
+
+      if (propertyEntries.length > 0) {
+        compact.properties = propertyEntries
+          .slice(0, 10)
+          .map(function mapProperty([name]) {
+            return name;
+          });
+      }
+
+      if (propertyEntries.length > 10) {
+        compact.truncated = true;
+      }
+
+      return compact;
+    }
+
+    const summarized = Object.fromEntries(
+      propertyEntries.slice(0, 10).map(function mapProperty([
+        name,
+        propertySchema,
+      ]) {
+        return [name, summarizeSchema(propertySchema, spec, depth + 1)];
+      }),
+    );
+
+    return {
+      type: "object",
+      required: resolved.required ?? [],
+      properties: summarized,
+      ...(propertyEntries.length > 10 ? { truncated: true } : {}),
+    };
+  }
+
+  return summarizeLeafSchema(resolved, spec) ?? "unknown";
+}
+
+function getRequestBodySchema(
+  requestBody: OpenApiRequestBody | undefined,
+): OpenApiSchema | undefined {
+  if (!requestBody?.content) {
+    return undefined;
+  }
+
+  if (requestBody.content["application/json"]?.schema) {
+    return requestBody.content["application/json"].schema;
+  }
+
+  for (const content of Object.values(requestBody.content)) {
+    if (content.schema) {
+      return content.schema;
+    }
+  }
+
+  return undefined;
+}
+
+function getBodyContentTypes(
+  requestBody: OpenApiRequestBody | undefined,
+): string[] {
+  return Object.keys(requestBody?.content ?? {});
+}
+
+function buildSearchResult(
+  method: OpenApiMethod,
+  path: string,
+  operation: OpenApiOperation,
+  spec: OpenApiSpec,
+): SearchResult {
+  const parameters = (operation.parameters ?? [])
+    .map(function mapParameter(parameter) {
+      return resolveParameter(parameter, spec);
+    })
+    .filter(function isResolved(parameter): parameter is NonNullable<
+      typeof parameter
+    > {
+      return parameter !== null;
+    });
+
+  const pathParams = parameters
+    .filter(function isPathParameter(parameter) {
+      return parameter.in === "path" && Boolean(parameter.name);
+    })
+    .map(function mapPathParameter(parameter) {
+      return {
+        name: parameter.name ?? "",
+        required: Boolean(parameter.required),
+        schema: summarizeLeafSchema(parameter.schema, spec),
+      };
+    });
+
+  const queryParams = parameters
+    .filter(function isQueryParameter(parameter) {
+      return parameter.in === "query" && Boolean(parameter.name);
+    })
+    .map(function mapQueryParameter(parameter) {
+      return {
+        name: parameter.name ?? "",
+        required: Boolean(parameter.required),
+        schema: summarizeLeafSchema(parameter.schema, spec),
+      };
+    });
+
+  const bodySchema = getRequestBodySchema(operation.requestBody);
+
+  return {
+    operationId: operation.operationId ?? null,
+    title:
+      operation.summary ??
+      operation.operationId ??
+      `${method.toUpperCase()} ${path}`,
+    method: method.toUpperCase(),
+    path,
+    tags: operation.tags ?? [],
+    description: operation.description ?? null,
+    pathParams,
+    queryParams,
+    body: operation.requestBody
+      ? {
+          required: Boolean(operation.requestBody.required),
+          contentTypes: getBodyContentTypes(operation.requestBody),
+          schema: summarizeSchema(bodySchema, spec),
+        }
+      : null,
+  };
+}
+
+function listOperations(spec: OpenApiSpec): OperationMatch[] {
+  const operations: OperationMatch[] = [];
+
+  for (const [path, methods] of Object.entries(spec.paths)) {
+    for (const [method, operation] of Object.entries(methods)) {
+      if (!operation) {
+        continue;
+      }
+
+      if (
+        method !== "delete" &&
+        method !== "get" &&
+        method !== "patch" &&
+        method !== "post" &&
+        method !== "put"
+      ) {
+        continue;
+      }
+
+      operations.push({
+        method,
+        path,
+        operation,
+      });
+    }
+  }
+
+  return operations;
+}
+
+function buildOperationText(match: OperationMatch): string {
+  return normalizeText(
+    [
+      match.operation.operationId ?? "",
+      match.operation.summary ?? "",
+      match.operation.description ?? "",
+      match.path,
+      ...(match.operation.tags ?? []),
+    ].join(" "),
+  );
+}
+
+function scoreOperation(
+  match: OperationMatch,
+  query: string,
+  pathPrefix?: string,
+  method?: string,
+): number {
+  if (method && match.method.toUpperCase() !== method) {
+    return -1;
+  }
+
+  if (pathPrefix && !match.path.startsWith(normalizeApiPath(pathPrefix))) {
+    return -1;
+  }
+
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  const queryWords = tokenize(query);
+  const operationText = buildOperationText(match);
+  const operationIdText = normalizeText(match.operation.operationId ?? "");
+  const pathText = normalizeText(match.path);
+
+  let score = 0;
+
+  if (operationText.includes(normalizedQuery)) {
+    score += 80;
+  }
+
+  if (pathText.includes(normalizedQuery)) {
+    score += 50;
+  }
+
+  if (operationIdText.startsWith(normalizedQuery)) {
+    score += 40;
+  }
+
+  for (const word of queryWords) {
+    if (operationText.includes(word)) {
+      score += 12;
+    }
+
+    if (pathText.includes(word)) {
+      score += 6;
+    }
+  }
+
+  return score;
+}
+
+function findOperationByOperationId(
+  spec: OpenApiSpec,
+  operationId: string,
+): OperationMatch | null {
+  for (const match of listOperations(spec)) {
+    if (match.operation.operationId === operationId) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function findOperationByMethodAndPath(
+  spec: OpenApiSpec,
+  method: string,
+  path: string,
+): OperationMatch | null {
+  const normalizedPath = normalizeApiPath(path);
+  const normalizedMethod = method.toLowerCase();
+
+  if (
+    normalizedMethod !== "delete" &&
+    normalizedMethod !== "get" &&
+    normalizedMethod !== "patch" &&
+    normalizedMethod !== "post" &&
+    normalizedMethod !== "put"
+  ) {
+    return null;
+  }
+
+  const operation = spec.paths[normalizedPath]?.[normalizedMethod];
+  if (!operation) {
+    return null;
+  }
+
+  return {
+    method: normalizedMethod,
+    path: normalizedPath,
+    operation,
+  };
+}
+
+function replacePathParams(
+  path: string,
+  pathParams: Record<string, string | number | boolean> | undefined,
+): { path: string; missing: string[] } {
+  const matches = Array.from(path.matchAll(/\{([^}]+)\}/g));
+  const missing: string[] = [];
+  let resolvedPath = path;
+
+  for (const match of matches) {
+    const name = match[1];
+    const value = pathParams?.[name];
+
+    if (value === undefined) {
+      missing.push(name);
+      continue;
+    }
+
+    resolvedPath = resolvedPath.replace(
+      `{${name}}`,
+      encodeURIComponent(String(value)),
+    );
+  }
+
+  return { path: resolvedPath, missing };
+}
+
+function appendQueryValue(
+  searchParams: URLSearchParams,
+  key: string,
+  value: z.infer<typeof queryValueSchema>,
+): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      searchParams.append(key, String(item));
+    }
+    return;
+  }
+
+  searchParams.append(key, String(value));
+}
+
+async function parseResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 export function registerTools(server: McpServer) {
   server.tool(
-    "list_projects",
-    "List all projects with service count",
-    {},
-    async () => {
-      const projects = await db.selectFrom("projects").selectAll().execute();
-
-      const results = await Promise.all(
-        projects.map(async (p) => {
-          const env = await db
-            .selectFrom("environments")
-            .select("id")
-            .where("projectId", "=", p.id)
-            .where("type", "=", "production")
-            .executeTakeFirst();
-
-          let serviceCount = 0;
-          if (env) {
-            const row = await db
-              .selectFrom("services")
-              .select(db.fn.countAll().as("count"))
-              .where("environmentId", "=", env.id)
-              .executeTakeFirst();
-            serviceCount = Number(row?.count ?? 0);
+    "search",
+    "Search Frost API operations from the OpenAPI spec",
+    {
+      query: z.string().optional().default(""),
+      method: methodSchema.optional(),
+      pathPrefix: z.string().optional(),
+      limit: z.number().int().min(1).max(50).default(10),
+    },
+    async function search({ query, method, pathPrefix, limit }) {
+      const spec = await getOpenApiSpec();
+      const matches = listOperations(spec)
+        .map(function mapOperation(match) {
+          return {
+            match,
+            score: scoreOperation(match, query, pathPrefix, method),
+          };
+        })
+        .filter(function filterScoredMatch(result) {
+          return normalizeText(query) ? result.score > 0 : result.score >= 0;
+        })
+        .sort(function sortMatches(a, b) {
+          if (b.score !== a.score) {
+            return b.score - a.score;
           }
 
-          return { id: p.id, name: p.name, serviceCount };
-        }),
-      );
+          if (a.match.path !== b.match.path) {
+            return a.match.path.localeCompare(b.match.path);
+          }
 
-      return textResult(results);
-    },
-  );
-
-  server.tool(
-    "get_project",
-    "Get project details with all services",
-    { projectId: z.string() },
-    async ({ projectId }) => {
-      const project = await db
-        .selectFrom("projects")
-        .selectAll()
-        .where("id", "=", projectId)
-        .executeTakeFirst();
-
-      if (!project) return errorResult("Project not found");
-
-      const envId = await getProductionEnvironmentId(projectId);
-      const services = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("environmentId", "=", envId)
-        .execute();
-
-      return textResult({ ...project, services });
-    },
-  );
-
-  server.tool(
-    "create_project",
-    "Create a new empty project",
-    { name: z.string() },
-    async ({ name }) => {
-      const id = newProjectId();
-      const now = Date.now();
-
-      await db
-        .insertInto("projects")
-        .values({ id, name, hostname: slugify(name), createdAt: now })
-        .execute();
-
-      const envId = newEnvironmentId();
-      await db
-        .insertInto("environments")
-        .values({
-          id: envId,
-          projectId: id,
-          name: "production",
-          type: "production",
-          createdAt: now,
+          return a.match.method.localeCompare(b.match.method);
         })
-        .execute();
+        .slice(0, limit)
+        .map(function mapResult(result) {
+          return buildSearchResult(
+            result.match.method,
+            result.match.path,
+            result.match.operation,
+            spec,
+          );
+        });
 
-      return textResult({ id, name, environmentId: envId });
+      return textResult(matches);
     },
   );
 
   server.tool(
-    "delete_project",
-    "Delete a project and all its resources",
-    { projectId: z.string() },
-    async ({ projectId }) => {
-      const project = await db
-        .selectFrom("projects")
-        .select("id")
-        .where("id", "=", projectId)
-        .executeTakeFirst();
-
-      if (!project) return errorResult("Project not found");
-
-      await cleanupProject(projectId);
-      return textResult({ deleted: true, projectId });
+    "request",
+    "Call a Frost API operation from the OpenAPI spec",
+    {
+      operationId: z.string().optional(),
+      method: methodSchema.optional(),
+      path: z.string().optional(),
+      pathParams: z.record(z.string(), scalarSchema).optional(),
+      query: z.record(z.string(), queryValueSchema).optional(),
+      body: z.unknown().optional(),
     },
-  );
+    async function request({
+      operationId,
+      method,
+      path,
+      pathParams,
+      query,
+      body,
+    }) {
+      const spec = await getOpenApiSpec();
 
-  server.tool(
-    "list_services",
-    "List services in a project with latest deployment status",
-    { projectId: z.string() },
-    async ({ projectId }) => {
-      const envId = await getProductionEnvironmentId(projectId);
-      const services = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("environmentId", "=", envId)
-        .execute();
+      let match: OperationMatch | null = null;
 
-      const results = await Promise.all(
-        services.map(async (s) => {
-          const deployment = await db
-            .selectFrom("deployments")
-            .select(["id", "status", "createdAt"])
-            .where("serviceId", "=", s.id)
-            .orderBy("createdAt", "desc")
-            .limit(1)
-            .executeTakeFirst();
+      if (operationId) {
+        match = findOperationByOperationId(spec, operationId);
+        if (!match) {
+          return errorResult("Operation not found", { operationId });
+        }
+      } else {
+        if (!method || !path) {
+          return errorResult("Provide operationId or method and path");
+        }
 
-          return {
-            id: s.id,
-            name: s.name,
-            deployType: s.deployType,
-            imageUrl: s.imageUrl,
-            repoUrl: s.repoUrl,
-            latestDeployment: deployment ?? null,
-          };
+        match = findOperationByMethodAndPath(spec, method, path);
+        if (!match) {
+          return errorResult("Operation not found", {
+            method,
+            path: normalizeApiPath(path),
+          });
+        }
+      }
+
+      const resolvedPath = replacePathParams(match.path, pathParams);
+      if (resolvedPath.missing.length > 0) {
+        return errorResult("Missing path parameters", {
+          operationId: match.operation.operationId ?? null,
+          method: match.method.toUpperCase(),
+          path: match.path,
+          missing: resolvedPath.missing,
+        });
+      }
+
+      if (body !== undefined && !match.operation.requestBody) {
+        return errorResult("Operation does not accept a request body", {
+          operationId: match.operation.operationId ?? null,
+          method: match.method.toUpperCase(),
+          path: match.path,
+        });
+      }
+
+      if (body === undefined && match.operation.requestBody?.required) {
+        return errorResult("Request body is required", {
+          operationId: match.operation.operationId ?? null,
+          method: match.method.toUpperCase(),
+          path: match.path,
+        });
+      }
+
+      const contentTypes = getBodyContentTypes(match.operation.requestBody);
+      if (
+        body !== undefined &&
+        contentTypes.length > 0 &&
+        !contentTypes.some(function isJson(type) {
+          return type.includes("application/json");
+        })
+      ) {
+        return errorResult(
+          "Only application/json request bodies are supported",
+          {
+            operationId: match.operation.operationId ?? null,
+            method: match.method.toUpperCase(),
+            path: match.path,
+            contentTypes,
+          },
+        );
+      }
+
+      const url = new URL(`http://frost.internal/api${resolvedPath.path}`);
+      for (const [key, value] of Object.entries(query ?? {})) {
+        appendQueryValue(url.searchParams, key, value);
+      }
+
+      const headers = new Headers({
+        Accept: "application/json",
+      });
+
+      let requestBody: string | undefined;
+      if (body !== undefined) {
+        headers.set("Content-Type", "application/json");
+        requestBody = JSON.stringify(body);
+      }
+
+      const response = await handleOpenApiRequest(
+        new Request(url, {
+          method: match.method.toUpperCase(),
+          headers,
+          body: requestBody,
         }),
       );
 
-      return textResult(results);
-    },
-  );
+      const data = await parseResponseBody(response);
+      const payload = {
+        operationId: match.operation.operationId ?? null,
+        method: match.method.toUpperCase(),
+        path: resolvedPath.path,
+        status: response.status,
+        ok: response.ok,
+        requestId: response.headers.get("x-request-id"),
+        data,
+      };
 
-  server.tool(
-    "get_service",
-    "Get service config and latest deployment",
-    { serviceId: z.string() },
-    async ({ serviceId }) => {
-      const service = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      const deployment = await db
-        .selectFrom("deployments")
-        .selectAll()
-        .where("serviceId", "=", serviceId)
-        .orderBy("createdAt", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      return textResult({ ...service, latestDeployment: deployment ?? null });
-    },
-  );
-
-  server.tool(
-    "create_service",
-    "Create a new service in a project",
-    {
-      projectId: z.string(),
-      name: z.string(),
-      deployType: z.enum(["repo", "image"]),
-      repoUrl: z.string().optional(),
-      branch: z.string().optional(),
-      dockerfilePath: z.string().optional(),
-      buildContext: z.string().optional(),
-      imageUrl: z.string().optional(),
-      registryId: z.string().optional(),
-      containerPort: z.number().optional(),
-      envVars: z
-        .array(z.object({ key: z.string(), value: z.string() }))
-        .optional(),
-      healthCheckPath: z.string().optional(),
-      healthCheckTimeout: z.number().optional(),
-      memoryLimit: z.string().optional(),
-      cpuLimit: z.number().optional(),
-      command: z.string().optional(),
-      shutdownTimeout: z.number().optional(),
-      drainTimeout: z.number().optional(),
-      frostFilePath: z.string().optional(),
-      autoDeployEnabled: z.boolean().optional(),
-      replicaCount: z.number().optional(),
-      volumes: z
-        .array(z.object({ name: z.string(), path: z.string() }))
-        .optional(),
-    },
-    async ({ projectId, name, deployType, ...opts }) => {
-      if (deployType === "repo" && !opts.repoUrl) {
-        return errorResult("repoUrl is required for repo deployments");
+      if (!response.ok) {
+        return errorResult("API request failed", payload);
       }
 
-      if (deployType === "image" && !opts.imageUrl) {
-        return errorResult("imageUrl is required for image deployments");
-      }
-
-      if ((opts.replicaCount ?? 1) > 1) {
-        const volumes = opts.volumes ?? [];
-        if (volumes.length > 0) {
-          return errorResult("Cannot use replicas with volumes");
-        }
-      }
-
-      const envId = await getProductionEnvironmentId(projectId);
-      const hostname = slugify(name);
-
-      const service = await createService({
-        environmentId: envId,
-        name,
-        hostname,
-        deployType,
-        repoUrl: deployType === "repo" ? (opts.repoUrl ?? null) : null,
-        branch: deployType === "repo" ? (opts.branch ?? null) : null,
-        dockerfilePath:
-          deployType === "repo" ? (opts.dockerfilePath ?? null) : null,
-        buildContext:
-          deployType === "repo" ? (opts.buildContext ?? null) : null,
-        imageUrl: deployType === "image" ? (opts.imageUrl ?? null) : null,
-        registryId: deployType === "image" ? (opts.registryId ?? null) : null,
-        envVars: opts.envVars,
-        containerPort: opts.containerPort ?? null,
-        healthCheckPath: opts.healthCheckPath ?? null,
-        healthCheckTimeout: opts.healthCheckTimeout ?? null,
-        memoryLimit: opts.memoryLimit ?? null,
-        cpuLimit: opts.cpuLimit ?? null,
-        shutdownTimeout: opts.shutdownTimeout ?? null,
-        drainTimeout: opts.drainTimeout ?? null,
-        command: opts.command ?? null,
-        autoDeploy: opts.autoDeployEnabled ?? deployType === "repo",
-        frostFilePath:
-          deployType === "repo" ? (opts.frostFilePath ?? null) : null,
-        replicaCount: opts.replicaCount,
-        volumes: opts.volumes,
-      });
-
-      return textResult(service);
-    },
-  );
-
-  server.tool(
-    "update_service",
-    "Update service settings",
-    {
-      serviceId: z.string(),
-      name: z.string().optional(),
-      repoUrl: z.string().optional(),
-      branch: z.string().optional(),
-      dockerfilePath: z.string().optional(),
-      buildContext: z.string().optional(),
-      imageUrl: z.string().optional(),
-      containerPort: z.number().optional(),
-      healthCheckPath: z.string().optional(),
-      healthCheckTimeout: z.number().optional(),
-      memoryLimit: z.string().optional(),
-      cpuLimit: z.number().optional(),
-      command: z.string().optional(),
-      shutdownTimeout: z.number().optional(),
-      drainTimeout: z.number().optional(),
-      requestTimeout: z.number().optional(),
-      replicaCount: z.number().optional(),
-      registryId: z.string().optional(),
-      frostFilePath: z.string().optional(),
-      autoDeployEnabled: z.boolean().optional(),
-      volumes: z
-        .array(z.object({ name: z.string(), path: z.string() }))
-        .optional(),
-    },
-    async ({ serviceId, volumes, ...input }) => {
-      const service = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      let currentVolumes: Array<{ name: string; path: string }> = [];
-      try {
-        currentVolumes = service.volumes
-          ? (JSON.parse(service.volumes) as Array<{
-              name: string;
-              path: string;
-            }>)
-          : [];
-      } catch {
-        currentVolumes = [];
-      }
-
-      const nextReplicaCount = input.replicaCount ?? service.replicaCount ?? 1;
-      const nextVolumes = volumes ?? currentVolumes;
-      if (nextReplicaCount > 1 && nextVolumes.length > 0) {
-        return errorResult("Cannot use replicas with volumes");
-      }
-
-      const updates: Record<string, unknown> = {};
-      if (input.name !== undefined) updates.name = input.name;
-      if (input.containerPort !== undefined)
-        updates.containerPort = input.containerPort;
-      if (service.deployType === "repo") {
-        if (input.repoUrl !== undefined) updates.repoUrl = input.repoUrl;
-        if (input.branch !== undefined) updates.branch = input.branch;
-        if (input.dockerfilePath !== undefined)
-          updates.dockerfilePath = input.dockerfilePath;
-        if (input.buildContext !== undefined)
-          updates.buildContext = input.buildContext;
-        if (input.frostFilePath !== undefined)
-          updates.frostFilePath = input.frostFilePath;
-      }
-      if (service.deployType === "image" && input.imageUrl !== undefined) {
-        updates.imageUrl = input.imageUrl;
-      }
-      if (input.healthCheckPath !== undefined)
-        updates.healthCheckPath = input.healthCheckPath;
-      if (input.healthCheckTimeout !== undefined)
-        updates.healthCheckTimeout = input.healthCheckTimeout;
-      if (input.memoryLimit !== undefined)
-        updates.memoryLimit = input.memoryLimit;
-      if (input.cpuLimit !== undefined) updates.cpuLimit = input.cpuLimit;
-      if (input.command !== undefined) updates.command = input.command;
-      if (input.shutdownTimeout !== undefined)
-        updates.shutdownTimeout = input.shutdownTimeout;
-      if (input.drainTimeout !== undefined)
-        updates.drainTimeout = input.drainTimeout;
-      if (input.requestTimeout !== undefined)
-        updates.requestTimeout = input.requestTimeout;
-      if (input.autoDeployEnabled !== undefined)
-        updates.autoDeploy = input.autoDeployEnabled;
-      if (input.registryId !== undefined) updates.registryId = input.registryId;
-      if (volumes !== undefined) updates.volumes = JSON.stringify(volumes);
-      if (input.replicaCount !== undefined)
-        updates.replicaCount = input.replicaCount;
-
-      if (Object.keys(updates).length > 0) {
-        await db
-          .updateTable("services")
-          .set(updates)
-          .where("id", "=", serviceId)
-          .execute();
-      }
-
-      const updated = await db
-        .selectFrom("services")
-        .selectAll()
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      return textResult(updated);
-    },
-  );
-
-  server.tool(
-    "delete_service",
-    "Delete a service",
-    { serviceId: z.string() },
-    async ({ serviceId }) => {
-      const service = await db
-        .selectFrom("services")
-        .select("id")
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      await cleanupService(serviceId);
-      await db.deleteFrom("services").where("id", "=", serviceId).execute();
-
-      try {
-        await syncCaddyConfig();
-      } catch {}
-
-      return textResult({ deleted: true, serviceId });
-    },
-  );
-
-  server.tool(
-    "deploy_service",
-    "Trigger a deployment for a service",
-    { serviceId: z.string() },
-    async ({ serviceId }) => {
-      try {
-        const deploymentId = await deployService(serviceId);
-        return textResult({ deploymentId, status: "started" });
-      } catch (err) {
-        return errorResult(
-          `Deploy failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    },
-  );
-
-  server.tool(
-    "deploy_project",
-    "Deploy all services in a project",
-    { projectId: z.string() },
-    async ({ projectId }) => {
-      try {
-        const deploymentIds = await deployProject(projectId);
-        return textResult({ deploymentIds, status: "started" });
-      } catch (err) {
-        return errorResult(
-          `Deploy failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    },
-  );
-
-  server.tool(
-    "get_deployment",
-    "Get deployment status, build log, and error info",
-    { deploymentId: z.string() },
-    async ({ deploymentId }) => {
-      const deployment = await db
-        .selectFrom("deployments")
-        .selectAll()
-        .where("id", "=", deploymentId)
-        .executeTakeFirst();
-
-      if (!deployment) return errorResult("Deployment not found");
-
-      return textResult(deployment);
-    },
-  );
-
-  server.tool(
-    "list_deployments",
-    "List recent deployments for a service",
-    {
-      serviceId: z.string(),
-      limit: z.number().optional(),
-    },
-    async ({ serviceId, limit }) => {
-      const deployments = await db
-        .selectFrom("deployments")
-        .select([
-          "id",
-          "serviceId",
-          "status",
-          "createdAt",
-          "errorMessage",
-          "hostPort",
-          "imageName",
-          "containerId",
-        ])
-        .where("serviceId", "=", serviceId)
-        .orderBy("createdAt", "desc")
-        .limit(limit ?? 10)
-        .execute();
-
-      return textResult(deployments);
-    },
-  );
-
-  server.tool(
-    "rollback",
-    "Rollback to a previous deployment",
-    { deploymentId: z.string() },
-    async ({ deploymentId }) => {
-      try {
-        const newDeploymentId = await rollbackDeployment(deploymentId);
-        return textResult({ newDeploymentId, status: "started" });
-      } catch (err) {
-        return errorResult(
-          `Rollback failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    },
-  );
-
-  server.tool(
-    "list_env_vars",
-    "Get environment variables for a service",
-    { serviceId: z.string() },
-    async ({ serviceId }) => {
-      const service = await db
-        .selectFrom("services")
-        .select("envVars")
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      const vars: EnvVar[] = JSON.parse(service.envVars);
-      return textResult(vars);
-    },
-  );
-
-  server.tool(
-    "set_env_vars",
-    "Set/update environment variables for a service (merge, not replace)",
-    {
-      serviceId: z.string(),
-      vars: z.array(z.object({ key: z.string(), value: z.string() })),
-    },
-    async ({ serviceId, vars }) => {
-      const service = await db
-        .selectFrom("services")
-        .select("envVars")
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      const existing: EnvVar[] = JSON.parse(service.envVars);
-      const merged = [...existing];
-
-      for (const newVar of vars) {
-        const idx = merged.findIndex((v) => v.key === newVar.key);
-        if (idx >= 0) {
-          merged[idx] = newVar;
-        } else {
-          merged.push(newVar);
-        }
-      }
-
-      await db
-        .updateTable("services")
-        .set({ envVars: JSON.stringify(merged) })
-        .where("id", "=", serviceId)
-        .execute();
-
-      return textResult({ envVars: merged, redeployRequired: true });
-    },
-  );
-
-  server.tool(
-    "delete_env_vars",
-    "Delete environment variables by key",
-    {
-      serviceId: z.string(),
-      keys: z.array(z.string()),
-    },
-    async ({ serviceId, keys }) => {
-      const service = await db
-        .selectFrom("services")
-        .select("envVars")
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      const existing: EnvVar[] = JSON.parse(service.envVars);
-      const keySet = new Set(keys);
-      const filtered = existing.filter((v) => !keySet.has(v.key));
-
-      await db
-        .updateTable("services")
-        .set({ envVars: JSON.stringify(filtered) })
-        .where("id", "=", serviceId)
-        .execute();
-
-      return textResult({ envVars: filtered, redeployRequired: true });
-    },
-  );
-
-  server.tool(
-    "list_domains",
-    "List domains for a service",
-    { serviceId: z.string() },
-    async ({ serviceId }) => {
-      const domains = await db
-        .selectFrom("domains")
-        .selectAll()
-        .where("serviceId", "=", serviceId)
-        .execute();
-
-      return textResult(domains);
-    },
-  );
-
-  server.tool(
-    "add_domain",
-    "Add a custom domain to a service",
-    { serviceId: z.string(), domain: z.string() },
-    async ({ serviceId, domain }) => {
-      const service = await db
-        .selectFrom("services")
-        .select(["id", "environmentId"])
-        .where("id", "=", serviceId)
-        .executeTakeFirst();
-
-      if (!service) return errorResult("Service not found");
-
-      const existing = await getDomainByName(domain);
-      if (existing) return errorResult("Domain already exists");
-
-      const created = await addDomain(serviceId, service.environmentId, {
-        domain,
-        type: "proxy",
-      });
-
-      if (created.dnsVerified) {
-        try {
-          await syncCaddyConfig();
-        } catch {}
-      }
-
-      return textResult(created);
-    },
-  );
-
-  server.tool(
-    "remove_domain",
-    "Remove a domain",
-    { domainId: z.string() },
-    async ({ domainId }) => {
-      const d = await getDomain(domainId);
-      if (!d) return errorResult("Domain not found");
-
-      if (d.isSystem) {
-        const others = await db
-          .selectFrom("domains")
-          .select("id")
-          .where("serviceId", "=", d.serviceId)
-          .where("id", "!=", domainId)
-          .where("dnsVerified", "=", true)
-          .execute();
-        if (others.length === 0) {
-          return errorResult(
-            "Cannot delete system domain when no other verified domain exists",
-          );
-        }
-      }
-
-      await removeDomain(domainId);
-
-      if (d.dnsVerified) {
-        try {
-          await syncCaddyConfig();
-        } catch {}
-      }
-
-      return textResult({ deleted: true, domainId });
-    },
-  );
-
-  server.tool(
-    "get_build_log",
-    "Get build/deploy log for a deployment",
-    { deploymentId: z.string() },
-    async ({ deploymentId }) => {
-      const deployment = await db
-        .selectFrom("deployments")
-        .select(["id", "buildLog", "errorMessage", "status"])
-        .where("id", "=", deploymentId)
-        .executeTakeFirst();
-
-      if (!deployment) return errorResult("Deployment not found");
-
-      return textResult({
-        status: deployment.status,
-        buildLog: deployment.buildLog,
-        errorMessage: deployment.errorMessage,
-      });
-    },
-  );
-
-  server.tool(
-    "get_runtime_logs",
-    "Get recent container logs (non-streaming snapshot)",
-    {
-      serviceId: z.string(),
-      tail: z.number().optional(),
-      replica: z.number().optional(),
-    },
-    async ({ serviceId, tail, replica }) => {
-      const deployment = await db
-        .selectFrom("deployments")
-        .select(["id", "containerId", "status"])
-        .where("serviceId", "=", serviceId)
-        .where("status", "=", "running")
-        .orderBy("createdAt", "desc")
-        .limit(1)
-        .executeTakeFirst();
-
-      if (!deployment) {
-        return errorResult("No running deployment found for this service");
-      }
-
-      const tailStr = shellEscape(String(tail ?? 100));
-
-      let replicaQuery = db
-        .selectFrom("replicas")
-        .select(["containerId", "replicaIndex"])
-        .where("deploymentId", "=", deployment.id)
-        .where("status", "=", "running")
-        .where("containerId", "is not", null)
-        .orderBy("replicaIndex", "asc");
-
-      if (replica !== undefined) {
-        replicaQuery = replicaQuery.where("replicaIndex", "=", replica);
-      }
-
-      const replicas = await replicaQuery.execute();
-
-      try {
-        if (replicas.length > 0) {
-          const logParts = await Promise.all(
-            replicas.map(async (r) => {
-              const { stdout, stderr } = await execAsync(
-                `docker logs --tail ${tailStr} ${shellEscape(r.containerId!)}`,
-                { maxBuffer: 1024 * 1024 },
-              );
-              const output = stdout + stderr;
-              if (replicas.length === 1) return output;
-              return output
-                .split("\n")
-                .filter((l) => l)
-                .map((l) => `[replica-${r.replicaIndex}] ${l}`)
-                .join("\n");
-            }),
-          );
-          return textResult({ logs: logParts.join("\n") });
-        }
-
-        if (!deployment.containerId) {
-          return errorResult("No running container found for this service");
-        }
-
-        const { stdout, stderr } = await execAsync(
-          `docker logs --tail ${tailStr} ${shellEscape(deployment.containerId)}`,
-          { maxBuffer: 1024 * 1024 },
-        );
-        return textResult({ logs: stdout + stderr });
-      } catch (err) {
-        return errorResult(
-          `Failed to get logs: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      return textResult(payload);
     },
   );
 }
