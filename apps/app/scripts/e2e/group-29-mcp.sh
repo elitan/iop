@@ -47,11 +47,17 @@ fi
 log "Got Bearer token"
 
 log "Step 2: MCP endpoint with Bearer token..."
-MCP_INIT=$(curl -s -X POST "$BASE_URL/api/mcp" \
+INIT_HEADERS=/tmp/frost-mcp-init-headers.txt
+INIT_BODY=/tmp/frost-mcp-init-body.txt
+
+curl -s -D "$INIT_HEADERS" -o "$INIT_BODY" -X POST "$BASE_URL/api/mcp" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"e2e-test","version":"1.0.0"}}}')
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"e2e-test","version":"1.0.0"}}}'
+
+MCP_INIT=$(cat "$INIT_BODY")
+SESSION_ID=$(grep -i "^mcp-session-id:" "$INIT_HEADERS" | tail -n1 | awk '{print $2}' | tr -d '\r')
 
 if echo "$MCP_INIT" | grep -q '"serverInfo"'; then
   log "MCP initialize succeeded via Bearer token"
@@ -60,6 +66,24 @@ elif echo "$MCP_INIT" | grep -q '"result"'; then
 else
   log "MCP response: $MCP_INIT"
   log "MCP initialize returned unexpected format (may be SSE), checking status..."
+fi
+
+if [ -z "$SESSION_ID" ]; then
+  fail "Missing MCP session id after initialize"
+fi
+
+log "Step 2b: MCP tools/list..."
+MCP_TOOLS=$(curl -s -X POST "$BASE_URL/api/mcp" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "MCP-Session-Id: $SESSION_ID" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
+
+if echo "$MCP_TOOLS" | grep -q '"name":"search"' && echo "$MCP_TOOLS" | grep -q '"name":"request"'; then
+  log "MCP exposes search + request"
+else
+  fail "MCP tools/list missing search/request: $MCP_TOOLS"
 fi
 
 log "Step 3: MCP endpoint without token returns 401..."
@@ -87,5 +111,6 @@ else
 fi
 
 rm -f /tmp/frost-mcp-cookies.txt
+rm -f "$INIT_HEADERS" "$INIT_BODY"
 
 pass
