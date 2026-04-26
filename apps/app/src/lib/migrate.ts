@@ -7,6 +7,35 @@ import { getDbPath } from "./paths";
 const alphabet =
   "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
 
+const migrationNamePattern = /^(\d{3})-[a-z0-9-]+\.sql$/;
+
+const renamedMigrationAliases = [
+  {
+    oldName: "015-database-backup-config.sql",
+    newName: "016-database-backup-config.sql",
+  },
+  {
+    oldName: "015-drop-project-canvas-positions.sql",
+    newName: "017-drop-project-canvas-positions.sql",
+  },
+  {
+    oldName: "016-prefixed-primary-keys.sql",
+    newName: "018-prefixed-primary-keys.sql",
+  },
+  {
+    oldName: "017-branch-ttl-scale-to-zero.sql",
+    newName: "019-branch-ttl-scale-to-zero.sql",
+  },
+  {
+    oldName: "018-database-import-jobs.sql",
+    newName: "020-database-import-jobs.sql",
+  },
+  {
+    oldName: "019-database-target-stopped-reason.sql",
+    newName: "021-database-target-stopped-reason.sql",
+  },
+];
+
 function generateId(size = 21): string {
   const bytes = randomBytes(size);
   let id = "";
@@ -25,6 +54,53 @@ export interface MigrationResult {
 export interface MigrationOptions {
   dbPath?: string;
   schemaDir?: string;
+}
+
+export function validateMigrationFiles(migrationFiles: string[]): void {
+  const seenNumbers = new Map<number, string>();
+  const filesByNumber = [...migrationFiles].sort(function compareFiles(a, b) {
+    return getMigrationNumber(a) - getMigrationNumber(b);
+  });
+
+  for (let index = 0; index < filesByNumber.length; index++) {
+    const file = filesByNumber[index];
+    const number = getMigrationNumber(file);
+    const existingFile = seenNumbers.get(number);
+
+    if (existingFile) {
+      throw new Error(
+        `Duplicate migration number ${formatMigrationNumber(number)}: ${existingFile}, ${file}`,
+      );
+    }
+
+    seenNumbers.set(number, file);
+
+    const expectedNumber = index + 1;
+    if (number !== expectedNumber) {
+      throw new Error(
+        `Out-of-order migration number ${file}: expected ${formatMigrationNumber(expectedNumber)}`,
+      );
+    }
+  }
+
+  for (let index = 0; index < migrationFiles.length; index++) {
+    if (migrationFiles[index] !== filesByNumber[index]) {
+      throw new Error(
+        `Out-of-order migration file ${migrationFiles[index]}: expected ${filesByNumber[index]}`,
+      );
+    }
+  }
+}
+
+export function getMigrationFiles(schemaDir: string): string[] {
+  const migrationFiles = readdirSync(schemaDir)
+    .filter(function isSqlFile(file) {
+      return file.endsWith(".sql");
+    })
+    .sort();
+
+  validateMigrationFiles(migrationFiles);
+  return migrationFiles;
 }
 
 export function runMigrations(options?: MigrationOptions): MigrationResult {
@@ -54,6 +130,47 @@ export function runMigrations(options?: MigrationOptions): MigrationResult {
   }
 }
 
+function getMigrationNumber(file: string): number {
+  const match = file.match(migrationNamePattern);
+  if (!match) {
+    throw new Error(`Invalid migration filename: ${file}`);
+  }
+
+  return Number.parseInt(match[1], 10);
+}
+
+function formatMigrationNumber(number: number): string {
+  return number.toString().padStart(3, "0");
+}
+
+function markRenamedMigrations(sqlite: Database): void {
+  const applied = sqlite
+    .prepare("SELECT name, applied_at FROM _migrations")
+    .all() as Array<{
+    name: string;
+    applied_at: number;
+  }>;
+  const appliedMap = new Map<string, number>();
+
+  for (const row of applied) {
+    appliedMap.set(row.name, row.applied_at);
+  }
+
+  const insert = sqlite.prepare(
+    "INSERT INTO _migrations (name, applied_at) VALUES (?, ?)",
+  );
+
+  for (const alias of renamedMigrationAliases) {
+    const appliedAt = appliedMap.get(alias.oldName);
+    if (appliedAt === undefined || appliedMap.has(alias.newName)) {
+      continue;
+    }
+
+    insert.run(alias.newName, appliedAt);
+    appliedMap.set(alias.newName, appliedAt);
+  }
+}
+
 function runMigrationsWithDb(
   sqlite: Database,
   schemaDir: string,
@@ -66,9 +183,9 @@ function runMigrationsWithDb(
     )
   `);
 
-  const migrationFiles = readdirSync(schemaDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
+  const migrationFiles = getMigrationFiles(schemaDir);
+
+  markRenamedMigrations(sqlite);
 
   const applied = sqlite
     .prepare("SELECT name FROM _migrations")

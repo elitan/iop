@@ -122,6 +122,82 @@ ensure_env_value_if_blank() {
   echo "${key}=${value}" >> "$file"
 }
 
+get_sqlite_db_path() {
+  local env_file="$FROST_DIR/.env"
+  local db_path
+  local data_dir
+
+  db_path=$(get_env_value "$env_file" "FROST_DB_PATH")
+  if [ -n "$db_path" ]; then
+    echo "$db_path"
+    return 0
+  fi
+
+  data_dir=$(get_env_value "$env_file" "FROST_DATA_DIR")
+  if [ -z "$data_dir" ]; then
+    data_dir="$FROST_DIR/data"
+  fi
+
+  echo "$data_dir/frost.db"
+}
+
+backup_sqlite_db() {
+  local db_path
+  local backup_dir
+  local suffix
+
+  db_path=$(get_sqlite_db_path)
+  backup_dir="$BACKUP_DIR/sqlite"
+
+  rm -rf "$backup_dir"
+  mkdir -p "$backup_dir"
+  printf "%s" "$db_path" > "$backup_dir/db-path"
+
+  if [ ! -f "$db_path" ]; then
+    touch "$backup_dir/missing"
+    log "No SQLite database found to back up"
+    return 0
+  fi
+
+  for suffix in "" "-wal" "-shm"; do
+    if [ -f "$db_path$suffix" ]; then
+      cp -p "$db_path$suffix" "$backup_dir/frost.db$suffix"
+    fi
+  done
+
+  log "SQLite database backup created"
+}
+
+restore_sqlite_db_backup() {
+  local backup_dir="$BACKUP_DIR/sqlite"
+  local db_path
+  local suffix
+
+  if [ ! -d "$backup_dir" ]; then
+    return 0
+  fi
+
+  db_path=$(cat "$backup_dir/db-path" 2>/dev/null || true)
+  if [ -z "$db_path" ]; then
+    rm -rf "$backup_dir"
+    return 0
+  fi
+
+  log "Restoring SQLite database backup..."
+  mkdir -p "$(dirname "$db_path")" 2>/dev/null || true
+  rm -f "$db_path" "$db_path-wal" "$db_path-shm" 2>/dev/null || true
+
+  if [ ! -f "$backup_dir/missing" ]; then
+    for suffix in "" "-wal" "-shm"; do
+      if [ -f "$backup_dir/frost.db$suffix" ]; then
+        cp -p "$backup_dir/frost.db$suffix" "$db_path$suffix" 2>/dev/null || true
+      fi
+    done
+  fi
+
+  rm -rf "$backup_dir"
+}
+
 count_non_empty_lines() {
   echo "$1" | awk 'NF {c++} END {print c+0}'
 }
@@ -217,21 +293,26 @@ ensure_zfs_branching_setup() {
 cleanup_on_failure() {
   error "Update failed!"
   echo "failed" > "$UPDATE_RESULT"
+  restore_sqlite_db_backup || true
 
   if [ -f "$BACKUP_DIR/commit" ]; then
-    # Git mode: restore to previous commit
     log "Restoring previous commit..."
     PREV_COMMIT=$(cat "$BACKUP_DIR/commit")
     cd "$FROST_DIR"
     git reset --hard "$PREV_COMMIT" 2>/dev/null || true
     rm -rf "$BACKUP_DIR"
   elif [ -d "$BACKUP_DIR" ]; then
-    # Tarball mode: full backup
     log "Restoring previous version..."
+    RESTORE_DIR="/tmp/frost-app-restore"
+    rm -rf "$RESTORE_DIR"
+    mv "$BACKUP_DIR" "$RESTORE_DIR"
+    rm -rf /tmp/frost-data-restore /tmp/frost-env-restore
     mv "$FROST_DIR/data" /tmp/frost-data-restore 2>/dev/null || true
     mv "$FROST_DIR/.env" /tmp/frost-env-restore 2>/dev/null || true
     rm -rf "$FROST_DIR"
-    mv "$BACKUP_DIR" "$FROST_DIR"
+    mkdir -p "$FROST_DIR"
+    cp -a "$RESTORE_DIR"/. "$FROST_DIR"/
+    rm -rf "$RESTORE_DIR"
     mv /tmp/frost-data-restore "$FROST_DIR/data" 2>/dev/null || true
     mv /tmp/frost-env-restore "$FROST_DIR/.env" 2>/dev/null || true
   fi
@@ -435,6 +516,9 @@ if [ "$GIT_MODE" = true ]; then
     exit 1
   fi
 
+  log "Backing up SQLite database..."
+  backup_sqlite_db
+
   log "Running migrations..."
   bun run migrate 2>&1
 
@@ -501,6 +585,9 @@ else
 
   log "Installing dependencies..."
   bun install --production --frozen-lockfile 2>&1
+
+  log "Backing up SQLite database..."
+  backup_sqlite_db
 
   log "Running migrations..."
   bun run migrate 2>&1

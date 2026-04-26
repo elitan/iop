@@ -12,6 +12,7 @@
     "build": "bun --cwd apps/app build",
     "start": "bun --cwd apps/app start",
     "migrate": "bun --cwd apps/app migrate",
+    "migrations:check": "bun --cwd apps/app scripts/validate-migrations.ts",
     "setup": "bun --cwd apps/app setup",
     "typecheck": "bun --cwd apps/app typecheck",
     "lint": "biome check .",
