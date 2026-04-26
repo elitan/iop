@@ -497,14 +497,75 @@ export async function stopContainersByLabel(
   labelValue: string,
 ): Promise<void> {
   try {
-    const { stdout } = await execAsync(
-      `docker ps -aq --filter ${shellEscape(`label=${labelName}=${labelValue}`)} --filter status=running`,
-    );
-    const containerIds = stdout.trim().split(/\s+/).filter(Boolean);
+    const filter = shellEscape(`label=${labelName}=${labelValue}`);
+    const { stdout } = await execAsync(`docker ps -aq --filter ${filter}`);
+    const containerIds = stdout
+      .trim()
+      .split(/\s+/)
+      .filter(function hasValue(value) {
+        return Boolean(value);
+      });
     for (const containerId of containerIds) {
       await stopContainer(containerId);
     }
   } catch {}
+}
+
+export interface FrostContainer {
+  id: string;
+  name: string;
+  status: string;
+  labels: Record<string, string>;
+}
+
+function parseDockerLabels(value: string): Record<string, string> {
+  const parsed = JSON.parse(value) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+  const labels: Record<string, string> = {};
+  for (const [key, labelValue] of Object.entries(parsed)) {
+    if (typeof labelValue === "string") {
+      labels[key] = labelValue;
+    }
+  }
+  return labels;
+}
+
+export async function listFrostContainers(): Promise<FrostContainer[]> {
+  try {
+    const { stdout: idOutput } = await execAsync(
+      `docker ps -aq --filter ${shellEscape("label=frost.managed=true")}`,
+    );
+    const containerIds = idOutput
+      .trim()
+      .split(/\s+/)
+      .filter(function hasValue(value) {
+        return Boolean(value);
+      });
+    if (containerIds.length === 0) {
+      return [];
+    }
+
+    const { stdout } = await execAsync(
+      `docker inspect --format '{{.Id}}\t{{json .Config.Labels}}\t{{.State.Status}}\t{{.Name}}' ${containerIds.map(shellEscape).join(" ")}`,
+    );
+    const containers: FrostContainer[] = [];
+    for (const line of stdout.trim().split("\n")) {
+      if (!line) continue;
+      const parts = line.split("\t");
+      if (parts.length < 4) continue;
+      containers.push({
+        id: parts[0],
+        labels: parseDockerLabels(parts[1]),
+        status: parts[2],
+        name: parts.slice(3).join("\t").replace(/^\//, ""),
+      });
+    }
+    return containers;
+  } catch {
+    return [];
+  }
 }
 
 export async function gracefulStopContainer(

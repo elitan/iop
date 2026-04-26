@@ -24,6 +24,10 @@ export function newDeploymentId(): string {
   return buildId("dep");
 }
 
+export function newDeploymentClaimId(): string {
+  return buildId("depclaim");
+}
+
 export function newDomainId(): string {
   return buildId("dom");
 }
