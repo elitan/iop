@@ -36,6 +36,15 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
 
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun run migrations:check
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +61,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [typecheck, lint, test]
+    needs: [typecheck, lint, migrations, test]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -665,6 +674,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      - name: Create broken migration branch for rollback test
+        if: steps.release.outputs.skip != 'true'
+        id: broken_migration
+        run: |
+          BROKEN_BRANCH="frost-e2e-broken-migration-${{ github.run_id }}-${{ matrix.arch }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          TEMP_REPO=$(mktemp -d)
+          echo "Creating broken migration branch: $BROKEN_BRANCH"
+
+          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
+          cd "$TEMP_REPO"
+
+          git config user.email "ci@frost.dev"
+          git config user.name "Frost CI"
+          git checkout -b "$BROKEN_BRANCH"
+
+          LAST_MIGRATION_NUMBER=$(find apps/app/schema -name '*.sql' -exec basename {} \; | sed -n 's/^\([0-9][0-9][0-9]\)-.*$/\1/p' | sort -n | tail -n1)
+          NEXT_MIGRATION_NUMBER=$(printf "%03d" $((10#$LAST_MIGRATION_NUMBER + 1)))
+          MIGRATION_FILE="apps/app/schema/${NEXT_MIGRATION_NUMBER}-migration-restore-fail.sql"
+
+          cat > "$MIGRATION_FILE" <<'SQL'
+          PRAGMA foreign_keys = OFF;
+          INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_restore_probe', 'mutated');
+          THIS IS NOT VALID SQL;
+          SQL
+
+          sed -i "s|git fetch origin main|git fetch origin $BROKEN_BRANCH:refs/remotes/origin/main|g" update.sh
+
+          git add "$MIGRATION_FILE" update.sh
+          git commit -m "Intentionally broken migration for e2e rollback test"
+          git push origin "$BROKEN_BRANCH"
+
+          echo "branch=$BROKEN_BRANCH" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Reset to release version for rollback and UI tests
         if: steps.release.outputs.skip != 'true'
         run: |
@@ -710,6 +755,17 @@ jobs:
             "${{ steps.broken.outputs.branch }}" \
             "${{ github.repository }}" 2>&1 | tee /tmp/e2e-rollback.log
 
+      - name: Test rollback on migration failure
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          chmod +x ./apps/app/scripts/e2e-update-rollback.sh
+          ./apps/app/scripts/e2e-update-rollback.sh \
+            "${{ steps.server.outputs.ip }}" \
+            "${{ steps.install.outputs.api_key }}" \
+            "${{ steps.broken_migration.outputs.branch }}" \
+            "${{ github.repository }}" \
+            migration 2>&1 | tee /tmp/e2e-migration-rollback.log
+
       - name: Test UI-triggered update flow
         if: steps.release.outputs.skip != 'true'
         run: |
@@ -725,6 +781,12 @@ jobs:
         run: |
           echo "Deleting broken branch: ${{ steps.broken.outputs.branch }}"
           git push origin --delete "${{ steps.broken.outputs.branch }}" || true
+
+      - name: Cleanup broken migration branch
+        if: always() && steps.broken_migration.outputs.branch
+        run: |
+          echo "Deleting broken migration branch: ${{ steps.broken_migration.outputs.branch }}"
+          git push origin --delete "${{ steps.broken_migration.outputs.branch }}" || true
 
       - name: Collect logs on failure
         if: failure() && steps.release.outputs.skip != 'true'

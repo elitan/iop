@@ -283,6 +283,13 @@ SET project_id = (
   WHERE old_id = databases.project_id
 );
 
+UPDATE database_backup_configs
+SET database_id = (
+  SELECT new_id
+  FROM map_databases
+  WHERE old_id = database_backup_configs.database_id
+);
+
 UPDATE database_targets
 SET database_id = (
   SELECT new_id
