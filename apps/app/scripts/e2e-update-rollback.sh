@@ -5,11 +5,17 @@ SERVER_IP=$1
 API_KEY=$2
 BROKEN_BRANCH=$3
 REPO=$4
+MODE=${5:-build}
 BASE_URL="http://$SERVER_IP:3000"
 
 if [ -z "$SERVER_IP" ] || [ -z "$API_KEY" ] || [ -z "$BROKEN_BRANCH" ] || [ -z "$REPO" ]; then
-  echo "Usage: $0 <server-ip> <api-key> <broken-branch> <repo>"
-  echo "Example: $0 1.2.3.4 abc123 frost-e2e-broken-123 elitan/frost"
+  echo "Usage: $0 <server-ip> <api-key> <broken-branch> <repo> [build|migration]"
+  echo "Example: $0 1.2.3.4 abc123 frost-e2e-broken-123 elitan/frost build"
+  exit 1
+fi
+
+if [ "$MODE" != "build" ] && [ "$MODE" != "migration" ]; then
+  echo "Mode must be build or migration"
   exit 1
 fi
 
@@ -31,6 +37,7 @@ trap 'error_handler $LINENO $?' ERR
 
 echo "Testing update rollback on $BASE_URL"
 echo "Broken branch: $BROKEN_BRANCH"
+echo "Mode: $MODE"
 
 api() {
   local RESPONSE
@@ -100,6 +107,12 @@ echo ""
 echo "=== Ensuring sqlite3 is installed ==="
 remote "which sqlite3 > /dev/null 2>&1 || (apt-get update && apt-get install -y sqlite3)"
 
+if [ "$MODE" = "migration" ]; then
+  echo ""
+  echo "=== Writing migration restore sentinel ==="
+  remote "sqlite3 /opt/frost/data/frost.db \"INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_restore_probe', 'before'); DELETE FROM _migrations WHERE name LIKE '%migration-restore-fail.sql';\""
+fi
+
 echo ""
 echo "=== Faking available update in settings ==="
 remote "sqlite3 /opt/frost/data/frost.db \"INSERT OR REPLACE INTO settings (key, value) VALUES ('update_available', '99.99.99');\""
@@ -135,7 +148,7 @@ for i in $(seq 1 60); do
 
     if [ "$RESULT_SUCCESS" != "false" ]; then
       echo ""
-      echo "FAIL: Update should have FAILED (broken build)"
+      echo "FAIL: Update should have FAILED ($MODE rollback)"
       echo "Expected success=false, got success=$RESULT_SUCCESS"
       exit 1
     fi
@@ -180,6 +193,26 @@ else
   echo "FAIL: Service not healthy after rollback"
   echo "$HEALTH"
   exit 1
+fi
+
+if [ "$MODE" = "migration" ]; then
+  echo ""
+  echo "=== Verifying database restored after failed migration ==="
+  SENTINEL=$(remote "sqlite3 /opt/frost/data/frost.db \"SELECT value FROM settings WHERE key = 'migration_restore_probe';\"")
+  if [ "$SENTINEL" != "before" ]; then
+    echo "FAIL: DB sentinel should be restored to 'before'"
+    echo "Got: $SENTINEL"
+    exit 1
+  fi
+
+  BAD_MIGRATION_COUNT=$(remote "sqlite3 /opt/frost/data/frost.db \"SELECT COUNT(*) FROM _migrations WHERE name LIKE '%migration-restore-fail.sql';\"")
+  if [ "$BAD_MIGRATION_COUNT" != "0" ]; then
+    echo "FAIL: Failed migration should not remain recorded"
+    echo "Got count: $BAD_MIGRATION_COUNT"
+    exit 1
+  fi
+
+  echo "PASS: Database restored after failed migration"
 fi
 
 echo ""

@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { runMigrations } from "./migrate";
+import { runMigrations, validateMigrationFiles } from "./migrate";
 
 const TEST_DIR = join(process.cwd(), "test-migrate-tmp");
 const TEST_DB = join(TEST_DIR, "test.db");
@@ -212,6 +212,62 @@ describe("runMigrations", () => {
     expect(migrations[0].name).toBe("001-first.sql");
     expect(migrations[1].name).toBe("002-second.sql");
     expect(migrations[2].name).toBe("003-third.sql");
+  });
+
+  test("rejects duplicate migration numbers", () => {
+    expect(() => {
+      validateMigrationFiles([
+        "001-init.sql",
+        "002-posts.sql",
+        "002-users.sql",
+      ]);
+    }).toThrow("Duplicate migration number 002");
+  });
+
+  test("rejects missing migration numbers", () => {
+    expect(() => {
+      validateMigrationFiles(["001-init.sql", "003-posts.sql"]);
+    }).toThrow("expected 002");
+  });
+
+  test("skips renamed migrations that were applied under old names", () => {
+    for (let index = 1; index <= 17; index++) {
+      const number = index.toString().padStart(3, "0");
+      writeFileSync(
+        join(TEST_SCHEMA_DIR, `${number}-step.sql`),
+        `CREATE TABLE t_${number} (id INTEGER PRIMARY KEY);`,
+      );
+    }
+    writeFileSync(
+      join(TEST_SCHEMA_DIR, "018-prefixed-primary-keys.sql"),
+      "THIS WOULD FAIL IF IT RAN;",
+    );
+
+    const db = new Database(TEST_DB);
+    db.exec(`
+      CREATE TABLE _migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        applied_at INTEGER NOT NULL
+      )
+    `);
+    db.prepare("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)").run(
+      "016-prefixed-primary-keys.sql",
+      Date.now(),
+    );
+    db.close();
+
+    expect(() => {
+      runMigrations({ dbPath: TEST_DB, schemaDir: TEST_SCHEMA_DIR });
+    }).not.toThrow();
+
+    const db2 = new Database(TEST_DB);
+    const migrated = db2
+      .prepare("SELECT name FROM _migrations WHERE name = ?")
+      .get("018-prefixed-primary-keys.sql");
+    db2.close();
+
+    expect(migrated).toBeDefined();
   });
 
   test("creates data directory if it does not exist", () => {
