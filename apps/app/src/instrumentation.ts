@@ -22,16 +22,19 @@ export async function register() {
     const { persistUpdateResult } = await import("./lib/updater");
     await persistUpdateResult();
 
-    const { failStaleInProgressDeployments } = await import(
+    const { reconcileDeploymentStartupState } = await import(
       "./lib/deployment-runtime"
     );
-    const staleDeployments = await failStaleInProgressDeployments();
-    if (staleDeployments > 0) {
+    const deploymentStartupState = await reconcileDeploymentStartupState();
+    if (
+      deploymentStartupState.failedDeployments > 0 ||
+      deploymentStartupState.stoppedOrphanContainers > 0
+    ) {
       console.log(
-        `[startup] deployments: failed ${staleDeployments} stale in-progress deployment(s)`,
+        `[startup] deployments: failed ${deploymentStartupState.failedDeployments} in-progress deployment(s), stopped ${deploymentStartupState.stoppedOrphanContainers} orphan container(s)`,
       );
     } else {
-      console.log("[startup] deployments: no stale in-progress deployments");
+      console.log("[startup] deployments: no stale deployments or containers");
     }
 
     const { startMetricsCollector } = await import("./lib/metrics-collector");

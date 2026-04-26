@@ -328,6 +328,25 @@ describe("zero-downtime deploy", () => {
       .executeTakeFirst();
     expect(service?.currentDeploymentId).toBe(deploy1Id);
 
+    const failedReplicas = await db
+      .selectFrom("replicas")
+      .select(["containerId", "status"])
+      .where("deploymentId", "=", deploy2Id)
+      .execute();
+    expect(failedReplicas.length).toBeGreaterThan(0);
+    expect(
+      failedReplicas.every(function isFailed(replica) {
+        return replica.status === "failed";
+      }),
+    ).toBe(true);
+
+    for (const replica of failedReplicas) {
+      if (replica.containerId) {
+        const containerStatus = await getContainerStatus(replica.containerId);
+        expect(["exited", "unknown"]).toContain(containerStatus);
+      }
+    }
+
     await db
       .updateTable("services")
       .set({ healthCheckPath: null, healthCheckTimeout: null })

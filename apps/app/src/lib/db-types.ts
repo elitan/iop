@@ -124,6 +124,13 @@ export interface Databases {
   createdAt: number;
 }
 
+export interface DeploymentLocks {
+  serviceId: string;
+  deploymentId: string;
+  claimToken: string;
+  claimedAt: number;
+}
+
 export interface Deployments {
   id: string;
   serviceId: string;
@@ -323,6 +330,7 @@ export interface DB {
   databaseTargetDeployments: DatabaseTargetDeployments;
   databaseTargets: DatabaseTargets;
   databases: Databases;
+  deploymentLocks: DeploymentLocks;
   deployments: Deployments;
   domains: Domains;
   environmentDatabaseAttachments: EnvironmentDatabaseAttachments;
