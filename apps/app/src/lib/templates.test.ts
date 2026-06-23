@@ -279,6 +279,19 @@ describe("resolveTemplateServices", () => {
     const resolved = resolveTemplateServices(template!);
     expect(resolved[0].icon).toBe("nginx");
   });
+
+  it("starts minio through the minio binary", () => {
+    const template = getTemplate("minio");
+    expect(template).toBeDefined();
+    if (!template) {
+      throw new Error("minio template not found");
+    }
+
+    const resolved = resolveTemplateServices(template);
+    expect(resolved[0].command).toBe(
+      'minio server /data --console-address ":9001"',
+    );
+  });
 });
 
 describe("buildConnectionString", () => {
