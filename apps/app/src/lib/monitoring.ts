@@ -2,7 +2,9 @@ import { exec } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import { promisify } from "node:util";
+import type { Kysely } from "kysely";
 import { db } from "./db";
+import type { DB } from "./db-types.js";
 
 const execAsync = promisify(exec);
 
@@ -324,10 +326,16 @@ export async function getMetricsHistory(
 }
 
 export async function getMetricsStorageSize(): Promise<number> {
+  return await getMetricsStorageSizeForDb(db);
+}
+
+async function getMetricsStorageSizeForDb(
+  database: Kysely<DB>,
+): Promise<number> {
   try {
-    const result = await db
+    const result = await database
       .selectFrom("metrics")
-      .select(db.fn.count("id").as("count"))
+      .select(database.fn.count("id").as("count"))
       .executeTakeFirst();
     const count = Number(result?.count || 0);
     return count * 150; // ~150 bytes per row estimate
@@ -337,23 +345,29 @@ export async function getMetricsStorageSize(): Promise<number> {
 }
 
 export async function pruneOldMetrics(): Promise<number> {
-  const size = await getMetricsStorageSize();
+  return await pruneOldMetricsFromDb(db);
+}
+
+export async function pruneOldMetricsFromDb(
+  database: Kysely<DB>,
+): Promise<number> {
+  const size = await getMetricsStorageSizeForDb(database);
   if (size <= MAX_STORAGE_BYTES) return 0;
 
   const targetSize = MAX_STORAGE_BYTES * 0.8; // prune to 80%
   const rowsToDelete = Math.ceil((size - targetSize) / 150);
 
-  const oldestRows = await db
+  const oldestIds = database
     .selectFrom("metrics")
     .select("id")
     .orderBy("timestamp", "asc")
-    .limit(rowsToDelete)
-    .execute();
+    .orderBy("id", "asc")
+    .limit(rowsToDelete);
 
-  if (oldestRows.length === 0) return 0;
+  const result = await database
+    .deleteFrom("metrics")
+    .where("id", "in", oldestIds)
+    .executeTakeFirst();
 
-  const ids = oldestRows.map((r) => r.id);
-  await db.deleteFrom("metrics").where("id", "in", ids).execute();
-
-  return ids.length;
+  return Number(result.numDeletedRows ?? 0);
 }
