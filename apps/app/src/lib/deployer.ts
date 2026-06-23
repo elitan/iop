@@ -47,6 +47,7 @@ import {
 } from "./github";
 import { detectIcon, detectIconFromImage } from "./icon-detector";
 import { newDeploymentClaimId, newDeploymentId, newReplicaId } from "./id";
+import { getDataDir } from "./paths";
 import { runCommand } from "./process-runner";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
@@ -58,6 +59,29 @@ import { updateEnvironmentPRComment } from "./webhook";
 const execAsync = promisify(exec);
 
 const REPOS_PATH = join(process.cwd(), "repos");
+const GARAGE_CONFIG_CONTENT = `metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+rpc_bind_addr = "[::1]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::1]:3902"
+root_domain = ".web.garage.localhost"
+index = "index.html"
+
+[admin]
+api_bind_addr = "[::1]:3903"
+admin_token = "unused-admin-token"
+metrics_token = "unused-metrics-token"
+`;
 
 if (!existsSync(REPOS_PATH)) {
   mkdirSync(REPOS_PATH, { recursive: true });
@@ -629,6 +653,27 @@ function buildFrostEnvVars(
     vars.FROST_GIT_BRANCH = gitInfo.branch;
   }
   return vars;
+}
+
+function isGarageImage(imageUrl: string | null): boolean {
+  if (!imageUrl) {
+    return false;
+  }
+  const normalized = imageUrl.toLowerCase();
+  return (
+    normalized === "dxflrs/garage" ||
+    normalized.startsWith("dxflrs/garage:") ||
+    normalized === "docker.io/dxflrs/garage" ||
+    normalized.startsWith("docker.io/dxflrs/garage:")
+  );
+}
+
+function prepareGarageConfigFile(serviceId: string): string {
+  const dir = join(getDataDir(), "garage", serviceId);
+  mkdirSync(dir, { recursive: true });
+  const configPath = join(dir, "garage.toml");
+  writeFileSync(configPath, GARAGE_CONFIG_CONTENT);
+  return configPath;
 }
 
 async function cancelActiveDeployments(
@@ -1493,7 +1538,19 @@ async function runServiceDeployment(
     let fileMounts: FileMount[] | undefined;
     const commandOptions = buildContainerCommandOptions(service.command);
     let entrypoint = commandOptions.entrypoint;
-    const command = commandOptions.command;
+    let command = commandOptions.command;
+
+    if (isGarageImage(service.imageUrl) && !service.command) {
+      const configPath = prepareGarageConfigFile(service.id);
+      fileMounts = [
+        {
+          hostPath: configPath,
+          containerPath: "/etc/garage.toml",
+        },
+      ];
+      command = ["/garage", "server", "--single-node", "--default-bucket"];
+      await appendLog(deploymentId, "Garage single-node config mounted\n");
+    }
 
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
     if (service.serviceType === "database" && isPostgres && !service.command) {
