@@ -122,6 +122,12 @@ ensure_env_value_if_blank() {
   echo "${key}=${value}" >> "$file"
 }
 
+ensure_cleanup_script_executable() {
+  if [ -f "$FROST_DIR/cleanup.sh" ]; then
+    chmod +x "$FROST_DIR/cleanup.sh"
+  fi
+}
+
 get_sqlite_db_path() {
   local env_file="$FROST_DIR/.env"
   local db_path
@@ -350,6 +356,7 @@ if [ -f "$UPDATE_MARKER" ]; then
 fi
 
 cd "$FROST_DIR"
+ensure_cleanup_script_executable
 
 # Ensure FROST_DATA_DIR is set (required since v0.8.0 monorepo)
 if [ -f "$FROST_DIR/.env" ]; then
@@ -486,6 +493,7 @@ if [ "$GIT_MODE" = true ]; then
 
   log "Pulling updates..."
   git reset --hard origin/main 2>/dev/null || git reset --hard @{u}
+  ensure_cleanup_script_executable
 
   if [ "$CONVERTED_FROM_TARBALL" = true ]; then
     log "Cleaning old node_modules..."
@@ -582,6 +590,7 @@ else
 
   tar -xzf /tmp/frost-update.tar.gz -C "$FROST_DIR"
   rm /tmp/frost-update.tar.gz
+  ensure_cleanup_script_executable
 
   log "Installing dependencies..."
   bun install --production --frozen-lockfile 2>&1
