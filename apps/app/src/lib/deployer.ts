@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { getSetting } from "./auth";
 import { emitBuildLogChunk } from "./build-log-stream";
+import { buildContainerCommandOptions } from "./container-command";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
@@ -1490,12 +1491,9 @@ async function runServiceDeployment(
     }
 
     let fileMounts: FileMount[] | undefined;
-    let entrypoint: string | undefined;
-    let command: string[] | undefined;
-
-    if (service.command) {
-      command = ["sh", "-c", service.command];
-    }
+    const commandOptions = buildContainerCommandOptions(service.command);
+    let entrypoint = commandOptions.entrypoint;
+    const command = commandOptions.command;
 
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
     if (service.serviceType === "database" && isPostgres && !service.command) {
