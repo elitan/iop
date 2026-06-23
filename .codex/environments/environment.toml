@@ -6,6 +6,15 @@ name = "frost"
 script = '''
 set -euo pipefail
 
+if command -v brew >/dev/null 2>&1; then
+  for node_formula in node@24 node@22 node@20; do
+    if node_prefix="$(brew --prefix "$node_formula" 2>/dev/null)"; then
+      export PATH="$node_prefix/bin:$PATH"
+      break
+    fi
+  done
+fi
+
 source_repo="$(cd "$(git rev-parse --git-common-dir)/.." && pwd -P)"
 git -C "$source_repo" fetch origin main
 
