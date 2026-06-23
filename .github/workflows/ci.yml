@@ -102,10 +102,11 @@ jobs:
 
       - name: Create server from snapshot
         id: server
+        timeout-minutes: 10
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(30 60 120 240 600 1200)
-          MAX_ATTEMPTS=${#DELAYS[@]}
+          MAX_ATTEMPTS=5
+          DELAYS=(30 60 120 240)
 
           for attempt in $(seq 1 $MAX_ATTEMPTS); do
             echo "Attempt $attempt/$MAX_ATTEMPTS..."
@@ -417,10 +418,11 @@ jobs:
       - name: Create server from snapshot
         if: steps.release.outputs.skip != 'true'
         id: server
+        timeout-minutes: 10
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(30 60 120 240 600 1200)
-          MAX_ATTEMPTS=${#DELAYS[@]}
+          MAX_ATTEMPTS=5
+          DELAYS=(30 60 120 240)
 
           for attempt in $(seq 1 $MAX_ATTEMPTS); do
             echo "Attempt $attempt/$MAX_ATTEMPTS..."
