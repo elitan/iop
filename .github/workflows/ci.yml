@@ -702,7 +702,6 @@ jobs:
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
           E2E_GROUPS: 01-basic,04-update,10-race,20-setup,28-oauth,29-mcp
-          E2E_PREPULL_IMAGES: nginx:alpine httpd:alpine
 
       - name: Create broken branch for rollback test
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
