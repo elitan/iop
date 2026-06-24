@@ -625,12 +625,14 @@ jobs:
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: predata
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-upgrade-create.sh
           ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-create.log
 
       - name: Upgrade to PR branch
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           BRANCH="${{ github.head_ref || github.ref_name }}"
           REPO="${{ github.repository }}"
 
@@ -722,6 +724,7 @@ jobs:
       - name: Reset to release version for rollback and UI tests
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           TAG="${{ steps.release.outputs.tag }}"
           echo "Resetting to release $TAG..."
 
@@ -757,6 +760,7 @@ jobs:
       - name: Test rollback on build failure
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
             "${{ steps.server.outputs.ip }}" \
@@ -767,6 +771,7 @@ jobs:
       - name: Test rollback on migration failure
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
             "${{ steps.server.outputs.ip }}" \
@@ -778,6 +783,7 @@ jobs:
       - name: Test UI-triggered update flow
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-update-ui.sh
           ./apps/app/scripts/e2e-update-ui.sh \
             "${{ steps.server.outputs.ip }}" \

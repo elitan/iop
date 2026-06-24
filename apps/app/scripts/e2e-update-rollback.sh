@@ -73,6 +73,30 @@ remote() {
   ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP "$@"
 }
 
+ensure_remote_sqlite() {
+  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP bash -s <<'REMOTE'
+set -e
+
+if command -v sqlite3 >/dev/null 2>&1; then
+  exit 0
+fi
+
+systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+
+for attempt in 1 2 3 4; do
+  if apt-get update && apt-get install -y sqlite3; then
+    exit 0
+  fi
+
+  sleep_sec=$((attempt * 10))
+  echo "sqlite3 install failed (attempt $attempt/4), retrying in ${sleep_sec}s..."
+  sleep "$sleep_sec"
+done
+
+exit 1
+REMOTE
+}
+
 create_broken_update_target() {
   ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP \
     "BROKEN_BRANCH='$BROKEN_BRANCH' MODE='$MODE' bash -s" <<'REMOTE'
@@ -151,7 +175,7 @@ remote "sed -i 's|curl -fsSL https://raw.githubusercontent.com/.*/update.sh.*bas
 
 echo ""
 echo "=== Ensuring sqlite3 is installed ==="
-remote "which sqlite3 > /dev/null 2>&1 || (apt-get update && apt-get install -y sqlite3)"
+ensure_remote_sqlite
 
 if [ "$MODE" = "migration" ]; then
   echo ""
