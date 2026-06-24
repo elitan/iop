@@ -124,7 +124,7 @@ log "Branch auto-stopped after idle timeout"
 
 log "Connecting on same host port to auto-wake..."
 WAKE_RESULT=$(remote "docker run --rm --add-host=host.docker.internal:host-gateway -e PGPASSWORD='$DEV_POSTGRES_PASSWORD' postgres:17 psql \"host=$PSQL_HOST port=$DEV_HOST_PORT_AFTER user=$DEV_POSTGRES_USER dbname=$DEV_POSTGRES_DB sslmode=require connect_timeout=70\" -tAc 'select 1'" 2>&1 || true)
-WAKE_VALUE=$(echo "$WAKE_RESULT" | tr -d '[:space:]')
+WAKE_VALUE=$(printf "%s\n" "$WAKE_RESULT" | awk 'NF == 1 && $1 == "1" { print $1; exit }')
 [ "$WAKE_VALUE" = "1" ] || fail "Expected wake query result 1, got: $WAKE_RESULT"
 log "Wake query succeeded on same host port"
 
