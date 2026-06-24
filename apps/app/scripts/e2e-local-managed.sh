@@ -92,7 +92,7 @@ echo "Managed Local E2E"
 echo "========================================"
 echo "Port: $PORT"
 echo "Data dir: $DATA_DIR"
-echo "Batch size: $BATCH_SIZE"
+echo "Max concurrency: $BATCH_SIZE"
 echo "Retry failed groups: ${E2E_RETRY_FAILED:-0}"
 if [ -n "${E2E_GROUPS:-}" ]; then
   echo "Groups: $E2E_GROUPS"

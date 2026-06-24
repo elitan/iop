@@ -104,7 +104,12 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(0 30 60 120 240 600)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60 120 240 600}"
+          else
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60}"
+          fi
+          echo "Capacity retry delays: ${DELAYS[*]}s"
           LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
@@ -448,7 +453,12 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(0 30 60 120 240 600)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60 120 240 600}"
+          else
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60}"
+          fi
+          echo "Capacity retry delays: ${DELAYS[*]}s"
           LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
@@ -691,6 +701,7 @@ jobs:
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
           E2E_GROUPS: 01-basic,04-update,10-race,20-setup,28-oauth,29-mcp
+          E2E_PREPULL_IMAGES: nginx:alpine httpd:alpine
 
       - name: Create broken branch for rollback test
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'

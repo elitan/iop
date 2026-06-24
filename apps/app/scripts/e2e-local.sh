@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 E2E_DIR="$SCRIPT_DIR/e2e"
+source "$SCRIPT_DIR/e2e-runner.sh"
 
 BATCH_SIZE="${2:-${E2E_BATCH_SIZE:-2}}"
 PORT=${FROST_PORT:-3000}
@@ -206,67 +207,21 @@ if [ "${#ALL_GROUPS[@]}" -eq 0 ]; then
 fi
 
 TOTAL=${#ALL_GROUPS[@]}
-BATCH=0
 FAILED_GROUP_PATHS=()
 FAILED_GROUP_NAMES=()
 
 echo ""
 if [ -n "$GROUP_LIST" ]; then
-  echo "Running $TOTAL test groups (batch size: $BATCH_SIZE, groups: $GROUP_LIST)"
+  echo "Running $TOTAL test groups (max concurrency: $BATCH_SIZE, groups: $GROUP_LIST)"
 else
-  echo "Running $TOTAL test groups (batch size: $BATCH_SIZE, glob: $GROUP_GLOB)"
+  echo "Running $TOTAL test groups (max concurrency: $BATCH_SIZE, glob: $GROUP_GLOB)"
 fi
 echo "Start stagger: ${START_STAGGER_SEC}s"
 echo "Data dir: $FROST_DATA_DIR"
 echo ""
 
-for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
-  BATCH=$((BATCH+1))
-  PIDS=()
-  GROUP_PATHS=()
-  GROUP_NAMES=()
-  START_TIMES=()
-
-  END=$((i + BATCH_SIZE))
-  [ $END -gt $TOTAL ] && END=$TOTAL
-
-  echo "--- Batch $BATCH: groups $((i+1))-$END ---"
-
-  for ((j=i; j<END; j++)); do
-    group="${ALL_GROUPS[$j]}"
-    GROUP_NAME=$(basename "$group" .sh)
-    GROUP_PATHS+=("$group")
-    GROUP_NAMES+=("$GROUP_NAME")
-    START_TIMES+=("$(date +%s)")
-    "$group" &
-    PIDS+=($!)
-    if [ "$START_STAGGER_SEC" -gt 0 ] && [ "$j" -lt $((END - 1)) ]; then
-      sleep "$START_STAGGER_SEC"
-    fi
-  done
-
-  for k in "${!PIDS[@]}"; do
-    PID=${PIDS[$k]}
-    GROUP_PATH=${GROUP_PATHS[$k]}
-    GROUP=${GROUP_NAMES[$k]}
-    START_TS=${START_TIMES[$k]}
-    if wait "$PID"; then
-      END_TS=$(date +%s)
-      DURATION=$((END_TS - START_TS))
-      echo "✓ $GROUP passed"
-      record_result "$GROUP" "passed" "$DURATION" 1
-    else
-      END_TS=$(date +%s)
-      DURATION=$((END_TS - START_TS))
-      echo "✗ $GROUP FAILED"
-      record_result "$GROUP" "failed" "$DURATION" 1
-      FAILED=1
-      FAILED_GROUP_PATHS+=("$GROUP_PATH")
-      FAILED_GROUP_NAMES+=("$GROUP")
-    fi
-  done
-  echo ""
-done
+run_e2e_group_pool
+echo ""
 
 if [ "$FAILED" -ne 0 ] && [ "$RETRY_FAILED" = "1" ] && [ "${#FAILED_GROUP_PATHS[@]}" -gt 0 ]; then
   echo "Retrying failed groups once..."

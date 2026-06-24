@@ -688,6 +688,49 @@ function isMissingTableError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("no such table");
 }
 
+function getNumericProperty(
+  value: unknown,
+  property: "hostPort" | "runtimeHostPort",
+): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const propertyValue = (value as Record<string, unknown>)[property];
+  return typeof propertyValue === "number" ? propertyValue : null;
+}
+
+export function getDatabaseTargetReservedPorts(input: {
+  providerRefJson: string;
+  runtimeHostPort?: number | null;
+}): number[] {
+  let providerRef: unknown;
+  try {
+    providerRef = JSON.parse(input.providerRefJson);
+  } catch {
+    providerRef = null;
+  }
+
+  const ports = new Set<number>();
+  const hostPort = getNumericProperty(providerRef, "hostPort");
+  const providerRuntimeHostPort = getNumericProperty(
+    providerRef,
+    "runtimeHostPort",
+  );
+
+  if (hostPort !== null) {
+    ports.add(hostPort);
+  }
+  if (providerRuntimeHostPort !== null) {
+    ports.add(providerRuntimeHostPort);
+  }
+  if (typeof input.runtimeHostPort === "number") {
+    ports.add(input.runtimeHostPort);
+  }
+
+  return [...ports];
+}
+
 export async function getAvailablePort(
   start: number = 10000,
   end: number = 20000,
@@ -740,6 +783,23 @@ export async function getAvailablePort(
     for (const r of replicas) {
       if (r.hostPort) {
         usedPorts.add(r.hostPort);
+      }
+    }
+  } catch (error) {
+    if (!isMissingTableError(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    const databaseTargets = await db
+      .selectFrom("databaseTargets")
+      .select(["providerRefJson", "runtimeHostPort"])
+      .where("lifecycleStatus", "in", ["active", "stopped"])
+      .execute();
+    for (const target of databaseTargets) {
+      for (const port of getDatabaseTargetReservedPorts(target)) {
+        usedPorts.add(port);
       }
     }
   } catch (error) {
