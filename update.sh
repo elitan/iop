@@ -128,6 +128,42 @@ ensure_cleanup_script_executable() {
   fi
 }
 
+ensure_cleanup_api_key() {
+  local env_file="$FROST_DIR/.env"
+  local jwt_secret
+  local data_dir
+
+  jwt_secret=$(get_env_value "$env_file" "FROST_JWT_SECRET")
+  if [ -z "$jwt_secret" ]; then
+    error "FROST_JWT_SECRET missing; cannot provision cleanup API key"
+    return 1
+  fi
+
+  data_dir=$(get_env_value "$env_file" "FROST_DATA_DIR")
+  if [ -z "$data_dir" ]; then
+    data_dir="$FROST_DIR/data"
+  fi
+
+  if [ -f "$FROST_DIR/scripts/ensure-cleanup-api-key.ts" ]; then
+    (
+      cd "$FROST_DIR" && FROST_JWT_SECRET="$jwt_secret" \
+        FROST_DATA_DIR="$data_dir" bun scripts/ensure-cleanup-api-key.ts
+    )
+    return
+  fi
+
+  if [ -f "$FROST_DIR/apps/app/scripts/ensure-cleanup-api-key.ts" ]; then
+    (
+      cd "$FROST_DIR" && FROST_JWT_SECRET="$jwt_secret" \
+        FROST_DATA_DIR="$data_dir" bun --cwd apps/app scripts/ensure-cleanup-api-key.ts
+    )
+    return
+  fi
+
+  error "Cleanup API key provisioner not found"
+  return 1
+}
+
 get_sqlite_db_path() {
   local env_file="$FROST_DIR/.env"
   local db_path
@@ -469,6 +505,8 @@ if [ "$GIT_MODE" = true ]; then
 
   if [ "$LOCAL" = "$REMOTE" ] && [ "$CONVERTED_FROM_TARBALL" = false ]; then
     log "Already up to date (v$CURRENT_VERSION)"
+    log "Ensuring cleanup API key..."
+    ensure_cleanup_api_key
     if [ "$PRE_START" = false ]; then
       systemctl start frost 2>/dev/null || true
     fi
@@ -530,6 +568,9 @@ if [ "$GIT_MODE" = true ]; then
   log "Running migrations..."
   bun run migrate 2>&1
 
+  log "Ensuring cleanup API key..."
+  ensure_cleanup_api_key
+
   NEW_VERSION=$(cat apps/app/package.json | grep '"version"' | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
   rm -rf "$BACKUP_DIR"
 
@@ -553,6 +594,8 @@ else
 
   if [ "v$CURRENT_VERSION" = "v$LATEST_VERSION" ]; then
     log "Already up to date (v$CURRENT_VERSION)"
+    log "Ensuring cleanup API key..."
+    ensure_cleanup_api_key
     if [ "$PRE_START" = false ]; then
       systemctl start frost 2>/dev/null || true
     fi
@@ -600,6 +643,9 @@ else
 
   log "Running migrations..."
   bun run migrate 2>&1
+
+  log "Ensuring cleanup API key..."
+  ensure_cleanup_api_key
 
   rm -rf "$BACKUP_DIR"
 

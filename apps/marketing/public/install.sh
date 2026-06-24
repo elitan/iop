@@ -274,6 +274,15 @@ fi
 timer "Running migrations..."
 bun run migrate
 
+timer "Ensuring cleanup API key..."
+if [ "$USE_TARBALL" = true ]; then
+  FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" \
+    bun scripts/ensure-cleanup-api-key.ts
+else
+  FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" \
+    bun --cwd apps/app scripts/ensure-cleanup-api-key.ts
+fi
+
 # Create systemd service
 echo ""
 timer "Creating systemd service..."
@@ -356,7 +365,7 @@ if [ "$CREATE_API_KEY" = true ]; then
   echo ""
   timer "Creating API key..."
   if [ "$USE_TARBALL" = true ]; then
-    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun run scripts/create-api-key.ts install)
+    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun scripts/create-api-key.ts install)
   else
     FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun --cwd apps/app scripts/create-api-key.ts install)
   fi
