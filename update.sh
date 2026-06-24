@@ -160,8 +160,8 @@ ensure_cleanup_api_key() {
     return
   fi
 
-  error "Cleanup API key provisioner not found"
-  return 1
+  log "Cleanup API key provisioner not found; skipping for older install"
+  return 0
 }
 
 get_sqlite_db_path() {
