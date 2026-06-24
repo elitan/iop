@@ -27,7 +27,7 @@ interface StagedServicesListProps {
   isLoading?: boolean;
 }
 
-function getRepoFolder(path: string): string {
+function getDockerfileDirectory(path: string): string {
   const lastSlash = path.lastIndexOf("/");
   if (lastSlash === -1) return "repo root";
   return path.slice(0, lastSlash);
@@ -148,9 +148,9 @@ export function StagedServicesList({
                       </div>
                     </div>
                     <div className="text-neutral-500">
-                      Folder:{" "}
+                      Dockerfile directory:{" "}
                       <span className="font-mono text-neutral-300">
-                        {getRepoFolder(service.dockerfilePath)}
+                        {getDockerfileDirectory(service.dockerfilePath)}
                       </span>
                     </div>
                     {service.frostFilePath && (
