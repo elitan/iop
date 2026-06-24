@@ -19,7 +19,7 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -29,7 +29,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -39,7 +39,7 @@ jobs:
   migrations:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -48,7 +48,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [typecheck, lint, migrations, test]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -98,14 +98,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create server from snapshot
         id: server
         run: |
           echo "Creating server from snapshot..."
           DELAYS=(0 30 60 120 240 600)
-          LOCATIONS=(hel1 fsn1 nbg1)
+          LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
           else
@@ -144,6 +144,7 @@ jobs:
                   echo "skipped=false" >> $GITHUB_OUTPUT
                   echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
                   echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+                  echo "location=$LOCATION" >> $GITHUB_OUTPUT
                   echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
                   exit 0
                 fi
@@ -425,7 +426,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get latest release tag
         id: release
@@ -448,7 +449,7 @@ jobs:
         run: |
           echo "Creating server from snapshot..."
           DELAYS=(0 30 60 120 240 600)
-          LOCATIONS=(hel1 fsn1 nbg1)
+          LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
           else
@@ -487,6 +488,7 @@ jobs:
                   echo "skipped=false" >> $GITHUB_OUTPUT
                   echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
                   echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+                  echo "location=$LOCATION" >> $GITHUB_OUTPUT
                   echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
                   exit 0
                 fi
