@@ -104,7 +104,12 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(0 30 60 120 240 600)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60 120 240 600}"
+          else
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60}"
+          fi
+          echo "Capacity retry delays: ${DELAYS[*]}s"
           LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
@@ -351,6 +356,7 @@ jobs:
         if: steps.server.outputs.skipped != 'true'
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
+          E2E_BATCH_SIZE: 2
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
           set -o pipefail
@@ -448,7 +454,12 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
-          DELAYS=(0 30 60 120 240 600)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60 120 240 600}"
+          else
+            read -r -a DELAYS <<< "${HETZNER_CAPACITY_RETRY_DELAYS:-0 30 60}"
+          fi
+          echo "Capacity retry delays: ${DELAYS[*]}s"
           LOCATIONS=(fsn1 nbg1 hel1)
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             SERVER_TYPES=(cax21 cax31 cax41)
@@ -614,35 +625,20 @@ jobs:
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: predata
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-upgrade-create.sh
           ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-create.log
 
       - name: Upgrade to PR branch
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
-          BRANCH="${{ github.head_ref || github.ref_name }}"
-          REPO="${{ github.repository }}"
-
-          echo "Upgrading from ${{ steps.release.outputs.tag }} to branch: $BRANCH using update.sh"
-
-          curl -fsSL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/update.sh" -o /tmp/update.sh
-
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
-            git config --global --add safe.directory /opt/frost && \
-            if [ ! -d .git ]; then \
-              echo 'Initializing git repo (tarball installation detected)'; \
-              git init && \
-              git remote add origin https://github.com/${REPO}.git; \
-            else \
-              git remote set-url origin https://github.com/${REPO}.git; \
-            fi && \
-            git fetch origin ${BRANCH}:refs/remotes/origin/main -f" 2>&1 | tee /tmp/e2e-git-setup.log
-
-          scp /tmp/update.sh root@${{ steps.server.outputs.ip }}:/opt/frost/update.sh
-          ssh root@${{ steps.server.outputs.ip }} "chmod +x /opt/frost/update.sh && \
-            sed -i 's|git fetch origin main.*|:|' /opt/frost/update.sh"
-
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "/opt/frost/update.sh" 2>&1 | tee /tmp/e2e-upgrade.log
+          set -o pipefail
+          chmod +x ./apps/app/scripts/e2e-update-ui.sh
+          ./apps/app/scripts/e2e-update-ui.sh \
+            "${{ steps.server.outputs.ip }}" \
+            "${{ steps.install.outputs.api_key }}" \
+            "${{ github.head_ref || github.ref_name }}" \
+            "${{ github.repository }}" 2>&1 | tee /tmp/e2e-upgrade.log
 
       - name: Initialize test fixture git repos
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
@@ -708,44 +704,10 @@ jobs:
           echo "Using local broken migration branch: $BROKEN_BRANCH"
           echo "branch=$BROKEN_BRANCH" >> $GITHUB_OUTPUT
 
-      - name: Reset to release version for rollback and UI tests
-        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
-        run: |
-          TAG="${{ steps.release.outputs.tag }}"
-          echo "Resetting to release $TAG..."
-
-          ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "cd /opt/frost && \
-            systemctl stop frost && \
-            rm -rf repos apps && \
-            git fetch origin && \
-            git checkout -f $TAG && \
-            git reset --hard $TAG && \
-            git clean -fdx -e data -e .env && \
-            export BUN_INSTALL=\"\$HOME/.bun\" && \
-            export PATH=\"\$BUN_INSTALL/bin:\$PATH\" && \
-            bun install --frozen-lockfile 2>&1 && \
-            (for attempt in 1 2 3; do if NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1; then exit 0; fi; echo \"Build failed (attempt \$attempt/3), retrying...\"; rm -rf apps/app/.next; sleep 2; done; exit 1) && \
-            bun run migrate 2>&1 && \
-            sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service && \
-            systemctl daemon-reload && \
-            systemctl start frost" 2>&1 | tee /tmp/e2e-reset-release.log
-
-          echo "Waiting for Frost on port 3000..."
-          for i in {1..24}; do
-            if curl -s "http://${{ steps.server.outputs.ip }}:3000/api/health" | grep -q "ok"; then
-              echo "Frost is ready!"
-              exit 0
-            fi
-            echo "Attempt $i: Frost not ready..."
-            sleep 5
-          done
-          echo "Frost failed to start"
-          ssh root@${{ steps.server.outputs.ip }} "journalctl -u frost --no-pager -n 100" || true
-          exit 1
-
       - name: Test rollback on build failure
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
             "${{ steps.server.outputs.ip }}" \
@@ -756,6 +718,7 @@ jobs:
       - name: Test rollback on migration failure
         if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
+          set -o pipefail
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
             "${{ steps.server.outputs.ip }}" \
@@ -763,16 +726,6 @@ jobs:
             "${{ steps.broken_migration.outputs.branch }}" \
             "${{ github.repository }}" \
             migration 2>&1 | tee /tmp/e2e-migration-rollback.log
-
-      - name: Test UI-triggered update flow
-        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
-        run: |
-          chmod +x ./apps/app/scripts/e2e-update-ui.sh
-          ./apps/app/scripts/e2e-update-ui.sh \
-            "${{ steps.server.outputs.ip }}" \
-            "${{ steps.install.outputs.api_key }}" \
-            "${{ github.head_ref || github.ref_name }}" \
-            "${{ github.repository }}" 2>&1 | tee /tmp/e2e-update-ui.log
 
       - name: Cleanup broken branch
         if: always() && steps.broken.outputs.branch

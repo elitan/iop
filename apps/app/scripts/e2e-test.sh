@@ -19,10 +19,11 @@ export API_KEY
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 E2E_DIR="$SCRIPT_DIR/e2e"
+source "$SCRIPT_DIR/e2e-runner.sh"
 
 echo "========================================"
 echo "Running E2E tests against http://$SERVER_IP:3000"
-echo "Batch size: $BATCH_SIZE groups at a time"
+echo "Max concurrency: $BATCH_SIZE groups"
 echo "Start stagger: ${START_STAGGER_SEC}s"
 echo "========================================"
 echo ""
@@ -77,7 +78,6 @@ else
 fi
 
 TOTAL=${#ALL_GROUPS[@]}
-BATCH=0
 
 if [ "$TOTAL" -eq 0 ]; then
   if [ -n "$GROUP_LIST" ]; then
@@ -91,39 +91,8 @@ fi
 echo "Total test groups: $TOTAL"
 echo ""
 
-for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
-  BATCH=$((BATCH+1))
-  PIDS=()
-  GROUP_NAMES=()
-
-  END=$((i + BATCH_SIZE))
-  [ $END -gt $TOTAL ] && END=$TOTAL
-
-  echo "--- Batch $BATCH: groups $((i+1))-$END ---"
-
-  for ((j=i; j<END; j++)); do
-    group="${ALL_GROUPS[$j]}"
-    GROUP_NAME=$(basename "$group" .sh)
-    GROUP_NAMES+=("$GROUP_NAME")
-    "$group" &
-    PIDS+=($!)
-    if [ "$START_STAGGER_SEC" -gt 0 ] && [ "$j" -lt $((END - 1)) ]; then
-      sleep "$START_STAGGER_SEC"
-    fi
-  done
-
-  for k in "${!PIDS[@]}"; do
-    PID=${PIDS[$k]}
-    GROUP=${GROUP_NAMES[$k]}
-    if wait "$PID"; then
-      echo "✓ $GROUP passed"
-    else
-      echo "✗ $GROUP FAILED"
-      FAILED=1
-    fi
-  done
-  echo ""
-done
+run_e2e_group_pool
+echo ""
 
 if [ "$FAILED" -eq 0 ]; then
   echo "========================================"

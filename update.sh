@@ -332,6 +332,14 @@ ensure_zfs_branching_setup() {
   fi
 }
 
+rebuild_restored_git_version() {
+  log "Restoring dependencies for previous version..."
+  bun install --frozen-lockfile 2>&1 || return 1
+
+  log "Rebuilding previous version..."
+  NEXT_TELEMETRY_DISABLED=1 bun run build 2>&1 || return 1
+}
+
 cleanup_on_failure() {
   error "Update failed!"
   echo "failed" > "$UPDATE_RESULT"
@@ -342,6 +350,9 @@ cleanup_on_failure() {
     PREV_COMMIT=$(cat "$BACKUP_DIR/commit")
     cd "$FROST_DIR"
     git reset --hard "$PREV_COMMIT" 2>/dev/null || true
+    if ! rebuild_restored_git_version; then
+      error "Failed to rebuild previous version after rollback"
+    fi
     rm -rf "$BACKUP_DIR"
   elif [ -d "$BACKUP_DIR" ]; then
     log "Restoring previous version..."
@@ -559,7 +570,7 @@ if [ "$GIT_MODE" = true ]; then
   done
   if [ "$BUILD_OK" = false ]; then
     error "Build failed after 3 attempts"
-    exit 1
+    cleanup_on_failure
   fi
 
   log "Backing up SQLite database..."
