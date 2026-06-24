@@ -39,6 +39,10 @@ import {
 } from "@/hooks/use-domains";
 import type { Domain } from "@/lib/api";
 import { extractSubdomain } from "@/lib/domain-utils";
+import {
+  getDomainNameValidationError,
+  normalizeDomainName,
+} from "@/lib/domain-validation";
 
 interface VerificationState {
   isChecking: boolean;
@@ -95,6 +99,7 @@ export function DomainsSection({
   const customDomains = domains?.filter((d) => !d.isSystem) || [];
   const hasOtherVerifiedDomains =
     customDomains.filter((d) => d.dnsVerified).length > 0;
+  const newDomainError = getDomainNameValidationError(newDomain);
 
   const unverifiedDomainIds = useMemo(
     () => domains?.filter((d) => !d.dnsVerified).map((d) => d.id) || [],
@@ -179,9 +184,14 @@ export function DomainsSection({
   async function handleAddDomain() {
     if (!newDomain) return;
 
+    if (newDomainError) {
+      toast.error(newDomainError);
+      return;
+    }
+
     try {
       await addMutation.mutateAsync({
-        domain: newDomain,
+        domain: normalizeDomainName(newDomain),
         type: domainType,
         redirectTarget: domainType === "redirect" ? redirectTarget : undefined,
         redirectCode:
@@ -311,9 +321,13 @@ export function DomainsSection({
                 value={newDomain}
                 onChange={(e) => setNewDomain(e.target.value)}
                 placeholder="example.com"
+                aria-invalid={Boolean(newDomainError)}
                 className="h-10 pl-9 border-neutral-700 bg-neutral-900 text-white placeholder:text-neutral-500"
               />
             </div>
+            {newDomainError && (
+              <p className="mt-2 text-sm text-red-400">{newDomainError}</p>
+            )}
 
             <div className="mt-4 space-y-3 rounded-md border border-neutral-800 p-4">
               <label className="flex cursor-pointer items-start gap-3">
@@ -407,6 +421,7 @@ export function DomainsSection({
                 disabled={
                   addMutation.isPending ||
                   !newDomain ||
+                  Boolean(newDomainError) ||
                   (domainType === "redirect" && !redirectTarget)
                 }
               >

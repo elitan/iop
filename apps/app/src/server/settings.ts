@@ -307,22 +307,16 @@ export const settings = {
         });
       }
 
-      const domainWithoutWildcard = wildcardDomain.replace(/^\*\./, "");
-
       let dnsWarning: string | undefined;
       try {
         const serverIp = await getServerIp();
-        await createWildcardARecord(
-          dnsApiToken,
-          domainWithoutWildcard,
-          serverIp,
-        );
+        await createWildcardARecord(dnsApiToken, wildcardDomain, serverIp);
       } catch (error) {
         dnsWarning =
           error instanceof Error ? error.message : "DNS record creation failed";
       }
 
-      await setSetting("wildcard_domain", domainWithoutWildcard);
+      await setSetting("wildcard_domain", wildcardDomain);
       await setSetting("dns_provider", dnsProvider);
       await setSetting("dns_api_token", dnsApiToken);
 

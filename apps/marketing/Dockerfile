@@ -13,6 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/app/node_modules ./apps/app/node_modules
 COPY apps/app/src/contracts ./apps/app/src/contracts
 COPY apps/app/src/lib/db-schemas.ts ./apps/app/src/lib/db-schemas.ts
+COPY apps/app/src/lib/domain-validation.ts ./apps/app/src/lib/domain-validation.ts
 COPY apps/app/scripts/generate-openapi.ts ./apps/app/scripts/
 COPY apps/app/tsconfig.json ./apps/app/
 WORKDIR /app/apps/app

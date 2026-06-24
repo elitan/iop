@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDemoMode } from "@/hooks/use-demo-mode";
+import {
+  getDomainNameValidationError,
+  normalizeDomainName,
+} from "@/lib/domain-validation";
 import { orpc } from "@/lib/orpc-client";
 
 export function WildcardSection() {
@@ -29,6 +33,7 @@ export function WildcardSection() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const domainError = getDomainNameValidationError(domain);
 
   const { data: config } = useQuery(orpc.settings.wildcard.get.queryOptions());
   const { data: settings } = useQuery(orpc.settings.get.queryOptions());
@@ -117,10 +122,14 @@ export function WildcardSection() {
   async function handleSave() {
     if (demoMode) return;
     if (!domain || !apiToken) return;
+    if (domainError) {
+      setError(domainError);
+      return;
+    }
     setError("");
     setSuccess(false);
     saveMutation.mutate({
-      wildcardDomain: domain,
+      wildcardDomain: normalizeDomainName(domain),
       dnsProvider: "cloudflare",
       dnsApiToken: apiToken,
     });
@@ -155,7 +164,9 @@ export function WildcardSection() {
         ) : (
           <Button
             type="submit"
-            disabled={demoMode || !domain || !apiToken || saving}
+            disabled={
+              demoMode || !domain || Boolean(domainError) || !apiToken || saving
+            }
           >
             {saving ? (
               <>
@@ -222,9 +233,11 @@ export function WildcardSection() {
             value={domain}
             onChange={(e) => setDomain(e.target.value.replace(/^\*\./, ""))}
             placeholder="apps.example.com"
+            aria-invalid={Boolean(domainError)}
             disabled={demoMode || Boolean(config?.configured)}
             className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
           />
+          {domainError && <p className="text-sm text-red-400">{domainError}</p>}
           <p className="text-xs text-neutral-500">
             Services get subdomains like: api-myproject.
             {domain || "apps.example.com"}

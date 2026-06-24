@@ -2,6 +2,7 @@ import { promises as dns } from "node:dns";
 import { getSetting } from "./auth";
 import { acmeIssuer, type DnsConfig, dnsAcmeIssuer } from "./caddy";
 import { db } from "./db";
+import { normalizeDomainName, parseDomainName } from "./domain-validation";
 import { newDomainId } from "./id";
 
 const CADDY_ADMIN = "http://localhost:2019";
@@ -27,6 +28,7 @@ export async function addDomain(
   input: DomainInput,
 ) {
   const { domain, type = "proxy", redirectTarget, redirectCode = 301 } = input;
+  const normalizedDomain = parseDomainName(domain);
 
   const id = newDomainId();
   const now = Date.now();
@@ -37,7 +39,7 @@ export async function addDomain(
       id,
       serviceId: serviceId,
       environmentId: environmentId,
-      domain: domain.toLowerCase(),
+      domain: normalizedDomain,
       type,
       redirectTarget: type === "redirect" ? redirectTarget : null,
       redirectCode: type === "redirect" ? redirectCode : null,
@@ -66,7 +68,7 @@ export async function getDomainByName(domain: string) {
   return db
     .selectFrom("domains")
     .selectAll()
-    .where("domain", "=", domain.toLowerCase())
+    .where("domain", "=", normalizeDomainName(domain))
     .executeTakeFirst();
 }
 

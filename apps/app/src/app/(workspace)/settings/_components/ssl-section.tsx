@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDemoMode } from "@/hooks/use-demo-mode";
+import {
+  getDomainNameValidationError,
+  normalizeDomainName,
+} from "@/lib/domain-validation";
 import { orpc } from "@/lib/orpc-client";
 
 interface DnsStatus {
@@ -32,6 +36,7 @@ export function SslSection() {
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const domainError = getDomainNameValidationError(domain);
 
   const { data: settings } = useQuery(orpc.settings.get.queryOptions());
 
@@ -102,7 +107,7 @@ export function SslSection() {
   const enableSslMutation = useMutation(
     orpc.settings.enableSsl.mutationOptions({
       onSuccess: () => {
-        setCurrentDomain(domain);
+        setCurrentDomain(normalizeDomainName(domain));
         setSslStatus("pending");
       },
       onError: (err) => {
@@ -114,17 +119,26 @@ export function SslSection() {
   async function handleVerifyDns() {
     if (demoMode) return;
     if (!domain) return;
+    if (domainError) {
+      setError(domainError);
+      return;
+    }
     setError("");
     setDnsStatus(null);
-    verifyDnsMutation.mutate({ domain });
+    verifyDnsMutation.mutate({ domain: normalizeDomainName(domain) });
   }
 
   async function handleEnableSsl() {
     if (demoMode) return;
     if (!domain || !email || !dnsStatus?.valid) return;
+    if (domainError) {
+      setError(domainError);
+      return;
+    }
+    const normalizedDomain = normalizeDomainName(domain);
     setError("");
     setPollingTimedOut(false);
-    enableSslMutation.mutate({ domain, email, staging });
+    enableSslMutation.mutate({ domain: normalizedDomain, email, staging });
   }
 
   const enabling = enableSslMutation.isPending;
@@ -142,6 +156,7 @@ export function SslSection() {
           disabled={
             demoMode ||
             !domain ||
+            Boolean(domainError) ||
             !email ||
             !dnsStatus?.valid ||
             enabling ||
@@ -228,13 +243,16 @@ export function SslSection() {
                 setDnsStatus(null);
               }}
               placeholder="frost.example.com"
+              aria-invalid={Boolean(domainError)}
               disabled={demoMode}
               className="h-10 border-neutral-800 bg-neutral-900 text-white placeholder:text-neutral-600 focus-visible:ring-neutral-700"
             />
             <Button
               variant="secondary"
               onClick={handleVerifyDns}
-              disabled={demoMode || !domain || verifying}
+              disabled={
+                demoMode || !domain || Boolean(domainError) || verifying
+              }
             >
               {verifying ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -243,6 +261,7 @@ export function SslSection() {
               )}
             </Button>
           </div>
+          {domainError && <p className="text-sm text-red-400">{domainError}</p>}
         </div>
 
         {dnsStatus && (

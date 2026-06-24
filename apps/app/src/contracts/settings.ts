@@ -1,5 +1,9 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import {
+  domainNameSchema,
+  wildcardDomainNameSchema,
+} from "@/contracts/domain-schemas";
 
 export const settingsContract = {
   get: oc.route({ method: "GET", path: "/settings" }).output(
@@ -14,7 +18,7 @@ export const settingsContract = {
 
   verifyDns: oc
     .route({ method: "POST", path: "/settings/verify-dns" })
-    .input(z.object({ domain: z.string() }))
+    .input(z.object({ domain: domainNameSchema }))
     .output(
       z.object({
         valid: z.boolean(),
@@ -26,7 +30,7 @@ export const settingsContract = {
 
   verifySsl: oc
     .route({ method: "POST", path: "/settings/verify-ssl" })
-    .input(z.object({ domain: z.string() }))
+    .input(z.object({ domain: domainNameSchema }))
     .output(
       z.object({
         working: z.boolean(),
@@ -38,7 +42,7 @@ export const settingsContract = {
     .route({ method: "POST", path: "/settings/enable-ssl" })
     .input(
       z.object({
-        domain: z.string(),
+        domain: domainNameSchema,
         email: z.string(),
         staging: z.boolean().optional(),
       }),
@@ -117,7 +121,7 @@ export const settingsContract = {
       .route({ method: "POST", path: "/settings/wildcard" })
       .input(
         z.object({
-          wildcardDomain: z.string(),
+          wildcardDomain: wildcardDomainNameSchema,
           dnsProvider: z.string(),
           dnsApiToken: z.string(),
         }),

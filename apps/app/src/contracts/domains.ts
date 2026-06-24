@@ -1,5 +1,6 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import { domainNameSchema } from "@/contracts/domain-schemas";
 import { domainsSchema } from "@/lib/db-schemas";
 
 const dnsVerifyResultSchema = z.object({
@@ -41,7 +42,7 @@ export const domainsContract = {
     .input(
       z.object({
         serviceId: z.string(),
-        domain: z.string().min(1),
+        domain: domainNameSchema,
         type: z.enum(["proxy", "redirect"]).default("proxy"),
         redirectTarget: z.string().optional(),
         redirectCode: z.union([z.literal(301), z.literal(307)]).optional(),
