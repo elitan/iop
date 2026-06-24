@@ -104,59 +104,73 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
+          DELAYS=(0 30 60 120 240 600)
           LOCATIONS=(fsn1 nbg1 hel1)
-          DELAYS=(30 60 120 240 600 1200)
-          MAX_ATTEMPTS=${#DELAYS[@]}
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            SERVER_TYPES=(cax21 cax31 cax41)
+          else
+            SERVER_TYPES=("${{ matrix.server_type }}")
+          fi
+          ATTEMPT=1
+          LAST_ERROR_CODE=""
+          NON_CAPACITY_ERROR=0
 
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            LOCATION=${LOCATIONS[$(((attempt - 1) % ${#LOCATIONS[@]}))]}
-            echo "Attempt $attempt/$MAX_ATTEMPTS in $LOCATION..."
-            RESPONSE=$(curl -s -X POST \
-              -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg name "frost-e2e-${{ github.run_id }}-${{ matrix.arch }}" \
-                --arg server_type "${{ matrix.server_type }}" \
-                --arg image "${{ matrix.snapshot_id }}" \
-                --arg location "$LOCATION" \
-                --arg ssh_key "${{ env.SSH_KEY_NAME }}" \
-                '{
-                  name: $name,
-                  server_type: $server_type,
-                  image: $image,
-                  location: $location,
-                  ssh_keys: [$ssh_key],
-                  start_after_create: true,
-                  labels: {purpose: "frost-e2e"}
-                }')" \
-              "https://api.hetzner.cloud/v1/servers")
-
-            SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
-            SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
-
-            if [ "$SERVER_ID" != "null" ] && [ -n "$SERVER_ID" ]; then
-              echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
-              echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
-              echo "location=$LOCATION" >> $GITHUB_OUTPUT
-              echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
-              exit 0
+          for DELAY in "${DELAYS[@]}"; do
+            if [ "$DELAY" != "0" ]; then
+              echo "Waiting ${DELAY}s before retry sweep..."
+              sleep "$DELAY"
             fi
 
-            ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error.code // empty')
-            echo "Failed to create server (error: $ERROR_CODE):"
-            echo "$RESPONSE" | jq
+            for SERVER_TYPE in "${SERVER_TYPES[@]}"; do
+              for LOCATION in "${LOCATIONS[@]}"; do
+                echo "Attempt $ATTEMPT with $SERVER_TYPE in $LOCATION..."
+                RESPONSE=$(curl -s -X POST \
+                  -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+                  -H "Content-Type: application/json" \
+                  -d "$(jq -n \
+                    --arg name "frost-e2e-${{ github.run_id }}-${{ matrix.arch }}" \
+                    --arg server_type "$SERVER_TYPE" \
+                    --arg image "${{ matrix.snapshot_id }}" \
+                    --arg location "$LOCATION" \
+                    --arg ssh_key "${{ env.SSH_KEY_NAME }}" \
+                    --arg purpose "frost-e2e" \
+                    '{name: $name, server_type: $server_type, image: $image, location: $location, ssh_keys: [$ssh_key], start_after_create: true, labels: {purpose: $purpose}}')" \
+                  "https://api.hetzner.cloud/v1/servers")
 
-            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
-              DELAY=${DELAYS[$((attempt - 1))]}
-              echo "Waiting ${DELAY}s before retry..."
-              sleep $DELAY
-            fi
+                SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
+                SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
+
+                if [ "$SERVER_ID" != "null" ] && [ -n "$SERVER_ID" ]; then
+                  echo "skipped=false" >> $GITHUB_OUTPUT
+                  echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+                  echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+                  echo "location=$LOCATION" >> $GITHUB_OUTPUT
+                  echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
+                  exit 0
+                fi
+
+                ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error.code // empty')
+                LAST_ERROR_CODE="$ERROR_CODE"
+                if [ "$ERROR_CODE" != "resource_unavailable" ]; then
+                  NON_CAPACITY_ERROR=1
+                fi
+                echo "Failed to create server with $SERVER_TYPE in $LOCATION (error: $ERROR_CODE):"
+                echo "$RESPONSE" | jq
+                ATTEMPT=$((ATTEMPT + 1))
+              done
+            done
           done
 
-          echo "All $MAX_ATTEMPTS attempts failed"
+          echo "All server creation attempts failed"
+          if [ "$LAST_ERROR_CODE" = "resource_unavailable" ] && [ "$NON_CAPACITY_ERROR" = "0" ]; then
+            echo "skipped=true" >> $GITHUB_OUTPUT
+            echo "Skipping ${{ matrix.arch }} e2e because Hetzner returned resource_unavailable for every server type and location"
+            exit 0
+          fi
           exit 1
 
       - name: Wait for server ready
+        if: steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for server to be running..."
           for i in {1..30}; do
@@ -174,6 +188,7 @@ jobs:
           done
 
       - name: Setup SSH
+        if: steps.server.outputs.skipped != 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
@@ -181,6 +196,7 @@ jobs:
           ssh-keyscan -H ${{ steps.server.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Wait for SSH
+        if: steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for SSH..."
           for i in {1..30}; do
@@ -195,6 +211,7 @@ jobs:
           exit 1
 
       - name: Install Frost
+        if: steps.server.outputs.skipped != 'true'
         id: install
         run: |
           BRANCH="${{ github.head_ref || github.ref_name }}"
@@ -244,6 +261,7 @@ jobs:
             done'
 
       - name: Wait for Frost
+        if: steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for Frost (HTTPS with self-signed cert)..."
           for i in {1..12}; do
@@ -259,6 +277,7 @@ jobs:
           exit 1
 
       - name: Setup ZFS branching backend
+        if: steps.server.outputs.skipped != 'true'
         run: |
           ssh root@${{ steps.server.outputs.ip }} '
             set -euo pipefail
@@ -329,6 +348,7 @@ jobs:
           exit 1
 
       - name: Run E2E tests
+        if: steps.server.outputs.skipped != 'true'
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
@@ -337,7 +357,7 @@ jobs:
           ./apps/app/scripts/e2e-test.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-tests.log
 
       - name: Collect logs on failure
-        if: failure()
+        if: failure() && steps.server.outputs.skipped != 'true' && steps.server.outputs.ip
         run: |
           echo "=========================================="
           echo "=== LOCAL TEST SCRIPT OUTPUT ==="
@@ -428,60 +448,73 @@ jobs:
         id: server
         run: |
           echo "Creating server from snapshot..."
+          DELAYS=(0 30 60 120 240 600)
           LOCATIONS=(fsn1 nbg1 hel1)
-          DELAYS=(30 60 120 240 600 1200)
-          MAX_ATTEMPTS=${#DELAYS[@]}
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            SERVER_TYPES=(cax21 cax31 cax41)
+          else
+            SERVER_TYPES=("${{ matrix.server_type }}")
+          fi
+          ATTEMPT=1
+          LAST_ERROR_CODE=""
+          NON_CAPACITY_ERROR=0
 
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            LOCATION=${LOCATIONS[$(((attempt - 1) % ${#LOCATIONS[@]}))]}
-            echo "Attempt $attempt/$MAX_ATTEMPTS in $LOCATION..."
-            RESPONSE=$(curl -s -X POST \
-              -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg name "frost-upgrade-${{ github.run_id }}-${{ matrix.arch }}" \
-                --arg server_type "${{ matrix.server_type }}" \
-                --arg image "${{ matrix.snapshot_id }}" \
-                --arg location "$LOCATION" \
-                --arg ssh_key "${{ env.SSH_KEY_NAME }}" \
-                '{
-                  name: $name,
-                  server_type: $server_type,
-                  image: $image,
-                  location: $location,
-                  ssh_keys: [$ssh_key],
-                  start_after_create: true,
-                  labels: {purpose: "frost-e2e-upgrade"}
-                }')" \
-              "https://api.hetzner.cloud/v1/servers")
-
-            SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
-            SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
-
-            if [ "$SERVER_ID" != "null" ] && [ -n "$SERVER_ID" ]; then
-              echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
-              echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
-              echo "location=$LOCATION" >> $GITHUB_OUTPUT
-              echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
-              exit 0
+          for DELAY in "${DELAYS[@]}"; do
+            if [ "$DELAY" != "0" ]; then
+              echo "Waiting ${DELAY}s before retry sweep..."
+              sleep "$DELAY"
             fi
 
-            ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error.code // empty')
-            echo "Failed to create server (error: $ERROR_CODE):"
-            echo "$RESPONSE" | jq
+            for SERVER_TYPE in "${SERVER_TYPES[@]}"; do
+              for LOCATION in "${LOCATIONS[@]}"; do
+                echo "Attempt $ATTEMPT with $SERVER_TYPE in $LOCATION..."
+                RESPONSE=$(curl -s -X POST \
+                  -H "Authorization: Bearer ${{ secrets.HETZNER_API_TOKEN }}" \
+                  -H "Content-Type: application/json" \
+                  -d "$(jq -n \
+                    --arg name "frost-upgrade-${{ github.run_id }}-${{ matrix.arch }}" \
+                    --arg server_type "$SERVER_TYPE" \
+                    --arg image "${{ matrix.snapshot_id }}" \
+                    --arg location "$LOCATION" \
+                    --arg ssh_key "${{ env.SSH_KEY_NAME }}" \
+                    --arg purpose "frost-e2e-upgrade" \
+                    '{name: $name, server_type: $server_type, image: $image, location: $location, ssh_keys: [$ssh_key], start_after_create: true, labels: {purpose: $purpose}}')" \
+                  "https://api.hetzner.cloud/v1/servers")
 
-            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
-              DELAY=${DELAYS[$((attempt - 1))]}
-              echo "Waiting ${DELAY}s before retry..."
-              sleep $DELAY
-            fi
+                SERVER_ID=$(echo "$RESPONSE" | jq -r '.server.id')
+                SERVER_IP=$(echo "$RESPONSE" | jq -r '.server.public_net.ipv4.ip')
+
+                if [ "$SERVER_ID" != "null" ] && [ -n "$SERVER_ID" ]; then
+                  echo "skipped=false" >> $GITHUB_OUTPUT
+                  echo "server_id=$SERVER_ID" >> $GITHUB_OUTPUT
+                  echo "ip=$SERVER_IP" >> $GITHUB_OUTPUT
+                  echo "location=$LOCATION" >> $GITHUB_OUTPUT
+                  echo "Server created: ID=$SERVER_ID, IP=$SERVER_IP"
+                  exit 0
+                fi
+
+                ERROR_CODE=$(echo "$RESPONSE" | jq -r '.error.code // empty')
+                LAST_ERROR_CODE="$ERROR_CODE"
+                if [ "$ERROR_CODE" != "resource_unavailable" ]; then
+                  NON_CAPACITY_ERROR=1
+                fi
+                echo "Failed to create server with $SERVER_TYPE in $LOCATION (error: $ERROR_CODE):"
+                echo "$RESPONSE" | jq
+                ATTEMPT=$((ATTEMPT + 1))
+              done
+            done
           done
 
-          echo "All $MAX_ATTEMPTS attempts failed"
+          echo "All server creation attempts failed"
+          if [ "$LAST_ERROR_CODE" = "resource_unavailable" ] && [ "$NON_CAPACITY_ERROR" = "0" ]; then
+            echo "skipped=true" >> $GITHUB_OUTPUT
+            echo "Skipping ${{ matrix.arch }} upgrade e2e because Hetzner returned resource_unavailable for every server type and location"
+            exit 0
+          fi
           exit 1
 
       - name: Wait for server ready
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for server to be running..."
           for i in {1..30}; do
@@ -499,7 +532,7 @@ jobs:
           done
 
       - name: Setup SSH
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
@@ -507,7 +540,7 @@ jobs:
           ssh-keyscan -H ${{ steps.server.outputs.ip }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Wait for SSH
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for SSH..."
           for i in {1..30}; do
@@ -522,7 +555,7 @@ jobs:
           exit 1
 
       - name: Install Frost from latest release
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: install
         run: |
           TAG="${{ steps.release.outputs.tag }}"
@@ -562,7 +595,7 @@ jobs:
           echo "API key extracted: ${API_KEY:0:12}..."
 
       - name: Wait for Frost (pre-upgrade)
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for Frost..."
           for i in {1..12}; do
@@ -578,14 +611,14 @@ jobs:
           exit 1
 
       - name: Create pre-upgrade test data
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: predata
         run: |
           chmod +x ./apps/app/scripts/e2e-upgrade-create.sh
           ./apps/app/scripts/e2e-upgrade-create.sh "${{ steps.server.outputs.ip }}" "${{ steps.install.outputs.api_key }}" 2>&1 | tee /tmp/e2e-create.log
 
       - name: Upgrade to PR branch
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           BRANCH="${{ github.head_ref || github.ref_name }}"
           REPO="${{ github.repository }}"
@@ -612,7 +645,7 @@ jobs:
           ssh -o ServerAliveInterval=30 root@${{ steps.server.outputs.ip }} "/opt/frost/update.sh" 2>&1 | tee /tmp/e2e-upgrade.log
 
       - name: Initialize test fixture git repos
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           ssh root@${{ steps.server.outputs.ip }} 'git config --global user.email "ci@frost.dev" && git config --global user.name "Frost CI" && git config --global --add safe.directory "*"
             for dir in /opt/frost/apps/app/test/fixtures/*/; do
@@ -622,7 +655,7 @@ jobs:
             done'
 
       - name: Wait for Frost (post-upgrade)
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           echo "Waiting for Frost after upgrade..."
           for i in {1..12}; do
@@ -638,7 +671,7 @@ jobs:
           exit 1
 
       - name: Verify pre-upgrade data survived
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           set -o pipefail
           chmod +x ./apps/app/scripts/e2e-upgrade-verify.sh
@@ -650,7 +683,7 @@ jobs:
             "${{ steps.predata.outputs.deployment_id }}" 2>&1 | tee /tmp/e2e-verify.log
 
       - name: Run standard E2E tests
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
           set -o pipefail
@@ -660,27 +693,23 @@ jobs:
           E2E_GROUPS: 01-basic,04-update,10-race,20-setup,28-oauth,29-mcp
 
       - name: Create broken branch for rollback test
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: broken
         run: |
           BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}-${{ matrix.arch }}"
-          BASE_BRANCH="${{ github.head_ref || github.ref_name }}"
-          bash ./.github/scripts/create-e2e-rollback-branch.sh build "$BROKEN_BRANCH" "$BASE_BRANCH" "${{ github.repository }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "Using local broken branch: $BROKEN_BRANCH"
+          echo "branch=$BROKEN_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Create broken migration branch for rollback test
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         id: broken_migration
         run: |
           BROKEN_BRANCH="frost-e2e-broken-migration-${{ github.run_id }}-${{ matrix.arch }}"
-          BASE_BRANCH="${{ github.head_ref || github.ref_name }}"
-          bash ./.github/scripts/create-e2e-rollback-branch.sh migration "$BROKEN_BRANCH" "$BASE_BRANCH" "${{ github.repository }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "Using local broken migration branch: $BROKEN_BRANCH"
+          echo "branch=$BROKEN_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Reset to release version for rollback and UI tests
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           TAG="${{ steps.release.outputs.tag }}"
           echo "Resetting to release $TAG..."
@@ -715,7 +744,7 @@ jobs:
           exit 1
 
       - name: Test rollback on build failure
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
@@ -725,7 +754,7 @@ jobs:
             "${{ github.repository }}" 2>&1 | tee /tmp/e2e-rollback.log
 
       - name: Test rollback on migration failure
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-update-rollback.sh
           ./apps/app/scripts/e2e-update-rollback.sh \
@@ -736,7 +765,7 @@ jobs:
             migration 2>&1 | tee /tmp/e2e-migration-rollback.log
 
       - name: Test UI-triggered update flow
-        if: steps.release.outputs.skip != 'true'
+        if: steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true'
         run: |
           chmod +x ./apps/app/scripts/e2e-update-ui.sh
           ./apps/app/scripts/e2e-update-ui.sh \
@@ -748,17 +777,15 @@ jobs:
       - name: Cleanup broken branch
         if: always() && steps.broken.outputs.branch
         run: |
-          echo "Deleting broken branch: ${{ steps.broken.outputs.branch }}"
-          git push origin --delete "${{ steps.broken.outputs.branch }}" || true
+          echo "No remote broken branch to delete: ${{ steps.broken.outputs.branch }}"
 
       - name: Cleanup broken migration branch
         if: always() && steps.broken_migration.outputs.branch
         run: |
-          echo "Deleting broken migration branch: ${{ steps.broken_migration.outputs.branch }}"
-          git push origin --delete "${{ steps.broken_migration.outputs.branch }}" || true
+          echo "No remote broken migration branch to delete: ${{ steps.broken_migration.outputs.branch }}"
 
       - name: Collect logs on failure
-        if: failure() && steps.release.outputs.skip != 'true'
+        if: failure() && steps.release.outputs.skip != 'true' && steps.server.outputs.skipped != 'true' && steps.server.outputs.ip
         run: |
           echo "=========================================="
           echo "=== LOCAL TEST SCRIPT OUTPUTS ==="
