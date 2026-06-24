@@ -7,28 +7,7 @@ import {
 } from "./lib/auth";
 import { isDemoMode } from "./lib/demo-mode";
 import { verifyOAuthToken } from "./lib/oauth";
-
-const PUBLIC_PATHS = [
-  "/login",
-  "/setup",
-  "/api/auth/",
-  "/api/setup",
-  "/api/dev/reset-setup",
-  "/api/health",
-  "/api/github/webhook",
-  "/api/openapi.json",
-  "/api/docs",
-  "/.well-known/",
-  "/api/oauth/register",
-  "/api/oauth/token",
-  "/api/oauth/revoke",
-];
-
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || (p.endsWith("/") && pathname.startsWith(p)),
-  );
-}
+import { isPublicPath } from "./lib/public-paths";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

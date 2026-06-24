@@ -214,7 +214,7 @@ jobs:
           cp -r apps/app/schema apps/app/scripts apps/app/templates frost-release/
           mkdir -p frost-release/src/lib
           cp -r apps/app/src/scripts frost-release/src/scripts
-          cp apps/app/src/lib/migrate.ts apps/app/src/lib/paths.ts frost-release/src/lib/
+          cp apps/app/src/lib/migrate.ts apps/app/src/lib/paths.ts apps/app/src/lib/system-api-keys.ts frost-release/src/lib/
           cp apps/app/package.json frost-release/
           cp install.sh update.sh cleanup.sh frost-release/
           tar -czf "frost-v${VERSION}.tar.gz" -C frost-release .

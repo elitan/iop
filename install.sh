@@ -23,6 +23,22 @@ FROST_BRANCH=""
 USE_TARBALL=true
 CREATE_API_KEY=false
 
+ensure_cleanup_api_key() {
+  if [ -f "$FROST_DIR/scripts/ensure-cleanup-api-key.ts" ]; then
+    FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" \
+      bun scripts/ensure-cleanup-api-key.ts
+    return
+  fi
+
+  if [ -f "$FROST_DIR/apps/app/scripts/ensure-cleanup-api-key.ts" ]; then
+    FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" \
+      bun --cwd apps/app scripts/ensure-cleanup-api-key.ts
+    return
+  fi
+
+  timer "Cleanup API key provisioner not found; skipping for older install"
+}
+
 # Check for --create-api-key before getopts (getopts doesn't handle long options)
 for arg in "$@"; do
   case $arg in
@@ -345,6 +361,9 @@ fi
 timer "Running migrations..."
 bun run migrate
 
+timer "Ensuring cleanup API key..."
+ensure_cleanup_api_key
+
 # Create systemd service
 echo ""
 timer "Creating systemd service..."
@@ -427,7 +446,7 @@ if [ "$CREATE_API_KEY" = true ]; then
   echo ""
   timer "Creating API key..."
   if [ "$USE_TARBALL" = true ]; then
-    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun run scripts/create-api-key.ts install)
+    FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun scripts/create-api-key.ts install)
   else
     FROST_API_KEY=$(FROST_JWT_SECRET="$FROST_JWT_SECRET" FROST_DATA_DIR="$FROST_DIR/data" bun --cwd apps/app scripts/create-api-key.ts install)
   fi

@@ -13,15 +13,20 @@ if [ ! -f "$FROST_DIR/.env" ]; then
 fi
 
 source "$FROST_DIR/.env"
+CLEANUP_KEY_FILE="${FROST_CLEANUP_API_KEY_FILE:-$FROST_DIR/data/.cleanup-api-key}"
 
-if [ -z "$FROST_JWT_SECRET" ]; then
-  log "ERROR: FROST_JWT_SECRET not set"
+log "Starting cleanup job"
+
+if [ ! -s "$CLEANUP_KEY_FILE" ]; then
+  log "ERROR: cleanup API key missing; run install/update to provision it"
   exit 1
 fi
 
-FROST_API_KEY=$(echo -n "${FROST_JWT_SECRET}frost-api-key" | sha256sum | cut -c1-32)
-
-log "Starting cleanup job"
+FROST_API_KEY=$(tr -d '\r\n' < "$CLEANUP_KEY_FILE")
+if [ -z "$FROST_API_KEY" ]; then
+  log "ERROR: cleanup API key file is empty"
+  exit 1
+fi
 
 RESPONSE=$(curl -s -X POST http://localhost:3000/api/cleanup/run \
   -H "x-frost-token: $FROST_API_KEY" \
@@ -29,6 +34,11 @@ RESPONSE=$(curl -s -X POST http://localhost:3000/api/cleanup/run \
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
+
+if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+  log "ERROR: cleanup API key rejected; run install/update to reprovision it"
+  exit 1
+fi
 
 if [ "$HTTP_CODE" = "200" ]; then
   log "Cleanup started successfully"
