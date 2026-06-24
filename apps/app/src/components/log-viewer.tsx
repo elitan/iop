@@ -24,17 +24,39 @@ function formatTimestamp(iso: string): string {
 
 interface LogViewerProps {
   logs: string[];
-  isStreaming?: boolean;
-  isConnected?: boolean;
   error?: string | null;
   emptyMessage?: string;
   className?: string;
 }
 
+interface LogConnectionStatusProps {
+  isConnected: boolean;
+  className?: string;
+}
+
+export function LogConnectionStatus({
+  isConnected,
+  className,
+}: LogConnectionStatusProps) {
+  return (
+    <div className={cn("flex shrink-0 items-center gap-2", className)}>
+      <Circle
+        className={cn(
+          "h-2 w-2",
+          isConnected
+            ? "fill-green-500 text-green-500"
+            : "fill-neutral-500 text-neutral-500",
+        )}
+      />
+      <span className="text-xs text-neutral-500">
+        {isConnected ? "Live" : "Reconnecting..."}
+      </span>
+    </div>
+  );
+}
+
 export function LogViewer({
   logs,
-  isStreaming = false,
-  isConnected = false,
   error,
   emptyMessage = "No logs yet...",
   className,
@@ -60,22 +82,6 @@ export function LogViewer({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      {isStreaming && (
-        <div className="flex items-center gap-2 pb-3">
-          <Circle
-            className={cn(
-              "h-2 w-2",
-              isConnected
-                ? "fill-green-500 text-green-500"
-                : "fill-neutral-500 text-neutral-500",
-            )}
-          />
-          <span className="text-xs text-neutral-500">
-            {isConnected ? "Live" : "Reconnecting..."}
-          </span>
-        </div>
-      )}
-
       {error && (
         <div className="mb-3 rounded border border-red-900 bg-red-950/50 p-2 text-xs text-red-400">
           {error}

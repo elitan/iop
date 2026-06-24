@@ -283,7 +283,7 @@ if [ "$USE_TARBALL" = true ]; then
 
   # Install production deps for scripts (migrate, setup, etc.)
   timer "Installing dependencies (bun)..."
-  bun install --production
+  bun install --production --frozen-lockfile
 else
   # Branch mode: clone and build from source (like main branch behavior)
   timer "Cloning Frost (branch: $FROST_BRANCH)..."
@@ -292,7 +292,7 @@ else
   cd "$FROST_DIR"
 
   timer "Installing dependencies (bun)..."
-  bun install
+  bun install --frozen-lockfile
 
   timer "Clearing Next.js cache..."
   rm -rf .next node_modules/.cache

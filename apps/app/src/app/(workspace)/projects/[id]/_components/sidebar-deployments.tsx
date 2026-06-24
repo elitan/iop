@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DeploymentStatusIndicator } from "@/components/deployment-status-indicator";
 import { EmptyState } from "@/components/empty-state";
-import { LogViewer } from "@/components/log-viewer";
+import { LogConnectionStatus, LogViewer } from "@/components/log-viewer";
 import { Button } from "@/components/ui/button";
 import { useBuildLogs } from "@/hooks/use-build-logs";
 import { useDeployments, useDeployService } from "@/hooks/use-services";
@@ -232,18 +232,22 @@ export function SidebarDeployments({
               </Button>
             )}
           </div>
-          <div className="min-h-0 flex-1 space-y-3 p-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
             {selectedDeployment.errorMessage && (
               <div className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-400">
                 {selectedDeployment.errorMessage}
               </div>
             )}
             <ReplicaStatus deploymentId={selectedDeployment.id} />
-            <div className="min-h-0 flex-1 overflow-hidden rounded border border-neutral-800">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-neutral-800">
+              {streamBuildLogs && (
+                <LogConnectionStatus
+                  isConnected={isConnected}
+                  className="border-b border-neutral-900 bg-neutral-950/60 px-4 py-2"
+                />
+              )}
               <LogViewer
                 logs={displayLogs}
-                isStreaming={streamBuildLogs}
-                isConnected={isConnected}
                 error={error}
                 emptyMessage="No logs yet..."
               />

@@ -33,7 +33,7 @@ services:
     port: 8080                    # container port
     main: true                    # (projects only) gets domain, shown first
     type: database                # optional: marks as database service
-    command: /bin/sh -c "..."     # optional: custom startup command
+    command: echo "starting"      # optional: runs as /bin/sh -c
     environment:
       STATIC_VAR: value
       GENERATED_VAR:

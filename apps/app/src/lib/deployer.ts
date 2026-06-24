@@ -5,9 +5,11 @@ import { promisify } from "node:util";
 import type { Selectable } from "kysely";
 import { getSetting } from "./auth";
 import { emitBuildLogChunk } from "./build-log-stream";
+import { buildContainerCommandOptions } from "./container-command";
 import { decrypt } from "./crypto";
 import { db } from "./db";
 import type { Environments, Projects, Registries, Services } from "./db-types";
+import { stopDeploymentContainers } from "./deployment-runtime";
 import {
   createRemainingDeployTimeoutMsGetter,
   getDeployTimeoutError,
@@ -44,7 +46,7 @@ import {
   isGitHubRepo,
 } from "./github";
 import { detectIcon, detectIconFromImage } from "./icon-detector";
-import { newDeploymentId, newReplicaId } from "./id";
+import { newDeploymentClaimId, newDeploymentId, newReplicaId } from "./id";
 import { runCommand } from "./process-runner";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
@@ -75,6 +77,20 @@ export type DeploymentStatus =
 const serviceDeploymentLocks = new Map<string, Promise<void>>();
 
 let syncCaddyConfigFn = syncCaddyConfigDefault;
+
+const IN_PROGRESS_DEPLOYMENT_STATUSES: DeploymentStatus[] = [
+  "pending",
+  "cloning",
+  "pulling",
+  "building",
+  "deploying",
+];
+
+interface DeploymentClaim {
+  serviceId: string;
+  deploymentId: string;
+  claimToken: string;
+}
 
 export function setSyncCaddyConfigForTests(
   syncFn: typeof syncCaddyConfigDefault,
@@ -111,6 +127,62 @@ export async function withServiceDeploymentLock<T>(
       serviceDeploymentLocks.delete(serviceId);
     }
   }
+}
+
+function isDeploymentStatusInProgress(status: DeploymentStatus): boolean {
+  return IN_PROGRESS_DEPLOYMENT_STATUSES.includes(status);
+}
+
+async function claimServiceDeployment(
+  serviceId: string,
+  deploymentId: string,
+): Promise<DeploymentClaim> {
+  const claimToken = newDeploymentClaimId();
+  const claimedAt = Date.now();
+
+  await db
+    .insertInto("deploymentLocks")
+    .values({
+      serviceId,
+      deploymentId,
+      claimToken,
+      claimedAt,
+    })
+    .onConflict(function onConflict(oc) {
+      return oc.column("serviceId").doUpdateSet({
+        deploymentId,
+        claimToken,
+        claimedAt,
+      });
+    })
+    .execute();
+
+  return { serviceId, deploymentId, claimToken };
+}
+
+async function hasServiceDeploymentClaim(
+  claim: DeploymentClaim,
+): Promise<boolean> {
+  const row = await db
+    .selectFrom("deploymentLocks")
+    .select("serviceId")
+    .where("serviceId", "=", claim.serviceId)
+    .where("deploymentId", "=", claim.deploymentId)
+    .where("claimToken", "=", claim.claimToken)
+    .executeTakeFirst();
+
+  return Boolean(row);
+}
+
+async function releaseServiceDeploymentClaim(
+  claim: DeploymentClaim,
+): Promise<void> {
+  await db
+    .deleteFrom("deploymentLocks")
+    .where("serviceId", "=", claim.serviceId)
+    .where("deploymentId", "=", claim.deploymentId)
+    .where("claimToken", "=", claim.claimToken)
+    .execute();
 }
 
 async function updateDeployment(
@@ -164,36 +236,11 @@ async function markDeploymentFailedAndRestoreCurrentServiceDeployment(
   previousDeploymentId: string | null,
   errorMessage: string,
 ): Promise<void> {
-  const deployment = await db
-    .selectFrom("deployments")
-    .select("containerId")
-    .where("id", "=", deploymentId)
-    .executeTakeFirst();
-
-  const replicas = await db
-    .selectFrom("replicas")
-    .select("containerId")
-    .where("deploymentId", "=", deploymentId)
-    .where("containerId", "is not", null)
-    .execute();
-
-  const containerIds = new Set<string>();
-  if (deployment?.containerId) {
-    containerIds.add(deployment.containerId);
-  }
-  for (const replica of replicas) {
-    if (replica.containerId) {
-      containerIds.add(replica.containerId);
-    }
-  }
-
-  for (const containerId of containerIds) {
-    await stopContainer(containerId);
-  }
+  await stopDeploymentContainers(deploymentId);
 
   await db
     .updateTable("replicas")
-    .set({ status: "stopped" })
+    .set({ status: "failed" })
     .where("deploymentId", "=", deploymentId)
     .execute();
   const finishedAt = Date.now();
@@ -333,13 +380,29 @@ async function getEffectiveServiceForRollback(
   }
 }
 
-async function isDeploymentCancelled(deploymentId: string): Promise<boolean> {
+async function isDeploymentCancelled(
+  deploymentId: string,
+  claim?: DeploymentClaim,
+): Promise<boolean> {
   const deployment = await db
     .selectFrom("deployments")
     .select("status")
     .where("id", "=", deploymentId)
     .executeTakeFirst();
-  return deployment?.status === "cancelled";
+
+  if (!deployment) {
+    return true;
+  }
+
+  if (deployment.status === "cancelled") {
+    return true;
+  }
+
+  if (claim && isDeploymentStatusInProgress(deployment.status)) {
+    return !(await hasServiceDeploymentClaim(claim));
+  }
+
+  return false;
 }
 
 function sanitizeDockerName(name: string): string {
@@ -572,19 +635,11 @@ async function cancelActiveDeployments(
   serviceId: string,
   excludeDeploymentId?: string,
 ): Promise<void> {
-  const inProgressStatuses = [
-    "pending",
-    "cloning",
-    "pulling",
-    "building",
-    "deploying",
-  ] as const;
-
   let query = db
     .selectFrom("deployments")
-    .select(["id", "containerId"])
+    .select("id")
     .where("serviceId", "=", serviceId)
-    .where("status", "in", [...inProgressStatuses]);
+    .where("status", "in", IN_PROGRESS_DEPLOYMENT_STATUSES);
 
   if (excludeDeploymentId) {
     query = query.where("id", "!=", excludeDeploymentId);
@@ -593,24 +648,31 @@ async function cancelActiveDeployments(
   const activeDeployments = await query.execute();
 
   for (const dep of activeDeployments) {
-    if (dep.containerId) {
-      await stopContainer(dep.containerId);
-    }
-    const depReplicas = await db
-      .selectFrom("replicas")
-      .select("containerId")
+    await stopDeploymentContainers(dep.id);
+    await db
+      .updateTable("replicas")
+      .set({ status: "stopped" })
       .where("deploymentId", "=", dep.id)
-      .where("containerId", "is not", null)
       .execute();
-    for (const r of depReplicas) {
-      if (r.containerId) await stopContainer(r.containerId);
-    }
     await db
       .updateTable("deployments")
       .set({ status: "cancelled", finishedAt: Date.now() })
       .where("id", "=", dep.id)
       .execute();
+    await db
+      .deleteFrom("deploymentLocks")
+      .where("deploymentId", "=", dep.id)
+      .execute();
   }
+}
+
+async function cleanupCancelledDeployment(deploymentId: string): Promise<void> {
+  await stopDeploymentContainers(deploymentId);
+  await db
+    .updateTable("replicas")
+    .set({ status: "stopped" })
+    .where("deploymentId", "=", deploymentId)
+    .execute();
 }
 
 interface StartedReplica {
@@ -1065,8 +1127,6 @@ async function deployServiceUnlocked(
     throw new Error("Project not found");
   }
 
-  await cancelActiveDeployments(serviceId);
-
   const deploymentId = newDeploymentId();
   const now = Date.now();
 
@@ -1086,11 +1146,15 @@ async function deployServiceUnlocked(
     })
     .execute();
 
+  const claim = await claimServiceDeployment(serviceId, deploymentId);
+  await cancelActiveDeployments(serviceId, deploymentId);
+
   runServiceDeployment(
     deploymentId,
     service,
     environment,
     project,
+    claim,
     options,
   ).catch((err) => {
     console.error("Deployment failed:", err);
@@ -1113,6 +1177,7 @@ async function runServiceDeployment(
   service: Selectable<Services>,
   environment: Selectable<Environments>,
   project: Selectable<Projects>,
+  claim: DeploymentClaim,
   options?: DeployOptions,
 ) {
   let currentCommitSha = options?.commitSha || "HEAD";
@@ -1137,6 +1202,7 @@ async function runServiceDeployment(
   };
   const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
   let shouldRestoreCurrentDeploymentOnFailure = false;
+  let trafficSwitched = false;
 
   const projectEnvVars = parseEnvVars(project.envVars);
   const serviceEnvVars = parseEnvVars(service.envVars);
@@ -1204,7 +1270,7 @@ async function runServiceDeployment(
         );
       }
 
-      if (await isDeploymentCancelled(deploymentId)) {
+      if (await isDeploymentCancelled(deploymentId, claim)) {
         return;
       }
 
@@ -1386,7 +1452,7 @@ async function runServiceDeployment(
         throw new Error(buildResult?.error || "Build failed");
       }
 
-      if (await isDeploymentCancelled(deploymentId)) {
+      if (await isDeploymentCancelled(deploymentId, claim)) {
         return;
       }
     }
@@ -1425,12 +1491,9 @@ async function runServiceDeployment(
     }
 
     let fileMounts: FileMount[] | undefined;
-    let entrypoint: string | undefined;
-    let command: string[] | undefined;
-
-    if (service.command) {
-      command = ["sh", "-c", service.command];
-    }
+    const commandOptions = buildContainerCommandOptions(service.command);
+    let entrypoint = commandOptions.entrypoint;
+    const command = commandOptions.command;
 
     const isPostgres = service.imageUrl?.includes("postgres") ?? false;
     if (service.serviceType === "database" && isPostgres && !service.command) {
@@ -1465,7 +1528,7 @@ async function runServiceDeployment(
       .where("id", "=", deploymentId)
       .execute();
 
-    if (await isDeploymentCancelled(deploymentId)) {
+    if (await isDeploymentCancelled(deploymentId, claim)) {
       return;
     }
 
@@ -1511,6 +1574,11 @@ async function runServiceDeployment(
       getRemainingTimeoutMs,
     });
 
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
+
     await healthCheckReplicas(
       deploymentId,
       startedReplicas,
@@ -1519,6 +1587,11 @@ async function runServiceDeployment(
       effectiveService.healthCheckTimeout,
       getRemainingTimeoutMs,
     );
+
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
 
     const firstReplica = startedReplicas[0];
     await markDeploymentRunningAndSetCurrentServiceDeployment(
@@ -1552,6 +1625,7 @@ async function runServiceDeployment(
       if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
+      trafficSwitched = true;
     } catch (err: any) {
       shouldRestoreCurrentDeploymentOnFailure = true;
       const syncErrorMessage =
@@ -1571,6 +1645,11 @@ async function runServiceDeployment(
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
+
     if (shouldRestoreCurrentDeploymentOnFailure) {
       await markDeploymentFailedAndRestoreCurrentServiceDeployment(
         deploymentId,
@@ -1579,6 +1658,14 @@ async function runServiceDeployment(
         errorMessage,
       );
     } else {
+      if (!trafficSwitched) {
+        await stopDeploymentContainers(deploymentId);
+        await db
+          .updateTable("replicas")
+          .set({ status: "failed" })
+          .where("deploymentId", "=", deploymentId)
+          .execute();
+      }
       await updateDeployment(deploymentId, {
         status: "failed",
         errorMessage,
@@ -1599,6 +1686,8 @@ async function runServiceDeployment(
     } catch (err) {
       console.warn("Failed to update PR comment:", err);
     }
+  } finally {
+    await releaseServiceDeploymentClaim(claim);
   }
 }
 
@@ -1706,6 +1795,7 @@ export async function rollbackDeployment(
   }
 
   return withServiceDeploymentLock(service.id, async function rollbackTask() {
+    const claim = await claimServiceDeployment(service.id, deploymentId);
     await cancelActiveDeployments(service.id, deploymentId);
 
     await db
@@ -1720,6 +1810,7 @@ export async function rollbackDeployment(
       service,
       environment,
       project,
+      claim,
     ).catch((err) => {
       console.error("Rollback deployment failed:", err);
     });
@@ -1743,6 +1834,7 @@ async function runRollbackDeployment(
   service: Selectable<Services>,
   environment: Selectable<Environments>,
   project: Selectable<Projects>,
+  claim: DeploymentClaim,
 ) {
   const rollbackStartedAt = Date.now();
   const rollbackTimeoutMs = getDeployTimeoutMs();
@@ -1778,6 +1870,7 @@ async function runRollbackDeployment(
   };
   const previousCurrentDeploymentId = service.currentDeploymentId ?? null;
   let shouldRestoreCurrentDeploymentOnFailure = false;
+  let trafficSwitched = false;
 
   const envVarsList: EnvVar[] = sourceDeployment.envVarsSnapshot
     ? JSON.parse(sourceDeployment.envVarsSnapshot)
@@ -1828,6 +1921,10 @@ async function runRollbackDeployment(
     const internalHostname = service.hostname ?? slugify(service.name);
     const replicaCount = service.replicaCount ?? 1;
 
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      return;
+    }
+
     const startedReplicas = await startReplicas({
       deploymentId,
       replicaCount,
@@ -1844,6 +1941,11 @@ async function runRollbackDeployment(
       getRemainingTimeoutMs,
     });
 
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
+
     await healthCheckReplicas(
       deploymentId,
       startedReplicas,
@@ -1852,6 +1954,11 @@ async function runRollbackDeployment(
       sourceDeployment.healthCheckTimeout,
       getRemainingTimeoutMs,
     );
+
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
 
     const firstReplica = startedReplicas[0];
     await markDeploymentRunningAndSetCurrentServiceDeployment(
@@ -1871,6 +1978,7 @@ async function runRollbackDeployment(
       if (syncResult.synced) {
         await appendLog(deploymentId, "Caddy config synced\n");
       }
+      trafficSwitched = true;
     } catch (err: any) {
       shouldRestoreCurrentDeploymentOnFailure = true;
       const syncErrorMessage =
@@ -1890,6 +1998,11 @@ async function runRollbackDeployment(
     );
   } catch (err: any) {
     const errorMessage = err.message || "Unknown error";
+    if (await isDeploymentCancelled(deploymentId, claim)) {
+      await cleanupCancelledDeployment(deploymentId);
+      return;
+    }
+
     if (shouldRestoreCurrentDeploymentOnFailure) {
       await markDeploymentFailedAndRestoreCurrentServiceDeployment(
         deploymentId,
@@ -1898,6 +2011,14 @@ async function runRollbackDeployment(
         errorMessage,
       );
     } else {
+      if (!trafficSwitched) {
+        await stopDeploymentContainers(deploymentId);
+        await db
+          .updateTable("replicas")
+          .set({ status: "failed" })
+          .where("deploymentId", "=", deploymentId)
+          .execute();
+      }
       await updateDeployment(deploymentId, {
         status: "failed",
         errorMessage,
@@ -1905,5 +2026,7 @@ async function runRollbackDeployment(
       });
     }
     await appendLog(deploymentId, `\nError: ${errorMessage}\n`);
+  } finally {
+    await releaseServiceDeploymentClaim(claim);
   }
 }

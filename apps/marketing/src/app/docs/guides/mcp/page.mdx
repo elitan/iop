@@ -44,28 +44,10 @@ Same config format. Add to your Cursor MCP settings:
 
 | Tool | Input | Description |
 |------|-------|-------------|
-| `list_projects` | — | List all projects with service count |
-| `get_project` | `projectId` | Get project details with all services |
-| `create_project` | `name` | Create a new empty project |
-| `delete_project` | `projectId` | Delete project and all resources |
-| `list_services` | `projectId` | List services with latest deployment status |
-| `get_service` | `serviceId` | Get service config + latest deployment |
-| `create_service` | `projectId, name, deployType, ...` | Create a service |
-| `update_service` | `serviceId, ...` | Update service settings |
-| `delete_service` | `serviceId` | Delete a service |
-| `deploy_service` | `serviceId` | Trigger deployment |
-| `deploy_project` | `projectId` | Deploy all services in project |
-| `get_deployment` | `deploymentId` | Get deployment status and details |
-| `list_deployments` | `serviceId, limit?` | Recent deployments for a service |
-| `rollback` | `deploymentId` | Rollback to a previous deployment |
-| `list_env_vars` | `serviceId` | Get environment variables |
-| `set_env_vars` | `serviceId, vars` | Set/update environment variables |
-| `delete_env_vars` | `serviceId, keys` | Delete environment variables by key |
-| `list_domains` | `serviceId` | List domains for a service |
-| `add_domain` | `serviceId, domain` | Add a domain |
-| `remove_domain` | `domainId` | Remove a domain |
-| `get_build_log` | `deploymentId` | Get build/deploy log |
-| `get_runtime_logs` | `serviceId, tail?, replica?` | Get recent container logs |
+| `search` | `query?, method?, pathPrefix?, limit?` | Search Frost API operations from the OpenAPI spec |
+| `request` | `operationId` or `method + path`, plus `pathParams?`, `query?`, `body?` | Call a Frost API operation with spec-backed validation |
+
+Use `search` first. It returns the exact `operationId`, HTTP method, path, path params, query params, and body shape to use with `request`.
 
 ---
 
@@ -88,11 +70,18 @@ For programmatic/CI access, you can also use `x-frost-token` header with an API 
 
 ## Example Workflows
 
-Once connected, you can interact with Frost naturally:
+Once connected, agents usually do this:
 
-- **"Deploy my service"** → agent calls `deploy_service`
-- **"Show me the build logs for the latest deployment"** → `get_build_log`
-- **"Add example.com to my api service"** → `add_domain`
-- **"What's the status of my project?"** → `list_services`
-- **"Roll back the last deployment"** → `rollback`
-- **"Set DATABASE_URL for my backend"** → `set_env_vars`
+1. Call `search` with a plain query like `deploy project`, `list domains`, or `create service`
+2. Pick the returned operation
+3. Call `request` with that operation's `operationId` and inputs
+
+Example:
+
+- `search { "query": "deploy project" }`
+- `request { "operationId": "projects.deploy", "pathParams": { "projectId": "proj_123" } }`
+
+Another example:
+
+- `search { "query": "create service" }`
+- `request { "operationId": "services.create", "body": { ... } }`
