@@ -78,7 +78,7 @@ Script knobs (standardized):
 - `E2E_GROUPS` - comma-separated explicit groups (e.g. `01-basic,28-oauth`)
 - `E2E_GROUP_GLOB` - shell glob for group files (default: `group-*.sh`)
 - `E2E_START_STAGGER_SEC` - delay between group starts
-- `E2E_BATCH_SIZE` - max concurrent groups (full CI uses 3)
+- `E2E_BATCH_SIZE` - max concurrent groups (full CI uses 2)
 
 Image-pull resiliency knobs:
 - `FROST_IMAGE_PULL_RETRIES` (default `3`)
