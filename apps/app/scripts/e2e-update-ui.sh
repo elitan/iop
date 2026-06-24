@@ -66,10 +66,34 @@ remote() {
   ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP "$@"
 }
 
+ensure_remote_sqlite() {
+  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP bash -s <<'REMOTE'
+set -e
+
+if command -v sqlite3 >/dev/null 2>&1; then
+  exit 0
+fi
+
+systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+
+for attempt in 1 2 3 4; do
+  if apt-get update && apt-get install -y sqlite3; then
+    exit 0
+  fi
+
+  sleep_sec=$((attempt * 10))
+  echo "sqlite3 install failed (attempt $attempt/4), retrying in ${sleep_sec}s..."
+  sleep "$sleep_sec"
+done
+
+exit 1
+REMOTE
+}
+
 echo ""
 echo "=== Recording current state ==="
 CURRENT_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
-CURRENT_COMMIT=$(remote "cd /opt/frost && git rev-parse HEAD")
+CURRENT_COMMIT=$(remote "cd /opt/frost && git rev-parse HEAD 2>/dev/null || echo tarball-install")
 echo "Current version: $CURRENT_VERSION"
 echo "Current commit: $CURRENT_COMMIT"
 
@@ -81,8 +105,20 @@ fi
 echo ""
 echo "=== Preparing repo to pull from target branch ==="
 remote "cd /opt/frost && \
-  git remote set-url origin https://github.com/${REPO}.git && \
+  git config --global --add safe.directory /opt/frost && \
+  if [ ! -d .git ]; then \
+    echo 'Initializing git repo (tarball installation detected)'; \
+    git init && \
+    git remote add origin https://github.com/${REPO}.git; \
+  else \
+    git remote set-url origin https://github.com/${REPO}.git; \
+  fi && \
   git fetch origin ${TARGET_BRANCH}:refs/remotes/origin/main -f"
+
+echo ""
+echo "=== Copying current update.sh to server ==="
+scp -o StrictHostKeyChecking=no -o LogLevel=ERROR "$(dirname "$0")/../../../update.sh" root@$SERVER_IP:/opt/frost/update.sh
+remote "chmod +x /opt/frost/update.sh"
 
 echo ""
 echo "=== Disabling git fetch in update.sh to preserve our fake origin/main ==="
@@ -96,7 +132,7 @@ remote "sed -i 's|curl -fsSL https://raw.githubusercontent.com/.*/update.sh.*bas
 
 echo ""
 echo "=== Ensuring sqlite3 is installed ==="
-remote "which sqlite3 > /dev/null 2>&1 || (apt-get update && apt-get install -y sqlite3)"
+ensure_remote_sqlite
 
 echo ""
 echo "=== Faking available update in settings ==="
