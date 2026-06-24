@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { DeploymentStatusIndicator } from "@/components/deployment-status-indicator";
-import { LogViewer } from "@/components/log-viewer";
+import { LogConnectionStatus, LogViewer } from "@/components/log-viewer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBuildLogs } from "@/hooks/use-build-logs";
@@ -160,11 +160,15 @@ export function ServiceDeploymentView({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-neutral-800 bg-black">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-neutral-800 bg-black">
+          {streamBuildLogs && (
+            <LogConnectionStatus
+              isConnected={isConnected}
+              className="border-b border-neutral-900 bg-neutral-950/60 px-4 py-2"
+            />
+          )}
           <LogViewer
             logs={displayLogs}
-            isStreaming={streamBuildLogs}
-            isConnected={isConnected}
             error={error}
             emptyMessage="No logs yet..."
           />
