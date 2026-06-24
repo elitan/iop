@@ -570,7 +570,7 @@ if [ "$GIT_MODE" = true ]; then
   done
   if [ "$BUILD_OK" = false ]; then
     error "Build failed after 3 attempts"
-    exit 1
+    cleanup_on_failure
   fi
 
   log "Backing up SQLite database..."
