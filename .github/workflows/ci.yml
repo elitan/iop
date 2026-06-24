@@ -664,11 +664,11 @@ jobs:
         id: broken
         run: |
           BROKEN_BRANCH="frost-e2e-broken-${{ github.run_id }}-${{ matrix.arch }}"
-          TAG="${{ steps.release.outputs.tag }}"
+          BASE_BRANCH="${{ github.head_ref || github.ref_name }}"
           TEMP_REPO=$(mktemp -d)
-          echo "Creating broken branch: $BROKEN_BRANCH"
+          echo "Creating broken branch: $BROKEN_BRANCH from $BASE_BRANCH"
 
-          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
+          git clone --depth 1 --branch "$BASE_BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
           cd "$TEMP_REPO"
 
           git config user.email "ci@frost.dev"
@@ -697,11 +697,11 @@ jobs:
         id: broken_migration
         run: |
           BROKEN_BRANCH="frost-e2e-broken-migration-${{ github.run_id }}-${{ matrix.arch }}"
-          TAG="${{ steps.release.outputs.tag }}"
+          BASE_BRANCH="${{ github.head_ref || github.ref_name }}"
           TEMP_REPO=$(mktemp -d)
-          echo "Creating broken migration branch: $BROKEN_BRANCH"
+          echo "Creating broken migration branch: $BROKEN_BRANCH from $BASE_BRANCH"
 
-          git clone --depth 1 --branch "$TAG" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
+          git clone --depth 1 --branch "$BASE_BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$TEMP_REPO"
           cd "$TEMP_REPO"
 
           git config user.email "ci@frost.dev"
