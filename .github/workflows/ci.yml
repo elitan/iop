@@ -356,6 +356,7 @@ jobs:
         if: steps.server.outputs.skipped != 'true'
         env:
           E2E_BRANCH: ${{ github.head_ref || github.ref_name }}
+          E2E_BATCH_SIZE: 3
         run: |
           chmod +x ./apps/app/scripts/e2e-test.sh
           set -o pipefail
