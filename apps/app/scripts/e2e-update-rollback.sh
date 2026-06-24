@@ -73,6 +73,54 @@ remote() {
   ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP "$@"
 }
 
+create_broken_update_target() {
+  ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR root@$SERVER_IP \
+    "BROKEN_BRANCH='$BROKEN_BRANCH' MODE='$MODE' bash -s" <<'REMOTE'
+set -e
+
+cd /opt/frost
+git config user.email "ci@frost.dev"
+git config user.name "Frost CI"
+
+BASE_COMMIT=$(git rev-parse HEAD)
+git checkout -B "$BROKEN_BRANCH" "$BASE_COMMIT"
+
+if [ "$MODE" = "build" ]; then
+  cat > fail-build.js <<'JS'
+console.log("Intentional build failure for e2e test");
+process.exit(1);
+JS
+
+  bun -e '
+    const fs = require("node:fs");
+    const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    pkg.scripts.build = "bun fail-build.js";
+    fs.writeFileSync("package.json", `${JSON.stringify(pkg, null, 2)}\n`);
+  '
+
+  git add fail-build.js package.json
+  git commit -m "Intentionally broken build for e2e rollback test"
+else
+  LAST_MIGRATION_NUMBER=$(find apps/app/schema -name '*.sql' -exec basename {} \; | sed -n 's/^\([0-9][0-9][0-9]\)-.*$/\1/p' | sort -n | tail -n1)
+  NEXT_MIGRATION_NUMBER=$(printf "%03d" $((10#$LAST_MIGRATION_NUMBER + 1)))
+  MIGRATION_FILE="apps/app/schema/${NEXT_MIGRATION_NUMBER}-migration-restore-fail.sql"
+
+  cat > "$MIGRATION_FILE" <<'SQL'
+PRAGMA foreign_keys = OFF;
+INSERT OR REPLACE INTO settings (key, value) VALUES ('migration_restore_probe', 'mutated');
+THIS IS NOT VALID SQL;
+SQL
+
+  git add "$MIGRATION_FILE"
+  git commit -m "Intentionally broken migration for e2e rollback test"
+fi
+
+git update-ref refs/remotes/origin/main HEAD
+git checkout -f "$BASE_COMMIT"
+git reset --hard "$BASE_COMMIT"
+REMOTE
+}
+
 echo ""
 echo "=== Recording current version ==="
 CURRENT_VERSION=$(api "$BASE_URL/api/health" | jq -r '.version')
@@ -84,10 +132,8 @@ if [ "$CURRENT_VERSION" = "null" ] || [ -z "$CURRENT_VERSION" ]; then
 fi
 
 echo ""
-echo "=== Preparing repo to pull from broken branch ==="
-remote "cd /opt/frost && \
-  git remote set-url origin https://github.com/${REPO}.git && \
-  git fetch origin ${BROKEN_BRANCH}:refs/remotes/origin/main -f"
+echo "=== Preparing local broken update target ==="
+create_broken_update_target
 
 echo ""
 echo "=== Copying current update.sh to server ==="
