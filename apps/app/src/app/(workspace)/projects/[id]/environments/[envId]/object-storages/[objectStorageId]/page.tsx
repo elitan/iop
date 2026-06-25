@@ -1,22 +1,10 @@
 "use client";
 
-import { Copy, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ContractOutputs } from "@/contracts";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   useCreateObjectStorageAccessKey,
   useCreateObjectStorageBucket,
@@ -24,48 +12,18 @@ import {
   useObjectStorage,
   useRevokeObjectStorageAccessKey,
 } from "@/hooks/use-object-storages";
-
-type AccessKeyResult = ContractOutputs["objectStorages"]["createAccessKey"];
-
-function CopyButton({ value }: { value: string }) {
-  async function handleCopy() {
-    await navigator.clipboard.writeText(value);
-    toast.success("Copied");
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7"
-      onClick={handleCopy}
-      title="Copy"
-    >
-      <Copy className="h-3.5 w-3.5" />
-    </Button>
-  );
-}
-
-function SettingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-neutral-800 py-2 last:border-0">
-      <span className="text-xs text-neutral-500">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
-        <code className="truncate text-xs text-neutral-200">{value}</code>
-        <CopyButton value={value} />
-      </div>
-    </div>
-  );
-}
-
-function buildEnvBlock(snippets: AccessKeyResult["snippets"]): string {
-  return snippets.env
-    .map(function formatEnv(envVar) {
-      return `${envVar.key}=${envVar.value}`;
-    })
-    .join("\n");
-}
+import { BucketsCard } from "./_components/buckets-card";
+import { ObjectStorageConnectionCard } from "./_components/connection-card";
+import { CreatedKeyCard } from "./_components/created-key-card";
+import {
+  CreateAccessKeyDialog,
+  CreateBucketDialog,
+} from "./_components/object-storage-dialogs";
+import { SelectedBucketPanel } from "./_components/selected-bucket-panel";
+import type {
+  AccessKeyPermission,
+  CreatedAccessKey,
+} from "./_components/types";
 
 export default function ObjectStorageOverviewPage() {
   const params = useParams();
@@ -75,44 +33,77 @@ export default function ObjectStorageOverviewPage() {
   const deleteBucketMutation = useDeleteObjectStorageBucket(objectStorageId);
   const createKeyMutation = useCreateObjectStorageAccessKey(objectStorageId);
   const revokeKeyMutation = useRevokeObjectStorageAccessKey(objectStorageId);
-  const [bucketName, setBucketName] = useState("");
-  const [keyName, setKeyName] = useState("app");
   const [selectedBucketId, setSelectedBucketId] = useState("");
-  const [permissions, setPermissions] = useState<
-    "read-only" | "read-write" | "full"
-  >("read-write");
-  const [createdKey, setCreatedKey] = useState<AccessKeyResult | null>(null);
+  const [createBucketOpen, setCreateBucketOpen] = useState(false);
+  const [createKeyOpen, setCreateKeyOpen] = useState(false);
+  const [createdKey, setCreatedKey] = useState<CreatedAccessKey | null>(null);
   const [bucketToDelete, setBucketToDelete] = useState<string | null>(null);
   const [keyToRevoke, setKeyToRevoke] = useState<string | null>(null);
 
-  const activeBuckets = data?.buckets ?? [];
-  const activeKeys = (data?.accessKeys ?? []).filter(function activeKey(key) {
-    return key.revokedAt === null;
-  });
+  const activeBuckets = useMemo(
+    function getActiveBuckets() {
+      return data?.buckets ?? [];
+    },
+    [data?.buckets],
+  );
+  const selectedBucket = useMemo(
+    function getSelectedBucket() {
+      return (
+        activeBuckets.find(function findBucket(bucket) {
+          return bucket.id === selectedBucketId;
+        }) ?? null
+      );
+    },
+    [activeBuckets, selectedBucketId],
+  );
+  const selectedBucketAccessKeys = useMemo(
+    function getSelectedBucketAccessKeys() {
+      const accessKeys = data?.accessKeys ?? [];
+      if (!selectedBucket) {
+        return [];
+      }
 
-  const externalEndpoint = data?.connection.endpoint ?? null;
+      return accessKeys.filter(function isActiveSelectedBucketKey(accessKey) {
+        return (
+          accessKey.revokedAt === null &&
+          accessKey.bucketId === selectedBucket.id
+        );
+      });
+    },
+    [data?.accessKeys, selectedBucket],
+  );
 
-  const defaultBucketId = useMemo(
-    function getDefaultBucketId() {
-      return selectedBucketId || activeBuckets[0]?.id || "";
+  useEffect(
+    function syncSelectedBucket() {
+      const selectedStillExists = activeBuckets.some(
+        function hasSelectedBucket(bucket) {
+          return bucket.id === selectedBucketId;
+        },
+      );
+
+      if (selectedStillExists) {
+        return;
+      }
+
+      const nextSelectedBucketId = activeBuckets[0]?.id ?? "";
+      if (selectedBucketId !== nextSelectedBucketId) {
+        setSelectedBucketId(nextSelectedBucketId);
+      }
     },
     [activeBuckets, selectedBucketId],
   );
 
-  async function handleCreateBucket(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!bucketName.trim()) {
-      return;
-    }
-
+  async function handleCreateBucket(name: string): Promise<boolean> {
     try {
-      await createBucketMutation.mutateAsync({ name: bucketName.trim() });
-      setBucketName("");
+      const bucket = await createBucketMutation.mutateAsync({ name });
+      setSelectedBucketId(bucket.id);
       toast.success("Bucket created");
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create bucket",
       );
+      return false;
     }
   }
 
@@ -123,6 +114,9 @@ export default function ObjectStorageOverviewPage() {
 
     try {
       await deleteBucketMutation.mutateAsync(bucketToDelete);
+      if (bucketToDelete === selectedBucketId) {
+        setSelectedBucketId("");
+      }
       setBucketToDelete(null);
       toast.success("Bucket deleted");
     } catch (error) {
@@ -132,25 +126,28 @@ export default function ObjectStorageOverviewPage() {
     }
   }
 
-  async function handleCreateKey(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!defaultBucketId || !keyName.trim()) {
-      return;
+  async function handleCreateKey(input: {
+    name: string;
+    permissions: AccessKeyPermission;
+  }): Promise<boolean> {
+    if (!selectedBucket) {
+      return false;
     }
 
     try {
       const result = await createKeyMutation.mutateAsync({
-        bucketId: defaultBucketId,
-        name: keyName.trim(),
-        permissions,
+        bucketId: selectedBucket.id,
+        name: input.name,
+        permissions: input.permissions,
       });
       setCreatedKey(result);
-      setKeyName("app");
       toast.success("Access key created");
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create access key",
       );
+      return false;
     }
   }
 
@@ -182,257 +179,50 @@ export default function ObjectStorageOverviewPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-neutral-800 bg-neutral-900">
-        <CardHeader>
-          <CardTitle className="text-sm text-neutral-200">
-            S3 Connection
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          <SettingRow
-            label="External endpoint"
-            value={externalEndpoint ?? "Deploying"}
-          />
-          <SettingRow
-            label="Internal endpoint"
-            value={data.connection.internalEndpoint}
-          />
-          <SettingRow label="Region" value={data.connection.region} />
-          <SettingRow label="Force path style" value="true" />
-        </CardContent>
-      </Card>
+      <ObjectStorageConnectionCard connection={data.connection} />
 
-      {createdKey && (
-        <Card className="border-emerald-800/70 bg-emerald-950/20">
-          <CardHeader>
-            <CardTitle className="text-sm text-emerald-100">
-              Secret shown once
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <SettingRow
-              label="Access key"
-              value={createdKey.accessKey.accessKeyId}
-            />
-            <SettingRow label="Secret key" value={createdKey.secretAccessKey} />
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-neutral-400">Environment</p>
-                <CopyButton value={buildEnvBlock(createdKey.snippets)} />
-              </div>
-              <pre className="overflow-auto rounded-md border border-neutral-800 bg-neutral-950 p-3 text-xs text-neutral-300">
-                {buildEnvBlock(createdKey.snippets)}
-              </pre>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-neutral-400">AWS CLI</p>
-                <CopyButton value={createdKey.snippets.awsCli} />
-              </div>
-              <pre className="overflow-auto rounded-md border border-neutral-800 bg-neutral-950 p-3 text-xs text-neutral-300">
-                {createdKey.snippets.awsCli}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {createdKey && <CreatedKeyCard createdKey={createdKey} />}
 
-      <Card className="border-neutral-800 bg-neutral-900">
-        <CardHeader>
-          <CardTitle className="text-sm text-neutral-200">Buckets</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <form onSubmit={handleCreateBucket} className="flex gap-2">
-            <Label htmlFor="object_storage_bucket_name" className="sr-only">
-              Bucket name
-            </Label>
-            <Input
-              id="object_storage_bucket_name"
-              value={bucketName}
-              onChange={function onBucketNameChange(event) {
-                setBucketName(event.target.value);
-              }}
-              placeholder="avatars"
-              className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100"
-            />
-            <Button
-              type="submit"
-              disabled={createBucketMutation.isPending}
-              title="Create bucket"
-            >
-              {createBucketMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
-          <div className="divide-y divide-neutral-800">
-            {activeBuckets.map(function renderBucket(bucket) {
-              return (
-                <div
-                  key={bucket.id}
-                  className="flex items-center justify-between gap-3 py-2"
-                >
-                  <code className="truncate text-sm text-neutral-200">
-                    {bucket.name}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={function onDeleteBucket() {
-                      setBucketToDelete(bucket.id);
-                    }}
-                    title="Delete bucket"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <BucketsCard
+        buckets={activeBuckets}
+        selectedBucketId={selectedBucket?.id ?? ""}
+        onSelectBucket={setSelectedBucketId}
+        onDeleteBucket={setBucketToDelete}
+        onOpenCreateBucket={function handleOpenCreateBucket() {
+          setCreateBucketOpen(true);
+        }}
+      />
 
-      <Card className="border-neutral-800 bg-neutral-900">
-        <CardHeader>
-          <CardTitle className="text-sm text-neutral-200">
-            Access Keys
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form
-            onSubmit={handleCreateKey}
-            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_11rem]"
-          >
-            <div className="grid gap-1.5">
-              <Label
-                htmlFor="access_key_name"
-                className="text-xs text-neutral-400"
-              >
-                Name
-              </Label>
-              <Input
-                id="access_key_name"
-                value={keyName}
-                onChange={function onKeyNameChange(event) {
-                  setKeyName(event.target.value);
-                }}
-                className="border-neutral-700 bg-neutral-800 text-neutral-100"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-neutral-400">Bucket</Label>
-              <Select
-                value={defaultBucketId}
-                onValueChange={setSelectedBucketId}
-                disabled={activeBuckets.length === 0}
-              >
-                <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                  <SelectValue placeholder="Select bucket" />
-                </SelectTrigger>
-                <SelectContent className="border-neutral-700 bg-neutral-800">
-                  {activeBuckets.map(function renderBucketOption(bucket) {
-                    return (
-                      <SelectItem
-                        key={bucket.id}
-                        value={bucket.id}
-                        className="text-neutral-100 focus:bg-neutral-700"
-                      >
-                        {bucket.name}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-neutral-400">Permission</Label>
-              <Select
-                value={permissions}
-                onValueChange={function onPermissionChange(value) {
-                  if (
-                    value === "read-only" ||
-                    value === "read-write" ||
-                    value === "full"
-                  ) {
-                    setPermissions(value);
-                  }
-                }}
-              >
-                <SelectTrigger className="border-neutral-700 bg-neutral-800 text-neutral-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-neutral-700 bg-neutral-800">
-                  <SelectItem value="read-only">Read only</SelectItem>
-                  <SelectItem value="read-write">Read/write</SelectItem>
-                  <SelectItem value="full">Full</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <span aria-hidden="true" className="hidden h-4 md:block" />
-              <Button
-                type="submit"
-                disabled={createKeyMutation.isPending || !defaultBucketId}
-                className="w-full"
-              >
-                {createKeyMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <KeyRound className="h-4 w-4" />
-                    Create key
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
+      <SelectedBucketPanel
+        key={selectedBucket?.id ?? "no-bucket"}
+        objectStorageId={objectStorageId}
+        bucket={selectedBucket}
+        accessKeys={selectedBucketAccessKeys}
+        onOpenCreateKey={function handleOpenCreateKey() {
+          setCreateKeyOpen(true);
+        }}
+        onRevokeKey={setKeyToRevoke}
+      />
 
-          <div className="divide-y divide-neutral-800">
-            {activeKeys.map(function renderAccessKey(accessKey) {
-              return (
-                <div
-                  key={accessKey.id}
-                  className="flex items-center justify-between gap-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-neutral-200">
-                      {accessKey.name}
-                    </p>
-                    <p className="truncate font-mono text-xs text-neutral-500">
-                      {accessKey.accessKeyId} · {accessKey.permissions}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={function onRevokeKey() {
-                      setKeyToRevoke(accessKey.id);
-                    }}
-                    title="Revoke key"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              );
-            })}
-            {activeKeys.length === 0 && (
-              <p className="py-4 text-sm text-neutral-500">
-                No access keys yet.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <CreateBucketDialog
+        open={createBucketOpen}
+        pending={createBucketMutation.isPending}
+        onOpenChange={setCreateBucketOpen}
+        onCreateBucket={handleCreateBucket}
+      />
+
+      <CreateAccessKeyDialog
+        open={createKeyOpen}
+        pending={createKeyMutation.isPending}
+        bucketName={selectedBucket?.name ?? null}
+        disabled={!selectedBucket}
+        onOpenChange={setCreateKeyOpen}
+        onCreateKey={handleCreateKey}
+      />
 
       <ConfirmDialog
         open={bucketToDelete !== null}
-        onOpenChange={function onBucketDialogOpenChange(open) {
+        onOpenChange={function handleBucketDialogOpenChange(open) {
           if (!open) {
             setBucketToDelete(null);
           }
@@ -447,7 +237,7 @@ export default function ObjectStorageOverviewPage() {
 
       <ConfirmDialog
         open={keyToRevoke !== null}
-        onOpenChange={function onKeyDialogOpenChange(open) {
+        onOpenChange={function handleKeyDialogOpenChange(open) {
           if (!open) {
             setKeyToRevoke(null);
           }

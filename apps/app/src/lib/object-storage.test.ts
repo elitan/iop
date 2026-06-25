@@ -1,12 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import type { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { nanoid } from "nanoid";
+import { encrypt } from "./crypto";
 import { db } from "./db";
 import { runMigrations } from "./migrate";
 import {
   buildObjectStorageConnectionSnippets,
   getGaragePermissions,
+  listObjectStorageBucketObjects,
+  listObjectStorageS3Objects,
   normalizeBucketName,
   normalizeObjectStorageName,
+  normalizeObjectStorageObjectPrefix,
+  resetObjectStorageRuntimeForTests,
+  setObjectStorageRuntimeForTests,
   waitForObjectStorageDeploymentContainer,
 } from "./object-storage";
 
@@ -16,6 +23,12 @@ interface DeploymentFixture {
   projectId: string;
   environmentId: string;
   serviceId: string;
+}
+
+interface ObjectStorageFixture extends DeploymentFixture {
+  deploymentId: string;
+  objectStorageId: string;
+  bucketId: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -88,6 +101,83 @@ async function cleanupDeploymentFixture(
     .where("id", "=", fixture.environmentId)
     .execute();
   await db.deleteFrom("projects").where("id", "=", fixture.projectId).execute();
+}
+
+async function createObjectStorageFixture(input?: {
+  region?: string;
+}): Promise<ObjectStorageFixture> {
+  const fixture = await createDeploymentFixture();
+  const suffix = nanoid(8);
+  const deploymentId = `dep-object-storage-${suffix}`;
+  const objectStorageId = `obj-object-storage-${suffix}`;
+  const bucketId = `objb-object-storage-${suffix}`;
+  const now = Date.now();
+
+  await db
+    .insertInto("deployments")
+    .values({
+      id: deploymentId,
+      serviceId: fixture.serviceId,
+      environmentId: fixture.environmentId,
+      commitSha: "HEAD",
+      status: "running",
+      containerId: "container-object-storage",
+      hostPort: 19001,
+      createdAt: now,
+    })
+    .execute();
+  await db
+    .updateTable("services")
+    .set({ currentDeploymentId: deploymentId })
+    .where("id", "=", fixture.serviceId)
+    .execute();
+  await db
+    .insertInto("objectStorages")
+    .values({
+      id: objectStorageId,
+      projectId: fixture.projectId,
+      environmentId: fixture.environmentId,
+      name: "files",
+      slug: "files",
+      runtimeServiceId: fixture.serviceId,
+      region: input?.region ?? "garage",
+      internalEndpoint: "http://s3-files:3900",
+      externalEndpoint: null,
+      adminTokenEncrypted: encrypt("admin"),
+      metricsTokenEncrypted: encrypt("metrics"),
+      createdAt: now,
+    })
+    .execute();
+  await db
+    .insertInto("objectStorageBuckets")
+    .values({
+      id: bucketId,
+      objectStorageId,
+      garageBucketId: "garage-bucket-files",
+      name: "files",
+      createdAt: now,
+    })
+    .execute();
+
+  return { ...fixture, deploymentId, objectStorageId, bucketId };
+}
+
+async function cleanupObjectStorageFixture(
+  fixture: ObjectStorageFixture,
+): Promise<void> {
+  await db
+    .deleteFrom("objectStorageAccessKeys")
+    .where("objectStorageId", "=", fixture.objectStorageId)
+    .execute();
+  await db
+    .deleteFrom("objectStorageBuckets")
+    .where("objectStorageId", "=", fixture.objectStorageId)
+    .execute();
+  await db
+    .deleteFrom("objectStorages")
+    .where("id", "=", fixture.objectStorageId)
+    .execute();
+  await cleanupDeploymentFixture(fixture);
 }
 
 async function insertDeployment(
@@ -223,5 +313,245 @@ describe("buildObjectStorageConnectionSnippets", () => {
       value: "http://s3-assets:3900",
     });
     expect(snippets.javascript).toContain('endpoint: "http://s3-assets:3900"');
+  });
+});
+
+describe("listObjectStorageS3Objects", () => {
+  test("normalizes prefixes for list requests", () => {
+    expect(normalizeObjectStorageObjectPrefix(" /uploads/avatars ")).toBe(
+      "uploads/avatars",
+    );
+    expect(normalizeObjectStorageObjectPrefix(null)).toBe("");
+  });
+
+  test("maps paginated S3 responses into bucket objects", async function testListObjects() {
+    const requests: unknown[] = [];
+    const pages: ListObjectsV2CommandOutput[] = [
+      {
+        $metadata: {},
+        IsTruncated: true,
+        NextContinuationToken: "next-page",
+        Contents: [
+          {
+            Key: "uploads/avatar.png",
+            Size: 2048,
+            LastModified: new Date("2026-01-02T03:04:05Z"),
+            ETag: '"etag-1"',
+          },
+        ],
+      },
+      {
+        $metadata: {},
+        IsTruncated: false,
+        Contents: [
+          {
+            Key: "uploads/profile.json",
+            Size: 64,
+          },
+        ],
+      },
+    ];
+    const client = {
+      send: async function send(command: { input: unknown }) {
+        requests.push(command.input);
+        const page = pages.shift();
+        if (!page) {
+          throw new Error("Unexpected S3 request");
+        }
+        return page;
+      },
+    };
+
+    const firstPage = await listObjectStorageS3Objects({
+      client,
+      bucket: "assets",
+      bucketId: "bucket-assets",
+      prefix: "/uploads/",
+      maxKeys: 2,
+    });
+    const secondPage = await listObjectStorageS3Objects({
+      client,
+      bucket: "assets",
+      bucketId: "bucket-assets",
+      prefix: "/uploads/",
+      cursor: firstPage.nextCursor,
+      maxKeys: 2,
+    });
+
+    expect(requests).toEqual([
+      {
+        Bucket: "assets",
+        Prefix: "uploads/",
+        ContinuationToken: undefined,
+        MaxKeys: 2,
+      },
+      {
+        Bucket: "assets",
+        Prefix: "uploads/",
+        ContinuationToken: "next-page",
+        MaxKeys: 2,
+      },
+    ]);
+    expect(firstPage).toEqual({
+      bucketId: "bucket-assets",
+      prefix: "uploads/",
+      nextCursor: "next-page",
+      objects: [
+        {
+          key: "uploads/avatar.png",
+          size: 2048,
+          lastModified: new Date("2026-01-02T03:04:05Z").getTime(),
+          etag: '"etag-1"',
+        },
+      ],
+    });
+    expect(secondPage.nextCursor).toBe(null);
+    expect(secondPage.objects).toEqual([
+      {
+        key: "uploads/profile.json",
+        size: 64,
+        lastModified: null,
+        etag: null,
+      },
+    ]);
+  });
+});
+
+describe("listObjectStorageBucketObjects", () => {
+  test("lists objects through a scoped temporary read key", async function testTemporaryReadKey() {
+    const fixture = await createObjectStorageFixture({ region: "garage" });
+    const garageCalls: {
+      operation: string;
+      payload?: Record<string, unknown>;
+    }[] = [];
+    const clientInputs: unknown[] = [];
+    const listRequests: unknown[] = [];
+
+    setObjectStorageRuntimeForTests({
+      garageJsonApi: async function garageJsonApi(
+        _containerId,
+        operation,
+        payload,
+      ) {
+        garageCalls.push({ operation, payload });
+        if (operation === "CreateKey") {
+          return {
+            accessKeyId: "temporary-list-key",
+            secretAccessKey: "temporary-list-secret",
+          };
+        }
+        return null;
+      },
+      s3ClientFactory: function s3ClientFactory(input) {
+        clientInputs.push(input);
+        return {
+          send: async function send(command: { input: unknown }) {
+            listRequests.push(command.input);
+            return {
+              $metadata: {},
+              Contents: [{ Key: "uploads/avatar.png", Size: 42 }],
+            };
+          },
+        };
+      },
+    });
+
+    try {
+      const result = await listObjectStorageBucketObjects({
+        objectStorageId: fixture.objectStorageId,
+        bucketId: fixture.bucketId,
+        prefix: "/uploads/",
+      });
+
+      expect(result.objects).toEqual([
+        {
+          key: "uploads/avatar.png",
+          size: 42,
+          lastModified: null,
+          etag: null,
+        },
+      ]);
+      expect(clientInputs).toEqual([
+        {
+          endpoint: "http://127.0.0.1:19001",
+          region: "garage",
+          credentials: {
+            accessKeyId: "temporary-list-key",
+            secretAccessKey: "temporary-list-secret",
+          },
+        },
+      ]);
+      expect(listRequests).toEqual([
+        {
+          Bucket: "files",
+          Prefix: "uploads/",
+          ContinuationToken: undefined,
+          MaxKeys: 100,
+        },
+      ]);
+      expect(garageCalls).toEqual([
+        {
+          operation: "CreateKey",
+          payload: { name: "frost-list-files", neverExpires: true },
+        },
+        {
+          operation: "AllowBucketKey",
+          payload: {
+            bucketId: "garage-bucket-files",
+            accessKeyId: "temporary-list-key",
+            permissions: { read: true },
+          },
+        },
+        {
+          operation: "DeleteKey",
+          payload: { id: "temporary-list-key" },
+        },
+      ]);
+    } finally {
+      resetObjectStorageRuntimeForTests();
+      await cleanupObjectStorageFixture(fixture);
+    }
+  });
+
+  test("cleans temporary read keys when S3 listing fails", async function testTemporaryReadKeyCleanupOnError() {
+    const fixture = await createObjectStorageFixture();
+    const garageOperations: string[] = [];
+
+    setObjectStorageRuntimeForTests({
+      garageJsonApi: async function garageJsonApi(_containerId, operation) {
+        garageOperations.push(operation);
+        if (operation === "CreateKey") {
+          return {
+            accessKeyId: "temporary-list-key",
+            secretAccessKey: "temporary-list-secret",
+          };
+        }
+        return null;
+      },
+      s3ClientFactory: function s3ClientFactory() {
+        return {
+          send: async function send() {
+            throw new Error("S3 list failed");
+          },
+        };
+      },
+    });
+
+    try {
+      await expect(
+        listObjectStorageBucketObjects({
+          objectStorageId: fixture.objectStorageId,
+          bucketId: fixture.bucketId,
+        }),
+      ).rejects.toThrow("S3 list failed");
+      expect(garageOperations).toEqual([
+        "CreateKey",
+        "AllowBucketKey",
+        "DeleteKey",
+      ]);
+    } finally {
+      resetObjectStorageRuntimeForTests();
+      await cleanupObjectStorageFixture(fixture);
+    }
   });
 });

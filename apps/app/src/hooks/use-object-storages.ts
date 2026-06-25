@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { ContractInputs } from "@/contracts";
 import { orpc } from "@/lib/orpc-client";
 
@@ -15,6 +20,34 @@ export function useObjectStorage(objectStorageId: string) {
     ...orpc.objectStorages.get.queryOptions({ input: { objectStorageId } }),
     enabled: !!objectStorageId,
     refetchInterval: 3000,
+  });
+}
+
+export function useObjectStorageBucketObjects(input: {
+  objectStorageId: string;
+  bucketId: string;
+  prefix: string;
+}) {
+  return useInfiniteQuery({
+    queryKey: [
+      "object-storage-bucket-objects",
+      input.objectStorageId,
+      input.bucketId,
+      input.prefix,
+    ],
+    enabled: !!input.objectStorageId && !!input.bucketId,
+    initialPageParam: null as string | null,
+    queryFn: function queryFn({ pageParam }) {
+      return orpc.objectStorages.listBucketObjects.call({
+        objectStorageId: input.objectStorageId,
+        bucketId: input.bucketId,
+        prefix: input.prefix || undefined,
+        cursor: pageParam ?? undefined,
+      });
+    },
+    getNextPageParam: function getNextPageParam(lastPage) {
+      return lastPage.nextCursor ?? undefined;
+    },
   });
 }
 

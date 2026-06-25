@@ -8,7 +8,7 @@ import {
   newObjectStorageBucketId,
   newObjectStorageId,
 } from "../id";
-import { GARAGE_REGION } from "./config";
+import { GARAGE_REGION, getObjectStorageSigningRegion } from "./config";
 import {
   getErrorMessage,
   objectStorageConflict,
@@ -24,6 +24,7 @@ import {
   waitForGarageReady,
 } from "./garage-admin";
 import { normalizeBucketName, normalizeObjectStorageName } from "./naming";
+import { createObjectBrowserReadSession } from "./object-browser";
 import {
   attachObjectStorageRuntime,
   cleanupObjectStorageRuntimeService,
@@ -33,15 +34,20 @@ import {
   getLatestRuntimeDeployment,
   getObjectStorageConnectionInfo,
   getObjectStorageServerIp,
+  getRunningObjectStorageRuntime,
   getRuntimeContainerId,
+  getRuntimeLocalS3Endpoint,
   waitForObjectStorageDeploymentContainer,
 } from "./runtime";
+import { createObjectStorageS3Client, listObjectStorageS3Objects } from "./s3";
 import { buildObjectStorageConnectionSnippets } from "./snippets";
 import type {
   CreateAccessKeyInput,
   CreateAccessKeyResult,
   CreateBucketInput,
   CreateObjectStorageInput,
+  ListBucketObjectsInput,
+  ObjectStorageBucketObjectList,
   ObjectStorageDeployment,
   ObjectStorageDetails,
   ObjectStorageWithRuntime,
@@ -395,6 +401,39 @@ export async function createObjectStorageAccessKey(
       secretAccessKey: garageKey.secretAccessKey,
     }),
   };
+}
+
+export async function listObjectStorageBucketObjects(
+  input: ListBucketObjectsInput,
+): Promise<ObjectStorageBucketObjectList> {
+  const objectStorage = await getObjectStorageRow(input.objectStorageId);
+  const bucket = await getObjectStorageBucketWithGarageId(input);
+  const runtime = await getRunningObjectStorageRuntime(objectStorage);
+  const browserSession = await createObjectBrowserReadSession({
+    containerId: runtime.containerId,
+    bucketName: bucket.name,
+    garageBucketId: bucket.garageBucketId,
+  });
+
+  try {
+    const client = createObjectStorageS3Client({
+      endpoint: getRuntimeLocalS3Endpoint(runtime.hostPort),
+      region: getObjectStorageSigningRegion(objectStorage.region),
+      credentials: browserSession.credentials,
+    });
+
+    return await listObjectStorageS3Objects({
+      client,
+      bucket: bucket.name,
+      bucketId: bucket.id,
+      prefix: input.prefix ?? "",
+      cursor: input.cursor,
+    });
+  } catch (error) {
+    throw objectStorageValidation(getErrorMessage(error));
+  } finally {
+    await browserSession.cleanup();
+  }
 }
 
 export async function revokeObjectStorageAccessKey(input: {

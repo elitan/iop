@@ -50,6 +50,20 @@ const objectStorageDetailsSchema = z.object({
   connection: objectStorageConnectionSchema,
 });
 
+const objectStorageBucketObjectSchema = z.object({
+  key: z.string(),
+  size: z.number(),
+  lastModified: z.number().nullable(),
+  etag: z.string().nullable(),
+});
+
+const objectStorageBucketObjectListSchema = z.object({
+  bucketId: z.string(),
+  prefix: z.string(),
+  nextCursor: z.string().nullable(),
+  objects: z.array(objectStorageBucketObjectSchema),
+});
+
 export const objectStoragesContract = {
   create: oc
     .route({ method: "POST", path: "/projects/{projectId}/object-storages" })
@@ -103,6 +117,21 @@ export const objectStoragesContract = {
       }),
     )
     .output(z.object({ success: z.boolean() })),
+
+  listBucketObjects: oc
+    .route({
+      method: "GET",
+      path: "/object-storages/{objectStorageId}/buckets/{bucketId}/objects",
+    })
+    .input(
+      z.object({
+        objectStorageId: z.string(),
+        bucketId: z.string(),
+        prefix: z.string().optional(),
+        cursor: z.string().optional(),
+      }),
+    )
+    .output(objectStorageBucketObjectListSchema),
 
   createAccessKey: oc
     .route({
