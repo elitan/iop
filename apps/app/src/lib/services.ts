@@ -3,6 +3,7 @@ import { db } from "./db";
 import type { Services } from "./db-types";
 import { createWildcardDomain } from "./domains";
 import { newServiceId } from "./id";
+import type { ServiceType } from "./service-visibility";
 import { generateSelfSignedCert } from "./ssl";
 
 const POSTGRES_SSL_OWNER = { uid: 999, gid: 999 } as const;
@@ -13,7 +14,7 @@ export interface CreateServiceInput {
   name: string;
   hostname: string;
   deployType: "repo" | "image";
-  serviceType?: "app" | "database";
+  serviceType?: ServiceType;
   repoUrl?: string | null;
   branch?: string | null;
   dockerfilePath?: string | null;

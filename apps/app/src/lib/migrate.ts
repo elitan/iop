@@ -625,5 +625,249 @@ function runSchemaUpgrades(sqlite: Database): string[] {
     }
   }
 
+  ensureObjectStorageSchema(sqlite, upgrades);
+
   return upgrades;
+}
+
+function hasTable(sqlite: Database, tableName: string): boolean {
+  return Boolean(
+    sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?")
+      .get(tableName),
+  );
+}
+
+function getTableSql(sqlite: Database, tableName: string): string {
+  const row = sqlite
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?")
+    .get(tableName) as { sql?: string } | undefined;
+  return row?.sql ?? "";
+}
+
+function getTableColumns(sqlite: Database, tableName: string): Set<string> {
+  const columns = sqlite
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all() as Array<{
+    name: string;
+  }>;
+  return new Set(
+    columns.map(function getName(column) {
+      return column.name;
+    }),
+  );
+}
+
+function selectExistingColumn(
+  columns: Set<string>,
+  columnName: string,
+  fallbackSql: string,
+): string {
+  return columns.has(columnName)
+    ? columnName
+    : `${fallbackSql} AS ${columnName}`;
+}
+
+function rebuildServicesForObjectStorage(sqlite: Database): void {
+  const columns = getTableColumns(sqlite, "services");
+
+  sqlite.exec(`
+    DROP INDEX IF EXISTS idx_services_environment_id;
+    DROP INDEX IF EXISTS idx_services_environment_hostname;
+
+    CREATE TABLE services_new (
+      id TEXT PRIMARY KEY,
+      environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      hostname TEXT,
+      deploy_type TEXT NOT NULL DEFAULT 'repo' CHECK (deploy_type IN ('repo', 'image')),
+      service_type TEXT NOT NULL DEFAULT 'app' CHECK (service_type IN ('app', 'database', 'object-storage')),
+      repo_url TEXT,
+      branch TEXT DEFAULT 'main',
+      dockerfile_path TEXT DEFAULT 'Dockerfile',
+      build_context TEXT,
+      image_url TEXT,
+      registry_id TEXT,
+      env_vars TEXT NOT NULL DEFAULT '[]',
+      container_port INTEGER DEFAULT 8080,
+      health_check_path TEXT,
+      health_check_timeout INTEGER DEFAULT 60,
+      auto_deploy INTEGER DEFAULT 1 CHECK (auto_deploy IN (0, 1)),
+      volumes TEXT DEFAULT '[]',
+      tcp_proxy_port INTEGER,
+      memory_limit TEXT,
+      cpu_limit REAL,
+      shutdown_timeout INTEGER,
+      drain_timeout INTEGER,
+      request_timeout INTEGER,
+      command TEXT,
+      icon TEXT,
+      current_deployment_id TEXT,
+      frost_file_path TEXT DEFAULT 'frost.yaml',
+      replica_count INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      UNIQUE(environment_id, name)
+    );
+
+    INSERT INTO services_new (
+      id,
+      environment_id,
+      name,
+      hostname,
+      deploy_type,
+      service_type,
+      repo_url,
+      branch,
+      dockerfile_path,
+      build_context,
+      image_url,
+      registry_id,
+      env_vars,
+      container_port,
+      health_check_path,
+      health_check_timeout,
+      auto_deploy,
+      volumes,
+      tcp_proxy_port,
+      memory_limit,
+      cpu_limit,
+      shutdown_timeout,
+      drain_timeout,
+      request_timeout,
+      command,
+      icon,
+      current_deployment_id,
+      frost_file_path,
+      replica_count,
+      created_at
+    )
+    SELECT
+      ${selectExistingColumn(columns, "id", "lower(hex(randomblob(10)))")},
+      ${selectExistingColumn(columns, "environment_id", "''")},
+      ${selectExistingColumn(columns, "name", "'service'")},
+      ${selectExistingColumn(columns, "hostname", "NULL")},
+      ${selectExistingColumn(columns, "deploy_type", "'repo'")},
+      COALESCE(${columns.has("service_type") ? "service_type" : "NULL"}, 'app'),
+      ${selectExistingColumn(columns, "repo_url", "NULL")},
+      ${selectExistingColumn(columns, "branch", "'main'")},
+      ${selectExistingColumn(columns, "dockerfile_path", "'Dockerfile'")},
+      ${selectExistingColumn(columns, "build_context", "NULL")},
+      ${selectExistingColumn(columns, "image_url", "NULL")},
+      ${selectExistingColumn(columns, "registry_id", "NULL")},
+      ${selectExistingColumn(columns, "env_vars", "'[]'")},
+      ${selectExistingColumn(columns, "container_port", "8080")},
+      ${selectExistingColumn(columns, "health_check_path", "NULL")},
+      ${selectExistingColumn(columns, "health_check_timeout", "60")},
+      ${selectExistingColumn(columns, "auto_deploy", "1")},
+      ${selectExistingColumn(columns, "volumes", "'[]'")},
+      ${selectExistingColumn(columns, "tcp_proxy_port", "NULL")},
+      ${selectExistingColumn(columns, "memory_limit", "NULL")},
+      ${selectExistingColumn(columns, "cpu_limit", "NULL")},
+      ${selectExistingColumn(columns, "shutdown_timeout", "NULL")},
+      ${selectExistingColumn(columns, "drain_timeout", "NULL")},
+      ${selectExistingColumn(columns, "request_timeout", "NULL")},
+      ${selectExistingColumn(columns, "command", "NULL")},
+      ${selectExistingColumn(columns, "icon", "NULL")},
+      ${selectExistingColumn(columns, "current_deployment_id", "NULL")},
+      ${selectExistingColumn(columns, "frost_file_path", "'frost.yaml'")},
+      ${selectExistingColumn(columns, "replica_count", "1")},
+      ${selectExistingColumn(columns, "created_at", "strftime('%s','now') * 1000")}
+    FROM services;
+
+    DROP TABLE services;
+    ALTER TABLE services_new RENAME TO services;
+
+    CREATE INDEX idx_services_environment_id ON services(environment_id);
+    CREATE UNIQUE INDEX idx_services_environment_hostname ON services(environment_id, hostname);
+  `);
+}
+
+function createObjectStorageTables(sqlite: Database): void {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS object_storages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      environment_id TEXT NOT NULL REFERENCES environments(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      engine TEXT NOT NULL DEFAULT 'garage' CHECK (engine IN ('garage')),
+      runtime_service_id TEXT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+      region TEXT NOT NULL DEFAULT 'auto',
+      internal_endpoint TEXT NOT NULL,
+      external_endpoint TEXT,
+      admin_token_encrypted TEXT NOT NULL,
+      metrics_token_encrypted TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(environment_id, name),
+      UNIQUE(environment_id, slug),
+      UNIQUE(runtime_service_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_object_storages_project_id ON object_storages(project_id);
+    CREATE INDEX IF NOT EXISTS idx_object_storages_environment_id ON object_storages(environment_id);
+    CREATE INDEX IF NOT EXISTS idx_object_storages_runtime_service_id ON object_storages(runtime_service_id);
+
+    CREATE TABLE IF NOT EXISTS object_storage_buckets (
+      id TEXT PRIMARY KEY,
+      object_storage_id TEXT NOT NULL REFERENCES object_storages(id) ON DELETE CASCADE,
+      garage_bucket_id TEXT,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(object_storage_id, name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_object_storage_buckets_object_storage_id ON object_storage_buckets(object_storage_id);
+
+    CREATE TABLE IF NOT EXISTS object_storage_access_keys (
+      id TEXT PRIMARY KEY,
+      object_storage_id TEXT NOT NULL REFERENCES object_storages(id) ON DELETE CASCADE,
+      bucket_id TEXT REFERENCES object_storage_buckets(id) ON DELETE SET NULL,
+      access_key_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      key_prefix TEXT NOT NULL,
+      permissions TEXT NOT NULL CHECK (permissions IN ('read-only', 'read-write', 'full')),
+      secret_access_key_encrypted TEXT,
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      UNIQUE(object_storage_id, access_key_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_object_storage_access_keys_object_storage_id ON object_storage_access_keys(object_storage_id);
+    CREATE INDEX IF NOT EXISTS idx_object_storage_access_keys_bucket_id ON object_storage_access_keys(bucket_id);
+  `);
+}
+
+function ensureObjectStorageSchema(sqlite: Database, upgrades: string[]): void {
+  if (!hasTable(sqlite, "services") || !hasTable(sqlite, "environments")) {
+    return;
+  }
+
+  const serviceSql = getTableSql(sqlite, "services");
+  const needsServiceTypeUpgrade = !serviceSql.includes("'object-storage'");
+  const needsObjectStorageTables = !hasTable(sqlite, "object_storages");
+
+  if (!needsServiceTypeUpgrade && !needsObjectStorageTables) {
+    return;
+  }
+
+  console.log("[migrate] Running schema upgrade: object storage support");
+  sqlite.exec("PRAGMA foreign_keys = OFF");
+  sqlite.exec("BEGIN EXCLUSIVE");
+  try {
+    if (needsServiceTypeUpgrade) {
+      rebuildServicesForObjectStorage(sqlite);
+    }
+
+    createObjectStorageTables(sqlite);
+
+    sqlite.exec("COMMIT");
+    sqlite.exec("PRAGMA foreign_keys = ON");
+    upgrades.push("object-storage");
+    console.log("[migrate] Schema upgrade complete: object storage support");
+  } catch (err) {
+    sqlite.exec("ROLLBACK");
+    sqlite.exec("PRAGMA foreign_keys = ON");
+    console.error("[migrate] Object storage schema upgrade failed:", err);
+    throw err;
+  }
 }

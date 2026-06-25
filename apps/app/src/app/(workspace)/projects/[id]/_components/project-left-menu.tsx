@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Archive } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type SyntheticEvent, useMemo } from "react";
+import { type ReactNode, type SyntheticEvent, useMemo } from "react";
 import { BrandLockup } from "@/components/brand-lockup";
 import { EnvironmentPicker } from "@/components/environment-picker";
 import { LeftMenuFooter } from "@/components/left-menu-footer";
@@ -11,6 +12,7 @@ import { ProjectPicker } from "@/components/project-picker";
 import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
 import { ShellTopRow } from "@/components/shell-top-row";
 import { useDatabases } from "@/hooks/use-databases";
+import { useObjectStorages } from "@/hooks/use-object-storages";
 import { useProject, useProjects } from "@/hooks/use-projects";
 import type { Service } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -21,12 +23,17 @@ import {
 import { orpc } from "@/lib/orpc-client";
 import { FALLBACK_ICON, getServiceIcon } from "@/lib/service-logo";
 import { getPreferredDomain } from "@/lib/service-url";
+import {
+  getEnvironmentObjectStorages,
+  hasEnvironmentResources,
+} from "./environment-resource-sections";
 
 interface ProjectLeftMenuProps {
   projectId: string;
   currentEnvId: string;
   selectedServiceId: string | null;
   selectedDatabaseId: string | null;
+  selectedObjectStorageId: string | null;
   onOpenCreateService: () => void;
   onOpenCreateEnvironment: () => void;
 }
@@ -52,8 +59,9 @@ function handleImageFallback(
 interface ResourceListItemProps {
   href: string;
   isActive: boolean;
-  iconSrc: string;
-  iconFallback: string;
+  icon?: ReactNode;
+  iconSrc?: string;
+  iconFallback?: string;
   name: string;
   subtitle: string;
   runtimeStatus?: Service["runtimeStatus"];
@@ -63,6 +71,7 @@ interface ResourceListItemProps {
 function ResourceListItem({
   href,
   isActive,
+  icon,
   iconSrc,
   iconFallback,
   name,
@@ -75,14 +84,18 @@ function ResourceListItem({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-neutral-800 text-neutral-400">
-            <img
-              src={iconSrc}
-              alt=""
-              className="h-4 w-4 object-contain"
-              onError={function onIconError(event) {
-                handleImageFallback(event, iconFallback);
-              }}
-            />
+            {icon ? (
+              icon
+            ) : iconSrc && iconFallback ? (
+              <img
+                src={iconSrc}
+                alt=""
+                className="h-4 w-4 object-contain"
+                onError={function onIconError(event) {
+                  handleImageFallback(event, iconFallback);
+                }}
+              />
+            ) : null}
           </span>
           <span className="truncate text-sm text-neutral-100">{name}</span>
         </div>
@@ -104,6 +117,7 @@ export function ProjectLeftMenu({
   currentEnvId,
   selectedServiceId,
   selectedDatabaseId,
+  selectedObjectStorageId,
   onOpenCreateService,
   onOpenCreateEnvironment,
 }: ProjectLeftMenuProps) {
@@ -111,6 +125,7 @@ export function ProjectLeftMenu({
   const { data: project } = useProject(projectId);
   const { data: projects = [] } = useProjects();
   const { data: databases = [] } = useDatabases(projectId);
+  const { data: objectStorages = [] } = useObjectStorages(projectId);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: function fetchSettings() {
@@ -168,7 +183,18 @@ export function ProjectLeftMenu({
     [allDomains],
   );
 
-  const hasResources = services.length > 0 || databases.length > 0;
+  const environmentObjectStorages = useMemo(
+    function getCurrentEnvironmentObjectStorages() {
+      return getEnvironmentObjectStorages(objectStorages, currentEnvId);
+    },
+    [currentEnvId, objectStorages],
+  );
+
+  const hasResources = hasEnvironmentResources({
+    services,
+    databases,
+    objectStorages: environmentObjectStorages,
+  });
   const serverIp = settings?.serverIp ?? null;
   const projectStartHref = `/projects/${projectId}`;
   const environmentStartHref = currentEnvId
@@ -308,6 +334,26 @@ export function ProjectLeftMenu({
                   />
                 );
               })}
+
+              {environmentObjectStorages.map(
+                function renderObjectStorage(objectStorage) {
+                  const href = currentEnvId
+                    ? `/projects/${projectId}/environments/${currentEnvId}/object-storages/${objectStorage.id}`
+                    : `/projects/${projectId}`;
+                  return (
+                    <ResourceListItem
+                      key={objectStorage.id}
+                      href={href}
+                      isActive={selectedObjectStorageId === objectStorage.id}
+                      icon={<Archive className="h-4 w-4" />}
+                      name={objectStorage.name}
+                      subtitle={objectStorage.endpoint ?? "S3 API"}
+                      runtimeStatus={objectStorage.runtimeStatus}
+                      attentionStatus={objectStorage.attentionStatus}
+                    />
+                  );
+                },
+              )}
             </div>
           )}
 

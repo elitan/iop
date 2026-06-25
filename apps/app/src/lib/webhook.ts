@@ -6,6 +6,11 @@ import { normalizeGitHubUrl, updatePRComment } from "./github";
 import { newEnvironmentId } from "./id";
 import { cleanupEnvironment } from "./lifecycle";
 import { getPreferredDomain } from "./service-url";
+import {
+  assertUserFacingServiceType,
+  type ServiceType,
+  USER_FACING_SERVICE_TYPES,
+} from "./service-visibility";
 import { createService } from "./services";
 import { slugify } from "./slugify";
 
@@ -26,6 +31,7 @@ export async function findMatchingServices(webhookRepoUrl: string) {
     .selectFrom("services")
     .selectAll()
     .where("deployType", "=", "repo")
+    .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
     .where("autoDeploy", "=", true)
     .execute();
 
@@ -70,6 +76,7 @@ export async function findProductionServicesForRepo(webhookRepoUrl: string) {
       "projects.hostname as projectHostname",
     ])
     .where("services.deployType", "=", "repo")
+    .where("services.serviceType", "in", USER_FACING_SERVICE_TYPES)
     .where("environments.type", "=", "production")
     .execute();
 
@@ -144,7 +151,7 @@ export async function cloneServiceToEnvironment(
     name: string;
     hostname: string | null;
     deployType: "repo" | "image";
-    serviceType: "app" | "database";
+    serviceType: ServiceType;
     repoUrl: string | null;
     branch: string | null;
     dockerfilePath: string | null;
@@ -174,6 +181,8 @@ export async function cloneServiceToEnvironment(
   if (existing) {
     return existing.id;
   }
+
+  assertUserFacingServiceType(sourceService);
 
   const hostname = sourceService.hostname ?? slugify(sourceService.name);
   const envVars = sourceService.envVars
@@ -357,6 +366,7 @@ export async function getEnvironmentServiceStatuses(
     .selectFrom("services")
     .select(["id", "name", "hostname"])
     .where("environmentId", "=", environmentId)
+    .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
     .execute();
 
   const statuses: ServiceDeployStatus[] = [];

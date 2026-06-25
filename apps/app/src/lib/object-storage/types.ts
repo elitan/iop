@@ -1,0 +1,68 @@
+import type { Selectable } from "kysely";
+import type {
+  Deployments,
+  ObjectStorageAccessKeys,
+  ObjectStorageBuckets,
+  ObjectStorages,
+} from "../db-types";
+import type {
+  ServiceAttentionStatus,
+  ServiceRuntimeStatus,
+} from "../service-runtime-status";
+
+export type ObjectStorageAccessKeyPermission =
+  Selectable<ObjectStorageAccessKeys>["permissions"];
+
+export interface ObjectStorageWithRuntime extends Selectable<ObjectStorages> {
+  endpoint: string | null;
+  runtimeStatus: ServiceRuntimeStatus;
+  attentionStatus: ServiceAttentionStatus;
+  hostPort: number | null;
+}
+
+export interface ObjectStorageDetails {
+  objectStorage: ObjectStorageWithRuntime;
+  buckets: Selectable<ObjectStorageBuckets>[];
+  accessKeys: Selectable<ObjectStorageAccessKeys>[];
+  connection: ObjectStorageConnectionInfo;
+}
+
+export interface ObjectStorageConnectionInfo {
+  endpoint: string | null;
+  internalEndpoint: string;
+  region: string;
+  forcePathStyle: boolean;
+}
+
+export interface ObjectStorageConnectionSnippets {
+  env: { key: string; value: string }[];
+  awsCli: string;
+  javascript: string;
+}
+
+export interface CreateObjectStorageInput {
+  projectId: string;
+  environmentId: string;
+  name: string;
+  bucketName?: string | null;
+}
+
+export interface CreateBucketInput {
+  objectStorageId: string;
+  name: string;
+}
+
+export interface CreateAccessKeyInput {
+  objectStorageId: string;
+  bucketId: string;
+  name: string;
+  permissions: ObjectStorageAccessKeyPermission;
+}
+
+export interface CreateAccessKeyResult {
+  accessKey: Selectable<ObjectStorageAccessKeys>;
+  secretAccessKey: string;
+  snippets: ObjectStorageConnectionSnippets;
+}
+
+export type ObjectStorageDeployment = Selectable<Deployments>;

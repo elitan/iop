@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
+  Archive,
   ChevronLeft,
   ChevronRight,
   Container,
@@ -44,17 +45,18 @@ import {
 } from "@/lib/database-logo";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 import { DatabaseImportWizard } from "./database-import-wizard";
+import { ObjectStorageCreateForm } from "./object-storage-create-form";
+import { generateUniqueName } from "./resource-name";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
 
-function generateUniqueName(baseName: string, existingNames: string[]): string {
-  if (!existingNames.includes(baseName)) return baseName;
-
-  let counter = 2;
-  while (existingNames.includes(`${baseName}-${counter}`)) counter++;
-  return `${baseName}-${counter}`;
-}
-
-type Step = "category" | "repo" | "scanning" | "staged" | "image" | "database";
+type Step =
+  | "category"
+  | "repo"
+  | "scanning"
+  | "staged"
+  | "image"
+  | "database"
+  | "object-storage";
 type DatabaseMode = "menu" | "create" | "import";
 
 interface CreateServiceModalProps {
@@ -64,6 +66,7 @@ interface CreateServiceModalProps {
   onOpenChange: (open: boolean) => void;
   onServiceCreated?: (serviceId: string) => void;
   onDatabaseCreated?: (databaseId: string) => void;
+  onObjectStorageCreated?: (objectStorageId: string) => void;
 }
 
 interface CategoryOption {
@@ -91,6 +94,12 @@ const CATEGORIES: CategoryOption[] = [
     label: "Database",
     icon: Database,
     keywords: ["database", "postgres", "postgresql", "mysql", "sql"],
+  },
+  {
+    id: "object-storage",
+    label: "Object Storage",
+    icon: Archive,
+    keywords: ["object", "storage", "s3", "bucket", "uploads", "files"],
   },
 ];
 
@@ -131,6 +140,7 @@ export function CreateServiceModal({
   onOpenChange,
   onServiceCreated,
   onDatabaseCreated,
+  onObjectStorageCreated,
 }: CreateServiceModalProps): React.ReactElement {
   const createMutation = useCreateService(environmentId);
   const createDatabaseMutation = useCreateDatabase(projectId);
@@ -193,6 +203,7 @@ export function CreateServiceModal({
       staged: null,
       image: null,
       database: null,
+      "object-storage": null,
     };
     const ref = inputRefs[step];
     if (ref) setTimeout(() => ref.current?.focus(), 0);
@@ -416,6 +427,14 @@ export function CreateServiceModal({
     }
   }
 
+  function handleObjectStorageCreated(objectStorageId: string): void {
+    resetState();
+    onOpenChange(false);
+    if (onObjectStorageCreated) {
+      onObjectStorageCreated(objectStorageId);
+    }
+  }
+
   function handleSearchChange(value: string): void {
     setSearch(value);
     setSelectedIndex(0);
@@ -435,6 +454,7 @@ export function CreateServiceModal({
     staged: "Configure Services",
     image: "Deploy Docker Image",
     database: "Create Database",
+    "object-storage": "Create Object Storage",
   };
 
   function renderStepContent(): React.ReactElement {
@@ -752,6 +772,16 @@ export function CreateServiceModal({
               </Button>
             </form>
           </div>
+        );
+
+      case "object-storage":
+        return (
+          <ObjectStorageCreateForm
+            projectId={projectId}
+            environmentId={environmentId}
+            onBack={resetState}
+            onCreated={handleObjectStorageCreated}
+          />
         );
     }
   }

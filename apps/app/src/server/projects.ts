@@ -11,7 +11,9 @@ import { deployProject, deployService } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { newEnvironmentId, newProjectId } from "@/lib/id";
 import { cleanupProject } from "@/lib/lifecycle";
+import { listObjectStoragesByProject } from "@/lib/object-storage";
 import { getProjectResourceSummary } from "@/lib/project-resource-summary";
+import { USER_FACING_SERVICE_TYPES } from "@/lib/service-visibility";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import {
@@ -63,7 +65,7 @@ export const projects = {
 
     return Promise.all(
       projectRows.map(async (project) => {
-        const [productionEnv, databases] = await Promise.all([
+        const [productionEnv, databases, objectStorages] = await Promise.all([
           db
             .selectFrom("environments")
             .select("id")
@@ -71,6 +73,7 @@ export const projects = {
             .where("type", "=", "production")
             .executeTakeFirst(),
           listDatabasesWithRuntimeByProject(project.id),
+          listObjectStoragesByProject(project.id),
         ]);
 
         const services = productionEnv
@@ -78,6 +81,7 @@ export const projects = {
               .selectFrom("services")
               .selectAll()
               .where("environmentId", "=", productionEnv.id)
+              .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
               .execute()
           : [];
 
@@ -86,6 +90,7 @@ export const projects = {
         const resourceSummary = getProjectResourceSummary({
           services: servicesWithDeployments,
           databases,
+          objectStorages,
         });
 
         let latestDeployment: {
@@ -177,6 +182,7 @@ export const projects = {
           .selectFrom("services")
           .selectAll()
           .where("environmentId", "=", productionEnv.id)
+          .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
           .execute()
       : [];
 
@@ -386,6 +392,7 @@ export const projects = {
       .innerJoin("environments", "environments.id", "services.environmentId")
       .select("services.id")
       .where("environments.projectId", "=", input.projectId)
+      .where("services.serviceType", "in", USER_FACING_SERVICE_TYPES)
       .execute();
     for (const service of services) {
       await assertDemoDeployRateLimit(service.id);

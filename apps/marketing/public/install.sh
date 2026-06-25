@@ -97,6 +97,12 @@ else
   timer "Build tools already installed"
 fi
 
+if ! command -v zfs &> /dev/null || ! command -v zpool &> /dev/null; then
+  timer "Installing zfsutils-linux..."
+  apt-get update -qq
+  apt-get install -y -qq zfsutils-linux > /dev/null || true
+fi
+
 # Install Docker if not present
 if ! command -v docker &> /dev/null; then
   timer "Installing Docker..."
@@ -179,8 +185,60 @@ else
   timer "Caddy DNS modules present"
 fi
 
-# Get server IP for HTTPS setup (force IPv4)
-SERVER_IP=$(curl -4 -s ifconfig.me 2>/dev/null || curl -4 -s api.ipify.org 2>/dev/null || echo "YOUR_SERVER_IP")
+is_valid_ipv4() {
+  local ip="$1"
+  if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    return 1
+  fi
+  IFS='.' read -r o1 o2 o3 o4 <<< "$ip"
+  for octet in "$o1" "$o2" "$o3" "$o4"; do
+    if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+get_public_ipv4() {
+  local candidate=""
+  for url in \
+    "https://ifconfig.me/ip" \
+    "https://api.ipify.org" \
+    "https://ipv4.icanhazip.com" \
+    "https://checkip.amazonaws.com"
+  do
+    candidate=$(curl -4 -fsSL "$url" 2>/dev/null | tr -d '\r' | tr -d '\n' || true)
+    if is_valid_ipv4 "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+detect_single_zfs_pool() {
+  if ! command -v zpool &> /dev/null; then
+    return 0
+  fi
+
+  local pools
+  local count
+  pools=$(zpool list -H -o name 2>/dev/null | awk 'NF {print}')
+  count=$(echo "$pools" | awk 'NF {c++} END {print c+0}')
+
+  if [ "$count" -eq 1 ]; then
+    echo "$pools"
+  fi
+}
+
+SERVER_IP=$(get_public_ipv4 || true)
+if ! is_valid_ipv4 "$SERVER_IP"; then
+  SERVER_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {print $7; exit}')
+fi
+if ! is_valid_ipv4 "$SERVER_IP"; then
+  echo -e "${RED}Failed to detect public IPv4 address${NC}"
+  exit 1
+fi
 
 # Configure Caddy with self-signed HTTPS
 timer "Configuring Caddy..."
@@ -241,7 +299,7 @@ if [ "$USE_TARBALL" = true ]; then
 
   # Install production deps for scripts (migrate, setup, etc.)
   timer "Installing dependencies (bun)..."
-  bun install --production
+  bun install --production --frozen-lockfile
 else
   # Branch mode: clone and build from source (like main branch behavior)
   timer "Cloning Frost (branch: $FROST_BRANCH)..."
@@ -250,7 +308,7 @@ else
   cd "$FROST_DIR"
 
   timer "Installing dependencies (bun)..."
-  bun install
+  bun install --frozen-lockfile
 
   timer "Clearing Next.js cache..."
   rm -rf .next node_modules/.cache
@@ -274,11 +332,24 @@ fi
 
 # Create data directory
 mkdir -p "$FROST_DIR/data"
+ZFS_POOL=$(detect_single_zfs_pool || true)
+ZFS_DATASET_BASE="frost/databases"
+ZFS_MOUNT_BASE="/opt/frost/data/postgres/zfs"
+
+mkdir -p "$ZFS_MOUNT_BASE"
+if [ -n "$ZFS_POOL" ] && command -v zfs &> /dev/null && command -v zpool &> /dev/null; then
+  if zpool list -H -o name "$ZFS_POOL" > /dev/null 2>&1; then
+    zfs list -H "$ZFS_POOL/$ZFS_DATASET_BASE" > /dev/null 2>&1 || zfs create -p "$ZFS_POOL/$ZFS_DATASET_BASE" > /dev/null 2>&1 || true
+  fi
+fi
 
 # Create .env file
 cat > "$FROST_DIR/.env" << EOF
 FROST_JWT_SECRET=$FROST_JWT_SECRET
 FROST_DATA_DIR=$FROST_DIR/data
+FROST_POSTGRES_ZFS_POOL=$ZFS_POOL
+FROST_POSTGRES_ZFS_DATASET_BASE=$ZFS_DATASET_BASE
+FROST_POSTGRES_ZFS_MOUNT_BASE=$ZFS_MOUNT_BASE
 NODE_ENV=production
 EOF
 
@@ -312,7 +383,7 @@ After=network.target docker.service caddy.service
 [Service]
 Type=simple
 WorkingDirectory=$FROST_DIR
-TimeoutStartSec=300
+TimeoutStartSec=900
 ExecStartPre=/bin/bash -c 'test -f $FROST_DIR/data/.update-requested && curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/update.sh | bash -s -- --pre-start || true'
 ExecStart=$EXEC_START
 Restart=on-failure

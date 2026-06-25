@@ -49,6 +49,7 @@ import {
 import { detectIcon, detectIconFromImage } from "./icon-detector";
 import { newDeploymentClaimId, newDeploymentId, newReplicaId } from "./id";
 import { runCommand } from "./process-runner";
+import { USER_FACING_SERVICE_TYPES } from "./service-visibility";
 import { shellEscape } from "./shell-escape";
 import { slugify } from "./slugify";
 import { preparePostgresSSLAssets } from "./ssl";
@@ -1068,6 +1069,7 @@ export async function deployEnvironment(
     .selectFrom("services")
     .select("id")
     .where("environmentId", "=", environmentId)
+    .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
     .execute();
 
   if (services.length === 0) {

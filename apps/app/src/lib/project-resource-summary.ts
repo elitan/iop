@@ -11,6 +11,7 @@ interface ProjectResourceItem {
 export interface ProjectResourceSummary {
   serviceCount: number;
   databaseCount: number;
+  objectStorageCount: number;
   totalCount: number;
   onlineCount: number;
   attentionCount: number;
@@ -41,17 +42,25 @@ function formatCount(count: number, label: string): string {
 export function getProjectResourceSummary(input: {
   services: ProjectResourceItem[];
   databases: ProjectResourceItem[];
+  objectStorages?: ProjectResourceItem[];
 }): ProjectResourceSummary {
   const serviceCount = input.services.length;
   const databaseCount = input.databases.length;
+  const objectStorageCount = input.objectStorages?.length ?? 0;
 
   return {
     serviceCount,
     databaseCount,
-    totalCount: serviceCount + databaseCount,
-    onlineCount: countOnline(input.services) + countOnline(input.databases),
+    objectStorageCount,
+    totalCount: serviceCount + databaseCount + objectStorageCount,
+    onlineCount:
+      countOnline(input.services) +
+      countOnline(input.databases) +
+      countOnline(input.objectStorages ?? []),
     attentionCount:
-      countAttention(input.services) + countAttention(input.databases),
+      countAttention(input.services) +
+      countAttention(input.databases) +
+      countAttention(input.objectStorages ?? []),
   };
 }
 
@@ -91,6 +100,10 @@ export function formatProjectResourceBreakdown(
 
   if (summary.databaseCount > 0) {
     parts.push(formatCount(summary.databaseCount, "database"));
+  }
+
+  if (summary.objectStorageCount > 0) {
+    parts.push(formatCount(summary.objectStorageCount, "object storage"));
   }
 
   return parts.join(", ");

@@ -1,4 +1,3 @@
-import { ComingSoon } from "@/components/coming-soon";
 import { DeployAnything } from "@/components/deploy-anything";
 import { Footer } from "@/components/footer";
 import { Hero } from "@/components/hero";
@@ -17,7 +16,6 @@ export default function Home() {
       <TechScroll />
       <WhatYouGet />
       <OpenSourceSection />
-      <ComingSoon />
       <Install />
       <Footer />
     </main>

@@ -248,6 +248,43 @@ export interface OauthTokens {
   createdAt: Generated<string>;
 }
 
+export interface ObjectStorageAccessKeys {
+  id: string;
+  objectStorageId: string;
+  bucketId: string | null;
+  accessKeyId: string;
+  name: string;
+  keyPrefix: string;
+  permissions: 'read-only' | 'read-write' | 'full';
+  secretAccessKeyEncrypted: string | null;
+  createdAt: number;
+  revokedAt: number | null;
+}
+
+export interface ObjectStorageBuckets {
+  id: string;
+  objectStorageId: string;
+  garageBucketId: string | null;
+  name: string;
+  createdAt: number;
+}
+
+export interface ObjectStorages {
+  id: string;
+  projectId: string;
+  environmentId: string;
+  name: string;
+  slug: string;
+  engine: Generated<'garage'>;
+  runtimeServiceId: string;
+  region: Generated<string>;
+  internalEndpoint: string;
+  externalEndpoint: string | null;
+  adminTokenEncrypted: string;
+  metricsTokenEncrypted: string;
+  createdAt: number;
+}
+
 export interface Projects {
   id: string;
   name: string;
@@ -290,7 +327,7 @@ export interface Services {
   name: string;
   hostname: string | null;
   deployType: Generated<'repo' | 'image'>;
-  serviceType: Generated<'app' | 'database'>;
+  serviceType: Generated<'app' | 'database' | 'object-storage'>;
   repoUrl: string | null;
   branch: Generated<string | null>;
   dockerfilePath: Generated<string | null>;
@@ -307,14 +344,14 @@ export interface Services {
   memoryLimit: string | null;
   cpuLimit: number | null;
   shutdownTimeout: number | null;
+  drainTimeout: number | null;
   requestTimeout: number | null;
   command: string | null;
-  currentDeploymentId: string | null;
-  createdAt: number;
   icon: string | null;
+  currentDeploymentId: string | null;
   frostFilePath: Generated<string | null>;
-  drainTimeout: number | null;
   replicaCount: Generated<number>;
+  createdAt: number;
 }
 
 export interface Settings {
@@ -340,6 +377,9 @@ export interface DB {
   oauthClients: OauthClients;
   oauthCodes: OauthCodes;
   oauthTokens: OauthTokens;
+  objectStorageAccessKeys: ObjectStorageAccessKeys;
+  objectStorageBuckets: ObjectStorageBuckets;
+  objectStorages: ObjectStorages;
   projects: Projects;
   registries: Registries;
   replicas: Replicas;

@@ -11,6 +11,7 @@ import { environmentsContract } from "./environments";
 import { githubContract } from "./github";
 import { healthContract } from "./health";
 import { mcpTokensContract } from "./mcp-tokens";
+import { objectStoragesContract } from "./object-storages";
 import { projectsContract } from "./projects";
 import { registriesContract } from "./registries";
 import { servicesContract } from "./services";
@@ -28,6 +29,7 @@ export const contract = {
   github: githubContract,
   health: healthContract,
   mcpTokens: mcpTokensContract,
+  objectStorages: objectStoragesContract,
   projects: projectsContract,
   registries: registriesContract,
   services: servicesContract,
