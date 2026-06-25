@@ -142,7 +142,7 @@ api -X PATCH "$BASE_URL/api/databases/$DB_ID/branches/$TTL_TARGET_ID" \
   -d '{"ttlValue":1,"ttlUnit":"hours"}' > /dev/null
 
 TTL_CREATED_AT=$(( $(date +%s) * 1000 - 2 * 60 * 60 * 1000 ))
-remote "FROST_DB_PATH=\"$FROST_DATA_DIR/frost.db\" TTL_CREATED_AT=\"$TTL_CREATED_AT\" TTL_TARGET_ID=\"$TTL_TARGET_ID\" bun -e \"import { Database } from 'bun:sqlite'; const db = new Database(process.env.FROST_DB_PATH); db.query('UPDATE database_targets SET created_at = ? WHERE id = ?').run(Number(process.env.TTL_CREATED_AT), process.env.TTL_TARGET_ID); db.close();\""
+remote "FROST_DB_PATH=\"$FROST_DATA_DIR/frost.db\" TTL_CREATED_AT=\"$TTL_CREATED_AT\" TTL_TARGET_ID=\"$TTL_TARGET_ID\" bun -e \"import { Database } from 'bun:sqlite'; const db = new Database(process.env.FROST_DB_PATH); db.exec('PRAGMA busy_timeout = 60000'); db.query('UPDATE database_targets SET created_at = ? WHERE id = ?').run(Number(process.env.TTL_CREATED_AT), process.env.TTL_TARGET_ID); db.close();\""
 
 log "Waiting for TTL auto-delete..."
 TTL_EXISTS="$TTL_TARGET_ID"
