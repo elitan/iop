@@ -23,7 +23,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "bun install failed (attempt $attempt/3), retrying..."
+            rm -rf node_modules apps/app/node_modules ~/.bun/install/cache
+            sleep 2
+          done
+          echo "bun install failed after 3 attempts"
+          exit 1
       - run: bun run typecheck
 
   lint:
@@ -33,7 +42,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "bun install failed (attempt $attempt/3), retrying..."
+            rm -rf node_modules apps/app/node_modules ~/.bun/install/cache
+            sleep 2
+          done
+          echo "bun install failed after 3 attempts"
+          exit 1
       - run: bun run lint
 
   migrations:
@@ -52,7 +70,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "bun install failed (attempt $attempt/3), retrying..."
+            rm -rf node_modules apps/app/node_modules ~/.bun/install/cache
+            sleep 2
+          done
+          echo "bun install failed after 3 attempts"
+          exit 1
       - name: Setup database
         run: bun run migrate
         env:
@@ -67,7 +94,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          for attempt in 1 2 3; do
+            if bun install --frozen-lockfile; then exit 0; fi
+            echo "bun install failed (attempt $attempt/3), retrying..."
+            rm -rf node_modules apps/app/node_modules ~/.bun/install/cache
+            sleep 2
+          done
+          echo "bun install failed after 3 attempts"
+          exit 1
       - name: Build
         run: |
           for attempt in 1 2 3; do
