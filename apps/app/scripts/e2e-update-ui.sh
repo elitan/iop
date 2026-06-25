@@ -77,8 +77,13 @@ fi
 systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
 
 for attempt in 1 2 3 4; do
-  if apt-get update && apt-get install -y sqlite3; then
+  if apt-get -o DPkg::Lock::Timeout=300 update && apt-get -o DPkg::Lock::Timeout=300 install -y sqlite3; then
     exit 0
+  fi
+
+  if [ "$attempt" -eq 4 ]; then
+    echo "sqlite3 install failed after $attempt attempts"
+    break
   fi
 
   sleep_sec=$((attempt * 10))
