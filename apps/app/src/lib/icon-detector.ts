@@ -1,69 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-
-const IMAGE_PATTERNS: Array<{ pattern: string; icon: string }> = [
-  { pattern: "next", icon: "nextdotjs" },
-  { pattern: "nuxt", icon: "nuxtdotjs" },
-  { pattern: "remix", icon: "remix" },
-  { pattern: "astro", icon: "astro" },
-  { pattern: "svelte", icon: "svelte" },
-  { pattern: "angular", icon: "angular" },
-  { pattern: "vue", icon: "vuedotjs" },
-  { pattern: "react", icon: "react" },
-  { pattern: "express", icon: "express" },
-  { pattern: "fastify", icon: "fastify" },
-  { pattern: "hono", icon: "hono" },
-  { pattern: "django", icon: "django" },
-  { pattern: "flask", icon: "flask" },
-  { pattern: "fastapi", icon: "fastapi" },
-  { pattern: "rails", icon: "rubyonrails" },
-  { pattern: "laravel", icon: "laravel" },
-  { pattern: "spring", icon: "spring" },
-
-  { pattern: "node", icon: "nodedotjs" },
-  { pattern: "bun", icon: "bun" },
-  { pattern: "deno", icon: "deno" },
-  { pattern: "python", icon: "python" },
-  { pattern: "golang", icon: "go" },
-  { pattern: "rust", icon: "rust" },
-  { pattern: "ruby", icon: "ruby" },
-  { pattern: "php", icon: "php" },
-  { pattern: "openjdk", icon: "openjdk" },
-  { pattern: "dotnet", icon: "dotnet" },
-
-  { pattern: "postgres", icon: "postgresql" },
-  { pattern: "mysql", icon: "mysql" },
-  { pattern: "mariadb", icon: "mariadb" },
-  { pattern: "mongo", icon: "mongodb" },
-  { pattern: "redis", icon: "redis" },
-  { pattern: "nginx", icon: "nginx" },
-  { pattern: "caddy", icon: "caddy" },
-  { pattern: "rabbitmq", icon: "rabbitmq" },
-  { pattern: "elasticsearch", icon: "elasticsearch" },
-  { pattern: "minio", icon: "minio" },
-  { pattern: "clickhouse", icon: "clickhouse" },
-
-  { pattern: "meilisearch", icon: "meilisearch" },
-  { pattern: "pocketbase", icon: "pocketbase" },
-  { pattern: "grafana", icon: "grafana" },
-  { pattern: "ghost", icon: "ghost" },
-  { pattern: "strapi", icon: "strapi" },
-  { pattern: "wordpress", icon: "wordpress" },
-  { pattern: "n8n", icon: "n8n" },
-  { pattern: "hasura", icon: "hasura" },
-  { pattern: "umami", icon: "umami" },
-  { pattern: "plausible", icon: "plausibleanalytics" },
-];
+import { detectServiceIconFromImage } from "./service-icons";
 
 function detectFromDockerfile(content: string): string | null {
   const fromMatch = content.toLowerCase().match(/^from\s+([^\s:]+)/m);
   if (!fromMatch) return null;
 
   const baseImage = fromMatch[1];
-  for (const { pattern, icon } of IMAGE_PATTERNS) {
-    if (baseImage.includes(pattern)) return icon;
-  }
-  return null;
+  return detectServiceIconFromImage(baseImage);
 }
 
 function detectFromPackageJson(content: object): string | null {
@@ -123,9 +67,5 @@ export function detectIcon(
 }
 
 export function detectIconFromImage(imageUrl: string): string | null {
-  const lower = imageUrl.toLowerCase();
-  for (const { pattern, icon } of IMAGE_PATTERNS) {
-    if (lower.includes(pattern)) return icon;
-  }
-  return null;
+  return detectServiceIconFromImage(imageUrl);
 }
