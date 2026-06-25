@@ -383,7 +383,7 @@ After=network.target docker.service caddy.service
 [Service]
 Type=simple
 WorkingDirectory=$FROST_DIR
-TimeoutStartSec=300
+TimeoutStartSec=900
 ExecStartPre=/bin/bash -c 'test -f $FROST_DIR/data/.update-requested && curl -fsSL https://raw.githubusercontent.com/elitan/frost/main/update.sh | bash -s -- --pre-start || true'
 ExecStart=$EXEC_START
 Restart=on-failure

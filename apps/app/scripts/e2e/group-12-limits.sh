@@ -34,7 +34,19 @@ wait_for_deployment "$DEPLOY_ID" || fail "Deployment failed"
 log "Verifying docker flags applied..."
 DEPLOY_DATA=$(api "$BASE_URL/api/deployments/$DEPLOY_ID")
 CONTAINER_ID=$(require_field "$DEPLOY_DATA" '.containerId' "get containerId") || fail "No containerId: $DEPLOY_DATA"
-INSPECT=$(remote "docker inspect $CONTAINER_ID")
+INSPECT=""
+for attempt in 1 2 3; do
+  if INSPECT=$(remote "docker inspect $CONTAINER_ID" 2>&1); then
+    break
+  fi
+
+  if [ "$attempt" = "3" ]; then
+    fail "docker inspect failed after $attempt attempts: $INSPECT"
+  fi
+
+  log "docker inspect failed (attempt $attempt/3), retrying..."
+  sleep $((attempt * 2))
+done
 MEMORY=$(echo "$INSPECT" | jq -r '.[0].HostConfig.Memory')
 NANO_CPUS=$(echo "$INSPECT" | jq -r '.[0].HostConfig.NanoCpus')
 

@@ -175,7 +175,7 @@ remote "sed -i 's|git fetch origin main.*|:|' /opt/frost/update.sh"
 echo ""
 echo "=== Updating systemd service to use local update.sh ==="
 remote "sed -i 's|curl -fsSL https://raw.githubusercontent.com/.*/update.sh.*bash -s -- --pre-start|/opt/frost/update.sh --pre-start|' /etc/systemd/system/frost.service && \
-  grep -q 'TimeoutStartSec' /etc/systemd/system/frost.service || sed -i '/\\[Service\\]/a TimeoutStartSec=300' /etc/systemd/system/frost.service && \
+  if grep -q '^TimeoutStartSec=' /etc/systemd/system/frost.service; then sed -i 's|^TimeoutStartSec=.*|TimeoutStartSec=900|' /etc/systemd/system/frost.service; else sed -i '/\\[Service\\]/a TimeoutStartSec=900' /etc/systemd/system/frost.service; fi && \
   systemctl daemon-reload"
 
 echo ""

@@ -197,7 +197,27 @@ api -X DELETE "$BASE_URL/api/projects/$PROJECT_ID" > /dev/null
 log "=== Project Templates ==="
 
 log "Creating hasura project template..."
-PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-proj-template","templateId":"hasura"}')
+create_hasura_project() {
+  local attempt
+  local response
+
+  for attempt in 1 2 3; do
+    if response=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-proj-template","templateId":"hasura"}' 2>&1); then
+      echo "$response"
+      return 0
+    fi
+
+    echo "$response" >&2
+    if [ "$attempt" = "3" ]; then
+      return 1
+    fi
+
+    echo "Hasura template create failed (attempt $attempt/3), retrying..." >&2
+    sleep $((attempt * 10))
+  done
+}
+
+PROJECT=$(create_hasura_project) || fail "Failed to create hasura project template"
 PROJECT_ID=$(require_field "$PROJECT" '.id' "create template project") || fail "Failed: $PROJECT"
 ENV_ID=$(get_default_environment "$PROJECT_ID") || fail "Failed to get environment"
 

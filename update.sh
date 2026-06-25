@@ -551,6 +551,11 @@ if [ "$GIT_MODE" = true ]; then
     ln -sf "$FROST_DIR/.env" "$FROST_DIR/apps/app/.env"
     log "Updating systemd service for git mode..."
     sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/bun run start|' /etc/systemd/system/frost.service
+    if grep -q '^TimeoutStartSec=' /etc/systemd/system/frost.service; then
+      sed -i 's|^TimeoutStartSec=.*|TimeoutStartSec=900|' /etc/systemd/system/frost.service
+    else
+      sed -i '/\[Service\]/a TimeoutStartSec=900' /etc/systemd/system/frost.service
+    fi
     systemctl daemon-reload
   fi
 
