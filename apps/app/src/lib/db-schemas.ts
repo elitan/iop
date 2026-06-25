@@ -341,6 +341,151 @@ export type NewMetrics = z.infer<typeof newMetricsSchema>;
 
 export type MetricsUpdate = z.infer<typeof metricsUpdateSchema>;
 
+export const objectStoragesSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  environmentId: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  engine: z.enum(["garage"]),
+  runtimeServiceId: z.string(),
+  region: z.string(),
+  internalEndpoint: z.string(),
+  externalEndpoint: z.string().nullable(),
+  adminTokenEncrypted: z.string(),
+  metricsTokenEncrypted: z.string(),
+  createdAt: z.number(),
+});
+
+export const newObjectStoragesSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  environmentId: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  engine: z.enum(["garage"]).optional(),
+  runtimeServiceId: z.string(),
+  region: z.string().optional(),
+  internalEndpoint: z.string(),
+  externalEndpoint: z.string().nullable(),
+  adminTokenEncrypted: z.string(),
+  metricsTokenEncrypted: z.string(),
+  createdAt: z.number(),
+});
+
+export const objectStoragesUpdateSchema = z.object({
+  id: z.string().optional(),
+  projectId: z.string().optional(),
+  environmentId: z.string().optional(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+  engine: z.enum(["garage"]).optional(),
+  runtimeServiceId: z.string().optional(),
+  region: z.string().optional(),
+  internalEndpoint: z.string().optional(),
+  externalEndpoint: z.string().nullable().optional(),
+  adminTokenEncrypted: z.string().optional(),
+  metricsTokenEncrypted: z.string().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type ObjectStorages = z.infer<typeof objectStoragesSchema>;
+
+export type NewObjectStorages = z.infer<typeof newObjectStoragesSchema>;
+
+export type ObjectStoragesUpdate = z.infer<typeof objectStoragesUpdateSchema>;
+
+export const objectStorageBucketsSchema = z.object({
+  id: z.string(),
+  objectStorageId: z.string(),
+  garageBucketId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+});
+
+export const newObjectStorageBucketsSchema = z.object({
+  id: z.string(),
+  objectStorageId: z.string(),
+  garageBucketId: z.string().nullable(),
+  name: z.string(),
+  createdAt: z.number(),
+});
+
+export const objectStorageBucketsUpdateSchema = z.object({
+  id: z.string().optional(),
+  objectStorageId: z.string().optional(),
+  garageBucketId: z.string().nullable().optional(),
+  name: z.string().optional(),
+  createdAt: z.number().optional(),
+});
+
+export type ObjectStorageBuckets = z.infer<typeof objectStorageBucketsSchema>;
+
+export type NewObjectStorageBuckets = z.infer<
+  typeof newObjectStorageBucketsSchema
+>;
+
+export type ObjectStorageBucketsUpdate = z.infer<
+  typeof objectStorageBucketsUpdateSchema
+>;
+
+export const objectStorageAccessKeyPermissionSchema = z.enum([
+  "read-only",
+  "read-write",
+  "full",
+]);
+
+export const objectStorageAccessKeysSchema = z.object({
+  id: z.string(),
+  objectStorageId: z.string(),
+  bucketId: z.string().nullable(),
+  accessKeyId: z.string(),
+  name: z.string(),
+  keyPrefix: z.string(),
+  permissions: objectStorageAccessKeyPermissionSchema,
+  secretAccessKeyEncrypted: z.string().nullable(),
+  createdAt: z.number(),
+  revokedAt: z.number().nullable(),
+});
+
+export const newObjectStorageAccessKeysSchema = z.object({
+  id: z.string(),
+  objectStorageId: z.string(),
+  bucketId: z.string().nullable(),
+  accessKeyId: z.string(),
+  name: z.string(),
+  keyPrefix: z.string(),
+  permissions: objectStorageAccessKeyPermissionSchema,
+  secretAccessKeyEncrypted: z.string().nullable(),
+  createdAt: z.number(),
+  revokedAt: z.number().nullable(),
+});
+
+export const objectStorageAccessKeysUpdateSchema = z.object({
+  id: z.string().optional(),
+  objectStorageId: z.string().optional(),
+  bucketId: z.string().nullable().optional(),
+  accessKeyId: z.string().optional(),
+  name: z.string().optional(),
+  keyPrefix: z.string().optional(),
+  permissions: objectStorageAccessKeyPermissionSchema.optional(),
+  secretAccessKeyEncrypted: z.string().nullable().optional(),
+  createdAt: z.number().optional(),
+  revokedAt: z.number().nullable().optional(),
+});
+
+export type ObjectStorageAccessKeys = z.infer<
+  typeof objectStorageAccessKeysSchema
+>;
+
+export type NewObjectStorageAccessKeys = z.infer<
+  typeof newObjectStorageAccessKeysSchema
+>;
+
+export type ObjectStorageAccessKeysUpdate = z.infer<
+  typeof objectStorageAccessKeysUpdateSchema
+>;
+
 export const projectsSchema = z.object({
   id: z.string(),
   name: z.string(),

@@ -22,16 +22,22 @@ Demo: [demo.frost.build](https://demo.frost.build)
 - PR preview environments
 - Zero-downtime deploys and instant rollbacks
 - Health checks, resource limits, persistent volumes
+- Managed object storage with S3-compatible buckets and access keys
 - REST API and MCP support for AI agents
 
 ## Core model
 
 - **Project**: container for related services with shared env vars
 - **Service**: deployable unit from repo or prebuilt image
+- **Object Storage**: S3-compatible API endpoint with buckets and scoped keys
 - **Domain**: custom domain attached to a service (proxy or redirect)
 - **Deployment**: immutable deploy record with logs and status
 
 Services in one project share a Docker network. Use service name as hostname.
+
+Object storage exposes one user-facing S3 API endpoint. Bucket and access-key
+administration lives inside Frost, so users do not need a second public console
+domain for the storage engine.
 
 ## Install
 

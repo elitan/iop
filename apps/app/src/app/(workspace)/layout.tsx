@@ -39,7 +39,7 @@ export default function WorkspaceLayout({
   const isProjectPage =
     pathname.startsWith("/projects/") && projectId.length > 0;
   const isResourceDetailPage =
-    /^\/projects\/[^/]+\/environments\/[^/]+\/(services|databases)\//.test(
+    /^\/projects\/[^/]+\/environments\/[^/]+\/(services|databases|object-storages)\//.test(
       pathname,
     );
   const isSettingsPage =
@@ -90,6 +90,8 @@ export default function WorkspaceLayout({
     },
     [params.databaseId],
   );
+  const selectedObjectStorageId =
+    typeof params.objectStorageId === "string" ? params.objectStorageId : null;
 
   const mainHeaderTitle = useMemo(
     function getMainHeaderTitle() {
@@ -192,6 +194,7 @@ export default function WorkspaceLayout({
               currentEnvId={currentEnvId}
               selectedServiceId={selectedServiceId}
               selectedDatabaseId={selectedDatabaseId}
+              selectedObjectStorageId={selectedObjectStorageId}
               onOpenCreateService={function openCreateService() {
                 createServiceModalContextValue.openCreateServiceModal();
               }}
@@ -234,6 +237,13 @@ export default function WorkspaceLayout({
           onDatabaseCreated={function handleDatabaseCreated(databaseId) {
             router.push(
               `/projects/${projectId}/environments/${currentEnvId}/databases/${databaseId}`,
+            );
+          }}
+          onObjectStorageCreated={function handleObjectStorageCreated(
+            objectStorageId,
+          ) {
+            router.push(
+              `/projects/${projectId}/environments/${currentEnvId}/object-storages/${objectStorageId}`,
             );
           }}
         />

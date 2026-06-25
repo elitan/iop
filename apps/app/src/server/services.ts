@@ -10,6 +10,11 @@ import {
 } from "@/lib/deployment-runtime";
 import { syncCaddyConfig } from "@/lib/domains";
 import { cleanupService } from "@/lib/lifecycle";
+import {
+  isUserFacingServiceType,
+  type ServiceType,
+  USER_FACING_SERVICE_TYPES,
+} from "@/lib/service-visibility";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import { getTemplate, resolveTemplateServices } from "@/lib/templates";
@@ -20,6 +25,12 @@ import {
   assertDemoServiceCreateAllowed,
 } from "./demo-guards";
 import { os } from "./orpc";
+
+function assertUserService(service: { serviceType: ServiceType }): void {
+  if (!isUserFacingServiceType(service.serviceType)) {
+    throw new ORPCError("NOT_FOUND", { message: "Service not found" });
+  }
+}
 
 export const services = {
   get: os.services.get.handler(async ({ input }) => {
@@ -32,6 +43,7 @@ export const services = {
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
+    assertUserService(service);
 
     return addLatestDeploymentWithRuntimeStatus(service);
   }),
@@ -41,6 +53,7 @@ export const services = {
       .selectFrom("services")
       .selectAll()
       .where("environmentId", "=", input.environmentId)
+      .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
       .execute();
 
     return addLatestDeploymentsWithRuntimeStatus(services);
@@ -200,6 +213,7 @@ export const services = {
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
+    assertUserService(service);
 
     assertDemoResourceLimits({
       cpuLimit: input.cpuLimit,
@@ -297,6 +311,17 @@ export const services = {
   }),
 
   delete: os.services.delete.handler(async ({ input }) => {
+    const service = await db
+      .selectFrom("services")
+      .select(["id", "serviceType"])
+      .where("id", "=", input.serviceId)
+      .executeTakeFirst();
+
+    if (!service) {
+      throw new ORPCError("NOT_FOUND", { message: "Service not found" });
+    }
+    assertUserService(service);
+
     await cleanupService(input.serviceId);
     await db.deleteFrom("services").where("id", "=", input.serviceId).execute();
 
@@ -310,13 +335,14 @@ export const services = {
   deploy: os.services.deploy.handler(async ({ input }) => {
     const service = await db
       .selectFrom("services")
-      .select("id")
+      .select(["id", "serviceType"])
       .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
+    assertUserService(service);
 
     await assertDemoDeployRateLimit(input.serviceId);
 
@@ -325,6 +351,17 @@ export const services = {
   }),
 
   listDeployments: os.services.listDeployments.handler(async ({ input }) => {
+    const service = await db
+      .selectFrom("services")
+      .select(["id", "serviceType"])
+      .where("id", "=", input.serviceId)
+      .executeTakeFirst();
+
+    if (!service) {
+      throw new ORPCError("NOT_FOUND", { message: "Service not found" });
+    }
+    assertUserService(service);
+
     const deployments = await db
       .selectFrom("deployments")
       .selectAll()
@@ -339,13 +376,14 @@ export const services = {
   getVolumes: os.services.getVolumes.handler(async ({ input }) => {
     const service = await db
       .selectFrom("services")
-      .select("volumes")
+      .select(["volumes", "serviceType"])
       .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
     if (!service) {
       throw new ORPCError("NOT_FOUND", { message: "Service not found" });
     }
+    assertUserService(service);
 
     if (!service.volumes || service.volumes === "[]") {
       return [];

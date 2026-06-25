@@ -88,6 +88,18 @@ export function newRuntimeServiceId(): string {
   return buildId("rtsvc");
 }
 
+export function newObjectStorageId(): string {
+  return buildId("obj");
+}
+
+export function newObjectStorageBucketId(): string {
+  return buildId("objb");
+}
+
+export function newObjectStorageAccessKeyId(): string {
+  return buildId("objkey");
+}
+
 export function hasIdPrefix(value: string, prefix: string): boolean {
   return value.startsWith(`${prefix}_`);
 }

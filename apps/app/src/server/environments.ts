@@ -5,6 +5,10 @@ import { deployEnvironment } from "@/lib/deployer";
 import { addLatestDeploymentsWithRuntimeStatus } from "@/lib/deployment-runtime";
 import { newEnvironmentId } from "@/lib/id";
 import { cleanupEnvironment } from "@/lib/lifecycle";
+import {
+  USER_FACING_SERVICE_TYPES,
+  type UserFacingServiceType,
+} from "@/lib/service-visibility";
 import { createService } from "@/lib/services";
 import { slugify } from "@/lib/slugify";
 import {
@@ -39,6 +43,7 @@ export const environments = {
       .selectFrom("services")
       .selectAll()
       .where("environmentId", "=", input.envId)
+      .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
       .execute();
 
     const servicesWithDeployments =
@@ -103,6 +108,7 @@ export const environments = {
           .selectFrom("services")
           .selectAll()
           .where("environmentId", "=", sourceEnv.id)
+          .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
           .execute();
 
         await assertDemoServiceCreateAllowed(id, sourceServices.length);
@@ -124,7 +130,7 @@ export const environments = {
             name: service.name,
             hostname,
             deployType: service.deployType as "repo" | "image",
-            serviceType: service.serviceType as "app" | "database",
+            serviceType: service.serviceType as UserFacingServiceType,
             repoUrl: service.repoUrl,
             branch: service.branch,
             dockerfilePath: service.dockerfilePath,
@@ -257,6 +263,7 @@ export const environments = {
       .selectFrom("services")
       .select("id")
       .where("environmentId", "=", input.envId)
+      .where("serviceType", "in", USER_FACING_SERVICE_TYPES)
       .execute();
     for (const service of services) {
       await assertDemoDeployRateLimit(service.id);

@@ -28,6 +28,7 @@ const projectListServiceSchema = z.object({
 const projectResourceSummarySchema = z.object({
   serviceCount: z.number(),
   databaseCount: z.number(),
+  objectStorageCount: z.number(),
   totalCount: z.number(),
   onlineCount: z.number(),
   attentionCount: z.number(),

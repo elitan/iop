@@ -7,6 +7,7 @@ import { environments } from "./environments";
 import { github } from "./github";
 import { health } from "./health";
 import { mcpTokens } from "./mcp-tokens";
+import { objectStorages } from "./object-storages";
 import { os } from "./orpc";
 import { projects } from "./projects";
 import { registries } from "./registries";
@@ -25,6 +26,7 @@ export const router = os.router({
   github,
   health,
   mcpTokens,
+  objectStorages,
   projects,
   registries,
   services,

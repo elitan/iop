@@ -8,12 +8,16 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDatabases } from "@/hooks/use-databases";
+import { useObjectStorages } from "@/hooks/use-object-storages";
 import { api } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 import { getPreferredDomain } from "@/lib/service-url";
 import { useCreateServiceModal } from "../../_components/create-service-modal-provider";
-import { DatabaseCard } from "./_components/database-card";
-import { ServiceCard } from "./_components/service-card";
+import {
+  EnvironmentResourceSections,
+  getEnvironmentObjectStorages,
+  hasEnvironmentResources,
+} from "./_components/environment-resource-sections";
 
 export default function ProjectStartPage() {
   const params = useParams();
@@ -41,6 +45,8 @@ export default function ProjectStartPage() {
   });
   const { data: databases = [], isLoading: isDatabasesLoading } =
     useDatabases(projectId);
+  const { data: objectStorages = [], isLoading: isObjectStoragesLoading } =
+    useObjectStorages(projectId);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: function fetchSettings() {
@@ -53,6 +59,13 @@ export default function ProjectStartPage() {
       return environment?.services ?? [];
     },
     [environment?.services],
+  );
+
+  const environmentObjectStorages = useMemo(
+    function getCurrentEnvironmentObjectStorages() {
+      return getEnvironmentObjectStorages(objectStorages, currentEnvId);
+    },
+    [currentEnvId, objectStorages],
   );
 
   const serviceIds = useMemo(
@@ -90,10 +103,17 @@ export default function ProjectStartPage() {
     [allDomains],
   );
 
-  const hasResources = services.length > 0 || databases.length > 0;
+  const hasResources = hasEnvironmentResources({
+    services,
+    databases,
+    objectStorages: environmentObjectStorages,
+  });
   const serverIp = settings?.serverIp ?? null;
   const isLoading =
-    isEnvironmentsLoading || isEnvironmentLoading || isDatabasesLoading;
+    isEnvironmentsLoading ||
+    isEnvironmentLoading ||
+    isDatabasesLoading ||
+    isObjectStoragesLoading;
 
   function openDatabase(databaseId: string) {
     if (!currentEnvId) {
@@ -145,8 +165,8 @@ export default function ProjectStartPage() {
                 Create your first service
               </h2>
               <p className="mt-3 max-w-xl text-sm text-neutral-400">
-                Start with a repo, Docker image, or database. Frost wires logs,
-                deploys, and internal networking for you.
+                Start with a repo, Docker image, database, or object storage.
+                Frost wires logs, deploys, and internal networking for you.
               </p>
 
               <div className="mt-8">
@@ -163,46 +183,14 @@ export default function ProjectStartPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {services.length > 0 && (
-        <section className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Services
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {services.map(function renderService(service) {
-              return (
-                <ServiceCard
-                  key={service.id}
-                  service={service}
-                  projectId={projectId}
-                  domain={domains[service.id] ?? null}
-                  serverIp={serverIp}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {databases.length > 0 && (
-        <section className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Databases
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {databases.map(function renderDatabase(database) {
-              return (
-                <DatabaseCard
-                  key={database.id}
-                  database={database}
-                  onOpen={openDatabase}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
-    </div>
+    <EnvironmentResourceSections
+      projectId={projectId}
+      services={services}
+      databases={databases}
+      objectStorages={environmentObjectStorages}
+      domains={domains}
+      serverIp={serverIp}
+      onOpenDatabase={openDatabase}
+    />
   );
 }

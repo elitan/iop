@@ -6,20 +6,22 @@ import {
 } from "./project-resource-summary";
 
 describe("getProjectResourceSummary", () => {
-  test("counts services and databases together", () => {
+  test("counts services, databases, and object storage together", () => {
     const summary = getProjectResourceSummary({
       services: [
         { runtimeStatus: "online", attentionStatus: null },
         { runtimeStatus: "offline", attentionStatus: null },
       ],
       databases: [{ runtimeStatus: "online", attentionStatus: null }],
+      objectStorages: [{ runtimeStatus: "online", attentionStatus: null }],
     });
 
     expect(summary).toEqual({
       serviceCount: 2,
       databaseCount: 1,
-      totalCount: 3,
-      onlineCount: 2,
+      objectStorageCount: 1,
+      totalCount: 4,
+      onlineCount: 3,
       attentionCount: 0,
     });
   });
@@ -31,6 +33,7 @@ describe("getProjectResourceSummaryTone", () => {
       getProjectResourceSummaryTone({
         serviceCount: 1,
         databaseCount: 1,
+        objectStorageCount: 0,
         totalCount: 2,
         onlineCount: 2,
         attentionCount: 0,
@@ -43,6 +46,7 @@ describe("getProjectResourceSummaryTone", () => {
       getProjectResourceSummaryTone({
         serviceCount: 1,
         databaseCount: 1,
+        objectStorageCount: 0,
         totalCount: 2,
         onlineCount: 1,
         attentionCount: 0,
@@ -55,6 +59,7 @@ describe("getProjectResourceSummaryTone", () => {
       getProjectResourceSummaryTone({
         serviceCount: 1,
         databaseCount: 1,
+        objectStorageCount: 0,
         totalCount: 2,
         onlineCount: 0,
         attentionCount: 0,
@@ -69,10 +74,11 @@ describe("formatProjectResourceBreakdown", () => {
       formatProjectResourceBreakdown({
         serviceCount: 1,
         databaseCount: 1,
-        totalCount: 2,
-        onlineCount: 2,
+        objectStorageCount: 1,
+        totalCount: 3,
+        onlineCount: 3,
         attentionCount: 0,
       }),
-    ).toBe("1 service, 1 database");
+    ).toBe("1 service, 1 database, 1 object storage");
   });
 });

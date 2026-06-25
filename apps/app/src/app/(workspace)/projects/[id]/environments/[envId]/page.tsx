@@ -6,11 +6,15 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDatabases } from "@/hooks/use-databases";
+import { useObjectStorages } from "@/hooks/use-object-storages";
 import { api } from "@/lib/api";
 import { orpc } from "@/lib/orpc-client";
 import { getPreferredDomain } from "@/lib/service-url";
-import { DatabaseCard } from "../../_components/database-card";
-import { ServiceCard } from "../../_components/service-card";
+import {
+  EnvironmentResourceSections,
+  getEnvironmentObjectStorages,
+  hasEnvironmentResources,
+} from "../../_components/environment-resource-sections";
 
 export default function EnvironmentDetailPage() {
   const params = useParams();
@@ -26,6 +30,8 @@ export default function EnvironmentDetailPage() {
 
   const { data: databases = [], isLoading: isDatabasesLoading } =
     useDatabases(projectId);
+  const { data: objectStorages = [], isLoading: isObjectStoragesLoading } =
+    useObjectStorages(projectId);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: function fetchSettings() {
@@ -38,6 +44,13 @@ export default function EnvironmentDetailPage() {
       return environment?.services ?? [];
     },
     [environment?.services],
+  );
+
+  const environmentObjectStorages = useMemo(
+    function getCurrentEnvironmentObjectStorages() {
+      return getEnvironmentObjectStorages(objectStorages, envId);
+    },
+    [envId, objectStorages],
   );
 
   const serviceIds = useMemo(
@@ -75,9 +88,14 @@ export default function EnvironmentDetailPage() {
     [allDomains],
   );
 
-  const hasResources = services.length > 0 || databases.length > 0;
+  const hasResources = hasEnvironmentResources({
+    services,
+    databases,
+    objectStorages: environmentObjectStorages,
+  });
   const serverIp = settings?.serverIp ?? null;
-  const isLoading = isEnvironmentLoading || isDatabasesLoading;
+  const isLoading =
+    isEnvironmentLoading || isDatabasesLoading || isObjectStoragesLoading;
 
   function openDatabase(databaseId: string) {
     router.push(
@@ -126,7 +144,7 @@ export default function EnvironmentDetailPage() {
         </div>
         <Card className="border-neutral-800 bg-neutral-900">
           <CardContent className="py-10 text-center text-sm text-neutral-400">
-            No services or databases yet.
+            No services, databases, or object storage yet.
           </CardContent>
         </Card>
       </div>
@@ -152,45 +170,15 @@ export default function EnvironmentDetailPage() {
         </Link>
       </div>
 
-      {services.length > 0 && (
-        <section className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Services
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {services.map(function renderService(service) {
-              return (
-                <ServiceCard
-                  key={service.id}
-                  service={service}
-                  projectId={projectId}
-                  domain={domains[service.id] ?? null}
-                  serverIp={serverIp}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {databases.length > 0 && (
-        <section className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Databases
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {databases.map(function renderDatabase(database) {
-              return (
-                <DatabaseCard
-                  key={database.id}
-                  database={database}
-                  onOpen={openDatabase}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
+      <EnvironmentResourceSections
+        projectId={projectId}
+        services={services}
+        databases={databases}
+        objectStorages={environmentObjectStorages}
+        domains={domains}
+        serverIp={serverIp}
+        onOpenDatabase={openDatabase}
+      />
     </div>
   );
 }
