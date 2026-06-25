@@ -7,8 +7,12 @@ services:
   garage:
     image: dxflrs/garage:v2.3.0
     port: 3900
-    icon: amazons3
+    icon: garage
     environment:
+      GARAGE_ADMIN_TOKEN:
+        generated: password
+      GARAGE_METRICS_TOKEN:
+        generated: password
       GARAGE_DEFAULT_ACCESS_KEY:
         generated: password
       GARAGE_DEFAULT_SECRET_KEY:

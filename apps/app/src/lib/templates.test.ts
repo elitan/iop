@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import { isRegisteredServiceIcon } from "./service-icons";
 import {
   buildConnectionString,
   clearTemplateCache,
@@ -10,11 +11,20 @@ import {
   getTemplate,
   getTemplates,
   resolveTemplateServices,
+  type Template,
 } from "./templates";
 
 beforeEach(() => {
   clearTemplateCache();
 });
+
+function requireTemplate(id: string): Template {
+  const template = getTemplate(id);
+  if (!template) {
+    throw new Error(`${id} template not found`);
+  }
+  return template;
+}
 
 describe("getTemplates", () => {
   it("loads all templates from yaml files", () => {
@@ -133,9 +143,7 @@ describe("getManagedTemplateDatabases", () => {
 
 describe("resolveTemplateServices", () => {
   it("resolves a single-service template", () => {
-    const template = getTemplate("postgres");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("postgres"));
     expect(resolved.length).toBe(1);
 
     const svc = resolved[0];
@@ -146,9 +154,7 @@ describe("resolveTemplateServices", () => {
   });
 
   it("generates credentials for env vars", () => {
-    const template = getTemplate("postgres");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("postgres"));
     const svc = resolved[0];
 
     const passwordEnv = svc.envVars.find((e) => e.key === "POSTGRES_PASSWORD");
@@ -225,9 +231,7 @@ describe("resolveTemplateServices", () => {
   });
 
   it("sets main service correctly in project templates", () => {
-    const template = getTemplate("plausible");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("plausible"));
 
     const mainServices = resolved.filter((s) => s.isMain);
     expect(mainServices.length).toBe(1);
@@ -235,9 +239,7 @@ describe("resolveTemplateServices", () => {
   });
 
   it("parses volumes correctly", () => {
-    const template = getTemplate("postgres");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("postgres"));
     const svc = resolved[0];
 
     expect(svc.volumes.length).toBe(1);
@@ -246,51 +248,79 @@ describe("resolveTemplateServices", () => {
   });
 
   it("includes icon from postgres template", () => {
-    const template = getTemplate("postgres");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("postgres"));
     expect(resolved[0].icon).toBe("postgresql");
   });
 
   it("includes icon from redis template", () => {
-    const template = getTemplate("redis");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("redis"));
     expect(resolved[0].icon).toBe("redis");
   });
 
   it("includes icon from mysql template", () => {
-    const template = getTemplate("mysql");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("mysql"));
     expect(resolved[0].icon).toBe("mysql");
   });
 
   it("includes icon from mongo template", () => {
-    const template = getTemplate("mongo");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("mongo"));
     expect(resolved[0].icon).toBe("mongodb");
   });
 
   it("includes icon from nginx template", () => {
-    const template = getTemplate("nginx");
-    expect(template).toBeDefined();
-    const resolved = resolveTemplateServices(template!);
+    const resolved = resolveTemplateServices(requireTemplate("nginx"));
     expect(resolved[0].icon).toBe("nginx");
   });
 
-  it("starts minio through the minio binary", () => {
-    const template = getTemplate("minio");
-    expect(template).toBeDefined();
-    if (!template) {
-      throw new Error("minio template not found");
+  it("uses registered service icons for every template", function testTemplateIcons() {
+    const unknownIcons: string[] = [];
+
+    for (const template of getTemplates()) {
+      for (const [serviceName, service] of Object.entries(template.services)) {
+        if (service.icon && !isRegisteredServiceIcon(service.icon)) {
+          unknownIcons.push(`${template.id}/${serviceName}:${service.icon}`);
+        }
+      }
     }
 
-    const resolved = resolveTemplateServices(template);
+    expect(unknownIcons).toEqual([]);
+  });
+
+  it("includes icon from garage template", function testGarageTemplateIcon() {
+    const resolved = resolveTemplateServices(requireTemplate("garage"));
+    expect(resolved[0].icon).toBe("garage");
+  });
+
+  it("starts minio through the minio binary", () => {
+    const resolved = resolveTemplateServices(requireTemplate("minio"));
     expect(resolved[0].command).toBe(
       'minio server /data --console-address ":9001"',
     );
+  });
+
+  it("exposes the minio console as the public template port", () => {
+    const resolved = resolveTemplateServices(requireTemplate("minio"));
+
+    expect(resolved[0].port).toBe(9001);
+    expect(resolved[0].healthCheckPath).toBe("/");
+    expect(
+      resolved[0].envVars.find((envVar) => envVar.key === "S3_ENDPOINT")?.value,
+    ).toBe("http://minio:9000");
+  });
+
+  it("generates garage admin tokens for companion management tools", () => {
+    const resolved = resolveTemplateServices(requireTemplate("garage"));
+    const adminToken = resolved[0].envVars.find(
+      (envVar) => envVar.key === "GARAGE_ADMIN_TOKEN",
+    );
+    const metricsToken = resolved[0].envVars.find(
+      (envVar) => envVar.key === "GARAGE_METRICS_TOKEN",
+    );
+
+    expect(adminToken?.generated).toBe(true);
+    expect(adminToken?.value.length).toBe(32);
+    expect(metricsToken?.generated).toBe(true);
+    expect(metricsToken?.value.length).toBe(32);
   });
 });
 

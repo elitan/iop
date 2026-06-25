@@ -33,6 +33,12 @@ describe("getServiceIcon", () => {
     );
   });
 
+  test("returns custom icon url for Garage", () => {
+    expect(getServiceIcon({ name: "garage", icon: "garage" })).toBe(
+      "https://garagehq.deuxfleurs.fr/images/garage-logo.svg",
+    );
+  });
+
   test("falls back to keyword detection when no icon field", () => {
     const service = { name: "postgres-db", imageUrl: "postgres:17" };
     expect(getServiceIcon(service)).toBe(
@@ -47,6 +53,9 @@ describe("getServiceIcon", () => {
     expect(getServiceIcon({ name: "my-postgres" })).toBe(
       "https://cdn.simpleicons.org/postgresql",
     );
+    expect(getServiceIcon({ name: "garage" })).toBe(
+      "https://garagehq.deuxfleurs.fr/images/garage-logo.svg",
+    );
   });
 
   test("keyword detection from image url", () => {
@@ -56,6 +65,9 @@ describe("getServiceIcon", () => {
     expect(getServiceIcon({ name: "store", imageUrl: "mongo:7" })).toBe(
       "https://cdn.simpleicons.org/mongodb",
     );
+    expect(
+      getServiceIcon({ name: "storage", imageUrl: "dxflrs/garage:v2.3.0" }),
+    ).toBe("https://garagehq.deuxfleurs.fr/images/garage-logo.svg");
   });
 
   test("returns null when no match found", () => {

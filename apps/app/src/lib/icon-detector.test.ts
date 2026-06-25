@@ -27,6 +27,10 @@ describe("detectIconFromImage", () => {
     expect(detectIconFromImage("nginx:alpine")).toBe("nginx");
   });
 
+  test("detects Garage from image url", () => {
+    expect(detectIconFromImage("dxflrs/garage:v2.3.0")).toBe("garage");
+  });
+
   test("detects node from image url", () => {
     expect(detectIconFromImage("node:20-alpine")).toBe("nodedotjs");
   });
