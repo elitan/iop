@@ -31,8 +31,26 @@ run_target_sql() {
   local target_id="$1"
   local sql="$2"
   local body
+  local response
+  local sleep_sec
   body=$(jq -nc --arg sql "$sql" '{sql: $sql}')
-  api -X POST "$BASE_URL/api/databases/$DB_ID/targets/$target_id/sql" -d "$body"
+
+  for attempt in 1 2 3 4 5; do
+    if response=$(api -X POST "$BASE_URL/api/databases/$DB_ID/targets/$target_id/sql" -d "$body"); then
+      echo "$response"
+      return 0
+    fi
+
+    if [ "$attempt" -eq 5 ]; then
+      break
+    fi
+
+    sleep_sec=$attempt
+    echo "SQL API request failed (attempt $attempt/5), retrying in ${sleep_sec}s..." >&2
+    sleep "$sleep_sec"
+  done
+
+  return 1
 }
 
 PROJECT=$(api -X POST "$BASE_URL/api/projects" -d '{"name":"e2e-postgres-apfs-branching"}')

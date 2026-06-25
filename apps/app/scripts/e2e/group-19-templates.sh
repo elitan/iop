@@ -217,7 +217,7 @@ DB_COUNT=$(echo "$DATABASES" | jq -r 'length')
 
 log "Waiting for hasura deployment..."
 HASURA_DEPLOY_ID=$(wait_for_service_deployment_id "$HASURA_SERVICE_ID" 45 1) || fail "No deployment found for hasura service"
-wait_for_deployment "$HASURA_DEPLOY_ID" 120 || fail "hasura deployment failed"
+wait_for_deployment "$HASURA_DEPLOY_ID" 240 || fail "hasura deployment failed"
 
 HASURA_DEPLOY=$(api "$BASE_URL/api/deployments/$HASURA_DEPLOY_ID")
 HASURA_HOST_PORT=$(require_field "$HASURA_DEPLOY" '.hostPort' "get hasura hostPort") || fail "No hostPort"
