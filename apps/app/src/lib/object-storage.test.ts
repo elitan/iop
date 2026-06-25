@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import type { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import { nanoid } from "nanoid";
 import { db } from "./db";
 import { runMigrations } from "./migrate";
 import {
   buildObjectStorageConnectionSnippets,
   getGaragePermissions,
+  listObjectStorageS3Objects,
   normalizeBucketName,
   normalizeObjectStorageName,
+  normalizeObjectStorageObjectPrefix,
   waitForObjectStorageDeploymentContainer,
 } from "./object-storage";
 
@@ -223,5 +226,106 @@ describe("buildObjectStorageConnectionSnippets", () => {
       value: "http://s3-assets:3900",
     });
     expect(snippets.javascript).toContain('endpoint: "http://s3-assets:3900"');
+  });
+});
+
+describe("listObjectStorageS3Objects", () => {
+  test("normalizes prefixes for list requests", () => {
+    expect(normalizeObjectStorageObjectPrefix(" /uploads/avatars ")).toBe(
+      "uploads/avatars",
+    );
+    expect(normalizeObjectStorageObjectPrefix(null)).toBe("");
+  });
+
+  test("maps paginated S3 responses into bucket objects", async function testListObjects() {
+    const requests: unknown[] = [];
+    const pages: ListObjectsV2CommandOutput[] = [
+      {
+        $metadata: {},
+        IsTruncated: true,
+        NextContinuationToken: "next-page",
+        Contents: [
+          {
+            Key: "uploads/avatar.png",
+            Size: 2048,
+            LastModified: new Date("2026-01-02T03:04:05Z"),
+            ETag: '"etag-1"',
+          },
+        ],
+      },
+      {
+        $metadata: {},
+        IsTruncated: false,
+        Contents: [
+          {
+            Key: "uploads/profile.json",
+            Size: 64,
+          },
+        ],
+      },
+    ];
+    const client = {
+      send: async function send(command: { input: unknown }) {
+        requests.push(command.input);
+        const page = pages.shift();
+        if (!page) {
+          throw new Error("Unexpected S3 request");
+        }
+        return page;
+      },
+    };
+
+    const firstPage = await listObjectStorageS3Objects({
+      client,
+      bucket: "assets",
+      bucketId: "bucket-assets",
+      prefix: "/uploads/",
+      maxKeys: 2,
+    });
+    const secondPage = await listObjectStorageS3Objects({
+      client,
+      bucket: "assets",
+      bucketId: "bucket-assets",
+      prefix: "/uploads/",
+      cursor: firstPage.nextCursor,
+      maxKeys: 2,
+    });
+
+    expect(requests).toEqual([
+      {
+        Bucket: "assets",
+        Prefix: "uploads/",
+        ContinuationToken: undefined,
+        MaxKeys: 2,
+      },
+      {
+        Bucket: "assets",
+        Prefix: "uploads/",
+        ContinuationToken: "next-page",
+        MaxKeys: 2,
+      },
+    ]);
+    expect(firstPage).toEqual({
+      bucketId: "bucket-assets",
+      prefix: "uploads/",
+      nextCursor: "next-page",
+      objects: [
+        {
+          key: "uploads/avatar.png",
+          size: 2048,
+          lastModified: new Date("2026-01-02T03:04:05Z").getTime(),
+          etag: '"etag-1"',
+        },
+      ],
+    });
+    expect(secondPage.nextCursor).toBe(null);
+    expect(secondPage.objects).toEqual([
+      {
+        key: "uploads/profile.json",
+        size: 64,
+        lastModified: null,
+        etag: null,
+      },
+    ]);
   });
 });

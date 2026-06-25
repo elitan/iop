@@ -6,6 +6,7 @@ import {
   deleteObjectStorage,
   deleteObjectStorageBucket,
   getObjectStorageDetails,
+  listObjectStorageBucketObjects,
   listObjectStoragesByProject,
   ObjectStorageError,
   revokeObjectStorageAccessKey,
@@ -85,6 +86,14 @@ export const objectStorages = {
       return handleObjectStorageAction(async function deleteBucketAction() {
         await deleteObjectStorageBucket(input);
         return { success: true };
+      });
+    },
+  ),
+
+  listBucketObjects: os.objectStorages.listBucketObjects.handler(
+    function listBucketObjectsHandler({ input }) {
+      return handleObjectStorageAction(function listBucketObjectsAction() {
+        return listObjectStorageBucketObjects(input);
       });
     },
   ),

@@ -29,17 +29,25 @@ export {
   deleteObjectStorageBucket,
   getObjectStorageDetails,
   getObjectStorageLatestDeployment,
+  listObjectStorageBucketObjects,
   listObjectStoragesByProject,
   revokeObjectStorageAccessKey,
 } from "./object-storage/repository";
 export { waitForObjectStorageDeploymentContainer } from "./object-storage/runtime";
+export {
+  listObjectStorageS3Objects,
+  normalizeObjectStorageObjectPrefix,
+} from "./object-storage/s3";
 export { buildObjectStorageConnectionSnippets } from "./object-storage/snippets";
 export type {
   CreateAccessKeyInput,
   CreateAccessKeyResult,
   CreateBucketInput,
   CreateObjectStorageInput,
+  ListBucketObjectsInput,
   ObjectStorageAccessKeyPermission,
+  ObjectStorageBucketObject,
+  ObjectStorageBucketObjectList,
   ObjectStorageConnectionInfo,
   ObjectStorageConnectionSnippets,
   ObjectStorageDeployment,

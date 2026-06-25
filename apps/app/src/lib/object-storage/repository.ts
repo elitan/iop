@@ -1,5 +1,5 @@
 import type { Selectable } from "kysely";
-import { encrypt } from "../crypto";
+import { decrypt, encrypt } from "../crypto";
 import { db } from "../db";
 import type { ObjectStorageBuckets, ObjectStorages } from "../db-types";
 import { syncCaddyConfig } from "../domains";
@@ -33,15 +33,24 @@ import {
   getLatestRuntimeDeployment,
   getObjectStorageConnectionInfo,
   getObjectStorageServerIp,
+  getRunningObjectStorageRuntime,
   getRuntimeContainerId,
+  getRuntimeLocalS3Endpoint,
   waitForObjectStorageDeploymentContainer,
 } from "./runtime";
+import {
+  createObjectStorageS3Client,
+  listObjectStorageS3Objects,
+  type ObjectStorageS3Credentials,
+} from "./s3";
 import { buildObjectStorageConnectionSnippets } from "./snippets";
 import type {
   CreateAccessKeyInput,
   CreateAccessKeyResult,
   CreateBucketInput,
   CreateObjectStorageInput,
+  ListBucketObjectsInput,
+  ObjectStorageBucketObjectList,
   ObjectStorageDeployment,
   ObjectStorageDetails,
   ObjectStorageWithRuntime,
@@ -91,6 +100,32 @@ async function getObjectStorageBucketWithGarageId(input: {
 function getAccessKeyPrefix(accessKeyId: string): string {
   const [prefix] = accessKeyId.split(".");
   return prefix && prefix.length > 0 ? prefix : accessKeyId.slice(0, 16);
+}
+
+async function getStoredReadableCredentials(input: {
+  objectStorageId: string;
+  bucketId: string;
+}): Promise<ObjectStorageS3Credentials | null> {
+  const accessKey = await db
+    .selectFrom("objectStorageAccessKeys")
+    .select(["accessKeyId", "secretAccessKeyEncrypted"])
+    .where("objectStorageId", "=", input.objectStorageId)
+    .where("bucketId", "=", input.bucketId)
+    .where("revokedAt", "is", null)
+    .orderBy("createdAt", "desc")
+    .executeTakeFirst();
+
+  if (!accessKey) {
+    return null;
+  }
+  if (!accessKey.secretAccessKeyEncrypted) {
+    return null;
+  }
+
+  return {
+    accessKeyId: accessKey.accessKeyId,
+    secretAccessKey: decrypt(accessKey.secretAccessKeyEncrypted),
+  };
 }
 
 async function rollbackObjectStorageProvisioning(input: {
@@ -395,6 +430,78 @@ export async function createObjectStorageAccessKey(
       secretAccessKey: garageKey.secretAccessKey,
     }),
   };
+}
+
+export async function listObjectStorageBucketObjects(
+  input: ListBucketObjectsInput,
+): Promise<ObjectStorageBucketObjectList> {
+  const objectStorage = await getObjectStorageRow(input.objectStorageId);
+  const bucket = await getObjectStorageBucketWithGarageId(input);
+  const runtime = await getRunningObjectStorageRuntime(objectStorage);
+
+  const storedCredentials = await getStoredReadableCredentials({
+    objectStorageId: input.objectStorageId,
+    bucketId: input.bucketId,
+  });
+  let credentials = storedCredentials;
+  let temporaryAccessKeyId: string | null = null;
+
+  if (!credentials) {
+    const garageKey = await createGarageKey(
+      runtime.containerId,
+      `frost-list-${bucket.name}`,
+    );
+    if (!garageKey.secretAccessKey) {
+      await deleteGarageKey(runtime.containerId, garageKey.accessKeyId).catch(
+        function ignoreCleanupError() {},
+      );
+      throw new Error("Garage did not return the secret access key");
+    }
+
+    try {
+      await allowGarageKey({
+        containerId: runtime.containerId,
+        bucketId: bucket.garageBucketId,
+        accessKeyId: garageKey.accessKeyId,
+        permissions: "read-only",
+      });
+    } catch (error) {
+      await deleteGarageKey(runtime.containerId, garageKey.accessKeyId).catch(
+        function ignoreCleanupError() {},
+      );
+      throw error;
+    }
+
+    temporaryAccessKeyId = garageKey.accessKeyId;
+    credentials = {
+      accessKeyId: garageKey.accessKeyId,
+      secretAccessKey: garageKey.secretAccessKey,
+    };
+  }
+
+  try {
+    const client = createObjectStorageS3Client({
+      endpoint: getRuntimeLocalS3Endpoint(runtime.hostPort),
+      region: objectStorage.region,
+      credentials,
+    });
+
+    return await listObjectStorageS3Objects({
+      client,
+      bucket: bucket.name,
+      bucketId: bucket.id,
+      prefix: input.prefix ?? "",
+      cursor: input.cursor,
+    });
+  } catch (error) {
+    throw objectStorageValidation(getErrorMessage(error));
+  } finally {
+    if (temporaryAccessKeyId) {
+      await deleteGarageKey(runtime.containerId, temporaryAccessKeyId).catch(
+        function ignoreCleanupError() {},
+      );
+    }
+  }
 }
 
 export async function revokeObjectStorageAccessKey(input: {

@@ -46,6 +46,11 @@ export interface CreatedObjectStorageRuntime {
   externalEndpoint: string | null;
 }
 
+export interface RunningObjectStorageRuntime {
+  containerId: string;
+  hostPort: number;
+}
+
 let deployServiceFn: DeployServiceFn = deployService;
 
 function randomSecret(bytes = 32): string {
@@ -277,9 +282,9 @@ export async function createObjectStorageRuntimeService(
   return { service, internalEndpoint, externalEndpoint };
 }
 
-export async function getRuntimeContainerId(
+export async function getRunningObjectStorageRuntime(
   objectStorage: Selectable<ObjectStorages>,
-): Promise<string> {
+): Promise<RunningObjectStorageRuntime> {
   const service = await db
     .selectFrom("services")
     .select(["id", "currentDeploymentId"])
@@ -292,7 +297,7 @@ export async function getRuntimeContainerId(
 
   const deployment = await db
     .selectFrom("deployments")
-    .select(["containerId", "status"])
+    .select(["containerId", "hostPort", "status"])
     .where("id", "=", service.currentDeploymentId)
     .executeTakeFirst();
 
@@ -300,7 +305,22 @@ export async function getRuntimeContainerId(
     throw objectStorageNotReady("Object storage runtime is not running");
   }
 
-  return deployment.containerId;
+  if (!deployment.hostPort) {
+    throw objectStorageNotReady("Object storage runtime is missing its port");
+  }
+
+  return { containerId: deployment.containerId, hostPort: deployment.hostPort };
+}
+
+export async function getRuntimeContainerId(
+  objectStorage: Selectable<ObjectStorages>,
+): Promise<string> {
+  const runtime = await getRunningObjectStorageRuntime(objectStorage);
+  return runtime.containerId;
+}
+
+export function getRuntimeLocalS3Endpoint(hostPort: number): string {
+  return `http://127.0.0.1:${hostPort}`;
 }
 
 export async function getLatestRuntimeDeployment(

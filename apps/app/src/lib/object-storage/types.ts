@@ -65,4 +65,25 @@ export interface CreateAccessKeyResult {
   snippets: ObjectStorageConnectionSnippets;
 }
 
+export interface ObjectStorageBucketObject {
+  key: string;
+  size: number;
+  lastModified: number | null;
+  etag: string | null;
+}
+
+export interface ObjectStorageBucketObjectList {
+  bucketId: string;
+  prefix: string;
+  nextCursor: string | null;
+  objects: ObjectStorageBucketObject[];
+}
+
+export interface ListBucketObjectsInput {
+  objectStorageId: string;
+  bucketId: string;
+  prefix?: string | null;
+  cursor?: string | null;
+}
+
 export type ObjectStorageDeployment = Selectable<Deployments>;
