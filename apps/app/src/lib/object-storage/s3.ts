@@ -11,9 +11,22 @@ export interface ObjectStorageS3Credentials {
   secretAccessKey: string;
 }
 
+export interface ObjectStorageS3ClientInput {
+  endpoint: string;
+  region: string;
+  credentials: ObjectStorageS3Credentials;
+}
+
 export interface ObjectStorageS3ListClient {
   send(command: ListObjectsV2Command): Promise<ListObjectsV2CommandOutput>;
 }
+
+export type ObjectStorageS3ClientFactory = (
+  input: ObjectStorageS3ClientInput,
+) => ObjectStorageS3ListClient;
+
+let objectStorageS3ClientFactory: ObjectStorageS3ClientFactory =
+  createAwsObjectStorageS3Client;
 
 export function normalizeObjectStorageObjectPrefix(
   prefix: string | null | undefined,
@@ -21,11 +34,9 @@ export function normalizeObjectStorageObjectPrefix(
   return (prefix ?? "").trim().replace(/^\/+/, "");
 }
 
-export function createObjectStorageS3Client(input: {
-  endpoint: string;
-  region: string;
-  credentials: ObjectStorageS3Credentials;
-}): ObjectStorageS3ListClient {
+function createAwsObjectStorageS3Client(
+  input: ObjectStorageS3ClientInput,
+): ObjectStorageS3ListClient {
   const clientConfig: S3ClientConfig = {
     endpoint: input.endpoint,
     region: input.region,
@@ -34,6 +45,22 @@ export function createObjectStorageS3Client(input: {
   };
 
   return new S3Client(clientConfig);
+}
+
+export function createObjectStorageS3Client(
+  input: ObjectStorageS3ClientInput,
+): ObjectStorageS3ListClient {
+  return objectStorageS3ClientFactory(input);
+}
+
+export function setObjectStorageS3ClientFactoryForTests(
+  factory: ObjectStorageS3ClientFactory,
+): void {
+  objectStorageS3ClientFactory = factory;
+}
+
+export function resetObjectStorageS3ClientFactoryForTests(): void {
+  objectStorageS3ClientFactory = createAwsObjectStorageS3Client;
 }
 
 export async function listObjectStorageS3Objects(input: {

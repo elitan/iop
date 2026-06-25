@@ -8,6 +8,11 @@ import {
   resetObjectStorageDeployServiceForTests,
   setObjectStorageDeployServiceForTests,
 } from "./object-storage/runtime";
+import {
+  type ObjectStorageS3ClientFactory,
+  resetObjectStorageS3ClientFactoryForTests,
+  setObjectStorageS3ClientFactoryForTests,
+} from "./object-storage/s3";
 
 export {
   ObjectStorageError,
@@ -58,6 +63,7 @@ export type {
 export function setObjectStorageRuntimeForTests(fns: {
   deployService?: typeof deployService;
   garageJsonApi?: GarageJsonApiRunner;
+  s3ClientFactory?: ObjectStorageS3ClientFactory;
 }): void {
   if (fns.deployService) {
     setObjectStorageDeployServiceForTests(fns.deployService);
@@ -65,9 +71,13 @@ export function setObjectStorageRuntimeForTests(fns: {
   if (fns.garageJsonApi) {
     setGarageJsonApiRunnerForTests(fns.garageJsonApi);
   }
+  if (fns.s3ClientFactory) {
+    setObjectStorageS3ClientFactoryForTests(fns.s3ClientFactory);
+  }
 }
 
 export function resetObjectStorageRuntimeForTests(): void {
   resetObjectStorageDeployServiceForTests();
   resetGarageJsonApiRunnerForTests();
+  resetObjectStorageS3ClientFactoryForTests();
 }

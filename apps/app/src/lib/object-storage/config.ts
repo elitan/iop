@@ -10,3 +10,7 @@ export function getObjectStorageClientRegion(region: string): string {
   }
   return region;
 }
+
+export function getObjectStorageSigningRegion(region: string): string {
+  return region;
+}
