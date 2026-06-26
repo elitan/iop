@@ -27,28 +27,25 @@ export function ObjectStorageCreateForm({
   const createObjectStorageMutation = useCreateObjectStorage(projectId);
   const { data: existingObjectStorages = [] } = useObjectStorages(projectId);
   const [name, setName] = useState("");
-  const [bucketName, setBucketName] = useState("");
   const existingNames = existingObjectStorages
     .filter(function byEnvironment(objectStorage) {
       return objectStorage.environmentId === environmentId;
     })
     .map(function getName(objectStorage) {
-      return objectStorage.slug;
+      return objectStorage.name;
     });
-  const nextName = generateUniqueName("uploads", existingNames);
+  const nextName = generateUniqueName("object storage", existingNames);
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
     const storageName = name.trim() || nextName;
-    const initialBucketName = bucketName.trim() || storageName;
 
     try {
       const result = await createObjectStorageMutation.mutateAsync({
         environmentId,
         name: storageName,
-        bucketName: initialBucketName,
       });
       toast.success("Object storage created");
       onCreated(result.objectStorage.id);
@@ -84,35 +81,11 @@ export function ObjectStorageCreateForm({
             value={name}
             onChange={function onNameChange(event) {
               setName(event.target.value);
-              if (!bucketName) {
-                setBucketName(event.target.value);
-              }
             }}
             placeholder={nextName}
             className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
           />
         </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="object_storage_bucket"
-            className="text-xs font-medium text-neutral-400"
-          >
-            Initial bucket
-          </label>
-          <Input
-            id="object_storage_bucket"
-            value={bucketName}
-            onChange={function onBucketChange(event) {
-              setBucketName(event.target.value);
-            }}
-            placeholder={name || nextName}
-            className="border-neutral-700 bg-neutral-800 font-mono text-sm text-neutral-100 placeholder:text-neutral-500"
-          />
-        </div>
-        <p className="text-xs text-neutral-500">
-          Creates a managed S3-compatible endpoint with one bucket. Access keys
-          are created from the storage settings panel.
-        </p>
         <Button
           type="submit"
           disabled={createObjectStorageMutation.isPending}

@@ -6,6 +6,7 @@ import { db } from "./db";
 import { runMigrations } from "./migrate";
 import {
   buildObjectStorageConnectionSnippets,
+  createObjectStorage,
   getGaragePermissions,
   listObjectStorageBucketObjects,
   listObjectStorageS3Objects,
@@ -34,6 +35,20 @@ interface ObjectStorageFixture extends DeploymentFixture {
 function sleep(ms: number): Promise<void> {
   return new Promise(function onResolve(resolve) {
     setTimeout(resolve, ms);
+  });
+}
+
+function setNodeEnvForTest(value: string | undefined): void {
+  if (value === undefined) {
+    Reflect.deleteProperty(process.env, "NODE_ENV");
+    return;
+  }
+
+  Object.defineProperty(process.env, "NODE_ENV", {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
   });
 }
 
@@ -180,6 +195,35 @@ async function cleanupObjectStorageFixture(
   await cleanupDeploymentFixture(fixture);
 }
 
+async function cleanupCreatedObjectStorage(
+  details: Awaited<ReturnType<typeof createObjectStorage>>,
+): Promise<void> {
+  const runtimeServiceId = details.objectStorage.runtimeServiceId;
+
+  await db
+    .deleteFrom("objectStorageAccessKeys")
+    .where("objectStorageId", "=", details.objectStorage.id)
+    .execute();
+  await db
+    .deleteFrom("objectStorageBuckets")
+    .where("objectStorageId", "=", details.objectStorage.id)
+    .execute();
+  await db
+    .deleteFrom("objectStorages")
+    .where("id", "=", details.objectStorage.id)
+    .execute();
+  await db
+    .updateTable("services")
+    .set({ currentDeploymentId: null })
+    .where("id", "=", runtimeServiceId)
+    .execute();
+  await db
+    .deleteFrom("deployments")
+    .where("serviceId", "=", runtimeServiceId)
+    .execute();
+  await db.deleteFrom("services").where("id", "=", runtimeServiceId).execute();
+}
+
 async function insertDeployment(
   fixture: DeploymentFixture,
   input?: { status?: "pending" | "failed"; buildLog?: string },
@@ -208,6 +252,88 @@ describe("object storage naming", () => {
   test("normalizes bucket names into S3-compatible aliases", () => {
     expect(normalizeBucketName("Avatars")).toBe("avatars");
     expect(normalizeBucketName("a")).toBe("a-s3");
+  });
+});
+
+describe("createObjectStorage", function describeCreateObjectStorage() {
+  test("creates a main bucket when no bucket name is provided", async function testDefaultBucket() {
+    const fixture = await createDeploymentFixture();
+    const previousNodeEnv = process.env.NODE_ENV;
+    const garageCalls: {
+      operation: string;
+      payload?: Record<string, unknown>;
+    }[] = [];
+    let createdDetails: Awaited<ReturnType<typeof createObjectStorage>> | null =
+      null;
+
+    setNodeEnvForTest("development");
+    setObjectStorageRuntimeForTests({
+      deployService: async function deployService(serviceId) {
+        const service = await db
+          .selectFrom("services")
+          .select("environmentId")
+          .where("id", "=", serviceId)
+          .executeTakeFirst();
+
+        if (!service) {
+          throw new Error("Runtime service not found");
+        }
+
+        const deploymentId = `dep-object-storage-${nanoid(8)}`;
+        await db
+          .insertInto("deployments")
+          .values({
+            id: deploymentId,
+            serviceId,
+            environmentId: service.environmentId,
+            commitSha: "HEAD",
+            status: "running",
+            containerId: "container-object-storage",
+            hostPort: 19002,
+            createdAt: Date.now(),
+          })
+          .execute();
+        await db
+          .updateTable("services")
+          .set({ currentDeploymentId: deploymentId })
+          .where("id", "=", serviceId)
+          .execute();
+
+        return deploymentId;
+      },
+      garageJsonApi: async function garageJsonApi(
+        _containerId,
+        operation,
+        payload,
+      ) {
+        garageCalls.push({ operation, payload });
+        if (operation === "CreateBucket") {
+          return { id: "garage-main-bucket" };
+        }
+        return null;
+      },
+    });
+
+    try {
+      createdDetails = await createObjectStorage({
+        projectId: fixture.projectId,
+        environmentId: fixture.environmentId,
+        name: "Object Storage",
+      });
+
+      expect(createdDetails.buckets[0]?.name).toBe("main");
+      expect(garageCalls).toContainEqual({
+        operation: "CreateBucket",
+        payload: { globalAlias: "main" },
+      });
+    } finally {
+      resetObjectStorageRuntimeForTests();
+      setNodeEnvForTest(previousNodeEnv);
+      if (createdDetails) {
+        await cleanupCreatedObjectStorage(createdDetails);
+      }
+      await cleanupDeploymentFixture(fixture);
+    }
   });
 });
 

@@ -8,7 +8,11 @@ import {
   newObjectStorageBucketId,
   newObjectStorageId,
 } from "../id";
-import { GARAGE_REGION, getObjectStorageSigningRegion } from "./config";
+import {
+  DEFAULT_OBJECT_STORAGE_BUCKET_NAME,
+  GARAGE_REGION,
+  getObjectStorageSigningRegion,
+} from "./config";
 import {
   getErrorMessage,
   objectStorageConflict,
@@ -240,7 +244,9 @@ export async function createObjectStorage(
       await waitForObjectStorageDeploymentContainer(deploymentId);
 
     await waitForGarageReady(containerId);
-    const bucketName = normalizeBucketName(input.bucketName ?? slug);
+    const bucketName = normalizeBucketName(
+      input.bucketName ?? DEFAULT_OBJECT_STORAGE_BUCKET_NAME,
+    );
     const bucketInfo = await createGarageBucket(containerId, bucketName);
 
     await db
