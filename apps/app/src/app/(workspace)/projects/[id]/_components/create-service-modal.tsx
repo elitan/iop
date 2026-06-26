@@ -3,13 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
-  Archive,
   ChevronLeft,
   ChevronRight,
   Container,
   Database,
   Github,
   Loader2,
+  Server,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useEffect, useRef, useState } from "react";
@@ -98,7 +98,7 @@ const CATEGORIES: CategoryOption[] = [
   {
     id: "object-storage",
     label: "Object Storage",
-    icon: Archive,
+    icon: Server,
     keywords: ["object", "storage", "s3", "bucket", "uploads", "files"],
   },
 ];

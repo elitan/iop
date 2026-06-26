@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive } from "lucide-react";
+import { Server } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useObjectStorage } from "@/hooks/use-object-storages";
 import {
@@ -62,7 +62,7 @@ export default function ObjectStorageDetailLayout({
         activeTab={activeTab}
         onTabChange={handleTabChange}
         contentMode="center"
-        icon={<Archive className="h-4 w-4" />}
+        icon={<Server className="h-4 w-4" />}
       >
         {children}
       </ResourceSidebar>

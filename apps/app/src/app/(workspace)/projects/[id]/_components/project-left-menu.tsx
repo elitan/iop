@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Archive } from "lucide-react";
+import { Server } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, type SyntheticEvent, useMemo } from "react";
@@ -345,7 +345,7 @@ export function ProjectLeftMenu({
                       key={objectStorage.id}
                       href={href}
                       isActive={selectedObjectStorageId === objectStorage.id}
-                      icon={<Archive className="h-4 w-4" />}
+                      icon={<Server className="h-4 w-4" />}
                       name={objectStorage.name}
                       subtitle={objectStorage.endpoint ?? "S3 API"}
                       runtimeStatus={objectStorage.runtimeStatus}

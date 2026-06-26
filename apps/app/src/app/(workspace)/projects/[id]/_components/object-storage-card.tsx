@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive } from "lucide-react";
+import { Server } from "lucide-react";
 import Link from "next/link";
 import { ServiceRuntimeIndicator } from "@/components/service-runtime-indicator";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ export function ObjectStorageCard({
         <CardContent className="flex h-full flex-col p-4">
           <div className="mb-3 flex items-start gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-neutral-400">
-              <Archive className="h-5 w-5" />
+              <Server className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
