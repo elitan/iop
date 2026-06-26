@@ -31,6 +31,10 @@ import {
 } from "@/components/ui/select";
 import { useCreateDatabase, useDatabases } from "@/hooks/use-databases";
 import {
+  useCreateObjectStorage,
+  useObjectStorages,
+} from "@/hooks/use-object-storages";
+import {
   useBatchCreateServices,
   useCreateService,
   useScanRepo,
@@ -45,18 +49,11 @@ import {
 } from "@/lib/database-logo";
 import { RepoSelector } from "../services/new/_components/repo-selector";
 import { DatabaseImportWizard } from "./database-import-wizard";
-import { ObjectStorageCreateForm } from "./object-storage-create-form";
 import { generateUniqueName } from "./resource-name";
 import { type StagedService, StagedServicesList } from "./staged-services-list";
 
-type Step =
-  | "category"
-  | "repo"
-  | "scanning"
-  | "staged"
-  | "image"
-  | "database"
-  | "object-storage";
+type Step = "category" | "repo" | "scanning" | "staged" | "image" | "database";
+type CategoryId = Step | "object-storage";
 type DatabaseMode = "menu" | "create" | "import";
 
 interface CreateServiceModalProps {
@@ -70,7 +67,7 @@ interface CreateServiceModalProps {
 }
 
 interface CategoryOption {
-  id: Step;
+  id: CategoryId;
   label: string;
   icon: LucideIcon;
   keywords: string[];
@@ -144,6 +141,7 @@ export function CreateServiceModal({
 }: CreateServiceModalProps): React.ReactElement {
   const createMutation = useCreateService(environmentId);
   const createDatabaseMutation = useCreateDatabase(projectId);
+  const createObjectStorageMutation = useCreateObjectStorage(projectId);
   const scanMutation = useScanRepo();
   const batchCreateMutation = useBatchCreateServices(environmentId);
 
@@ -171,6 +169,7 @@ export function CreateServiceModal({
 
   const { data: existingServices } = useServices(environmentId);
   const { data: existingDatabases = [] } = useDatabases(projectId);
+  const { data: existingObjectStorages = [] } = useObjectStorages(projectId);
 
   const existingServiceNames = (existingServices ?? []).map((s) => s.name);
   const existingDatabaseNames = existingDatabases.map(
@@ -178,6 +177,13 @@ export function CreateServiceModal({
       return database.name;
     },
   );
+  const existingObjectStorageNames = existingObjectStorages
+    .filter(function byEnvironment(objectStorage) {
+      return objectStorage.environmentId === environmentId;
+    })
+    .map(function getName(objectStorage) {
+      return objectStorage.name;
+    });
   const nextDatabaseName = generateUniqueName(
     databaseEngine,
     existingDatabaseNames,
@@ -185,6 +191,10 @@ export function CreateServiceModal({
   const nextImportDatabaseName = generateUniqueName(
     "postgres",
     existingDatabaseNames,
+  );
+  const nextObjectStorageName = generateUniqueName(
+    "object storage",
+    existingObjectStorageNames,
   );
 
   const filteredCategories = CATEGORIES.filter((cat) =>
@@ -203,7 +213,6 @@ export function CreateServiceModal({
       staged: null,
       image: null,
       database: null,
-      "object-storage": null,
     };
     const ref = inputRefs[step];
     if (ref) setTimeout(() => ref.current?.focus(), 0);
@@ -224,10 +233,10 @@ export function CreateServiceModal({
     onOpenChange(isOpen);
   }
 
-  function handleSearchKeyDown(
+  function handleSearchKeyDown<T extends string>(
     e: React.KeyboardEvent,
-    items: { id: string }[],
-    onSelect: (id: string) => void,
+    items: { id: T }[],
+    onSelect: (id: T) => void,
   ): void {
     if (e.key === "Backspace" && search === "") {
       e.preventDefault();
@@ -250,13 +259,17 @@ export function CreateServiceModal({
     }
   }
 
-  function handleCategorySelect(id: string): void {
+  function handleCategorySelect(id: CategoryId): void {
     setSearch("");
     setSelectedIndex(0);
+    if (id === "object-storage") {
+      void createObjectStorage();
+      return;
+    }
     if (id === "database") {
       setDatabaseMode("menu");
     }
-    setStep(id as Step);
+    setStep(id);
   }
 
   async function createService(input: CreateServiceInput): Promise<void> {
@@ -427,11 +440,26 @@ export function CreateServiceModal({
     }
   }
 
-  function handleObjectStorageCreated(objectStorageId: string): void {
-    resetState();
-    onOpenChange(false);
-    if (onObjectStorageCreated) {
-      onObjectStorageCreated(objectStorageId);
+  async function createObjectStorage(): Promise<void> {
+    if (createObjectStorageMutation.isPending) {
+      return;
+    }
+
+    try {
+      const result = await createObjectStorageMutation.mutateAsync({
+        environmentId,
+        name: nextObjectStorageName,
+      });
+      toast.success("Object storage created");
+      resetState();
+      onOpenChange(false);
+      if (onObjectStorageCreated) {
+        onObjectStorageCreated(result.objectStorage.id);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create object storage";
+      toast.error(message);
     }
   }
 
@@ -454,17 +482,18 @@ export function CreateServiceModal({
     staged: "Configure Services",
     image: "Deploy Docker Image",
     database: "Create Database",
-    "object-storage": "Create Object Storage",
   };
 
   function renderStepContent(): React.ReactElement {
     switch (step) {
-      case "category":
+      case "category": {
+        const isCreatingObjectStorage = createObjectStorageMutation.isPending;
         return (
           <div className="space-y-3">
             <Input
               ref={searchInputRef}
               value={search}
+              disabled={isCreatingObjectStorage}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) =>
                 handleSearchKeyDown(e, filteredCategories, handleCategorySelect)
@@ -475,16 +504,21 @@ export function CreateServiceModal({
             <div className="space-y-1">
               {filteredCategories.map((cat, index) => {
                 const Icon = cat.icon;
+                const showObjectStorageSpinner =
+                  cat.id === "object-storage" && isCreatingObjectStorage;
                 return (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => handleCategorySelect(cat.id)}
+                    onClick={function onCategoryClick() {
+                      handleCategorySelect(cat.id);
+                    }}
+                    disabled={isCreatingObjectStorage}
                     className={`flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors ${
                       index === selectedIndex
                         ? "border-blue-500 bg-blue-500/10"
                         : "border-neutral-700 bg-neutral-800 hover:border-neutral-600"
-                    }`}
+                    } disabled:cursor-not-allowed disabled:opacity-70`}
                   >
                     <div className="flex items-center gap-3">
                       <Icon className="h-4 w-4 text-neutral-400" />
@@ -492,7 +526,11 @@ export function CreateServiceModal({
                         {cat.label}
                       </span>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-neutral-500" />
+                    {showObjectStorageSpinner ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-neutral-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-500" />
+                    )}
                   </button>
                 );
               })}
@@ -504,6 +542,7 @@ export function CreateServiceModal({
             </div>
           </div>
         );
+      }
 
       case "repo":
         return (
@@ -772,16 +811,6 @@ export function CreateServiceModal({
               </Button>
             </form>
           </div>
-        );
-
-      case "object-storage":
-        return (
-          <ObjectStorageCreateForm
-            projectId={projectId}
-            environmentId={environmentId}
-            onBack={resetState}
-            onCreated={handleObjectStorageCreated}
-          />
         );
     }
   }
