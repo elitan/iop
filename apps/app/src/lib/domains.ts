@@ -150,7 +150,7 @@ export async function backfillWildcardDomains(): Promise<number> {
       "environments.name as environmentName",
       "environments.type as environmentType",
     ])
-    .where("services.serviceType", "=", "app")
+    .where("services.serviceType", "in", ["app", "object-storage"])
     .where("services.hostname", "is not", null)
     .where("projects.hostname", "is not", null)
     .where(({ not, exists, selectFrom }) =>

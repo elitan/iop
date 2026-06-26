@@ -1,50 +1,29 @@
 "use client";
 
-import { FileIcon, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useObjectStorageBucketObjects } from "@/hooks/use-object-storages";
-import { CopyButton } from "./copy-field";
-import type { ObjectStorageBucket } from "./types";
+import {
+  useCreateObjectStorageBucketObjectDownloadUrl,
+  useDeleteObjectStorageBucketObject,
+  useObjectStorageBucketObjects,
+} from "@/hooks/use-object-storages";
+import { BucketObjectTable } from "./bucket-object-table";
+import { normalizePrefixInput } from "./bucket-object-utils";
+import type { ObjectStorageBucket, ObjectStorageBucketObject } from "./types";
+import { UploadBucketObjectButton } from "./upload-bucket-object-button";
 
 interface BucketFilesTabProps {
   objectStorageId: string;
   bucket: ObjectStorageBucket;
 }
 
-function formatObjectSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  const units = ["KB", "MB", "GB", "TB"];
-  let size = bytes / 1024;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  const unit = units[unitIndex] ?? "TB";
-  return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${unit}`;
-}
-
-function formatObjectDate(timestamp: number | null): string {
-  if (timestamp === null) {
-    return "Unknown";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(timestamp);
-}
-
-function normalizePrefixInput(prefix: string): string {
-  return prefix.trim().replace(/^\/+/, "");
+function getToastErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export function BucketFilesTab({
@@ -53,6 +32,12 @@ export function BucketFilesTab({
 }: BucketFilesTabProps) {
   const [objectPrefixInput, setObjectPrefixInput] = useState("");
   const [objectPrefix, setObjectPrefix] = useState("");
+  const [objectToDelete, setObjectToDelete] =
+    useState<ObjectStorageBucketObject | null>(null);
+  const createDownloadUrlMutation =
+    useCreateObjectStorageBucketObjectDownloadUrl(objectStorageId);
+  const deleteObjectMutation =
+    useDeleteObjectStorageBucketObject(objectStorageId);
   const bucketObjectsQuery = useObjectStorageBucketObjects({
     objectStorageId,
     bucketId: bucket.id,
@@ -68,8 +53,79 @@ export function BucketFilesTab({
     setObjectPrefix(normalizePrefixInput(objectPrefixInput));
   }
 
+  async function handleUploadedFile(prefix: string): Promise<void> {
+    setObjectPrefix(prefix);
+    await bucketObjectsQuery.refetch();
+  }
+
+  function createSignedObjectUrl(
+    object: ObjectStorageBucketObject,
+    disposition: "attachment" | "inline",
+  ) {
+    return createDownloadUrlMutation.mutateAsync({
+      bucketId: bucket.id,
+      key: object.key,
+      disposition,
+    });
+  }
+
+  async function handleDownloadObject(object: ObjectStorageBucketObject) {
+    try {
+      const result = await createSignedObjectUrl(object, "attachment");
+      window.location.assign(result.url);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, "Failed to create download URL"));
+    }
+  }
+
+  async function handleCopySignedUrl(object: ObjectStorageBucketObject) {
+    try {
+      const result = await createSignedObjectUrl(object, "inline");
+      await navigator.clipboard.writeText(result.url);
+      toast.success("Signed URL copied");
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, "Failed to copy signed URL"));
+    }
+  }
+
+  async function handleCopyObjectKey(object: ObjectStorageBucketObject) {
+    try {
+      await navigator.clipboard.writeText(object.key);
+      toast.success("Object key copied");
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, "Failed to copy key"));
+    }
+  }
+
+  async function handleConfirmDeleteObject() {
+    if (!objectToDelete) {
+      return;
+    }
+
+    try {
+      await deleteObjectMutation.mutateAsync({
+        bucketId: bucket.id,
+        key: objectToDelete.key,
+      });
+      toast.success("File deleted");
+      setObjectToDelete(null);
+    } catch (error) {
+      toast.error(getToastErrorMessage(error, "Failed to delete file"));
+    }
+  }
+
+  const objectActionPending =
+    createDownloadUrlMutation.isPending || deleteObjectMutation.isPending;
+
   return (
     <>
+      <UploadBucketObjectButton
+        objectStorageId={objectStorageId}
+        bucket={bucket}
+        prefixInput={objectPrefixInput}
+        onUploaded={handleUploadedFile}
+      />
+
       <form
         onSubmit={handleObjectPrefixSubmit}
         className="grid gap-2 md:grid-cols-[minmax(0,1fr)_6rem_2.25rem]"
@@ -130,38 +186,20 @@ export function BucketFilesTab({
         )}
 
       {bucketObjects.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-neutral-800">
-          <div className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] gap-3 border-b border-neutral-800 bg-neutral-950/60 px-3 py-2 text-xs text-neutral-500 md:grid-cols-[minmax(0,1fr)_7rem_10rem_2rem]">
-            <span>Key</span>
-            <span className="text-right">Size</span>
-            <span className="hidden md:block">Modified</span>
-            <span className="sr-only">Copy</span>
-          </div>
-          <div className="divide-y divide-neutral-800">
-            {bucketObjects.map(function renderObject(object) {
-              return (
-                <div
-                  key={object.key}
-                  className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] items-center gap-3 px-3 py-2 md:grid-cols-[minmax(0,1fr)_7rem_10rem_2rem]"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileIcon className="h-4 w-4 shrink-0 text-neutral-500" />
-                    <code className="truncate text-xs text-neutral-200">
-                      {object.key}
-                    </code>
-                  </div>
-                  <span className="text-right text-xs text-neutral-400">
-                    {formatObjectSize(object.size)}
-                  </span>
-                  <span className="hidden truncate text-xs text-neutral-500 md:block">
-                    {formatObjectDate(object.lastModified)}
-                  </span>
-                  <CopyButton value={object.key} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <BucketObjectTable
+          objects={bucketObjects}
+          actionPending={objectActionPending}
+          onDownload={function handleDownload(object) {
+            void handleDownloadObject(object);
+          }}
+          onCopySignedUrl={function handleCopySignedUrlClick(object) {
+            void handleCopySignedUrl(object);
+          }}
+          onCopyKey={function handleCopyKeyClick(object) {
+            void handleCopyObjectKey(object);
+          }}
+          onDelete={setObjectToDelete}
+        />
       )}
 
       {bucketObjectsQuery.hasNextPage && (
@@ -182,6 +220,27 @@ export function BucketFilesTab({
           Load more
         </Button>
       )}
+
+      <ConfirmDialog
+        open={objectToDelete !== null}
+        onOpenChange={function handleDeleteDialogOpenChange(open) {
+          if (!open && !deleteObjectMutation.isPending) {
+            setObjectToDelete(null);
+          }
+        }}
+        title="Delete file?"
+        description={
+          objectToDelete
+            ? `This permanently deletes ${objectToDelete.key} from ${bucket.name}.`
+            : "This permanently deletes the file."
+        }
+        confirmLabel="Delete file"
+        variant="destructive"
+        loading={deleteObjectMutation.isPending}
+        onConfirm={function handleDeleteConfirm() {
+          void handleConfirmDeleteObject();
+        }}
+      />
     </>
   );
 }

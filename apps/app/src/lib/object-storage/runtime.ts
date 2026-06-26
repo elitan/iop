@@ -1,10 +1,19 @@
 import { randomBytes } from "node:crypto";
 import type { Selectable } from "kysely";
 import { db } from "../db";
-import type { Deployments, ObjectStorages, Services } from "../db-types";
+import type {
+  Deployments,
+  Domains,
+  ObjectStorages,
+  Services,
+} from "../db-types";
 import { deployService } from "../deployer";
 import { addLatestDeploymentWithRuntimeStatus } from "../deployment-runtime";
-import { getServerIp, getSystemDomainForService } from "../domains";
+import {
+  getDomainsForService,
+  getServerIp,
+  getSystemDomainForService,
+} from "../domains";
 import { newRuntimeServiceId } from "../id";
 import { cleanupService } from "../lifecycle";
 import { createService } from "../services";
@@ -217,6 +226,59 @@ export function resolveObjectStorageEndpoint(input: {
   return null;
 }
 
+function getPreferredObjectStorageDomain(
+  domains: Selectable<Domains>[],
+): Selectable<Domains> | null {
+  const verifiedProxyDomains = domains.filter(
+    function isVerifiedProxyDomain(domain) {
+      return domain.type === "proxy" && Boolean(domain.dnsVerified);
+    },
+  );
+
+  return (
+    verifiedProxyDomains.find(function isCustomDomain(domain) {
+      return !domain.isSystem;
+    }) ??
+    verifiedProxyDomains.find(function isSystemDomain(domain) {
+      return Boolean(domain.isSystem);
+    }) ??
+    null
+  );
+}
+
+export async function resolveObjectStoragePublicEndpoint(input: {
+  runtimeServiceId: string;
+  externalEndpoint: string | null;
+  serverIp: string | null;
+  hostPort: number | null;
+}): Promise<string | null> {
+  const domains = await getDomainsForService(input.runtimeServiceId);
+  const domain = getPreferredObjectStorageDomain(domains);
+
+  if (domain) {
+    return `https://${domain.domain}`;
+  }
+
+  return resolveObjectStorageEndpoint({
+    externalEndpoint: input.externalEndpoint,
+    serverIp: input.serverIp,
+    hostPort: input.hostPort,
+  });
+}
+
+function resolveAttachedObjectStorageEndpoint(input: {
+  objectStorage: Selectable<ObjectStorages>;
+  serverIp: string | null;
+  hostPort: number | null;
+}): Promise<string | null> {
+  return resolveObjectStoragePublicEndpoint({
+    runtimeServiceId: input.objectStorage.runtimeServiceId,
+    externalEndpoint: input.objectStorage.externalEndpoint,
+    serverIp: input.serverIp,
+    hostPort: input.hostPort,
+  });
+}
+
 export function getObjectStorageConnectionInfo(
   objectStorage: ObjectStorageWithRuntime,
 ): ObjectStorageConnectionInfo {
@@ -351,8 +413,8 @@ export async function attachObjectStorageRuntime(
     return {
       ...objectStorage,
       region: getObjectStorageClientRegion(objectStorage.region),
-      endpoint: resolveObjectStorageEndpoint({
-        externalEndpoint: objectStorage.externalEndpoint,
+      endpoint: await resolveAttachedObjectStorageEndpoint({
+        objectStorage,
         serverIp: options.serverIp,
         hostPort: null,
       }),
@@ -367,8 +429,8 @@ export async function attachObjectStorageRuntime(
   return {
     ...objectStorage,
     region: getObjectStorageClientRegion(objectStorage.region),
-    endpoint: resolveObjectStorageEndpoint({
-      externalEndpoint: objectStorage.externalEndpoint,
+    endpoint: await resolveAttachedObjectStorageEndpoint({
+      objectStorage,
       serverIp: options.serverIp,
       hostPort,
     }),

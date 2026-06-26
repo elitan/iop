@@ -7,10 +7,10 @@ import { toast } from "sonner";
 import { EnvVarEditor } from "@/components/env-var-editor";
 import { SettingCard } from "@/components/setting-card";
 import { Button } from "@/components/ui/button";
+import { useDomainSettings } from "@/hooks/use-domain-settings";
 import { useProject } from "@/hooks/use-projects";
 import { useDeployService, useUpdateService } from "@/hooks/use-services";
 import type { EnvVar, Service } from "@/lib/api";
-import { api } from "@/lib/api";
 import { DomainsSection } from "../services/[serviceId]/_components/domains-section";
 import { BuildConfigCard } from "../services/[serviceId]/settings/_components/build-config-card";
 import { ContainerPortCard } from "../services/[serviceId]/settings/_components/container-port-card";
@@ -212,16 +212,7 @@ function VariablesTab({
 }
 
 function DomainsTab({ service }: { service: Service }) {
-  const [serverIp, setServerIp] = useState<string | null>(null);
-  const [wildcardConfigured, setWildcardConfigured] = useState(false);
-
-  useEffect(() => {
-    api.settings.get().then((s) => setServerIp(s.serverIp));
-    fetch("/api/settings/wildcard")
-      .then((res) => res.json())
-      .then((data) => setWildcardConfigured(data.configured))
-      .catch(() => {});
-  }, []);
+  const { serverIp, wildcardConfigured } = useDomainSettings();
 
   return (
     <DomainsSection

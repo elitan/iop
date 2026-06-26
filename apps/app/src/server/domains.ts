@@ -93,7 +93,7 @@ export const domains = {
 
     const service = await db
       .selectFrom("services")
-      .select(["id", "environmentId"])
+      .select(["id", "environmentId", "serviceType"])
       .where("id", "=", input.serviceId)
       .executeTakeFirst();
 
@@ -111,6 +111,11 @@ export const domains = {
         message: "redirectTarget is required for redirect type",
       });
     }
+    if (service.serviceType === "object-storage" && input.type === "redirect") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Object storage endpoints do not support redirects",
+      });
+    }
 
     return addDomain(input.serviceId, service.environmentId, {
       domain: input.domain,
@@ -126,6 +131,20 @@ export const domains = {
     const domain = await getDomain(input.id);
     if (!domain) {
       throw new ORPCError("NOT_FOUND", { message: "Domain not found" });
+    }
+    const service = await db
+      .selectFrom("services")
+      .select("serviceType")
+      .where("id", "=", domain.serviceId)
+      .executeTakeFirst();
+
+    if (
+      service?.serviceType === "object-storage" &&
+      input.type === "redirect"
+    ) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Object storage endpoints do not support redirects",
+      });
     }
 
     const updates: Parameters<typeof updateDomain>[1] = {};
