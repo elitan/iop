@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import {
   getCleanupSettings,
   startCleanupJob,
@@ -52,7 +53,9 @@ export const cleanup = {
 
     const started = await startCleanupJob();
     if (!started) {
-      throw new Error("Cleanup already running");
+      throw new ORPCError("CONFLICT", {
+        message: "Cleanup already running",
+      });
     }
     return { started: true };
   }),

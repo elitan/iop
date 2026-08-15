@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -39,6 +40,100 @@ describe("migrate integration", () => {
 
     expect(result.applied).toBe(MIGRATION_COUNT);
     expect(result.bootstrapped).toBe(false);
+  });
+
+  test("upgrades preserve legacy database services and their volume IDs", () => {
+    const firstTenMigrations = readdirSync(PROD_SCHEMA_DIR)
+      .filter(function isLegacyMigration(file) {
+        return Number.parseInt(file.slice(0, 3), 10) <= 10;
+      })
+      .sort();
+
+    const legacyDb = new Database(TEST_DB);
+    legacyDb.exec("PRAGMA journal_mode = WAL");
+    legacyDb.exec("PRAGMA foreign_keys = ON");
+    legacyDb.exec(`
+      CREATE TABLE _migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        applied_at INTEGER NOT NULL
+      )
+    `);
+    for (const file of firstTenMigrations) {
+      legacyDb.exec(readFileSync(join(PROD_SCHEMA_DIR, file), "utf-8"));
+      legacyDb
+        .prepare("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)")
+        .run(file, Date.now());
+    }
+    legacyDb
+      .prepare(
+        "INSERT INTO projects (id, name, env_vars, created_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("legacy-project", "Legacy", "[]", Date.now());
+    legacyDb
+      .prepare(
+        "INSERT INTO environments (id, project_id, name, type, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(
+        "legacy-environment",
+        "legacy-project",
+        "production",
+        "production",
+        Date.now(),
+      );
+    legacyDb
+      .prepare(
+        "INSERT INTO services (id, environment_id, name, deploy_type, service_type, image_url, env_vars, volumes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "legacy-postgres",
+        "legacy-environment",
+        "postgres",
+        "image",
+        "database",
+        "postgres:16-alpine",
+        "[]",
+        '[{"name":"data","path":"/var/lib/postgresql/data"}]',
+        Date.now(),
+      );
+    legacyDb
+      .prepare(
+        "INSERT INTO deployments (id, service_id, environment_id, commit_sha, status, volumes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "legacy-deployment",
+        "legacy-postgres",
+        "legacy-environment",
+        "postgres-16",
+        "running",
+        '[{"name":"data","path":"/var/lib/postgresql/data"}]',
+        Date.now(),
+      );
+    legacyDb.close();
+
+    runMigrations({ dbPath: TEST_DB, schemaDir: PROD_SCHEMA_DIR });
+
+    const migratedDb = new Database(TEST_DB, { readonly: true });
+    const service = migratedDb
+      .prepare(
+        "SELECT id, service_type, volumes FROM services WHERE name = 'postgres'",
+      )
+      .get() as {
+      id: string;
+      service_type: string;
+      volumes: string;
+    };
+    const deployment = migratedDb
+      .prepare(
+        "SELECT service_id FROM deployments WHERE commit_sha = 'postgres-16'",
+      )
+      .get() as { service_id: string };
+    migratedDb.close();
+
+    expect(service.id).toBe("legacy-postgres");
+    expect(service.service_type).toBe("database");
+    expect(service.volumes).toContain("/var/lib/postgresql/data");
+    expect(deployment.service_id).toBe("legacy-postgres");
   });
 
   test("all expected tables exist after migrations", () => {

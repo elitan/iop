@@ -10,6 +10,7 @@ export interface CleanupResult {
   deletedNetworks: string[];
   prunedContainers: number;
   prunedBuildCacheBytes: number;
+  compactedDatabaseBytes?: number;
   freedBytes: number;
   errors: string[];
   startedAt: string;

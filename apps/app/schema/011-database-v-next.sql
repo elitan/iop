@@ -51,4 +51,6 @@ CREATE TABLE service_database_bindings (
 CREATE INDEX idx_service_db_bindings_service_id ON service_database_bindings(service_id);
 CREATE INDEX idx_service_db_bindings_database_id ON service_database_bindings(database_id);
 
-DELETE FROM services WHERE service_type = 'database';
+-- Legacy template databases remain regular services. They own Docker volumes
+-- that cannot be represented safely by the new database model during a SQL
+-- migration, so deleting these rows would orphan production data.

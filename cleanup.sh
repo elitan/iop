@@ -28,6 +28,23 @@ if [ -z "$FROST_API_KEY" ]; then
   exit 1
 fi
 
+SETTINGS_RESPONSE=$(curl -s http://localhost:3000/api/cleanup \
+  -H "x-frost-token: $FROST_API_KEY" \
+  -w "\n%{http_code}")
+
+SETTINGS_HTTP_CODE=$(echo "$SETTINGS_RESPONSE" | tail -n1)
+SETTINGS_BODY=$(echo "$SETTINGS_RESPONSE" | head -n-1)
+
+if [ "$SETTINGS_HTTP_CODE" != "200" ]; then
+  log "ERROR: Failed to read cleanup settings (HTTP $SETTINGS_HTTP_CODE): $SETTINGS_BODY"
+  exit 1
+fi
+
+if ! echo "$SETTINGS_BODY" | grep -Eq '"enabled"[[:space:]]*:[[:space:]]*true'; then
+  log "Cleanup disabled; skipping scheduled run"
+  exit 0
+fi
+
 RESPONSE=$(curl -s -X POST http://localhost:3000/api/cleanup/run \
   -H "x-frost-token: $FROST_API_KEY" \
   -w "\n%{http_code}")

@@ -19,7 +19,15 @@ CREATE TEMP TABLE map_services (
   new_id TEXT NOT NULL UNIQUE
 );
 INSERT INTO map_services (old_id, new_id)
-SELECT id, 'svc_' || lower(hex(randomblob(10))) FROM services;
+SELECT
+  id,
+  CASE
+    -- Volume names include the service ID. Keep legacy IDs for stateful
+    -- services so the prefix migration cannot silently attach empty volumes.
+    WHEN volumes IS NOT NULL AND volumes != '[]' THEN id
+    ELSE 'svc_' || lower(hex(randomblob(10)))
+  END
+FROM services;
 
 CREATE TEMP TABLE map_deployments (
   old_id TEXT PRIMARY KEY,

@@ -85,6 +85,16 @@ export function RunCleanupCard({
                     build cache
                   </>
                 )}
+                {(settings.lastResult.compactedDatabaseBytes ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    •{" "}
+                    {formatBytes(
+                      settings.lastResult.compactedDatabaseBytes ?? 0,
+                    )}{" "}
+                    database
+                  </>
+                )}
               </p>
               {settings.lastResult.errors.length > 0 && (
                 <p className="mt-1 text-red-400">

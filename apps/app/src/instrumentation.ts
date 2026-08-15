@@ -41,10 +41,6 @@ export async function register() {
     startMetricsCollector();
     console.log("[startup] metrics collector: started");
 
-    const { startCleanupScheduler } = await import("./lib/cleanup-scheduler");
-    startCleanupScheduler();
-    console.log("[startup] cleanup scheduler: started");
-
     const { startUpdateScheduler } = await import("./lib/update-scheduler");
     startUpdateScheduler();
     console.log("[startup] update scheduler: started");

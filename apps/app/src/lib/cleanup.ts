@@ -1,5 +1,7 @@
+import type { Kysely } from "kysely";
 import { getSetting, setSetting } from "./auth";
 import { db } from "./db";
+import type { DB } from "./db-types";
 import {
   getImageCreatedAt,
   getImageSize,
@@ -13,6 +15,9 @@ import {
   removeImage,
   removeNetwork,
 } from "./docker";
+import { compactSqliteDatabase } from "./sqlite-maintenance";
+
+const CLEANUP_LOCK_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 
 async function isImageRollbackEligible(imageName: string): Promise<boolean> {
   const deployment = await db
@@ -36,10 +41,109 @@ export interface CleanupResult {
   deletedNetworks: string[];
   prunedContainers: number;
   prunedBuildCacheBytes: number;
+  compactedDatabaseBytes: number;
   freedBytes: number;
   errors: string[];
   startedAt: string;
   finishedAt: string;
+}
+
+interface CleanupLockSettings {
+  settings: CleanupSettings;
+  startedAt: string | null;
+}
+
+function parseCleanupSettings(
+  settingValues: Map<string, string>,
+): CleanupLockSettings {
+  const lastResult = settingValues.get("cleanup_last_result") ?? null;
+
+  return {
+    settings: {
+      enabled: settingValues.get("cleanup_enabled") !== "false",
+      keepImages: Number.parseInt(
+        settingValues.get("cleanup_keep_images") ?? "3",
+        10,
+      ),
+      pruneDangling: settingValues.get("cleanup_prune_dangling") !== "false",
+      pruneNetworks: settingValues.get("cleanup_prune_networks") !== "false",
+      running: settingValues.get("cleanup_running") === "true",
+      lastRun: settingValues.get("cleanup_last_run") ?? null,
+      lastResult: lastResult ? JSON.parse(lastResult) : null,
+    },
+    startedAt: settingValues.get("cleanup_started_at") ?? null,
+  };
+}
+
+export function isCleanupLockStale(
+  running: boolean,
+  startedAt: string | null,
+  now: Date,
+): boolean {
+  if (!running) return false;
+  if (!startedAt) return true;
+
+  const startedAtMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedAtMs)) return true;
+
+  return now.getTime() - startedAtMs >= CLEANUP_LOCK_TIMEOUT_MS;
+}
+
+export async function claimCleanupJob(
+  database: Kysely<DB> = db,
+  now: Date = new Date(),
+): Promise<CleanupSettings | null> {
+  return await database.transaction().execute(async function claimLock(trx) {
+    await trx
+      .insertInto("settings")
+      .values({ key: "cleanup_running", value: "false" })
+      .onConflict(function ignoreExistingLock(oc) {
+        return oc.column("key").doNothing();
+      })
+      .execute();
+
+    const rows = await trx
+      .selectFrom("settings")
+      .select(["key", "value"])
+      .where("key", "in", [
+        "cleanup_enabled",
+        "cleanup_keep_images",
+        "cleanup_prune_dangling",
+        "cleanup_prune_networks",
+        "cleanup_running",
+        "cleanup_started_at",
+        "cleanup_last_run",
+        "cleanup_last_result",
+      ])
+      .execute();
+    const values = new Map(
+      rows.map(function toEntry(row) {
+        return [row.key, row.value];
+      }),
+    );
+    const lockSettings = parseCleanupSettings(values);
+    if (
+      lockSettings.settings.running &&
+      !isCleanupLockStale(true, lockSettings.startedAt, now)
+    ) {
+      return null;
+    }
+
+    await trx
+      .insertInto("settings")
+      .values([
+        { key: "cleanup_running", value: "true" },
+        { key: "cleanup_started_at", value: now.toISOString() },
+      ])
+      .onConflict(function updateLock(oc) {
+        return oc.column("key").doUpdateSet(function useIncomingValue(eb) {
+          return { value: eb.ref("excluded.value") };
+        });
+      })
+      .execute();
+
+    return { ...lockSettings.settings, running: true };
+  });
 }
 
 export interface CleanupSettings {
@@ -59,6 +163,7 @@ export async function getCleanupSettings(): Promise<CleanupSettings> {
     pruneDangling,
     pruneNetworks,
     running,
+    startedAt,
     lastRun,
     lastResult,
   ] = await Promise.all([
@@ -67,6 +172,7 @@ export async function getCleanupSettings(): Promise<CleanupSettings> {
     getSetting("cleanup_prune_dangling"),
     getSetting("cleanup_prune_networks"),
     getSetting("cleanup_running"),
+    getSetting("cleanup_started_at"),
     getSetting("cleanup_last_run"),
     getSetting("cleanup_last_result"),
   ]);
@@ -76,7 +182,8 @@ export async function getCleanupSettings(): Promise<CleanupSettings> {
     keepImages: keepImages ? parseInt(keepImages, 10) : 3,
     pruneDangling: pruneDangling !== "false",
     pruneNetworks: pruneNetworks !== "false",
-    running: running === "true",
+    running:
+      running === "true" && !isCleanupLockStale(true, startedAt, new Date()),
     lastRun,
     lastResult: lastResult ? JSON.parse(lastResult) : null,
   };
@@ -124,6 +231,7 @@ export async function runCleanup(
     deletedNetworks: [],
     prunedContainers: 0,
     prunedBuildCacheBytes: 0,
+    compactedDatabaseBytes: 0,
     freedBytes: 0,
     errors: [],
     startedAt,
@@ -195,6 +303,9 @@ export async function runCleanup(
         }
       }
     }
+
+    result.compactedDatabaseBytes = compactSqliteDatabase();
+    result.freedBytes += result.compactedDatabaseBytes;
   } catch (err) {
     result.success = false;
     result.errors.push(err instanceof Error ? err.message : String(err));
@@ -205,40 +316,45 @@ export async function runCleanup(
 }
 
 export async function startCleanupJob(): Promise<boolean> {
-  const settings = await getCleanupSettings();
-
-  if (settings.running) {
+  const settings = await claimCleanupJob();
+  if (!settings) {
     return false;
   }
 
-  await setSetting("cleanup_running", "true");
-
-  runCleanup({
-    keepImages: settings.keepImages,
-    pruneDangling: settings.pruneDangling,
-    pruneNetworks: settings.pruneNetworks,
-  })
-    .then(async (result) => {
-      await setSetting("cleanup_last_result", JSON.stringify(result));
-      await setSetting("cleanup_last_run", result.finishedAt);
-      await setSetting("cleanup_running", "false");
-    })
-    .catch(async (err) => {
-      const errorResult: CleanupResult = {
+  void (async function executeCleanup() {
+    let result: CleanupResult;
+    try {
+      result = await runCleanup({
+        keepImages: settings.keepImages,
+        pruneDangling: settings.pruneDangling,
+        pruneNetworks: settings.pruneNetworks,
+      });
+    } catch (err) {
+      const now = new Date().toISOString();
+      result = {
         success: false,
         deletedImages: [],
         deletedNetworks: [],
         prunedContainers: 0,
         prunedBuildCacheBytes: 0,
+        compactedDatabaseBytes: 0,
         freedBytes: 0,
         errors: [err instanceof Error ? err.message : String(err)],
-        startedAt: new Date().toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt: now,
+        finishedAt: now,
       };
-      await setSetting("cleanup_last_result", JSON.stringify(errorResult));
-      await setSetting("cleanup_last_run", errorResult.finishedAt);
+    }
+
+    try {
+      await setSetting("cleanup_last_result", JSON.stringify(result));
+      await setSetting("cleanup_last_run", result.finishedAt);
+    } finally {
       await setSetting("cleanup_running", "false");
-    });
+      await setSetting("cleanup_started_at", "");
+    }
+  })().catch(function logCleanupPersistenceError(err) {
+    console.error("[cleanup] Failed to persist cleanup result:", err);
+  });
 
   return true;
 }

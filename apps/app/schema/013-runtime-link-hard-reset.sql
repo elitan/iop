@@ -18,6 +18,7 @@ DELETE FROM environment_database_attachments;
 DELETE FROM database_target_deployments;
 DELETE FROM database_targets;
 DELETE FROM databases;
-DELETE FROM services WHERE service_type = 'database';
 
+-- Preserve legacy database services because their IDs own the physical Docker
+-- volume names and deleting the rows would orphan production data.
 CREATE UNIQUE INDEX idx_database_targets_runtime_service_id ON database_targets(runtime_service_id);
