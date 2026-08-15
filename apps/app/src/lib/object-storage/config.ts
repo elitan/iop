@@ -3,6 +3,7 @@ export const GARAGE_IMAGE =
 export const GARAGE_S3_PORT = 3900;
 export const GARAGE_REGION = "auto";
 export const GARAGE_PROVISION_TIMEOUT_MS = 120000;
+export const DEFAULT_OBJECT_STORAGE_BUCKET_NAME = "main";
 
 export function getObjectStorageClientRegion(region: string): string {
   if (region === "garage") {

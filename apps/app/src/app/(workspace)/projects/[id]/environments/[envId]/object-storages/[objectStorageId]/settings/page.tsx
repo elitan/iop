@@ -6,10 +6,12 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useDomainSettings } from "@/hooks/use-domain-settings";
 import {
   useDeleteObjectStorage,
   useObjectStorage,
 } from "@/hooks/use-object-storages";
+import { DomainsSection } from "../../../../../services/[serviceId]/_components/domains-section";
 
 export default function ObjectStorageSettingsPage() {
   const params = useParams();
@@ -20,6 +22,7 @@ export default function ObjectStorageSettingsPage() {
   const { data } = useObjectStorage(objectStorageId);
   const deleteMutation = useDeleteObjectStorage(projectId);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const { serverIp, wildcardConfigured } = useDomainSettings();
 
   async function handleDelete() {
     try {
@@ -38,27 +41,17 @@ export default function ObjectStorageSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-neutral-800 bg-neutral-900">
-        <CardHeader>
-          <CardTitle className="text-sm text-neutral-200">Runtime</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-neutral-400">
-          <div className="flex items-center justify-between gap-3">
-            <span>API</span>
-            <code className="text-xs text-neutral-200">S3-compatible</code>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span>Region</span>
-            <code className="text-xs text-neutral-200">
-              {data?.objectStorage.region ?? "auto"}
-            </code>
-          </div>
-          <p className="text-xs text-neutral-500">
-            Public-read and CORS controls are not exposed yet. Bucket and key
-            management runs through Frost.
-          </p>
-        </CardContent>
-      </Card>
+      {data && (
+        <DomainsSection
+          serviceId={data.objectStorage.runtimeServiceId}
+          hasRunningDeployment={data.objectStorage.runtimeStatus === "online"}
+          serverIp={serverIp}
+          wildcardConfigured={wildcardConfigured}
+          resourceLabel="object storage endpoint"
+          connectLabel="Connect to endpoint"
+          allowRedirects={false}
+        />
+      )}
 
       <Card className="border-red-950/70 bg-red-950/10">
         <CardHeader>

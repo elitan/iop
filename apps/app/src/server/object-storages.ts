@@ -3,8 +3,11 @@ import {
   createObjectStorage,
   createObjectStorageAccessKey,
   createObjectStorageBucket,
+  createObjectStorageBucketObjectDownloadUrl,
+  createObjectStorageBucketObjectUploadUrl,
   deleteObjectStorage,
   deleteObjectStorageBucket,
+  deleteObjectStorageBucketObject,
   getObjectStorageDetails,
   listObjectStorageBucketObjects,
   listObjectStoragesByProject,
@@ -95,6 +98,39 @@ export const objectStorages = {
       return handleObjectStorageAction(function listBucketObjectsAction() {
         return listObjectStorageBucketObjects(input);
       });
+    },
+  ),
+
+  createBucketObjectUploadUrl:
+    os.objectStorages.createBucketObjectUploadUrl.handler(
+      function createBucketObjectUploadUrlHandler({ input }) {
+        return handleObjectStorageAction(
+          function createBucketObjectUploadUrlAction() {
+            return createObjectStorageBucketObjectUploadUrl(input);
+          },
+        );
+      },
+    ),
+
+  createBucketObjectDownloadUrl:
+    os.objectStorages.createBucketObjectDownloadUrl.handler(
+      function createBucketObjectDownloadUrlHandler({ input }) {
+        return handleObjectStorageAction(
+          function createBucketObjectDownloadUrlAction() {
+            return createObjectStorageBucketObjectDownloadUrl(input);
+          },
+        );
+      },
+    ),
+
+  deleteBucketObject: os.objectStorages.deleteBucketObject.handler(
+    function deleteBucketObjectHandler({ input }) {
+      return handleObjectStorageAction(
+        async function deleteBucketObjectAction() {
+          await deleteObjectStorageBucketObject(input);
+          return { success: true };
+        },
+      );
     },
   ),
 

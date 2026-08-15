@@ -8,11 +8,17 @@ import {
   newObjectStorageBucketId,
   newObjectStorageId,
 } from "../id";
-import { GARAGE_REGION, getObjectStorageSigningRegion } from "./config";
+import {
+  DEFAULT_OBJECT_STORAGE_BUCKET_NAME,
+  GARAGE_REGION,
+  getObjectStorageSigningRegion,
+} from "./config";
 import {
   getErrorMessage,
+  ObjectStorageError,
   objectStorageConflict,
   objectStorageNotFound,
+  objectStorageNotReady,
   objectStorageValidation,
 } from "./errors";
 import {
@@ -24,7 +30,7 @@ import {
   waitForGarageReady,
 } from "./garage-admin";
 import { normalizeBucketName, normalizeObjectStorageName } from "./naming";
-import { createObjectBrowserReadSession } from "./object-browser";
+import { createObjectBrowserSession } from "./object-browser";
 import {
   attachObjectStorageRuntime,
   cleanupObjectStorageRuntimeService,
@@ -37,15 +43,30 @@ import {
   getRunningObjectStorageRuntime,
   getRuntimeContainerId,
   getRuntimeLocalS3Endpoint,
+  resolveObjectStoragePublicEndpoint,
   waitForObjectStorageDeploymentContainer,
 } from "./runtime";
-import { createObjectStorageS3Client, listObjectStorageS3Objects } from "./s3";
+import {
+  configureObjectStorageS3BucketCors,
+  createObjectStorageS3Client,
+  createObjectStorageS3ObjectDownloadUrl,
+  createObjectStorageS3ObjectUploadUrl,
+  deleteObjectStorageS3Object,
+  listObjectStorageS3Objects,
+  normalizeObjectStorageObjectKey,
+  normalizeObjectStoragePresignedUrlExpiresInSeconds,
+} from "./s3";
 import { buildObjectStorageConnectionSnippets } from "./snippets";
 import type {
   CreateAccessKeyInput,
   CreateAccessKeyResult,
   CreateBucketInput,
+  CreateBucketObjectDownloadUrlInput,
+  CreateBucketObjectDownloadUrlResult,
+  CreateBucketObjectUploadUrlInput,
+  CreateBucketObjectUploadUrlResult,
   CreateObjectStorageInput,
+  DeleteBucketObjectInput,
   ListBucketObjectsInput,
   ObjectStorageBucketObjectList,
   ObjectStorageDeployment,
@@ -56,6 +77,24 @@ import type {
 type ObjectStorageBucketWithGarageId = Selectable<ObjectStorageBuckets> & {
   garageBucketId: string;
 };
+
+type BucketClientEndpoint = "local" | "public";
+
+interface BucketClientContext {
+  objectStorage: Selectable<ObjectStorages>;
+  bucket: ObjectStorageBucketWithGarageId;
+  client: ReturnType<typeof createObjectStorageS3Client>;
+}
+
+interface BucketClientInput {
+  objectStorageId: string;
+  bucketId: string;
+  endpoint: BucketClientEndpoint;
+  permissions: CreateAccessKeyInput["permissions"];
+  sessionName: string;
+  keyExpiration?: Date;
+  cleanupOnSuccess?: boolean;
+}
 
 async function getObjectStorageRow(
   objectStorageId: string,
@@ -92,6 +131,109 @@ async function getObjectStorageBucketWithGarageId(input: {
   }
 
   return { ...bucket, garageBucketId: bucket.garageBucketId };
+}
+
+function assertObjectKey(key: string): string {
+  const normalizedKey = normalizeObjectStorageObjectKey(key);
+
+  if (normalizedKey.length === 0) {
+    throw objectStorageValidation("Object key is required");
+  }
+
+  return normalizedKey;
+}
+
+function getPresignedUrlExpiration(expiresInSeconds: number): Date {
+  return new Date(Date.now() + expiresInSeconds * 1000);
+}
+
+async function resolveBucketClientEndpoint(input: {
+  endpoint: BucketClientEndpoint;
+  objectStorage: Selectable<ObjectStorages>;
+  hostPort: number;
+}): Promise<string | null> {
+  if (input.endpoint === "local") {
+    return getRuntimeLocalS3Endpoint(input.hostPort);
+  }
+
+  return resolveObjectStoragePublicEndpoint({
+    runtimeServiceId: input.objectStorage.runtimeServiceId,
+    externalEndpoint: input.objectStorage.externalEndpoint,
+    serverIp: await getObjectStorageServerIp(),
+    hostPort: input.hostPort,
+  });
+}
+
+async function withObjectStorageBucketClient<T>(
+  input: BucketClientInput,
+  action: (context: BucketClientContext) => Promise<T>,
+): Promise<T> {
+  const objectStorage = await getObjectStorageRow(input.objectStorageId);
+  const bucket = await getObjectStorageBucketWithGarageId(input);
+  const runtime = await getRunningObjectStorageRuntime(objectStorage);
+  const browserSession = await createObjectBrowserSession({
+    containerId: runtime.containerId,
+    bucketName: bucket.name,
+    garageBucketId: bucket.garageBucketId,
+    permissions: input.permissions,
+    namePrefix: input.sessionName,
+    keyExpiration: input.keyExpiration,
+  });
+  let succeeded = false;
+
+  try {
+    const endpoint = await resolveBucketClientEndpoint({
+      endpoint: input.endpoint,
+      objectStorage,
+      hostPort: runtime.hostPort,
+    });
+
+    if (!endpoint) {
+      throw objectStorageNotReady("Object storage endpoint is not ready");
+    }
+
+    const result = await action({
+      objectStorage,
+      bucket,
+      client: createObjectStorageS3Client({
+        endpoint,
+        region: getObjectStorageSigningRegion(objectStorage.region),
+        credentials: browserSession.credentials,
+      }),
+    });
+    succeeded = true;
+    return result;
+  } catch (error) {
+    if (error instanceof ObjectStorageError) {
+      throw error;
+    }
+    throw objectStorageValidation(getErrorMessage(error));
+  } finally {
+    if (!succeeded || input.cleanupOnSuccess !== false) {
+      await browserSession.cleanup();
+    }
+  }
+}
+
+async function configureObjectStorageBucketCors(input: {
+  objectStorageId: string;
+  bucketId: string;
+}): Promise<void> {
+  await withObjectStorageBucketClient(
+    {
+      objectStorageId: input.objectStorageId,
+      bucketId: input.bucketId,
+      endpoint: "local",
+      permissions: "full",
+      sessionName: "cors",
+    },
+    function configureCors({ bucket, client }) {
+      return configureObjectStorageS3BucketCors({
+        client,
+        bucket: bucket.name,
+      });
+    },
+  );
 }
 
 function getAccessKeyPrefix(accessKeyId: string): string {
@@ -240,19 +382,23 @@ export async function createObjectStorage(
       await waitForObjectStorageDeploymentContainer(deploymentId);
 
     await waitForGarageReady(containerId);
-    const bucketName = normalizeBucketName(input.bucketName ?? slug);
+    const bucketName = normalizeBucketName(
+      input.bucketName ?? DEFAULT_OBJECT_STORAGE_BUCKET_NAME,
+    );
     const bucketInfo = await createGarageBucket(containerId, bucketName);
+    const bucketId = newObjectStorageBucketId();
 
     await db
       .insertInto("objectStorageBuckets")
       .values({
-        id: newObjectStorageBucketId(),
+        id: bucketId,
         objectStorageId,
         garageBucketId: bucketInfo.id,
         name: bucketName,
         createdAt: Date.now(),
       })
       .execute();
+    await configureObjectStorageBucketCors({ objectStorageId, bucketId });
 
     return getObjectStorageDetails(objectStorageId);
   } catch (error) {
@@ -294,6 +440,18 @@ export async function createObjectStorageBucket(
       createdAt: Date.now(),
     })
     .execute();
+  try {
+    await configureObjectStorageBucketCors({
+      objectStorageId: input.objectStorageId,
+      bucketId: id,
+    });
+  } catch (error) {
+    await db.deleteFrom("objectStorageBuckets").where("id", "=", id).execute();
+    await deleteGarageBucket(containerId, bucketInfo.id).catch(
+      function ignoreBucketCleanupError() {},
+    );
+    throw error;
+  }
 
   const bucket = await db
     .selectFrom("objectStorageBuckets")
@@ -406,34 +564,111 @@ export async function createObjectStorageAccessKey(
 export async function listObjectStorageBucketObjects(
   input: ListBucketObjectsInput,
 ): Promise<ObjectStorageBucketObjectList> {
-  const objectStorage = await getObjectStorageRow(input.objectStorageId);
-  const bucket = await getObjectStorageBucketWithGarageId(input);
-  const runtime = await getRunningObjectStorageRuntime(objectStorage);
-  const browserSession = await createObjectBrowserReadSession({
-    containerId: runtime.containerId,
-    bucketName: bucket.name,
-    garageBucketId: bucket.garageBucketId,
-  });
+  return withObjectStorageBucketClient(
+    {
+      objectStorageId: input.objectStorageId,
+      bucketId: input.bucketId,
+      endpoint: "local",
+      permissions: "read-only",
+      sessionName: "list",
+    },
+    function listObjects({ bucket, client }) {
+      return listObjectStorageS3Objects({
+        client,
+        bucket: bucket.name,
+        bucketId: bucket.id,
+        prefix: input.prefix ?? "",
+        cursor: input.cursor,
+      });
+    },
+  );
+}
 
-  try {
-    const client = createObjectStorageS3Client({
-      endpoint: getRuntimeLocalS3Endpoint(runtime.hostPort),
-      region: getObjectStorageSigningRegion(objectStorage.region),
-      credentials: browserSession.credentials,
-    });
+export async function createObjectStorageBucketObjectUploadUrl(
+  input: CreateBucketObjectUploadUrlInput,
+): Promise<CreateBucketObjectUploadUrlResult> {
+  const key = assertObjectKey(input.key);
+  const expiresInSeconds = normalizeObjectStoragePresignedUrlExpiresInSeconds(
+    input.expiresInSeconds,
+  );
 
-    return await listObjectStorageS3Objects({
-      client,
-      bucket: bucket.name,
-      bucketId: bucket.id,
-      prefix: input.prefix ?? "",
-      cursor: input.cursor,
-    });
-  } catch (error) {
-    throw objectStorageValidation(getErrorMessage(error));
-  } finally {
-    await browserSession.cleanup();
-  }
+  return withObjectStorageBucketClient(
+    {
+      objectStorageId: input.objectStorageId,
+      bucketId: input.bucketId,
+      endpoint: "public",
+      permissions: "full",
+      sessionName: "upload-url",
+      keyExpiration: getPresignedUrlExpiration(expiresInSeconds),
+      cleanupOnSuccess: false,
+    },
+    async function createUploadUrl({ bucket, client }) {
+      await configureObjectStorageS3BucketCors({
+        client,
+        bucket: bucket.name,
+      });
+      return createObjectStorageS3ObjectUploadUrl({
+        client,
+        bucket: bucket.name,
+        key,
+        expiresInSeconds,
+        contentType: input.contentType,
+      });
+    },
+  );
+}
+
+export async function createObjectStorageBucketObjectDownloadUrl(
+  input: CreateBucketObjectDownloadUrlInput,
+): Promise<CreateBucketObjectDownloadUrlResult> {
+  const key = assertObjectKey(input.key);
+  const expiresInSeconds = normalizeObjectStoragePresignedUrlExpiresInSeconds(
+    input.expiresInSeconds,
+  );
+
+  return withObjectStorageBucketClient(
+    {
+      objectStorageId: input.objectStorageId,
+      bucketId: input.bucketId,
+      endpoint: "public",
+      permissions: "read-only",
+      sessionName: "download-url",
+      keyExpiration: getPresignedUrlExpiration(expiresInSeconds),
+      cleanupOnSuccess: false,
+    },
+    function createDownloadUrl({ bucket, client }) {
+      return createObjectStorageS3ObjectDownloadUrl({
+        client,
+        bucket: bucket.name,
+        key,
+        expiresInSeconds,
+        disposition: input.disposition,
+      });
+    },
+  );
+}
+
+export async function deleteObjectStorageBucketObject(
+  input: DeleteBucketObjectInput,
+): Promise<void> {
+  const key = assertObjectKey(input.key);
+
+  await withObjectStorageBucketClient(
+    {
+      objectStorageId: input.objectStorageId,
+      bucketId: input.bucketId,
+      endpoint: "local",
+      permissions: "read-write",
+      sessionName: "delete",
+    },
+    function deleteObject({ bucket, client }) {
+      return deleteObjectStorageS3Object({
+        client,
+        bucket: bucket.name,
+        key,
+      });
+    },
+  );
 }
 
 export async function revokeObjectStorageAccessKey(input: {

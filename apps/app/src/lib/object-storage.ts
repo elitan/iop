@@ -30,8 +30,11 @@ export {
   createObjectStorage,
   createObjectStorageAccessKey,
   createObjectStorageBucket,
+  createObjectStorageBucketObjectDownloadUrl,
+  createObjectStorageBucketObjectUploadUrl,
   deleteObjectStorage,
   deleteObjectStorageBucket,
+  deleteObjectStorageBucketObject,
   getObjectStorageDetails,
   getObjectStorageLatestDeployment,
   listObjectStorageBucketObjects,
@@ -40,15 +43,26 @@ export {
 } from "./object-storage/repository";
 export { waitForObjectStorageDeploymentContainer } from "./object-storage/runtime";
 export {
+  configureObjectStorageS3BucketCors,
+  createObjectStorageS3ObjectDownloadUrl,
+  createObjectStorageS3ObjectUploadUrl,
+  deleteObjectStorageS3Object,
   listObjectStorageS3Objects,
+  normalizeObjectStorageObjectKey,
   normalizeObjectStorageObjectPrefix,
+  normalizeObjectStoragePresignedUrlExpiresInSeconds,
 } from "./object-storage/s3";
 export { buildObjectStorageConnectionSnippets } from "./object-storage/snippets";
 export type {
   CreateAccessKeyInput,
   CreateAccessKeyResult,
   CreateBucketInput,
+  CreateBucketObjectDownloadUrlInput,
+  CreateBucketObjectDownloadUrlResult,
+  CreateBucketObjectUploadUrlInput,
+  CreateBucketObjectUploadUrlResult,
   CreateObjectStorageInput,
+  DeleteBucketObjectInput,
   ListBucketObjectsInput,
   ObjectStorageAccessKeyPermission,
   ObjectStorageBucketObject,
@@ -57,6 +71,7 @@ export type {
   ObjectStorageConnectionSnippets,
   ObjectStorageDeployment,
   ObjectStorageDetails,
+  ObjectStorageObjectDownloadDisposition,
   ObjectStorageWithRuntime,
 } from "./object-storage/types";
 

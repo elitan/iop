@@ -57,6 +57,18 @@ const objectStorageBucketObjectSchema = z.object({
   etag: z.string().nullable(),
 });
 
+const objectStorageBucketObjectUploadUrlSchema = z.object({
+  url: z.string(),
+  key: z.string(),
+  headers: z.record(z.string(), z.string()),
+  expiresAt: z.number(),
+});
+
+const objectStorageBucketObjectDownloadUrlSchema = z.object({
+  url: z.string(),
+  expiresAt: z.number(),
+});
+
 const objectStorageBucketObjectListSchema = z.object({
   bucketId: z.string(),
   prefix: z.string(),
@@ -132,6 +144,52 @@ export const objectStoragesContract = {
       }),
     )
     .output(objectStorageBucketObjectListSchema),
+
+  createBucketObjectUploadUrl: oc
+    .route({
+      method: "POST",
+      path: "/object-storages/{objectStorageId}/buckets/{bucketId}/objects/upload-url",
+    })
+    .input(
+      z.object({
+        objectStorageId: z.string(),
+        bucketId: z.string(),
+        key: z.string().min(1),
+        contentType: z.string().optional(),
+        expiresInSeconds: z.number().int().min(60).max(604800).optional(),
+      }),
+    )
+    .output(objectStorageBucketObjectUploadUrlSchema),
+
+  createBucketObjectDownloadUrl: oc
+    .route({
+      method: "POST",
+      path: "/object-storages/{objectStorageId}/buckets/{bucketId}/objects/download-url",
+    })
+    .input(
+      z.object({
+        objectStorageId: z.string(),
+        bucketId: z.string(),
+        key: z.string().min(1),
+        expiresInSeconds: z.number().int().min(60).max(604800).optional(),
+        disposition: z.enum(["attachment", "inline"]).optional(),
+      }),
+    )
+    .output(objectStorageBucketObjectDownloadUrlSchema),
+
+  deleteBucketObject: oc
+    .route({
+      method: "DELETE",
+      path: "/object-storages/{objectStorageId}/buckets/{bucketId}/objects",
+    })
+    .input(
+      z.object({
+        objectStorageId: z.string(),
+        bucketId: z.string(),
+        key: z.string().min(1),
+      }),
+    )
+    .output(z.object({ success: z.boolean() })),
 
   createAccessKey: oc
     .route({

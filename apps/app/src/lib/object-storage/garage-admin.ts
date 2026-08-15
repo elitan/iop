@@ -18,6 +18,10 @@ interface GarageBucketPermission {
   owner?: boolean;
 }
 
+interface CreateGarageKeyOptions {
+  expiration?: Date;
+}
+
 export type GarageJsonApiRunner = (
   containerId: string,
   operation: string,
@@ -161,11 +165,18 @@ export async function deleteGarageBucket(
 export async function createGarageKey(
   containerId: string,
   name: string,
+  options?: CreateGarageKeyOptions,
 ): Promise<GarageKeyInfo> {
-  const response = await garageJsonApiRunner(containerId, "CreateKey", {
+  const payload: Record<string, unknown> = {
     name,
-    neverExpires: true,
-  });
+    neverExpires: !options?.expiration,
+  };
+
+  if (options?.expiration) {
+    payload.expiration = options.expiration.toISOString();
+  }
+
+  const response = await garageJsonApiRunner(containerId, "CreateKey", payload);
   return parseGarageKeyInfo(response);
 }
 

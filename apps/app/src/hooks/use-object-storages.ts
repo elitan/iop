@@ -89,6 +89,64 @@ export function useCreateObjectStorageBucket(objectStorageId: string) {
   });
 }
 
+export function useCreateObjectStorageBucketObjectUploadUrl(
+  objectStorageId: string,
+) {
+  return useMutation({
+    mutationFn: function mutationFn(
+      data: Omit<
+        ContractInputs["objectStorages"]["createBucketObjectUploadUrl"],
+        "objectStorageId"
+      >,
+    ) {
+      return orpc.objectStorages.createBucketObjectUploadUrl.call({
+        objectStorageId,
+        ...data,
+      });
+    },
+  });
+}
+
+export function useCreateObjectStorageBucketObjectDownloadUrl(
+  objectStorageId: string,
+) {
+  return useMutation({
+    mutationFn: function mutationFn(
+      data: Omit<
+        ContractInputs["objectStorages"]["createBucketObjectDownloadUrl"],
+        "objectStorageId"
+      >,
+    ) {
+      return orpc.objectStorages.createBucketObjectDownloadUrl.call({
+        objectStorageId,
+        ...data,
+      });
+    },
+  });
+}
+
+export function useDeleteObjectStorageBucketObject(objectStorageId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: function mutationFn(
+      data: Omit<
+        ContractInputs["objectStorages"]["deleteBucketObject"],
+        "objectStorageId"
+      >,
+    ) {
+      return orpc.objectStorages.deleteBucketObject.call({
+        objectStorageId,
+        ...data,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["object-storage-bucket-objects", objectStorageId],
+      });
+    },
+  });
+}
+
 export function useDeleteObjectStorageBucket(objectStorageId: string) {
   const queryClient = useQueryClient();
   return useMutation({

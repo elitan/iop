@@ -4,14 +4,18 @@ import {
   deleteGarageKey,
 } from "./garage-admin";
 import type { ObjectStorageS3Credentials } from "./s3";
+import type { ObjectStorageAccessKeyPermission } from "./types";
 
-interface ObjectBrowserReadSessionInput {
+export interface ObjectBrowserSessionInput {
   containerId: string;
   bucketName: string;
   garageBucketId: string;
+  permissions: ObjectStorageAccessKeyPermission;
+  namePrefix: string;
+  keyExpiration?: Date;
 }
 
-export interface ObjectBrowserReadSession {
+export interface ObjectBrowserSession {
   credentials: ObjectStorageS3Credentials;
   cleanup(): Promise<void>;
 }
@@ -25,12 +29,13 @@ async function cleanupGarageKey(
   );
 }
 
-export async function createObjectBrowserReadSession(
-  input: ObjectBrowserReadSessionInput,
-): Promise<ObjectBrowserReadSession> {
+export async function createObjectBrowserSession(
+  input: ObjectBrowserSessionInput,
+): Promise<ObjectBrowserSession> {
   const garageKey = await createGarageKey(
     input.containerId,
-    `frost-list-${input.bucketName}`,
+    `frost-${input.namePrefix}-${input.bucketName}`,
+    { expiration: input.keyExpiration },
   );
 
   if (!garageKey.secretAccessKey) {
@@ -43,7 +48,7 @@ export async function createObjectBrowserReadSession(
       containerId: input.containerId,
       bucketId: input.garageBucketId,
       accessKeyId: garageKey.accessKeyId,
-      permissions: "read-only",
+      permissions: input.permissions,
     });
   } catch (error) {
     await cleanupGarageKey(input.containerId, garageKey.accessKeyId);

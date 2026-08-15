@@ -86,4 +86,40 @@ export interface ListBucketObjectsInput {
   cursor?: string | null;
 }
 
+export interface CreateBucketObjectUploadUrlInput {
+  objectStorageId: string;
+  bucketId: string;
+  key: string;
+  contentType?: string | null;
+  expiresInSeconds?: number | null;
+}
+
+export interface CreateBucketObjectUploadUrlResult {
+  url: string;
+  key: string;
+  headers: Record<string, string>;
+  expiresAt: number;
+}
+
+export type ObjectStorageObjectDownloadDisposition = "attachment" | "inline";
+
+export interface CreateBucketObjectDownloadUrlInput {
+  objectStorageId: string;
+  bucketId: string;
+  key: string;
+  expiresInSeconds?: number | null;
+  disposition?: ObjectStorageObjectDownloadDisposition;
+}
+
+export interface CreateBucketObjectDownloadUrlResult {
+  url: string;
+  expiresAt: number;
+}
+
+export interface DeleteBucketObjectInput {
+  objectStorageId: string;
+  bucketId: string;
+  key: string;
+}
+
 export type ObjectStorageDeployment = Selectable<Deployments>;
